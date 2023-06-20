@@ -1,0 +1,100 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Code.TestUI" locale="">
+  <web>AI.Code</web>
+  <name>TestUI</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title>Prototype - GPT AI test</title>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content>{{include reference="AI.Code.ChatUIMacros"/}}
+{{velocity}}#set ($ok=$xwiki.ssx.use("AI.Code.StyleSheet"))
+#set ($ok=$xwiki.jsx.use("AI.Code.Javascript"))
+{{html clean="false"}}
+&lt;div id="chatUI"&gt;
+    &lt;select id="model-menu"&gt;
+        &lt;option value="openai/gpt-4" selected&gt;GPT-4 (OpenAI)&lt;/option&gt;
+        &lt;option value="openai/gpt-3.5-turbo"&gt;GPT-3.5 (OpenAI)&lt;/option&gt;
+        &lt;option value="fastchat/fastchat-t5-3b"&gt;fastchat-t5-3b (GPU AI Server)&lt;/option&gt;
+        &lt;option value="fastchat/mpt-7b-chat"&gt;mpt-7b-chat (GPU AI Server)&lt;/option&gt;
+        &lt;option value="fastchat/vicuna-7b"&gt;vicuna-7b (GPU AI Server)&lt;/option&gt;
+        &lt;option value="localai/ggml-gpt4all-j"&gt;gpt4all-j (CPU AI Server)&lt;/option&gt;
+        &lt;option value="localai/ggml-alpaca-7b-q4.bin"&gt;alpaca (CPU AI Server)&lt;/option&gt;
+        &lt;option value="localai/mpt-7b-chat"&gt;mpt-7b-chat (CPU AI Server)&lt;/option&gt;
+    &lt;/select&gt;
+    &lt;div id="chatContent"&gt;&lt;/div&gt;
+    &lt;div id="formContainer"&gt;
+        &lt;form id="userChat" method="POST"&gt;
+            &lt;textarea name="input" id="txt-input" cols="60" rows="10"&gt;&lt;/textarea&gt;
+            &lt;div class="stacked-items"&gt;
+                &lt;nav class="stacked-items"&gt;
+                    &lt;select id="features-menu"&gt;
+                        &lt;option value="summarize"&gt;Summarize&lt;/option&gt;
+                        &lt;option value="completion"&gt;Completion&lt;/option&gt;
+                        &lt;option value="auto-tagging"&gt;auto-tagging&lt;/option&gt;
+                        &lt;option value="translation"&gt;translate&lt;/option&gt;
+                        &lt;option value="free-prompt" selected&gt;Free prompt&lt;/option&gt;
+                    &lt;/select&gt;
+                    &lt;select id="language-menu" style="display: none;"&gt;
+                        &lt;option value="english" selected&gt;English&lt;/option&gt;
+                        &lt;option value="french"&gt;French&lt;/option&gt;
+                        &lt;option value="romanian"&gt;Romanian&lt;/option&gt;
+                        &lt;option value="spanish"&gt;Spanish&lt;/option&gt;
+                    &lt;/select&gt;
+                &lt;/nav&gt;
+                &lt;div class="radio-btn-container"&gt;
+                  &lt;div class="radio-btn"&gt;
+                    &lt;input type="radio" id="requestMode" name="options" value="requestMode" checked&gt;
+                    &lt;label for="requestMode"&gt;Default Response Mode&lt;/label&gt;&lt;br&gt;
+                  &lt;/div&gt;
+                  &lt;div class="radio-btn"&gt;
+                    &lt;input type="radio" id="streamMode" name="options" value="streamMode"&gt;
+                    &lt;label for="requestMode"&gt;Stream Response Mode&lt;/label&gt;&lt;br&gt;
+                  &lt;/div&gt;
+                &lt;/div&gt;
+                &lt;div class="form-button-container"&gt;
+                  &lt;div class="stacked-items"&gt;
+                      &lt;input class="button" title="Clear the messages, but do not reset context." id="clearWin" type="button" value="Clear Window" /&gt;
+                    &lt;div class="form-button"&gt;
+                        &lt;input class="button" title="Submit your message to the selected model." id="subButton" type="submit" value="Submit Chat" /&gt;
+                        &lt;input class="button" title="Clear the conversation context (mean every message you sent until now will not be considered anymore)." id="clearCtxt" type="button" value="Clear Context" /&gt;
+                    &lt;/div&gt;
+                  &lt;/div&gt;
+               &lt;/div&gt;
+            &lt;/div&gt;
+            &lt;input type="hidden" name="form_token" value="${services.csrf.token}" /&gt;
+        &lt;/form&gt;
+    &lt;/div&gt;
+&lt;/div&gt;
+{{/html}}{{/velocity}}</content>
+</xwikidoc>

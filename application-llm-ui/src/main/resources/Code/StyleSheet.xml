@@ -1,0 +1,350 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Code.StyleSheet" locale="">
+  <web>AI.Code</web>
+  <name>StyleSheet</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>AI.Code.WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title>StyleSheet</title>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content/>
+  <object>
+    <name>AI.Code.StyleSheet</name>
+    <number>0</number>
+    <className>XWiki.StyleSheetExtension</className>
+    <guid>3f235390-2acd-4e49-920c-1ea286fb7ef7</guid>
+    <class>
+      <name>XWiki.StyleSheetExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <contentType>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>contentType</name>
+        <number>6</number>
+        <prettyName>Content Type</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>CSS|LESS</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </contentType>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>  .user-message {
+    position: relative;
+    float: right;
+    clear: both;
+    background-color: lightblue;
+    padding: 5px;
+    margin-bottom: 10px;
+    max-width: 70%;
+    width: fit-content;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    word-wrap: break-word;
+    white-space: pre-line;
+    word-break: break-word;
+    font-family: system-ui;
+  }
+
+  .assistant-message {
+    position: relative;
+    float: bottom;
+    clear: both;
+    background-color: lightgreen;
+    padding: 5px;
+    margin-bottom: 10px;
+    width: fit-content;
+    max-width: 70%;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    word-wrap: break-word;
+  }
+
+  .system-message {
+    position: relative;
+    float: bottom;
+    clear: both;
+    background-color: lightyellow;
+    padding: 5px;
+    margin-bottom: 10px;
+    width: 100%;
+    border-radius: 3px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    word-wrap: break-word;
+  }
+
+   .system-info {
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+
+  .model-info {
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+
+  .message-content {
+    margin-top: 5px;
+    font-family: system-ui;
+    white-space: pre-line;
+    word-break: break-word;
+  }
+
+  #chatContent {
+    position: relative;
+    height: 400px;
+    max-width: 70%;
+    margin: 10px auto;
+    /* Center the chat container horizontally */
+    padding: 10px;
+    border: 1px solid lightgray;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow-y: auto;
+    /* Enable vertical scroll when content exceeds container height */
+  }
+
+  .errorHandler {
+    position: relative;
+    float: bottom;
+    clear: both;
+    background-color: rgb(253, 97, 97);
+    padding: 5px;
+    margin-bottom: 10px;
+    width: fit-content;
+    max-width: 70%;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    word-wrap: break-word;
+  }
+
+  .copy-button {
+    position: relative;
+    left: 45%;
+    border-radius: 5px;
+    background-color: rgb(91, 155, 91);
+  }
+
+  .stacked-items {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+  }
+
+  nav{
+    position: relative;
+  }
+
+  #userChat {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  textarea, #subButton, #clearCtxt {
+    margin-right: 10px;
+  }
+
+  form{
+    align-items: center;
+  }
+
+  select{
+    align-self: flex-start;
+  }
+
+  nav{
+    align-self: flex-start;
+  }
+
+  .button{
+    max-width: 50%;
+    min-width: 50%;
+    margin-right: 20px;
+  }
+
+  .form-button-container{
+    display: flex;
+    flex-direction: row;
+    /*align-items: flex-end;*/
+    justify-content: flex-end;
+    margin-top: 40%;
+  }
+
+  .form-button{
+    display: flex;
+    flex-direction: row;
+  }
+
+  #formContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #model-menu {
+    width: 20%;
+    position: absolute;
+    top: 0;
+    right: 16%;
+  }
+
+  #language-menu {
+    width: 100%;
+    position: absolute;
+    top: 100%;
+    right: 0;
+  }
+
+  #features-menu{
+     width: 100%;
+  }
+
+  textarea[name="text"] {
+    width: 80%;
+  }
+
+  .radio-btn{
+    display: flex;
+    flex-direction: row;
+  }
+
+  .radio-btn-container{
+    position: absolute;
+    top: 78%;
+  }
+</code>
+    </property>
+    <property>
+      <contentType>CSS</contentType>
+    </property>
+    <property>
+      <name>chatUIStyleSheet</name>
+    </property>
+    <property>
+      <parse/>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
+</xwikidoc>

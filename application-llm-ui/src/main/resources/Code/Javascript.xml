@@ -1,0 +1,597 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Code.Javascript" locale="">
+  <web>AI.Code</web>
+  <name>Javascript</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>AI.Code.WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title/>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content/>
+  <object>
+    <name>AI.Code.Javascript</name>
+    <number>0</number>
+    <className>XWiki.JavaScriptExtension</className>
+    <guid>62bb6859-7384-4746-a4b3-7c2cb018653e</guid>
+    <class>
+      <name>XWiki.JavaScriptExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>require(['jquery', 'xwiki-events-bridge'], function ($) {
+    var nbAssistMsg = 0;
+    var context = new Array();
+    let contextSize = 0;
+    let nbToken = 0;
+    let btnEnabled = true;
+    let maxToken = 2000;
+
+    // Scroll to the bottom of the chat content
+    function scrollToBottom() {
+        const chatContent = document.querySelector('#chatContent');
+        chatContent.scrollTop = chatContent.scrollHeight;
+    }
+
+    function blockStreamMode(){
+      const model = document.querySelector('#model-menu').value;
+      const streamMode = document.querySelector('#streamMode');
+      const requestMode = document.querySelector('#requestMode');
+      const cannotStream = (model.indexOf('openai') === -1) &amp;&amp; (model.indexOf('localai') === -1);
+      if(cannotStream){
+        streamMode.disabled = true;
+        streamMode.checked = false;
+        requestMode.checked = true;
+      }
+      else{
+        streamMode.disabled = false;
+      }
+    }
+
+    function addUserChat(userChat) {
+        return `&lt;pre class="user-message"&gt;${userChat}&lt;/pre&gt;`;
+    }
+
+    function addAssistantChat(assistantChat, model, elapsedTime) {
+        nbAssistMsg++;
+        const html = `&lt;div id="assist-msg-` + `${nbAssistMsg}" class="assistant-message"&gt;
+  &lt;div class="model-info" id="mod-inf-`+ `${nbAssistMsg}"&gt;Assistant (${model}) - ${elapsedTime} sec&lt;/div&gt;
+  &lt;pre class="message-content" id="msg-content-`+ `${nbAssistMsg}"&gt;${assistantChat}&lt;/pre&gt;
+  &lt;button type="button" class="copy-button" id="copy-button-`+ `${nbAssistMsg}"&gt;Copy&lt;/button&gt;
+  &lt;/div&gt;`;
+        return html;
+    }
+
+    function addSystemChat(prompt){
+      const html = `&lt;div id="system-msg" class="system-message"&gt;
+                      &lt;div class="system-info"&gt;System&lt;/div&gt;
+                      &lt;pre class="message-content"&gt;The prompt used is : ${prompt}&lt;/pre&gt;
+                    &lt;/div&gt;`;
+      return html;
+    }
+
+    function updateAssistantChat(msgIdNum, updatedTime, chunkReply, model) {
+        document.querySelector('#mod-inf-' + msgIdNum).textContent = `Assistant (${model}) - ${updatedTime} sec`;
+        document.querySelector('#msg-content-' + msgIdNum).textContent += chunkReply;
+    }
+
+    function errorMessagePrint(errorMessage) {
+        return `&lt;div class="errorHandler"&gt;${errorMessage}&lt;/div&gt;`;
+    }
+
+    function copyTextToClipboard(numMsgToCopy) {
+        const numericID = numMsgToCopy.replace("copy-button-", "");
+        const numMsg = parseInt(numericID);
+        const text = document.querySelector('#msg-content-' + numMsg).textContent;
+
+        let textArea = document.createElement("textarea");
+
+        textArea.style.position = 'fixed';
+        textArea.style.top = 0;
+        textArea.style.left = 0;
+        textArea.style.width = '2em';
+        textArea.style.height = '2em';
+        textArea.style.padding = 0;
+        textArea.style.border = 'none';
+        textArea.style.outline = 'none';
+        textArea.style.boxShadow = 'none';
+        textArea.style.background = 'transparent';
+        textArea.value = text;
+
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            let successful = document.execCommand('copy');
+            let msg = successful ? 'successful' : 'unsuccessful';
+            console.log('Copying text command was ' + msg);
+        } catch (err) {
+            console.log('Unable to copy');
+        }
+
+        document.body.removeChild(textArea);
+    }
+
+    function chooseMaxToken(modelType){
+      if(modelType !== 'openai'){
+        return 2000;
+      }
+      else return 4000;
+    }
+
+    function countTokens(query) {
+        query = query.trim();
+        const words = query.split(' ');
+        const filteredWords = words.filter(word =&gt; word !== '');
+
+        // One token equal to approximatively 1.3 token (based on OpenAI tokenization)
+        const tokenCount = filteredWords.length * 1.3;
+
+        return Math.floor(tokenCount);
+    }
+
+    function getPrompt(selectedFunc) {
+        let prompt = '';
+        switch (selectedFunc) {
+            case 'summarize':
+                prompt = 'you are an assistant, you help to summarize the user given text.';
+                break;
+            case 'completion':
+                prompt = 'you are an assistant, you help to complete the user given text.';
+                break;
+            case 'auto-tagging':
+                prompt = 'As an AI assistant, your primary objective is to generate descriptive tags that accurately represent the content and'
+                    + ' key aspects of the text provided by the user.';
+                break;
+            case 'translation':
+                const language = document.querySelector('#language-menu').value;
+                prompt = 'you are an assistant, you translate the user given text in the language he wants, which is ' + language;
+                break;
+            case 'free-prompt':
+                prompt = '';
+                break;
+            default:
+                prompt = 'you are an assistant, state that an error occurred because of a mistake in the request without considering the user content.';
+                break;
+        }
+        return prompt;
+    }
+
+    function getRequestParams(userText, modelType, model, prompt, context, isStreaming) {
+        const params = {
+            text: userText,
+            modelType: modelType,
+            model: model,
+            prompt: context + prompt,
+            stream: isStreaming,
+        };
+        return params;
+    }
+
+    function getRequestOptions(params, csrf) {
+        const options = {
+            method: 'POST',
+            body: JSON.stringify(params),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrf
+            }
+        };
+        return options;
+    }
+
+     function tokenManager(){
+        nbToken += countTokens(context[contextSize]);
+        contextSize++;
+        console.log("nbtoken : " + nbToken);
+        // Manage the number of token so the request is not too long.
+        let ind = 0;
+        while (nbToken &gt; maxToken) {
+            nbToken -= countTokens(context[ind]);
+            console.log("nbToken : " + nbToken);
+            context.shift();
+            ind++;
+        }
+     }
+
+    // Update the interface and the context with the new infos.
+    function updateChat(chatContent, generatedContent, model, elapsedTime, userText) {
+        chatContent.innerHTML += addAssistantChat(generatedContent, model, elapsedTime);
+        context[contextSize] = 'user: ' + userText + '\n';
+        context[contextSize] += 'assistant: ' + generatedContent + '\n';
+
+        tokenManager();
+
+        // Add an event listener to the parent element for event delegation
+        chatContent.addEventListener('click', function (event) {
+            const target = event.target;
+
+            // Check if the target element has the copy button class
+            if (target.classList.contains('copy-button')) {
+                const msgNum = target.id;
+                copyTextToClipboard(msgNum);
+            }
+        });
+    }
+
+    function initChatOnStream(chatContent, model) {
+        chatContent.innerHTML += addAssistantChat('', model, 0);
+    }
+
+    function updateChatOnStream(chatContent, completedReply) {
+        context[contextSize] += completedReply;
+
+        tokenManager();
+
+        // Add an event listener to the parent element for event delegation
+        chatContent.addEventListener('click', function (event) {
+            const target = event.target;
+
+            // Check if the target element has the copy button class
+            if (target.classList.contains('copy-button')) {
+                const msgNum = target.id;
+                copyTextToClipboard(msgNum);
+            }
+        });
+        scrollToBottom();
+    }
+
+    function errorCatcher(error) {
+        chatContent.innerHTML += errorMessagePrint("An error occured: " + error.message);
+        //TODO : finish error handling for unexpected output + out of token + wrong api key.
+    }
+
+    function changeBtnState() {
+        if (btnEnabled) {
+            document.querySelector('#subButton').disabled = true;
+            document.querySelector('#clearCtxt').disabled = true;
+            document.querySelector('#clearWin').disabled = true;
+            btnEnabled = false;
+        }
+        else {
+            document.querySelector('#subButton').disabled = false;
+            document.querySelector('#clearCtxt').disabled = false;
+            document.querySelector('#clearWin').disabled = false;
+            btnEnabled = true;
+        }
+    }
+
+
+    function streamResponse(chatContent, stream, model, startTime, userText) {
+        const reader = stream.getReader();
+        let accumulatedChunks = '';
+        let completedReply = '';
+        let isErr = false;
+        let beginRep = true;
+        function processStream({ done, value }) {
+            if (done) {
+                console.log('Stream ended');
+                if (!isErr)
+                    updateChatOnStream(chatContent, completedReply);
+                changeBtnState();
+                return;
+            }
+            console.log('value : ' + value);
+            accumulatedChunks += value;
+
+            // Extract complete JSON messages
+            let jsonMessages = accumulatedChunks.split('data: ').filter(Boolean);
+            console.log(jsonMessages);
+            accumulatedChunks = jsonMessages.pop(); // Keep the incomplete message for the next iteration
+            console.log(jsonMessages);
+            // Process complete JSON messages
+            for (const jsonMessage of jsonMessages) {
+                if (jsonMessage.trim() !== '') {
+                    console.log(jsonMessage);
+                    const message = JSON.parse(jsonMessage);
+                    console.log('Received message:', message);
+                    let reply = '';
+                    // Extract the generated reply from the response
+                    if(message.choices[0].finish_reason !== 'stop'){
+                      reply = message.choices[0].delta.content;
+                    }
+                    console.log('Generated reply:', reply);
+
+                    // Handle the generated reply as desired
+                    // ...
+                    if (reply) {
+                        completedReply += reply;
+                        if (completedReply.indexOf("An error occured") !== -1) {
+                            isErr = true;
+                            chatContent.innerHTML += errorMessagePrint(reply);
+                        }
+                        else if (model === 'ggml-gpt4all' &amp;&amp; completedReply.indexOf('ERROR') != -1) {
+                        chatContent.innerHTML += errorMessagePrint("An error occured: " + completedReply);
+                        }
+                        else {
+                            if (beginRep) {
+                                initChatOnStream(chatContent, model);
+                                beginRep = false;
+                            }
+                            const elapsedTime = (Date.now() - startTime) / 1000;
+                            updateAssistantChat(nbAssistMsg, elapsedTime, reply, model);
+                        }
+                    }
+                }
+            }
+            return reader.read().then(processStream);
+        }
+        return reader.read().then(processStream);
+    }
+
+    function streamingRequest(chatContent, URI, options, startTime, model, userText) {
+        fetch(URI, options).then((response) =&gt; {
+            const reader = response.body.getReader();
+            return new ReadableStream({
+                start(controller) {
+                    function push() {
+                        reader.read().then(({ done, value }) =&gt; {
+                            if (done) {
+                                controller.close();
+                                return;
+                            }
+                            const chunk = new TextDecoder().decode(value);
+                            controller.enqueue(chunk);
+                            push();
+                        });
+                    }
+                    push();
+                }
+            });
+        }).then((stream) =&gt; {
+            return streamResponse(chatContent, stream, model, startTime, userText);
+        }).catch((error) =&gt; {
+            console.error('Error:', error);
+        });
+    }
+
+    function requestModeResponse(URI, options, start, model, chatContent, userText) {
+        fetch(URI, options)
+            .then(response =&gt; response.json())
+            .then(data =&gt; {
+                const elapsedTime = (Date.now() - start) / 1000;
+                if (data.code) {
+                    console.error(data.code);
+                    chatContent.innerHTML += errorMessagePrint("An error occured: " + data.code + " " + data.description);
+                } else if (data.error) {
+                    console.error(data.error);
+                    chatContent.innerHTML += errorMessagePrint("An error occured: " + data.error.message);
+                } else {
+                    const content = data.choices[0].message.content;
+                    if (model === 'ggml-gpt4all' &amp;&amp; content.indexOf('ERROR') != -1) {
+                        chatContent.innerHTML += errorMessagePrint("An error occured: " + content);
+                    }
+                    else {
+                        updateChat(chatContent, content, model, elapsedTime, userText);
+                    }
+                }
+                scrollToBottom();
+                changeBtnState();
+            })
+            .catch(error =&gt; {
+                // Handle any errors
+                console.error(error);
+                console.log("error shape : " + error);
+                errorCatcher(error);
+                changeBtnState();
+            });
+    }
+
+    function postRequest(options, chatContent, model, userText, requestMode) {
+        changeBtnState();
+        document.querySelector('#txt-input').value = '';
+        const URI = "/xwiki/rest/gptapi/chat/completion";
+        const start = Date.now();
+        if (requestMode === 'streamMode') {
+            streamingRequest(chatContent, URI, options, start, model, userText);
+        }
+        else requestModeResponse(URI, options, start, model, chatContent, userText);
+
+    }
+
+    function submitChat(event, form) {
+        event.preventDefault(); // Prevent the form from submitting normally
+        // Get the text from the textarea
+        const userText = "" + form.elements.input.value;
+        if(userText === ""){
+          alert("Your request is empty, please write an input.");
+          return false;
+        }
+        console.log("sending...");
+
+        // Which model should we adress and what feature is wanted
+        const selectedMod = document.querySelector('#model-menu').value;
+        const modelType = selectedMod.substring(0, selectedMod.indexOf("/"));
+        const model = selectedMod.substring(selectedMod.indexOf("/") + 1);
+        const selectedPrompt = document.querySelector('#features-menu').value;
+        const prompt = getPrompt(selectedPrompt);
+        const requestMode = document.querySelector('input[name="options"]:checked').value;
+        maxToken = chooseMaxToken(modelType);
+        console.log(maxToken);
+        // Adding the user chat in the page
+        const chatContent = document.querySelector('#chatContent');
+        if(prompt !== ''){
+          chatContent.innerHTML += addSystemChat(prompt);
+        }
+        chatContent.innerHTML += addUserChat(userText);
+        scrollToBottom();
+
+        // Create the string containing csrf token
+        const csrf = '${services.csrf.token}';
+
+        const params = getRequestParams(userText, modelType, model, prompt, context, requestMode);
+        const options = getRequestOptions(params, csrf);
+
+        // Make the POST request with query parameters
+        postRequest(options, chatContent, model, userText, requestMode);
+
+    }
+
+    function init() {
+        // alert("Received dom updated in JS");
+        if (initDone)
+            return;
+        initDone = true;
+        // Here, do something that will be executed at the moment the event is fired.
+        // Select the form element
+        const form = document.querySelector('#userChat');
+        // Add an event listener to the form submit event
+        form.addEventListener('submit', (event) =&gt; { submitChat(event, form) });
+
+        // Add an event listener to the features menu change event
+        const featuresMenu = document.querySelector('#features-menu');
+        featuresMenu.addEventListener('change', (event) =&gt; {
+            const selectedFunc = event.target.value;
+            const languageMenu = document.querySelector('#language-menu');
+            if (selectedFunc === 'translation') {
+                languageMenu.style.display = 'inline';
+            } else {
+                languageMenu.style.display = 'none';
+            }
+        });
+
+        // Add an event listener to the clear context button.
+        const clearCtxtButton = document.querySelector('#clearCtxt');
+        clearCtxtButton.addEventListener('click', (event) =&gt; {
+            context = [];
+            nbToken = 0;
+        });
+
+        const clearWinButton = document.querySelector('#clearWin');
+        clearWinButton.addEventListener('click', (event) =&gt; {
+            document.querySelector('#chatContent').innerHTML = '';
+            nbAssistMsg = 0;
+        });
+
+        const modelMenu = document.querySelector('#model-menu');
+        modelMenu.addEventListener('change',(event)=&gt;{
+          blockStreamMode();
+        });
+    }
+
+    var initDone = false;
+    $(document).on('xwiki:dom:updated', function (event, data) {
+        init();
+    });
+    $(document).trigger('xwiki:llm:started', { 'elements': $('document').toArray() });
+});</code>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse/>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
+</xwikidoc>
