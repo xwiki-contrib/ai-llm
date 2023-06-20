@@ -1,0 +1,3 @@
+org.xwiki.contrib.llm.internal.DefaultGPTAPI
+org.xwiki.contrib.llm.GPTRestAPI
+
