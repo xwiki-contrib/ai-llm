@@ -1,0 +1,426 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Code.CKEditorPlugin" locale="">
+  <web>AI.Code</web>
+  <name>CKEditorPlugin</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title/>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content/>
+  <object>
+    <name>AI.Code.CKEditorPlugin</name>
+    <number>0</number>
+    <className>XWiki.JavaScriptExtension</className>
+    <guid>bcd764d7-ed14-41ed-8944-ad6cb8254ba4</guid>
+    <class>
+      <name>XWiki.JavaScriptExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>forbid</cache>
+    </property>
+    <property>
+      <code>#set($jsxUrl = $xwiki.getURL("AI.Code.Javascript", "jsx", "language=$xcontext.language"))
+require.config({
+    paths: {
+    'llm': '$jsxUrl'
+    }
+});
+#[[
+define('llmActionModal', ['jquery', 'modal'], function($, $modal) {
+  'use strict';
+  return $modal.createModalStep({
+    'class': 'llm-action-modal',
+    onLoad: function() {
+      var modal = this;
+      var modalBody = modal.find('.modal-body');
+      var submitButton = modal.find('.modal-footer .btn-primary');
+      modal.on('show.bs.modal', function(event) {
+        if (modalBody.is(':empty') &amp;&amp; !modalBody.hasClass('loading')) {
+          modalBody.addClass('loading');
+          var l10n = modal.data('input').localization;
+          submitButton.text(l10n.get('llm.editor.modal.button'));
+          modal.find('.modal-title').text(l10n.get('llm.editor.modal.title'));
+          var formURL = modal.data('input').formURL;
+          $.get(formURL).done(function(html) {
+            modalBody.html(html).promise().done(function(){
+              var form = document.querySelector('#userChat');
+              require(['llm'], function(llm) {
+                $(document).on('xwiki:llm:started', function (event, data) {
+                  // alert("in js llm:started")
+                  $(document).trigger('xwiki:dom:updated', {'elements': $('document').toArray()});
+                });
+            });
+          });
+
+          }).fail(function() {
+            var errorMessage = $('&lt;div class="box errormessage"&gt;&lt;/div&gt;')
+              .text(l10n.get('llm.editor.modal.failedToLoadForm'));
+            modalBody.empty().append(errorMessage);
+          }).always(function() {
+            modalBody.removeClass('loading');
+          });
+        }
+      });
+      /*
+      // not needed
+      modal.on('change', 'input[name="filePath"]', function(event) {
+        submitButton.prop('disabled', !$(event.target).val());
+      });
+      */
+      submitButton.on('click', function(event) {
+        // do something
+      });
+    }
+  });
+});
+
+
+(function() {
+  'use strict';
+  var $ = jQuery;
+
+  // Declare the configuration namespace.
+  CKEDITOR.config['llm-action'] = CKEDITOR.config['llm-action'] || {
+    __namespace: true
+  };
+
+  CKEDITOR.plugins.add('llm-action', {
+    // no sure we need all this..
+    requires: 'uploadwidget,notification,xwiki-localization,xwiki-macro,xwiki-dialog',
+
+    init : function(editor) {
+      // Fill missing configuration with default values.
+      editor.config['llm-action'] = $.extend({
+        enabled: false,
+        llmchat: editor.config.sourceDocument.getURL('get', $.param({
+          sheet: 'AI.Code.TestUI',
+          language: $('html').attr('lang') || ''
+        }))
+      }, editor.config['llm-action']);
+
+      this.initLLMButton(editor);
+    },
+
+
+    initLLMButton: function(editor) {
+      var thisPlugin = this;
+      var llmConfig = editor.config['llm-action'];
+
+      editor.ui.addButton('llmButton', {
+        label: 'LLM Button', // editor.localization.get('llm.editor.button.title'),
+        icon: 'pastefromword',
+        command: 'llmaction',
+        toolbar: 'insert,70'
+      });
+
+      editor.addCommand('llmaction', {
+        async: true,
+        contextSensitive: false,
+        startDisabled: false,
+        exec: function(editor) {
+          var command = this;
+          require(['llmActionModal'], function(llmActionModal) {
+            llmActionModal({
+              formURL: llmConfig.llmchat,
+              localization: editor.localization
+            }).done(function(formData) {
+              // do something here
+              // alert("in llmaction return")
+            }).always(function() {
+              editor.fire('afterCommandExec', {name: command.name, command: command});
+            });
+          });
+        }
+      });
+    },
+
+    /*
+    // example put a div in the editor
+    importOfficeFile: function(editor, formData) {
+      var fileTools = CKEDITOR.fileTools;
+      var uploadURL = fileTools.getUploadUrl(editor.config);
+      if (!uploadURL) {
+        editor.showNotification(editor.localization.get('xwiki-office.importer.noUploadURL'), 'warning');
+        return;
+      }
+      var file = formData.files[0];
+      // Save the rest of the import parameters on the file to be used later.
+      file.filterStyles = formData.filterStyles;
+      file.useOfficeViewer = formData.useOfficeViewer;
+      var loader = editor.uploadRepository.create(file);
+      var placeholder = editor.document.createElement('div');
+      placeholder.appendText(editor.localization.get('xwiki-office.importer.inProgress'));
+      fileTools.markElement(placeholder, 'uploadOfficeFile', loader.id);
+      fileTools.bindNotifications(editor, loader);
+      editor.insertElement(placeholder);
+      editor.widgets.initOn(placeholder);
+      loader.upload(uploadURL);
+    }
+    */
+  });
+})();
+]]#</code>
+    </property>
+    <property>
+      <name>CKEditor Plugin JSX</name>
+    </property>
+    <property>
+      <parse>1</parse>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
+  <object>
+    <name>AI.Code.CKEditorPlugin</name>
+    <number>0</number>
+    <className>XWiki.UIExtensionClass</className>
+    <guid>f25996a9-55be-4066-b301-94451c61fe8a</guid>
+    <class>
+      <name>XWiki.UIExtensionClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <async_cached>
+        <defaultValue>0</defaultValue>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType/>
+        <name>async_cached</name>
+        <number>3</number>
+        <prettyName>Cached</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </async_cached>
+      <async_context>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>1</multiSelect>
+        <name>async_context</name>
+        <number>4</number>
+        <prettyName>Context elements</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator>, </separator>
+        <separators>|, </separators>
+        <size>5</size>
+        <unmodifiable>0</unmodifiable>
+        <values>action=Action|doc.reference=Document|icon.theme=Icon theme|locale=Language|rendering.defaultsyntax=Default syntax|rendering.restricted=Restricted|rendering.targetsyntax=Target syntax|request.base=Request base URL|request.cookies|request.headers|request.parameters=Request parameters|request.remoteAddr|request.url=Request URL|request.wiki=Request wiki|user=User|wiki=Wiki</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </async_context>
+      <async_enabled>
+        <defaultValue>0</defaultValue>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType/>
+        <name>async_enabled</name>
+        <number>2</number>
+        <prettyName>Asynchronous rendering</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </async_enabled>
+      <content>
+        <disabled>0</disabled>
+        <editor>Text</editor>
+        <name>content</name>
+        <number>1</number>
+        <prettyName>Executed Content</prettyName>
+        <restricted>0</restricted>
+        <rows>25</rows>
+        <size>120</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </content>
+      <extensionPointId>
+        <disabled>0</disabled>
+        <name>extensionPointId</name>
+        <number>5</number>
+        <prettyName>Extension Point ID</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </extensionPointId>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>6</number>
+        <prettyName>Extension ID</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parameters>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>parameters</name>
+        <number>7</number>
+        <prettyName>Extension Parameters</prettyName>
+        <restricted>0</restricted>
+        <rows>10</rows>
+        <size>40</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </parameters>
+      <scope>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>scope</name>
+        <number>8</number>
+        <prettyName>Extension Scope</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>wiki=Current Wiki|user=Current User|global=Global</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </scope>
+    </class>
+    <property>
+      <async_cached>0</async_cached>
+    </property>
+    <property>
+      <async_context/>
+    </property>
+    <property>
+      <async_enabled>0</async_enabled>
+    </property>
+    <property>
+      <content>{{velocity}}
+#if ($xcontext.action == 'edit')
+  #set ($discard = $xwiki.ssx.use('AI.Code.StyleSheet'))
+#end
+{{/velocity}}</content>
+    </property>
+    <property>
+      <extensionPointId>org.xwiki.platform.template.header.after</extensionPointId>
+    </property>
+    <property>
+      <name>com.xwiki.project.llm.editor</name>
+    </property>
+    <property>
+      <parameters/>
+    </property>
+    <property>
+      <scope/>
+    </property>
+  </object>
+</xwikidoc>
