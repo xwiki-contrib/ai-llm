@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm;
 
 import javax.ws.rs.*;
 
+import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
 import org.xwiki.stability.Unstable;
 
@@ -47,9 +48,6 @@ import org.apache.commons.httpclient.methods.*;
 import org.slf4j.Logger;
 
 import java.nio.charset.StandardCharsets;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.InputStream;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -93,7 +91,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 logger.info("key: " + entry.getKey() + "; value: " + entry.getValue());
             }
-            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null) {
+            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null || data.get("prompt") == null) {
                 logger.info("Invalid error data");
                 return Response.status(Response.Status.BAD_REQUEST).entity("Invalid input data.").build();
             }
@@ -129,17 +127,27 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     "{\"role\":\"user\",\"content\":\"" + data.get("text").toString().replace("\"", "\\\"") + "\"}" +
                     "]";
 
+             JSONArray messagesArray = new JSONArray();
+            JSONObject systemMessage = new JSONObject();
+            systemMessage.put("role", "system");
+            systemMessage.put("content", data.get("prompt").toString());
+            messagesArray.put(systemMessage);
 
-            String jsonInputString;
-            if(isStreaming)
-                jsonInputString = "{\"model\":\"" + data.get("model") + "\",\"stream\": true,\"messages\":" + messages + "}";
-            else
-                jsonInputString = "{\"model\":\"" + data.get("model") + "\",\"messages\":" + messages + "}";
-            JSONObject builder = new JSONObject(jsonInputString);
+            JSONObject userMessage = new JSONObject();
+            userMessage.put("role", "user");
+            userMessage.put("content", data.get("text").toString());
+            messagesArray.put(userMessage);
+
+            // Construct the JSON input string
+            JSONObject jsonInput = new JSONObject();
+            jsonInput.put("model", data.get("model"));
+            jsonInput.put("stream", isStreaming);
+            jsonInput.put("messages", messagesArray);
+            String jsonInputString = jsonInput.toString();
             logger.info("Sending: " + jsonInputString);
 
             StringRequestEntity requestEntity = new StringRequestEntity(
-                    builder.toString(),
+                    jsonInputString,
                     "application/json",
                     "UTF-8"
             );
@@ -150,6 +158,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             int statusCode = client.executeMethod(post);
             if (statusCode != HttpStatus.SC_OK) {
                 logger.error("Method failed: " + post.getStatusLine());
+                throw new XWikiRestException(post.getStatusLine().toString() + post.getStatusText(), null);
             }
 
             if(!isStreaming){

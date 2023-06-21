@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
@@ -45,14 +46,14 @@ public class DefaultGPTAPI implements GPTAPI {
     @Inject
     protected Logger logger;
 
-
     @Override
     public String getLLMChatCompletion(Map<String, Object> data, String openAIKey) throws GPTAPIException {
         try {
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 logger.info("key: " + entry.getKey() + "; value: " + entry.getValue());
             }
-            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null) {
+            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null
+                    || data.get("prompt") == null) {
                 logger.info("Invalid error data");
                 throw new GPTAPIException("Invalid input data");
             }
@@ -81,39 +82,46 @@ public class DefaultGPTAPI implements GPTAPI {
             if (data.get("modelType").equals("openai")) {
                 post.setRequestHeader("Authorization", "Bearer " + openAIKey);
             }
-            String messages =  "[" +
-                    "{\"role\":\"system\",\"content\":\"" + data.get("prompt").toString().replace("\"", "\\\"") + "\"}," +
-                    "{\"role\":\"user\",\"content\":\"" + data.get("text").toString().replace("\"", "\\\"") + "\"}" +
-                    "]";
 
-            String jsonInputString;
-            if(isStreaming)
-                jsonInputString = "{\"model\":\"" + data.get("model") + "\",\"stream\": true,\"messages\":" + messages + "}";
-            else
-                jsonInputString = "{\"model\":\"" + data.get("model") + "\",\"messages\":" + messages + "}";
-            JSONObject builder = new JSONObject(jsonInputString);
+            // Construct the messages array
+            JSONArray messagesArray = new JSONArray();
+            JSONObject systemMessage = new JSONObject();
+            systemMessage.put("role", "system");
+            systemMessage.put("content", data.get("prompt").toString());
+            messagesArray.put(systemMessage);
+
+            JSONObject userMessage = new JSONObject();
+            userMessage.put("role", "user");
+            userMessage.put("content", data.get("text").toString());
+            messagesArray.put(userMessage);
+
+            // Construct the JSON input string
+            JSONObject jsonInput = new JSONObject();
+            jsonInput.put("model", data.get("model"));
+            jsonInput.put("stream", isStreaming);
+            jsonInput.put("messages", messagesArray);
+
+            String jsonInputString = jsonInput.toString();
+            //JSONObject builder = new JSONObject(jsonInputString);
             logger.info("Sending: " + jsonInputString);
 
             StringRequestEntity requestEntity = new StringRequestEntity(
-                    builder.toString(),
+                    jsonInputString,
                     "application/json",
-                    "UTF-8"
-            );
-
+                    "UTF-8");
             post.setRequestEntity(requestEntity);
 
             // Execute the method.
             int statusCode = client.executeMethod(post);
-
-            if(!isStreaming) {
+            if (!isStreaming) {
                 // Read the response body.
                 byte[] responseBody = post.getResponseBody();
-
                 if (statusCode != HttpStatus.SC_OK) {
                     logger.error("Method failed: " + post.getStatusLine());
                     JSONObject resErr = new JSONObject(new String(responseBody));
                     JSONObject resErrMsg = (JSONObject) resErr.get("error");
-                    throw new GPTAPIException("Connection to requested server failed: " + post.getStatusLine() + ": " + resErrMsg.getString("message"));
+                    throw new GPTAPIException("Connection to requested server failed: " + post.getStatusLine() + ": "
+                            + resErrMsg.getString("message"));
                 }
 
                 // Deal with the response.
@@ -122,12 +130,12 @@ public class DefaultGPTAPI implements GPTAPI {
 
                 // Return the response as a JSON string
                 return new String(responseBody);
-            }
-            else{
+            } else {
                 // Read the response body.
                 InputStream responseBody = post.getResponseBodyAsStream();
                 StreamingOutput stream = new StreamingOutput() {
-                    final BufferedReader reader = new BufferedReader(new InputStreamReader(responseBody, StandardCharsets.UTF_8));
+                    final BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(responseBody, StandardCharsets.UTF_8));
                     String line;
 
                     @Override

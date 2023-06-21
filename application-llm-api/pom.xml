@@ -24,7 +24,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-llm-fork</artifactId>
+        <artifactId>application-llm</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
     <artifactId>application-llm-api</artifactId>
