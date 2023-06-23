@@ -126,14 +126,7 @@
       <cache>forbid</cache>
     </property>
     <property>
-      <code>#set($jsxUrl = $xwiki.getURL("AI.Code.Javascript", "jsx", "language=$xcontext.language"))
-require.config({
-    paths: {
-    'llm': '$jsxUrl'
-    }
-});
-#[[
-define('llmActionModal', ['jquery', 'modal'], function($, $modal) {
+      <code>define('llmActionModal', ['jquery', 'modal'], function($, $modal) {
   'use strict';
   return $modal.createModalStep({
     'class': 'llm-action-modal',
@@ -149,16 +142,12 @@ define('llmActionModal', ['jquery', 'modal'], function($, $modal) {
           modal.find('.modal-title').text(l10n.get('llm.editor.modal.title'));
           var formURL = modal.data('input').formURL;
           $.get(formURL).done(function(html) {
-            modalBody.html(html).promise().done(function(){
-              var form = document.querySelector('#userChat');
-              require(['llm'], function(llm) {
-                $(document).on('xwiki:llm:started', function (event, data) {
-                  // alert("in js llm:started")
-                  $(document).trigger('xwiki:dom:updated', {'elements': $('document').toArray()});
-                });
+            modalBody.html(html);
+            var form = document.querySelector('#userChat');
+            console.log("FORM:", form);
+            require(['xwiki-llm'], function(llm) {
+                llm.init();
             });
-          });
-
           }).fail(function() {
             var errorMessage = $('&lt;div class="box errormessage"&gt;&lt;/div&gt;')
               .text(l10n.get('llm.editor.modal.failedToLoadForm'));
@@ -212,10 +201,9 @@ define('llmActionModal', ['jquery', 'modal'], function($, $modal) {
     initLLMButton: function(editor) {
       var thisPlugin = this;
       var llmConfig = editor.config['llm-action'];
-
       editor.ui.addButton('llmButton', {
-        label: 'LLM Button', // editor.localization.get('llm.editor.button.title'),
-        icon: 'pastefromword',
+        label: 'LLM Button', //editor.localization.get('llm.editor.button.title'),
+        icon: '',
         command: 'llmaction',
         toolbar: 'insert,70'
       });
@@ -265,8 +253,7 @@ define('llmActionModal', ['jquery', 'modal'], function($, $modal) {
     }
     */
   });
-})();
-]]#</code>
+})();</code>
     </property>
     <property>
       <name>CKEditor Plugin JSX</name>
@@ -276,151 +263,6 @@ define('llmActionModal', ['jquery', 'modal'], function($, $modal) {
     </property>
     <property>
       <use>onDemand</use>
-    </property>
-  </object>
-  <object>
-    <name>AI.Code.CKEditorPlugin</name>
-    <number>0</number>
-    <className>XWiki.UIExtensionClass</className>
-    <guid>f25996a9-55be-4066-b301-94451c61fe8a</guid>
-    <class>
-      <name>XWiki.UIExtensionClass</name>
-      <customClass/>
-      <customMapping/>
-      <defaultViewSheet/>
-      <defaultEditSheet/>
-      <defaultWeb/>
-      <nameField/>
-      <validationScript/>
-      <async_cached>
-        <defaultValue>0</defaultValue>
-        <disabled>0</disabled>
-        <displayFormType>select</displayFormType>
-        <displayType/>
-        <name>async_cached</name>
-        <number>3</number>
-        <prettyName>Cached</prettyName>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
-      </async_cached>
-      <async_context>
-        <cache>0</cache>
-        <disabled>0</disabled>
-        <displayType>select</displayType>
-        <freeText>forbidden</freeText>
-        <largeStorage>0</largeStorage>
-        <multiSelect>1</multiSelect>
-        <name>async_context</name>
-        <number>4</number>
-        <prettyName>Context elements</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator>, </separator>
-        <separators>|, </separators>
-        <size>5</size>
-        <unmodifiable>0</unmodifiable>
-        <values>action=Action|doc.reference=Document|icon.theme=Icon theme|locale=Language|rendering.defaultsyntax=Default syntax|rendering.restricted=Restricted|rendering.targetsyntax=Target syntax|request.base=Request base URL|request.cookies|request.headers|request.parameters=Request parameters|request.remoteAddr|request.url=Request URL|request.wiki=Request wiki|user=User|wiki=Wiki</values>
-        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
-      </async_context>
-      <async_enabled>
-        <defaultValue>0</defaultValue>
-        <disabled>0</disabled>
-        <displayFormType>select</displayFormType>
-        <displayType/>
-        <name>async_enabled</name>
-        <number>2</number>
-        <prettyName>Asynchronous rendering</prettyName>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
-      </async_enabled>
-      <content>
-        <disabled>0</disabled>
-        <editor>Text</editor>
-        <name>content</name>
-        <number>1</number>
-        <prettyName>Executed Content</prettyName>
-        <restricted>0</restricted>
-        <rows>25</rows>
-        <size>120</size>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
-      </content>
-      <extensionPointId>
-        <disabled>0</disabled>
-        <name>extensionPointId</name>
-        <number>5</number>
-        <prettyName>Extension Point ID</prettyName>
-        <size>30</size>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </extensionPointId>
-      <name>
-        <disabled>0</disabled>
-        <name>name</name>
-        <number>6</number>
-        <prettyName>Extension ID</prettyName>
-        <size>30</size>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </name>
-      <parameters>
-        <contenttype>PureText</contenttype>
-        <disabled>0</disabled>
-        <editor>PureText</editor>
-        <name>parameters</name>
-        <number>7</number>
-        <prettyName>Extension Parameters</prettyName>
-        <restricted>0</restricted>
-        <rows>10</rows>
-        <size>40</size>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
-      </parameters>
-      <scope>
-        <cache>0</cache>
-        <disabled>0</disabled>
-        <displayType>select</displayType>
-        <freeText>forbidden</freeText>
-        <largeStorage>0</largeStorage>
-        <multiSelect>0</multiSelect>
-        <name>scope</name>
-        <number>8</number>
-        <prettyName>Extension Scope</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <separators>|, </separators>
-        <size>1</size>
-        <unmodifiable>0</unmodifiable>
-        <values>wiki=Current Wiki|user=Current User|global=Global</values>
-        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
-      </scope>
-    </class>
-    <property>
-      <async_cached>0</async_cached>
-    </property>
-    <property>
-      <async_context/>
-    </property>
-    <property>
-      <async_enabled>0</async_enabled>
-    </property>
-    <property>
-      <content>{{velocity}}
-#if ($xcontext.action == 'edit')
-  #set ($discard = $xwiki.ssx.use('AI.Code.StyleSheet'))
-#end
-{{/velocity}}</content>
-    </property>
-    <property>
-      <extensionPointId>org.xwiki.platform.template.header.after</extensionPointId>
-    </property>
-    <property>
-      <name>com.xwiki.project.llm.editor</name>
-    </property>
-    <property>
-      <parameters/>
-    </property>
-    <property>
-      <scope/>
     </property>
   </object>
 </xwikidoc>

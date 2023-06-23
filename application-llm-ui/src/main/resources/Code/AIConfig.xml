@@ -55,7 +55,7 @@
       <nameField/>
       <validationScript/>
       <Config>
-        <contenttype>PureText</contenttype>
+        <contenttype>VelocityWiki</contenttype>
         <customDisplay/>
         <disabled>0</disabled>
         <editor>PureText</editor>
@@ -119,15 +119,28 @@
     </class>
     <property>
       <Config>{
-  TODO : define a json models
-}
-</Config>
+  "models": [
+    {
+      "name": "model 1",
+      "tokenizer_path": "path/to/tokenizer (optional?)"
+    },
+    {
+      "name": "model 2",
+      "tokenizer_path": "..."
+    },
+    {
+      "name": "model 3",
+      "tokenizer_path": "..."
+    }
+  ],
+  "default_index_model": 0
+}</Config>
     </property>
     <property>
       <Name>ChatGPT</Name>
     </property>
     <property>
-      <token></token>
+      <token/>
     </property>
     <property>
       <url>https://api.openai.com/v1/chat/completions</url>
@@ -148,7 +161,7 @@
       <nameField/>
       <validationScript/>
       <Config>
-        <contenttype>PureText</contenttype>
+        <contenttype>VelocityWiki</contenttype>
         <customDisplay/>
         <disabled>0</disabled>
         <editor>PureText</editor>
@@ -212,20 +225,28 @@
     </class>
     <property>
       <Config>{
-  "model": "ggml-gpt4all-j",
-  "messages": [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "Who won the world series in 2020?"},
-    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-    {"role": "user", "content": "Where was it played?"}
-  ]
+  "models": [
+    {
+      "name": "model 1",
+      "tokenizer_path": "path/to/tokenizer (optional?)"
+    },
+    {
+      "name": "model 2",
+      "tokenizer_path": "..."
+    },
+    {
+      "name": "model 3",
+      "tokenizer_path": "..."
+    }
+  ],
+  "default_index_model": 0
 }</Config>
     </property>
     <property>
       <Name>LocalAI</Name>
     </property>
     <property>
-      <token></token>
+      <token>hz~WwJjF8"gS+GhP[^</token>
     </property>
     <property>
       <url>https://llmapi.ai.devxwiki.com/v1/chat/completions</url>
