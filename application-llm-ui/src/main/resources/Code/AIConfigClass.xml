@@ -48,7 +48,7 @@
     <nameField/>
     <validationScript/>
     <Config>
-      <contenttype>VelocityWiki</contenttype>
+      <contenttype>FullyRenderedText</contenttype>
       <customDisplay/>
       <disabled>0</disabled>
       <editor>PureText</editor>

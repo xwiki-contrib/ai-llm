@@ -152,17 +152,21 @@
     let btnEnabled = true;
     let maxToken = 2000;
 
-  var loadCSS = function(url) {
-    $('&lt;link&gt;').attr({
-      type: 'text/css',
-      rel: 'stylesheet',
-      href: url
-    }).appendTo('head');
-  };
+    // controler to stop a request if needed.
+    let globalAbortController = new AbortController();
+    let globalSignal = globalAbortController.signal;
+
+    var loadCSS = function (url) {
+        $('&lt;link&gt;').attr({
+            type: 'text/css',
+            rel: 'stylesheet',
+            href: url
+        }).appendTo('head');
+    };
 
     var css = [
-      // Styles for the editor UI (tool bar, dialogs, etc.).
-      new XWiki.Document(XWiki.Model.resolve("AI.Code.StyleSheet", XWiki.EntityType.DOCUMENT)).getURL('ssx'),
+        // Styles for the editor UI (tool bar, dialogs, etc.).
+        new XWiki.Document(XWiki.Model.resolve("AI.Code.StyleSheet", XWiki.EntityType.DOCUMENT)).getURL('ssx'),
     ];
     css.forEach(loadCSS);
 
@@ -172,19 +176,19 @@
         chatContent.scrollTop = chatContent.scrollHeight;
     }
 
-    function blockStreamMode(){
-      const model = document.querySelector('#model-menu').value;
-      const streamMode = document.querySelector('#streamMode');
-      const requestMode = document.querySelector('#requestMode');
-      const cannotStream = (model.indexOf('openai') === -1) &amp;&amp; (model.indexOf('localai') === -1);
-      if(cannotStream){
-        streamMode.disabled = true;
-        streamMode.checked = false;
-        requestMode.checked = true;
-      }
-      else{
-        streamMode.disabled = false;
-      }
+    function blockStreamMode() {
+        const model = document.querySelector('#model-menu').value;
+        const streamMode = document.querySelector('#streamMode');
+        const requestMode = document.querySelector('#requestMode');
+        const cannotStream = (model.indexOf('openai') === -1) &amp;&amp; (model.indexOf('localai') === -1);
+        if (cannotStream) {
+            streamMode.disabled = true;
+            streamMode.checked = false;
+            requestMode.checked = true;
+        }
+        else {
+            streamMode.disabled = false;
+        }
     }
 
     function addUserChat(userChat) {
@@ -195,18 +199,21 @@
         nbAssistMsg++;
         const html = `&lt;div id="assist-msg-` + `${nbAssistMsg}" class="assistant-message"&gt;
   &lt;div class="model-info" id="mod-inf-`+ `${nbAssistMsg}"&gt;Assistant (${model}) - ${elapsedTime} sec&lt;/div&gt;
-  &lt;pre class="message-content" id="msg-content-`+ `${nbAssistMsg}"&gt;${assistantChat}&lt;/pre&gt;
-  &lt;button type="button" class="copy-button" id="copy-button-`+ `${nbAssistMsg}"&gt;Copy&lt;/button&gt;
+    &lt;pre class="message-content" id="msg-content-`+ `${nbAssistMsg}"&gt;${assistantChat}&lt;/pre&gt;
+    &lt;div class="astMsgButton"&gt;
+        &lt;button type="button" class="copy-button" id="copy-button-`+ `${nbAssistMsg}" style="display: none;" title="Copy the message to clipboard."&gt;Copy&lt;/button&gt;
+        &lt;button type="button" class="include-button" id="include-button-`+ `${nbAssistMsg}" style="display: none;" title="Include the message in the edited page."&gt;Include&lt;/button&gt;
+    &lt;/div&gt;
   &lt;/div&gt;`;
         return html;
     }
 
-    function addSystemChat(prompt){
-      const html = `&lt;div id="system-msg" class="system-message"&gt;
+    function addSystemChat(msg) {
+        const html = `&lt;div id="system-msg" class="system-message"&gt;
                       &lt;div class="system-info"&gt;System&lt;/div&gt;
-                      &lt;pre class="message-content"&gt;The prompt used is : ${prompt}&lt;/pre&gt;
+                      &lt;pre class="message-content"&gt;${msg}&lt;/pre&gt;
                     &lt;/div&gt;`;
-      return html;
+        return html;
     }
 
     function updateAssistantChat(msgIdNum, updatedTime, chunkReply, model) {
@@ -219,44 +226,33 @@
     }
 
     function copyTextToClipboard(numMsgToCopy) {
-        const numericID = numMsgToCopy.replace("copy-button-", "");
-        const numMsg = parseInt(numericID);
-        const text = document.querySelector('#msg-content-' + numMsg).textContent;
-
-        let textArea = document.createElement("textarea");
-
-        textArea.style.position = 'fixed';
-        textArea.style.top = 0;
-        textArea.style.left = 0;
-        textArea.style.width = '2em';
-        textArea.style.height = '2em';
-        textArea.style.padding = 0;
-        textArea.style.border = 'none';
-        textArea.style.outline = 'none';
-        textArea.style.boxShadow = 'none';
-        textArea.style.background = 'transparent';
-        textArea.value = text;
-
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-
-        try {
-            let successful = document.execCommand('copy');
-            let msg = successful ? 'successful' : 'unsuccessful';
-            console.log('Copying text command was ' + msg);
-        } catch (err) {
-            console.log('Unable to copy');
-        }
-
-        document.body.removeChild(textArea);
+        return new Promise((resolve, reject) =&gt; {
+            const numericID = numMsgToCopy.replace("copy-button-", "");
+            const numMsg = parseInt(numericID);
+            const text = document.querySelector('#msg-content-' + numMsg).textContent;
+            console.log('text to copy : ' + text);
+            window.getSelection().selectAllChildren(document.querySelector('#msg-content-' + numMsg));
+            document.execCommand("Copy");
+            window.getSelection().removeAllRanges();
+            resolve(text);
+        });
     }
 
-    function chooseMaxToken(modelType){
-      if(modelType !== 'openai'){
-        return 2000;
-      }
-      else return 4000;
+    function includeInDoc(msgID) {
+        return new Promise((resolve, reject) =&gt; {
+            const numericID = msgID.replace("include-button-", "");
+            const numMsg = parseInt(numericID);
+            const text = document.querySelector('#msg-content-' + numMsg).textContent;
+            console.log('text to include: ' + text);
+            resolve(text);
+        });
+    }
+
+    function chooseMaxToken(modelType) {
+        if (modelType !== 'openai') {
+            return 2000;
+        }
+        else return 4000;
     }
 
     function countTokens(query) {
@@ -315,12 +311,13 @@
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrf
-            }
+            },
+            signal: globalSignal
         };
         return options;
     }
 
-     function tokenManager(){
+    function tokenManager() {
         nbToken += countTokens(context[contextSize]);
         contextSize++;
         console.log("nbtoken : " + nbToken);
@@ -332,26 +329,31 @@
             context.shift();
             ind++;
         }
-     }
+    }
+
+    function handleButtonClick(event) {
+        return new Promise(function (resolve) {
+            const target = event.target;
+            const msgID = target.id;
+            // Vérifiez si l'élément cible a la classe copy-button
+            if (target.classList.contains('copy-button')) {
+                copyTextToClipboard(msgID);
+            }
+            resolve(msgID);
+        });
+    }
+
 
     // Update the interface and the context with the new infos.
     function updateChat(chatContent, generatedContent, model, elapsedTime, userText) {
         chatContent.innerHTML += addAssistantChat(generatedContent, model, elapsedTime);
+        let actualMsgID = nbAssistMsg;
+        console.log(actualMsgID);
+        document.querySelector('#copy-button-' + actualMsgID).style.display = "block";
+        document.querySelector('#include-button-' + actualMsgID).style.display = "block";
         context[contextSize] = 'user: ' + userText + '\n';
         context[contextSize] += 'assistant: ' + generatedContent + '\n';
-
         tokenManager();
-
-        // Add an event listener to the parent element for event delegation
-        chatContent.addEventListener('click', function (event) {
-            const target = event.target;
-
-            // Check if the target element has the copy button class
-            if (target.classList.contains('copy-button')) {
-                const msgNum = target.id;
-                copyTextToClipboard(msgNum);
-            }
-        });
     }
 
     function initChatOnStream(chatContent, model) {
@@ -360,23 +362,11 @@
 
     function updateChatOnStream(chatContent, completedReply) {
         context[contextSize] += completedReply;
-
         tokenManager();
-
-        // Add an event listener to the parent element for event delegation
-        chatContent.addEventListener('click', function (event) {
-            const target = event.target;
-
-            // Check if the target element has the copy button class
-            if (target.classList.contains('copy-button')) {
-                const msgNum = target.id;
-                copyTextToClipboard(msgNum);
-            }
-        });
         scrollToBottom();
     }
 
-    function errorCatcher(error) {
+    function errorCatcher(chatContent, error) {
         chatContent.innerHTML += errorMessagePrint("An error occured: " + error.message);
         //TODO : finish error handling for unexpected output + out of token + wrong api key.
     }
@@ -386,12 +376,14 @@
             document.querySelector('#subButton').disabled = true;
             document.querySelector('#clearCtxt').disabled = true;
             document.querySelector('#clearWin').disabled = true;
+            document.querySelector('#stopRqst').style.display = "block";
             btnEnabled = false;
         }
         else {
             document.querySelector('#subButton').disabled = false;
             document.querySelector('#clearCtxt').disabled = false;
             document.querySelector('#clearWin').disabled = false;
+            document.querySelector('#stopRqst').style.display = "none";
             btnEnabled = true;
         }
     }
@@ -404,57 +396,62 @@
         let isErr = false;
         let beginRep = true;
         function processStream({ done, value }) {
-            if (done) {
-                console.log('Stream ended');
-                if (!isErr)
-                    updateChatOnStream(chatContent, completedReply);
-                changeBtnState();
-                return;
-            }
-            console.log('value : ' + value);
-            accumulatedChunks += value;
-
-            // Extract complete JSON messages
-            let jsonMessages = accumulatedChunks.split('data: ').filter(Boolean);
-            console.log(jsonMessages);
-            accumulatedChunks = jsonMessages.pop(); // Keep the incomplete message for the next iteration
-            console.log(jsonMessages);
-            // Process complete JSON messages
-            for (const jsonMessage of jsonMessages) {
-                if (jsonMessage.trim() !== '') {
-                    console.log(jsonMessage);
-                    const message = JSON.parse(jsonMessage);
-                    console.log('Received message:', message);
-                    let reply = '';
-                    // Extract the generated reply from the response
-                    if(message.choices[0].finish_reason !== 'stop'){
-                      reply = message.choices[0].delta.content;
+            try {
+                if (done) {
+                    console.log('Stream ended');
+                    if (!isErr) {
+                        document.querySelector('#copy-button-' + nbAssistMsg).style.display = "block";
+                        document.querySelector('#include-button-' + nbAssistMsg).style.display = "block";
+                        updateChatOnStream(chatContent, completedReply);
                     }
-                    console.log('Generated reply:', reply);
+                    changeBtnState();
+                    return;
+                }
+                accumulatedChunks += value;
 
-                    // Handle the generated reply as desired
-                    // ...
-                    if (reply) {
-                        completedReply += reply;
-                        if (completedReply.indexOf("An error occured") !== -1) {
-                            isErr = true;
-                            chatContent.innerHTML += errorMessagePrint(reply);
+                // Extract complete JSON messages
+                let jsonMessages = accumulatedChunks.split('data: ').filter(Boolean);
+                accumulatedChunks = jsonMessages.pop(); // Keep the incomplete message for the next iteration
+                // Process complete JSON messages
+                for (const jsonMessage of jsonMessages) {
+                    if (jsonMessage.trim() !== '') {
+                        console.log(jsonMessage);
+                        const message = JSON.parse(jsonMessage);
+                        let reply = '';
+                        // Extract the generated reply from the response
+                        if (message.choices[0].finish_reason !== 'stop') {
+                            reply = message.choices[0].delta.content;
                         }
-                        else if (model === 'ggml-gpt4all' &amp;&amp; completedReply.indexOf('ERROR') != -1) {
-                        chatContent.innerHTML += errorMessagePrint("An error occured: " + completedReply);
-                        }
-                        else {
-                            if (beginRep) {
-                                initChatOnStream(chatContent, model);
-                                beginRep = false;
+                        console.log('Generated reply:', reply);
+
+                        // Handle the generated reply as desired
+                        // ...
+                        if (reply) {
+                            completedReply += reply;
+                            if (completedReply.indexOf("An error occured") !== -1) {
+                                isErr = true;
+                                chatContent.innerHTML += errorMessagePrint(reply);
                             }
-                            const elapsedTime = (Date.now() - startTime) / 1000;
-                            updateAssistantChat(nbAssistMsg, elapsedTime, reply, model);
+                            else if (model === 'ggml-gpt4all' &amp;&amp; completedReply.indexOf('ERROR') != -1) {
+                                chatContent.innerHTML += errorMessagePrint("An error occured: " + completedReply);
+                            }
+                            else {
+                                if (beginRep) {
+                                    initChatOnStream(chatContent, model);
+                                    beginRep = false;
+                                }
+                                const elapsedTime = (Date.now() - startTime) / 1000;
+                                updateAssistantChat(nbAssistMsg, elapsedTime, reply, model);
+                            }
                         }
+
                     }
                 }
+                return reader.read().then(processStream);
+            } catch (error) {
+                console.log('error stream : ', error);
             }
-            return reader.read().then(processStream);
+
         }
         return reader.read().then(processStream);
     }
@@ -481,7 +478,10 @@
         }).then((stream) =&gt; {
             return streamResponse(chatContent, stream, model, startTime, userText);
         }).catch((error) =&gt; {
+            console.log('stream error');
             console.error('Error:', error);
+            errorCatcher(chatContent, error);
+            changeBtnState();
         });
     }
 
@@ -509,11 +509,14 @@
                 changeBtnState();
             })
             .catch(error =&gt; {
-                // Handle any errors
-                console.error(error);
-                console.log("error shape : " + error);
-                errorCatcher(error);
-                changeBtnState();
+                // Handle any errors except abort error, because
+                // this happen on purpose.
+                if (error.name !== 'AbortError') {
+                    changeBtnState();
+                    console.error(error);
+                    console.log("error shape : " + error);
+                    errorCatcher(chatContent, error);
+                }
             });
     }
 
@@ -533,9 +536,9 @@
         event.preventDefault(); // Prevent the form from submitting normally
         // Get the text from the textarea
         const userText = "" + form.elements.input.value;
-        if(userText === ""){
-          alert("Your request is empty, please write an input.");
-          return false;
+        if (userText === "") {
+            alert("Your request is empty, please write an input.");
+            return false;
         }
         console.log("sending...");
 
@@ -550,8 +553,8 @@
         console.log(maxToken);
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');
-        if(prompt !== ''){
-          chatContent.innerHTML += addSystemChat(prompt);
+        if (prompt !== '') {
+            chatContent.innerHTML += addSystemChat('The prompt used is: ' + prompt);
         }
         chatContent.innerHTML += addUserChat(userText);
         scrollToBottom();
@@ -567,18 +570,18 @@
 
     }
 
-    function init() {
-        // alert("Received dom updated in JS");
-        if (initDone)
-            return;
-        initDone = true;
-        // Here, do something that will be executed at the moment the event is fired.
-        // Select the form element
-        const form = document.querySelector('#userChat');
-        if (!form) {
-           console.error("xwiki llm js failed to initialize because it could not find the #userChat form");
-           return;
-        }
+    function abortRequest() {
+        const chatContent = document.querySelector('#chatContent');
+        globalAbortController.abort();
+        // reset the signal
+        globalAbortController = new AbortController();
+        globalSignal = globalAbortController.signal;
+        chatContent.innerHTML += addSystemChat("You aborted the ongoing request");
+        scrollToBottom();
+        changeBtnState();
+    }
+
+    function initFormEvent(form) {
         // Add an event listener to the form submit event
         form.addEventListener('submit', (event) =&gt; { submitChat(event, form) });
 
@@ -608,12 +611,32 @@
         });
 
         const modelMenu = document.querySelector('#model-menu');
-        modelMenu.addEventListener('change',(event)=&gt;{
-          blockStreamMode();
+        modelMenu.addEventListener('change', (event) =&gt; {
+            blockStreamMode();
+        });
+
+        const stopRqstButton = document.querySelector('#stopRqst');
+        stopRqstButton.addEventListener('click', (event) =&gt; {
+            abortRequest();
         });
     }
 
-    return { init };
+    function init() {
+        // alert("Received dom updated in JS");
+        if (initDone)
+            return;
+        initDone = true;
+        // Here, do something that will be executed at the moment the event is fired.
+        // Select the form element
+        const form = document.querySelector('#userChat');
+        if (!form) {
+            console.error("xwiki llm js failed to initialize because it could not find the #userChat form");
+            return;
+        }
+        initFormEvent(form);
+    }
+
+    return { init, includeInDoc, handleButtonClick };
 });</code>
     </property>
     <property>
@@ -666,7 +689,7 @@
         <separators>|, </separators>
         <size>5</size>
         <unmodifiable>0</unmodifiable>
-        <values>action=Action|doc.reference=Document|icon.theme=Icon theme|locale=Language|rendering.defaultsyntax=Default syntax|rendering.restricted=Restricted|rendering.targetsyntax=Target syntax|request.base=Request base URL|request.cookies|request.headers|request.parameters=Request parameters|request.remoteAddr|request.url=Request URL|request.wiki=Request wiki|user=User|wiki=Wiki</values>
+        <values>action=Action|doc.reference=Document|doc.revision|icon.theme=Icon theme|locale=Language|rendering.defaultsyntax=Default syntax|rendering.restricted=Restricted|rendering.targetsyntax=Target syntax|request.base=Request base URL|request.cookies|request.headers|request.parameters=Request parameters|request.remoteAddr|request.url=Request URL|request.wiki=Request wiki|user=User|wiki=Wiki</values>
         <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
       </async_context>
       <async_enabled>

@@ -55,7 +55,7 @@
       <nameField/>
       <validationScript/>
       <Config>
-        <contenttype>VelocityWiki</contenttype>
+        <contenttype>FullyRenderedText</contenttype>
         <customDisplay/>
         <disabled>0</disabled>
         <editor>PureText</editor>
@@ -140,7 +140,7 @@
       <Name>ChatGPT</Name>
     </property>
     <property>
-      <token/>
+      <token></token>
     </property>
     <property>
       <url>https://api.openai.com/v1/chat/completions</url>
@@ -161,7 +161,7 @@
       <nameField/>
       <validationScript/>
       <Config>
-        <contenttype>VelocityWiki</contenttype>
+        <contenttype>FullyRenderedText</contenttype>
         <customDisplay/>
         <disabled>0</disabled>
         <editor>PureText</editor>

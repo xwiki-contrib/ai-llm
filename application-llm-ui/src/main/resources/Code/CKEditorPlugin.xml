@@ -146,7 +146,20 @@
             var form = document.querySelector('#userChat');
             console.log("FORM:", form);
             require(['xwiki-llm'], function(llm) {
-                llm.init();
+              llm.init();
+              const editorElement = document.querySelector('#xwikicontent');
+              const editor = CKEDITOR.instances[editorElement.getAttribute('id')];
+              const chatContent = document.querySelector('#chatContent');
+              chatContent.addEventListener('click', async function(event) {
+                const msgID = await llm.handleButtonClick(event);
+                console.log('msg ID targeted :', msgID);
+                if(msgID.indexOf('include') !== -1){
+                  llm.includeInDoc(msgID).then((textToInsert)=&gt;{
+                    console.log(textToInsert);
+                    editor.insertText(textToInsert);
+                  });
+                }
+              });
             });
           }).fail(function() {
             var errorMessage = $('&lt;div class="box errormessage"&gt;&lt;/div&gt;')
@@ -165,6 +178,7 @@
       */
       submitButton.on('click', function(event) {
         // do something
+        alert('submitButton !');
       });
     }
   });
@@ -195,6 +209,7 @@
       }, editor.config['llm-action']);
 
       this.initLLMButton(editor);
+      //this.includeMsg(editor);
     },
 
 
@@ -220,38 +235,27 @@
               localization: editor.localization
             }).done(function(formData) {
               // do something here
-              // alert("in llmaction return")
+              alert("in llmaction return")
             }).always(function() {
               editor.fire('afterCommandExec', {name: command.name, command: command});
             });
-          });
+          }, editor); // Pass editor as an additional argument
         }
       });
     },
 
-    /*
-    // example put a div in the editor
-    importOfficeFile: function(editor, formData) {
-      var fileTools = CKEDITOR.fileTools;
-      var uploadURL = fileTools.getUploadUrl(editor.config);
-      if (!uploadURL) {
-        editor.showNotification(editor.localization.get('xwiki-office.importer.noUploadURL'), 'warning');
-        return;
-      }
-      var file = formData.files[0];
-      // Save the rest of the import parameters on the file to be used later.
-      file.filterStyles = formData.filterStyles;
-      file.useOfficeViewer = formData.useOfficeViewer;
-      var loader = editor.uploadRepository.create(file);
-      var placeholder = editor.document.createElement('div');
-      placeholder.appendText(editor.localization.get('xwiki-office.importer.inProgress'));
-      fileTools.markElement(placeholder, 'uploadOfficeFile', loader.id);
-      fileTools.bindNotifications(editor, loader);
-      editor.insertElement(placeholder);
-      editor.widgets.initOn(placeholder);
-      loader.upload(uploadURL);
-    }
-    */
+    includeMsg: function(editor){
+      require(['xwiki-llm'], function(llm) {
+        function handleClicks(event){
+          const target = event.target;
+          if (target.classList.contains('include-button')) {
+            const msgID = target.id;
+            const textToInsert = llm.includeInDoc(msgID);
+            editor.insertText(textToInsert);
+          }
+        }
+      });
+    },
   });
 })();</code>
     </property>

@@ -239,9 +239,24 @@
 
   .copy-button {
     position: relative;
-    left: 45%;
     border-radius: 5px;
     background-color: rgb(91, 155, 91);
+    border-color: black;
+    width: 63px;
+  }
+
+  .include-button {
+    position: relative;
+    border-radius: 5px;
+    background-color: rgb(91, 155, 91);
+    border-color: black;
+    width: 63px;
+  }
+
+  .astMsgButton{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
   }
 
   .stacked-items {
@@ -261,7 +276,7 @@
     width: 100%;
   }
 
-  #txt-input, #subButton, #clearCtxt {
+  #txt-input, #subButton, #clearCtxt, #stopRqst, #clearWin{
     margin-right: 10px;
   }
 
@@ -278,22 +293,33 @@
   }
 
   #chatUI .button{
-    max-width: 50%;
-    min-width: 50%;
-    margin-right: 10px;
+    width: 50%;
+    flex: 1;
+    margin: 5px 5px;
   }
 
   .form-button-container{
     display: flex;
-    flex-direction: row;
-    /*align-items: flex-end;*/
-    /*justify-content: flex-end;*/
+    /*flex-direction: row;*/
     margin-top: 40%;
+    justify-content: space-between;
   }
 
   .form-button{
     display: flex;
-    flex-direction: row;
+    /*flex-direction: row;*/
+    flex: 1;
+    width: 100%;
+  }
+
+  .astMsgButton {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+  }
+
+  .astMsgButton button {
+    margin: 0 5px;
   }
 
   #formContainer {
@@ -335,9 +361,12 @@
     top: 76%;
   }
 
-#form-control-panel{
-
-}
+  #stopRqst{
+    background-image: -webkit-linear-gradient(#FF3333, #FF3333 50%, #FF3333);
+    background-image: -o-linear-gradient(#FF3333, #FF3333 50%, #FF3333);
+    background-image: linear-gradient(#FF3333, #FF3333 50%, #FF3333);
+    border: none; /* Supprimer la bordure */
+  }
 </code>
     </property>
     <property>

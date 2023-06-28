@@ -39,6 +39,19 @@
   <hidden>true</hidden>
   <content>{{include reference="AI.Code.ChatUIMacros"/}}
 {{velocity}}
+#set($MyDoc = $xwiki.getDocument("AI.Code.AIConfig"))
+#set($class = $xwiki.getClass("AI.Code.AIConfigClass"))
+#set($objArray = [])
+#foreach($obj in $MyDoc.getObjects("AI.Code.AIConfigClass"))
+  #set($objData = [])
+  #set($discard = $MyDoc.use($obj))
+  #foreach($prop in $class.properties)
+    #set($value = $MyDoc.display($prop.getName()))
+    #set($discard = $objData.add({ "property": $prop.name, "value": $value }))
+  #end
+  #set($discard = $objArray.add($objData))
+#end
+#set($objArrayJson = $json.serialize($objArray))
 {{html clean="false"}}
 &lt;div id="chatUI"&gt;
     &lt;select id="model-menu"&gt;
@@ -84,8 +97,11 @@
                     &lt;/div&gt;
                     &lt;div class="form-button-container"&gt;
                         &lt;div class="stacked-items"&gt;
-                            &lt;input class="button" title="Clear the messages, but do not reset context." id="clearWin"
+                            &lt;div class="form-button"&gt;
+                              &lt;input class="button" title="Clear the messages, but do not reset context." id="clearWin"
                                 type="button" value="Clear Window" /&gt;
+                              &lt;input class="button" title="Stop the current request." id="stopRqst" type="button" value="Stop" style="display: none;" /&gt;
+                            &lt;/div&gt;
                             &lt;div class="form-button"&gt;
                                 &lt;input class="button" title="Submit your message to the selected model." id="subButton"
                                     type="submit" value="Submit Chat" /&gt;
@@ -102,6 +118,8 @@
     &lt;/div&gt;
 &lt;/div&gt;
 &lt;script type="text/javascript"&gt;
+    //var config = "$objArrayJson";
+    //console.log($objArrayJson);
     require(['xwiki-llm'], function (llm) {
         llm.init();
     });
