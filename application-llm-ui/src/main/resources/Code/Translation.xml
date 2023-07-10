@@ -1,0 +1,72 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<xwikidoc version="1.5" reference="AI.Code.Translation" locale="">
+  <web>AI.Code</web>
+  <name>Translation</name>
+  <language/>
+  <defaultLanguage>en</defaultLanguage>
+  <translation>0</translation>
+  <creator>XWiki.Admin</creator>
+  <creationDate>1688370995000</creationDate>
+  <parent>AI.Code.WebHome</parent>
+  <author>XWiki.Admin</author>
+  <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
+  <contentAuthor>XWiki.Admin</contentAuthor>
+  <date>1688371040000</date>
+  <contentUpdateDate>1688370995000</contentUpdateDate>
+  <version>2.1</version>
+  <title>Translation</title>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>false</hidden>
+  <content>llm.editor.modal.title=LLM Assistant
+llm.editor.modal.button=Ok
+llm.ui.copy=Copy
+llm.ui.include=Include
+llm.ui.submit=Submit Chat
+llm.ui.stop=Stop
+llm.config.label=LLM Assistant Configuration
+llm.config.label.hint=Configuration for the LLM application, need at least one configuration with one model and the associated URL/token to work.
+llm.config.name=Server Name
+llm.config.url=URL
+llm.config.token=Token
+llm.config.configfile=Configuration File (json)
+llm.config.delete=Delete</content>
+  <object>
+    <name>AI.Code.Translation</name>
+    <number>0</number>
+    <className>XWiki.TranslationDocumentClass</className>
+    <guid>64d2fec1-f336-4154-bd01-91eb97ee466f</guid>
+    <class>
+      <name>XWiki.TranslationDocumentClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <scope>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>scope</name>
+        <number>1</number>
+        <prettyName>Scope</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>GLOBAL|WIKI|USER|ON_DEMAND</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </scope>
+    </class>
+    <property>
+      <scope>WIKI</scope>
+    </property>
+  </object>
+</xwikidoc>

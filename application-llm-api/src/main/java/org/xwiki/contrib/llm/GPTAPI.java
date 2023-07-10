@@ -21,6 +21,8 @@ package org.xwiki.contrib.llm;
 
 import com.github.openjson.JSONObject;
 import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.objects.BaseObject;
+
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.PostMethod;
@@ -46,6 +48,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 
@@ -53,5 +56,4 @@ import java.util.Map;
 @Role
 public interface GPTAPI {
     public String getLLMChatCompletion(Map<String, Object> data, String openAIKey) throws GPTAPIException;
-
 }

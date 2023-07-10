@@ -21,20 +21,36 @@ package org.xwiki.contrib.llm.internal;
 
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
+import com.robrua.nlp.bert.Bert;
+import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.BaseProperty;
+import com.xpn.xwiki.web.Utils;
+
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.StringRequestEntity;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.context.Execution;
 import org.xwiki.contrib.llm.GPTAPI;
+import org.xwiki.contrib.llm.GPTAPIEmbeddingBERT;
 import org.xwiki.contrib.llm.GPTAPIException;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
 import java.io.*;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -102,7 +118,7 @@ public class DefaultGPTAPI implements GPTAPI {
             jsonInput.put("messages", messagesArray);
 
             String jsonInputString = jsonInput.toString();
-            //JSONObject builder = new JSONObject(jsonInputString);
+            // JSONObject builder = new JSONObject(jsonInputString);
             logger.info("Sending: " + jsonInputString);
 
             StringRequestEntity requestEntity = new StringRequestEntity(

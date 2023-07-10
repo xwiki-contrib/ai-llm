@@ -23,9 +23,12 @@ import javax.ws.rs.*;
 
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
+import com.xpn.xwiki.objects.BaseObject;
+
 import org.xwiki.stability.Unstable;
 
 import java.io.*;
+import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -44,17 +47,16 @@ import javax.ws.rs.core.StreamingOutput;
 
 import org.apache.commons.httpclient.*;
 import org.apache.commons.httpclient.methods.*;
-
 import org.slf4j.Logger;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
+import org.xwiki.contrib.llm.GPTAPIConfig;
 
 @Component
 @Named("org.xwiki.contrib.llm.GPTRestAPI")
-@Path("/gptapi/chat")
+@Path("/gptapi")
 @Unstable
 @Singleton
 public class GPTRestAPI extends ModifiablePageResource implements XWikiRestComponent {
@@ -64,7 +66,6 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     protected ComponentManager componentManager;
     @Inject
     protected Logger logger;
-    String openAIKey = "API_KEY";
 
     @GET
     public Response get() {
@@ -84,34 +85,60 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     @POST
-    @Path("/completion")
+    @Path("/chat/completion")
     @Consumes("application/json")
     public Response getContents(Map<String, Object> data) throws XWikiRestException {
         try {
+            GPTAPIConfig configRetriver = new GPTAPIConfig();
+            Map<String, GPTAPIConfigObj> configMap = configRetriver.getConfigObjects();
+            if (configMap.isEmpty()) {
+                logger.info("Config empty !!!");
+            } else
+                for (Map.Entry<String, GPTAPIConfigObj> entry : configMap.entrySet()) {
+                    String valueToStr = entry.getValue().toString();
+                    logger.info("key: " + entry.getKey() + "; value: " + valueToStr);
+                }
+
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 logger.info("key: " + entry.getKey() + "; value: " + entry.getValue());
             }
-            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null || data.get("prompt") == null) {
+            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null
+                    || data.get("prompt") == null) {
                 logger.info("Invalid error data");
                 return Response.status(Response.Status.BAD_REQUEST).entity("Invalid input data.").build();
             }
+            String modelInfoString = (String) data.get("modelType") + "/" + data.get("model");
+            logger.info(modelInfoString);
+            String model = "";
+            String modelType = "";
+            if (modelInfoString.indexOf("/") != -1) {
+                String[] modelInfo = modelInfoString.split("/");
+                modelType = modelInfo[0];
+                model = modelInfo[1];
+                logger.info("model : ",model);
+                logger.info("modelType : ",modelType);
+            } else {
+                model = modelInfoString;
+                modelType = "openai";
+            }
+            logger.info("modelType after evaluation :", modelType);
             logger.info("Received text: " + data.get("text"));
-            logger.info("Received modelType: " + data.get("modelType"));
-            logger.info("Received model: " + data.get("model"));
             logger.info("Received mode: " + data.get("stream"));
-
             boolean isStreaming = (Objects.equals(data.get("stream").toString(), "streamMode"));
             logger.info("is streaming : " + isStreaming);
+            logger.info("config_" + modelType);
+            GPTAPIConfigObj config = configMap.get("config_" + modelType);
+            if (config == null) {
+                throw new Exception(
+                        "There is no configuration available for this model, please tell your administrator to add one.");
+            }
 
             // Create an instance of HttpClient.
             HttpClient client = new HttpClient();
 
-            String url = "https://llmapi.ai.devxwiki.com/v1/chat/completions";
+            String url = config.getURL();
 
             // Create a method instance.
-            if (data.get("modelType").equals("openai")) {
-                url = "https://api.openai.com/v1/chat/completions";
-            }
             logger.info("Calling url: " + url);
             PostMethod post = new PostMethod(url);
 
@@ -119,15 +146,11 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             post.setRequestHeader("Content-Type", "application/json");
             post.setRequestHeader("Accept", "application/json");
 
-            if (data.get("modelType").equals("openai")) {
-                post.setRequestHeader("Authorization", "Bearer " + openAIKey);
+            if (config.getToken() != "") {
+                post.setRequestHeader("Authorization", "Bearer " + config.getToken());
             }
-            String messages =  "[" +
-                    "{\"role\":\"system\",\"content\":\"" + data.get("prompt").toString().replace("\"", "\\\"") + "\"}," +
-                    "{\"role\":\"user\",\"content\":\"" + data.get("text").toString().replace("\"", "\\\"") + "\"}" +
-                    "]";
 
-             JSONArray messagesArray = new JSONArray();
+            JSONArray messagesArray = new JSONArray();
             JSONObject systemMessage = new JSONObject();
             systemMessage.put("role", "system");
             systemMessage.put("content", data.get("prompt").toString());
@@ -140,8 +163,9 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
             // Construct the JSON input string
             JSONObject jsonInput = new JSONObject();
-            jsonInput.put("model", data.get("model"));
-            jsonInput.put("stream", isStreaming);
+            jsonInput.put("model", model);
+            if (isStreaming)
+                jsonInput.put("stream", isStreaming);
             jsonInput.put("messages", messagesArray);
             String jsonInputString = jsonInput.toString();
             logger.info("Sending: " + jsonInputString);
@@ -149,8 +173,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             StringRequestEntity requestEntity = new StringRequestEntity(
                     jsonInputString,
                     "application/json",
-                    "UTF-8"
-            );
+                    "UTF-8");
 
             post.setRequestEntity(requestEntity);
 
@@ -161,7 +184,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                 throw new XWikiRestException(post.getStatusLine().toString() + post.getStatusText(), null);
             }
 
-            if(!isStreaming){
+            if (!isStreaming) {
                 // Read the response body.
                 byte[] responseBody = post.getResponseBody();
 
@@ -171,12 +194,12 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
                 // Return the response as a JSON string
                 return Response.ok(responseBody, MediaType.APPLICATION_JSON).build();
-            }
-            else{
+            } else {
                 // Read the response body.
                 InputStream responseBody = post.getResponseBodyAsStream();
                 StreamingOutput stream = new StreamingOutput() {
-                    final BufferedReader reader = new BufferedReader(new InputStreamReader(responseBody, StandardCharsets.UTF_8));
+                    final BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(responseBody, StandardCharsets.UTF_8));
                     String line;
 
                     @Override
@@ -186,20 +209,20 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                         boolean isErrSent = false;
                         boolean stop = false;
                         while ((line = reader.readLine()) != null && !stop) {
-                            if(statusCode != HttpStatus.SC_OK){
+                            if (statusCode != HttpStatus.SC_OK) {
                                 String errorLine = "An error occured : " + post.getStatusLine();
                                 logger.error("An error occured : " + post.getStatusLine());
-                                String errorStreamMessage = "data: {\"choices\":[{\"delta\":{\"content\":\"" + errorLine + "\"}}]}";
+                                String errorStreamMessage = "data: {\"choices\":[{\"delta\":{\"content\":\"" + errorLine
+                                        + "\"}}]}";
                                 writer.write(errorStreamMessage);
                                 writer.flush();
                                 isErrSent = true;
                             }
-                            if(isErrSent){
+                            if (isErrSent) {
                                 writer.write("data: [DONE]");
                                 writer.flush();
                                 stop = true;
-                            }
-                            else{
+                            } else {
                                 // Write each line to the output
                                 logger.info("stream response line: " + line);
                                 writer.write(line);
