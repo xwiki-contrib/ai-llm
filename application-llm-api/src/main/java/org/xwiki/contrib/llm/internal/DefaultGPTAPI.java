@@ -31,12 +31,15 @@ import com.xpn.xwiki.web.Utils;
 
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
+import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.StringRequestEntity;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.context.Execution;
 import org.xwiki.contrib.llm.GPTAPI;
+import org.xwiki.contrib.llm.GPTAPIConfigProvider;
+import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.GPTAPIEmbeddingBERT;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.model.reference.DocumentReference;
@@ -45,6 +48,7 @@ import org.xwiki.stability.Unstable;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.ws.rs.HttpMethod;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
@@ -172,6 +176,54 @@ public class DefaultGPTAPI implements GPTAPI {
             logger.error("Error processing request: " + e);
             return "Error processing request: " + e;
 
+        }
+    }
+
+    public String getModels(String token) throws GPTAPIException {
+        try {
+            // Create an instance of HttpClient.
+            HttpClient client = new HttpClient();
+
+            String url = "";
+            String finalResponseBody = "";
+            for (int i = 0; i < 2; i++) {
+                if(i == 0)
+                    url = "https://api.openai.com/v1/models";
+                else if(i == 1){
+                    url = "https://llmapi.ai.devxwiki.com/v1/models";
+                }
+                // Create a method instance.
+                GetMethod get = new GetMethod(url);
+                // Set headers
+                get.setRequestHeader("Content-Type", "application/json");
+                get.setRequestHeader("Accept", "application/json");
+                // Provide your token here if required
+                get.setRequestHeader("Authorization", "Bearer " + token);
+
+                // Execute the method.
+                int statusCode = client.executeMethod(get);
+                if (statusCode != HttpStatus.SC_OK) {
+                    logger.error("Method failed: " + get.getStatusLine());
+                    throw new XWikiRestException(get.getStatusLine().toString() + get.getStatusText(), null);
+                }
+
+                // Read the response body.
+                byte[] responseBody = get.getResponseBody();
+                get.releaseConnection();
+                // Deal with the response.
+                // Use caution: ensure correct character encoding and is not binary data
+                logger.info("response body" + new String(responseBody));
+                String responseBodyString = new String(responseBody);
+                finalResponseBody += responseBodyString;
+            }
+            // Return the response as a JSON string
+            return finalResponseBody;
+
+        } catch (Exception e) {
+            logger.error("Error processing request: " + e);
+            JSONObject builder = new JSONObject();
+            builder.put("", e.getMessage());
+            return builder.toString();
         }
     }
 }

@@ -27,15 +27,14 @@
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>AI.Code.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>Translation</title>
+  <title/>
   <comment/>
   <minorEdit>false</minorEdit>
-  <syntaxId>plain/1.0</syntaxId>
+  <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
   <content>llm.editor.modal.title=LLM Assistant
 llm.editor.modal.button=Ok
@@ -48,13 +47,13 @@ llm.config.label.hint=Configuration for the LLM application, need at least one c
 llm.config.name=Server Name
 llm.config.url=URL
 llm.config.token=Token
-llm.config.configfile=Configuration File (json)
+llm.config.configfile=Configuration File
 llm.config.delete=Delete</content>
   <object>
     <name>AI.Code.Translation</name>
     <number>0</number>
     <className>XWiki.TranslationDocumentClass</className>
-    <guid>64d2fec1-f336-4154-bd01-91eb97ee466f</guid>
+    <guid>366e44d6-2e8a-46ce-a8c3-fa920e46b252</guid>
     <class>
       <name>XWiki.TranslationDocumentClass</name>
       <customClass/>

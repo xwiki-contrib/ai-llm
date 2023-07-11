@@ -23,8 +23,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 import org.jmock.Expectations;
 import org.junit.Test;
@@ -35,11 +37,14 @@ import org.xwiki.test.jmock.annotation.MockingRequirement;
 
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
+import com.xpn.xwiki.objects.BaseObject;
+
+import groovy.transform.Undefined.EXCEPTION;
 
 @MockingRequirement(value = DefaultGPTAPI.class, exceptions = { Logger.class })
 public class GPTAPITest extends AbstractMockingComponentTestCase<GPTAPI> {
 
-    String API_KEY = "API_KEY";
+    String API_KEY = "";
 
     @Test
     public void callChatGPT() throws Exception {
@@ -165,7 +170,7 @@ public class GPTAPITest extends AbstractMockingComponentTestCase<GPTAPI> {
     }
 
     @Test
-    public void testSpecialCharData() throws Exception {
+    public void testGetModels() throws Exception {
         DefaultGPTAPI gptApi = (DefaultGPTAPI) getMockedComponent();
 
         this.getMockery().checking(new Expectations() {
@@ -173,21 +178,10 @@ public class GPTAPITest extends AbstractMockingComponentTestCase<GPTAPI> {
             }
         });
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("model", "gpt-4");
-        data.put("modelType", "openai");
-        data.put("prompt", "This is a \"problematic\" prompt. responds with the exact same message as the user");
-        data.put("text", "This is a \"problematic\" user message.");
-        data.put("stream", "requestMode");
-        String res = gptApi.getLLMChatCompletion(data, API_KEY);
+        String res = gptApi.getModels(API_KEY);
         System.out.println(res);
+        assertNotNull(res);
         JSONObject jsonRes = new JSONObject(res);
-        JSONArray choices = jsonRes.getJSONArray("choices");
-        JSONObject index0 = choices.getJSONObject(0);
-        JSONObject message = index0.getJSONObject("message");
-        String content = message.getString("content");
-
-        System.out.println(content);
-        assertNotNull(content);
+        assertNotNull(jsonRes);
     }
 }

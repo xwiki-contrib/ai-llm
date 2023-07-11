@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -105,7 +105,7 @@
       <url>
         <customDisplay/>
         <disabled>0</disabled>
-        <hint>URL</hint>
+        <hint>URL Prefix</hint>
         <name>url</name>
         <number>2</number>
         <picker>1</picker>
@@ -118,30 +118,16 @@
       </url>
     </class>
     <property>
-      <Config>{
-  "models": [
-    {
-      "name": "openai/gpt-4",
-      "tokenizer_path": "path/to/tokenizer (optional?)",
-      "stream": true
-     },
-    {
-      "name": "openai/gpt-3.5-turbo",
-      "tokenizer_path": "...",
-      "stream": true
-    }
-  ],
-  "default_index_model": 0
-}</Config>
+      <Config>gpt-4,gpt-3.5-turbo</Config>
     </property>
     <property>
-      <Name>ChatGPT</Name>
+      <Name>OpenAI</Name>
     </property>
     <property>
-      <token/>
+      <token></token>
     </property>
     <property>
-      <url>https://api.openai.com/v1/chat/completions</url>
+      <url>https://api.openai.com/v1/</url>
     </property>
   </object>
   <object>
@@ -209,7 +195,7 @@
       <url>
         <customDisplay/>
         <disabled>0</disabled>
-        <hint>URL</hint>
+        <hint>URL Prefix</hint>
         <name>url</name>
         <number>2</number>
         <picker>1</picker>
@@ -222,41 +208,7 @@
       </url>
     </class>
     <property>
-      <Config>{
-  "models": [
-    {
-      "name": "fastchat/fastchat-t5-3b",
-      "tokenizer_path": "path/to/tokenizer (optional?)",
-      "stream": false
-    },
-    {
-      "name": "fastchat/mpt-7b-chat",
-      "tokenizer_path": "...",
-      "stream": false
-    },
-    {
-      "name": "fastchat/vicuna-7b",
-      "tokenizer_path": "path/to/tokenizer (optional?)",
-      "stream": false
-    },
-    {
-      "name": "localai/ggml-gpt4all-j",
-      "tokenizer_path": "...",
-      "stream": true
-    },
-    {
-      "name": "localai/ggml-alpaca-7b-q4.bin",
-      "tokenizer_path": "...",
-      "stream": true
-    },
-    {
-      "name": "localai/mpt-7b-chat",
-      "tokenizer_path": "...",
-      "stream": true
-    }
-  ],
-  "default_index_model": 0
-}</Config>
+      <Config>ggml-alpaca-7b-q4.bin,ggml-gpt4all-j,gpt-3.5-turbo</Config>
     </property>
     <property>
       <Name>LocalAI</Name>
@@ -265,7 +217,7 @@
       <token/>
     </property>
     <property>
-      <url>https://llmapi.ai.devxwiki.com/v1/chat/completions</url>
+      <url>https://llmapi.ai.devxwiki.com/v1/</url>
     </property>
   </object>
   <object>

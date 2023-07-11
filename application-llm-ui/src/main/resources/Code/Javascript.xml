@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.Code.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -37,7 +37,24 @@
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
-  <content/>
+  <content>{{velocity}}
+#set($MyDoc = $xwiki.getDocument("AI.Code.AIConfig"))
+#set($class = $xwiki.getClass("AI.Code.AIConfigClass"))
+#set($objArray = [])
+
+#foreach($obj in $MyDoc.getObjects("AI.Code.AIConfigClass"))
+  #set($objData = [])  ## Créez un nouveau tableau pour chaque objet
+  #set($discard = $MyDoc.use($obj))
+  #foreach($prop in $class.properties) ## Parcourez toutes les propriétés
+    ## Ajoutez chaque propriété au tableau de l'objet
+    #set($value = $MyDoc.display($prop.getName()))
+    #set($discard = $objData.add({ "property": $prop.name, "value": $value }))
+  #end
+
+  ## Ajoutez le tableau de l'objet au tableau principal
+  #set($discard = $objArray.add($objData))
+#end
+{{/velocity}}</content>
   <object>
     <name>AI.Code.Javascript</name>
     <number>0</number>
@@ -123,7 +140,7 @@
       </use>
     </class>
     <property>
-      <cache>forbid</cache>
+      <cache>long</cache>
     </property>
     <property>
       <code>define("xwiki-llm", ['jquery', 'xwiki-events-bridge'], function ($) {
@@ -164,7 +181,7 @@
         const model = document.querySelector('#model-menu').value;
         const streamMode = document.querySelector('#streamMode');
         const requestMode = document.querySelector('#requestMode');
-        const cannotStream = false;
+        const cannotStream = (model.indexOf('openai') === -1) &amp;&amp; (model.indexOf('localai') === -1);
         if (cannotStream) {
             streamMode.disabled = true;
             streamMode.checked = false;
@@ -326,7 +343,6 @@
             resolve(msgID);
         });
     }
-
 
     // Update the interface and the context with the new infos.
     function updateChat(chatContent, generatedContent, model, elapsedTime, userText) {
@@ -507,13 +523,30 @@
     function postRequest(options, chatContent, model, userText, requestMode) {
         changeBtnState();
         document.querySelector('#txt-input').value = '';
-        const URI = "/xwiki/rest/gptapi/chat/completion";
+        const URI = "/xwiki/rest/v1/chat/completions";
         const start = Date.now();
         if (requestMode === 'streamMode') {
             streamingRequest(chatContent, URI, options, start, model, userText);
         }
         else requestModeResponse(URI, options, start, model, chatContent, userText);
 
+    }
+
+    function getModels(options) {
+        fetch('/xwiki/rest/v1/models', options)
+            .then(response =&gt; {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(json =&gt; {
+                console.log(json);
+                initModelMenu(json);
+            })
+            .catch(e =&gt; {
+                console.log('An error occured trying to get the model list : ' + e.message);
+            });
     }
 
     function submitChat(event, form) {
@@ -627,15 +660,21 @@
         console.log('configsJson : ', configsJson);
     }
 
-    function initModelMenu(){
+    function initModelMenu(modelList) {
+        console.log('modelList : ' + modelList);
         const modelMenu = document.querySelector('#model-menu');
-        configsJson.forEach(element =&gt; {
-            for(let key of element['3']['models']){
-                console.log(key['name']);
-                modelMenu.innerHTML += `&lt;option value="${key['name']}"&gt;${key['name']}&lt;/option&gt;`
+        modelList.forEach(element =&gt; {
+            const prefix = element.prefix;
+            const filter = element.filter;
+            for (let model of element.data) {
+                console.log(model.id);
+                const value = prefix + '/' + model.id;
+                const valueToDisplay = model.id + ' (' + prefix + ')';
+                if (filter.indexOf(model.id) != -1)
+                    modelMenu.innerHTML += `&lt;option value="${value}"&gt;${valueToDisplay}&lt;/option&gt;`
             }
         });
-         
+
     }
 
     function init(configArr) {
@@ -653,7 +692,10 @@
         initFormEvent(form);
         configsToJson(configArr);
         console.log('configsJson : ', configsJson);
-        initModelMenu();
+
+        const csrf = '${services.csrf.token}';
+        const options = getRequestOptions(null, csrf);
+        getModels(options);
     }
 
     return { init, includeInDoc, handleButtonClick };

@@ -28,6 +28,7 @@ import com.xpn.xwiki.objects.BaseObject;
 import org.xwiki.stability.Unstable;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
@@ -52,11 +53,11 @@ import org.slf4j.Logger;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import org.xwiki.contrib.llm.GPTAPIConfig;
+import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 
 @Component
 @Named("org.xwiki.contrib.llm.GPTRestAPI")
-@Path("/gptapi")
+@Path("/v1")
 @Unstable
 @Singleton
 public class GPTRestAPI extends ModifiablePageResource implements XWikiRestComponent {
@@ -85,16 +86,17 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     @POST
-    @Path("/chat/completion")
+    @Path("/chat/completions")
     @Consumes("application/json")
     public Response getContents(Map<String, Object> data) throws XWikiRestException {
         try {
-            GPTAPIConfig configRetriver = new GPTAPIConfig();
-            Map<String, GPTAPIConfigObj> configMap = configRetriver.getConfigObjects();
+            GPTAPIConfigProvider configRetriver = new GPTAPIConfigProvider();
+            Map<String, GPTAPIConfig> configMap = configRetriver.getConfigObjects();
             if (configMap.isEmpty()) {
                 logger.info("Config empty !!!");
+                throw new Exception("There is no configuration available. Please create one.");
             } else
-                for (Map.Entry<String, GPTAPIConfigObj> entry : configMap.entrySet()) {
+                for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
                     String valueToStr = entry.getValue().toString();
                     logger.info("key: " + entry.getKey() + "; value: " + valueToStr);
                 }
@@ -115,8 +117,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                 String[] modelInfo = modelInfoString.split("/");
                 modelType = modelInfo[0];
                 model = modelInfo[1];
-                logger.info("model : ",model);
-                logger.info("modelType : ",modelType);
+                logger.info("model : ", model);
+                logger.info("modelType : ", modelType);
             } else {
                 model = modelInfoString;
                 modelType = "openai";
@@ -126,8 +128,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             logger.info("Received mode: " + data.get("stream"));
             boolean isStreaming = (Objects.equals(data.get("stream").toString(), "streamMode"));
             logger.info("is streaming : " + isStreaming);
-            logger.info("config_" + modelType);
-            GPTAPIConfigObj config = configMap.get("config_" + modelType);
+            logger.info("config : " + modelType);
+            GPTAPIConfig config = configMap.get(modelType);
             if (config == null) {
                 throw new Exception(
                         "There is no configuration available for this model, please tell your administrator to add one.");
@@ -136,8 +138,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             // Create an instance of HttpClient.
             HttpClient client = new HttpClient();
 
-            String url = config.getURL();
-
+            String url = config.getURL() + "chat/completions";
             // Create a method instance.
             logger.info("Calling url: " + url);
             PostMethod post = new PostMethod(url);
@@ -247,4 +248,46 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
         }
     }
 
+    @POST
+    @Path("/models")
+    @Consumes("application/json")
+    public Response getModels() throws XWikiRestException {
+        GPTAPIConfigProvider configRetriver = new GPTAPIConfigProvider();
+        Map<String, GPTAPIConfig> configMap = configRetriver.getConfigObjects();
+        JSONArray finalResponse = new JSONArray();
+        try {
+            for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
+                HttpClient client = new HttpClient();
+                String url = entry.getValue().getURL() + "models";
+                logger.info("calling url : " + url);
+                GetMethod get = new GetMethod(url);
+                get.setRequestHeader("Content-Type", "application/json");
+                get.setRequestHeader("Accept", "application/json");
+                get.setRequestHeader("Authorization", "Bearer " + entry.getValue().getToken());
+                int statusCode = client.executeMethod(get);
+                if (statusCode != HttpStatus.SC_OK) {
+                    logger.error("Method failed: " + get.getStatusLine());
+                    throw new XWikiRestException(get.getStatusLine().toString() + get.getStatusText(), null);
+                }
+                byte[] responseBody = get.getResponseBody();
+                get.releaseConnection();
+                logger.info("response body" + new String(responseBody));
+                JSONObject responseBodyJson = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
+                responseBodyJson.put("prefix", entry.getValue().getName().toLowerCase());
+                responseBodyJson.put("filter", entry.getValue().getConfigModels());
+                finalResponse.put(responseBodyJson);
+            }
+            byte[] finalResponseBytes = finalResponse.toString().getBytes(StandardCharsets.UTF_8);
+            return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
+
+        } catch (Exception e) {
+            logger.error("Error processing request: " + e);
+            JSONObject builder = new JSONObject();
+            builder.put("", e.getMessage());
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON)
+                    .build();
+        }
+    }
 }
