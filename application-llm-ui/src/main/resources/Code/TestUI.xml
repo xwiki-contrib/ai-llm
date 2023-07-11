@@ -1,19 +1,37 @@
-<?xml version='1.1' encoding='UTF-8'?>
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
 <xwikidoc version="1.5" reference="AI.Code.TestUI" locale="">
   <web>AI.Code</web>
   <name>TestUI</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
-  <creator>XWiki.Admin</creator>
-  <creationDate>1688028711000</creationDate>
+  <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
-  <author>XWiki.Admin</author>
+  <author>xwiki:XWiki.Admin</author>
   <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
-  <contentAuthor>XWiki.Admin</contentAuthor>
-  <date>1688371672000</date>
-  <contentUpdateDate>1688371526000</contentUpdateDate>
-  <version>4.1</version>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
   <title>Prototype - GPT AI test</title>
   <comment/>
   <minorEdit>false</minorEdit>
@@ -29,7 +47,7 @@
   #set($discard = $MyDoc.use($obj))##
   #foreach($prop in $class.properties)##
     #set($value = $MyDoc.display($prop.getName()))##
-    #set($valueWithoutHTML = $value.replaceAll("&lt;.*?>", ""))##
+    #set($valueWithoutHTML = $value.replaceAll("&lt;.*?&gt;", ""))##
     #set($value3 = $valueWithoutHTML.replaceAll("\{\{html.*?\}\}", ""))##
     #set($value4 = $value3.replaceAll("&amp;#123;","{"))##
     #set($value5 = $value4.replaceAll("\{\{/html\}\}",""))##
@@ -40,69 +58,69 @@
   #set($discard = $objArray.add($objData))##
 #end##
 {{html clean="false"}}
-&lt;div id="chatUI">
-    &lt;select id="model-menu">
-    &lt;/select>
-    &lt;div id="chatContent">&lt;/div>
-    &lt;div id="formContainer">
-        &lt;form id="userChat" method="POST" onsubmit="return false;">
-            &lt;textarea name="input" id="txt-input" rows="10">&lt;/textarea>
-            &lt;div id="form-control-panel">
-                &lt;div class="stacked-items">
-                    &lt;nav class="stacked-items">
-                        &lt;select id="features-menu">
-                            &lt;option value="summarize">Summarize&lt;/option>
-                            &lt;option value="completion">Completion&lt;/option>
-                            &lt;option value="auto-tagging">auto-tagging&lt;/option>
-                            &lt;option value="translation">translate&lt;/option>
-                            &lt;option value="free-prompt" selected>Free prompt&lt;/option>
-                        &lt;/select>
-                        &lt;select id="language-menu" style="display: none;">
-                            &lt;option value="english" selected>English&lt;/option>
-                            &lt;option value="french">French&lt;/option>
-                            &lt;option value="romanian">Romanian&lt;/option>
-                            &lt;option value="spanish">Spanish&lt;/option>
-                        &lt;/select>
-                    &lt;/nav>
-                    &lt;div class="radio-btn-container">
-                        &lt;div class="radio-btn">
-                            &lt;input type="radio" id="requestMode" name="options" value="requestMode" checked>
-                            &lt;label for="requestMode">Default Response Mode&lt;/label>&lt;br>
-                        &lt;/div>
-                        &lt;div class="radio-btn">
-                            &lt;input type="radio" id="streamMode" name="options" value="streamMode">
-                            &lt;label for="requestMode">Stream Response Mode&lt;/label>&lt;br>
-                        &lt;/div>
-                    &lt;/div>
-                    &lt;div class="form-button-container">
-                        &lt;div class="stacked-items">
-                            &lt;div class="form-button">
+&lt;div id="chatUI"&gt;
+    &lt;select id="model-menu"&gt;
+    &lt;/select&gt;
+    &lt;div id="chatContent"&gt;&lt;/div&gt;
+    &lt;div id="formContainer"&gt;
+        &lt;form id="userChat" method="POST" onsubmit="return false;"&gt;
+            &lt;textarea name="input" id="txt-input" rows="10"&gt;&lt;/textarea&gt;
+            &lt;div id="form-control-panel"&gt;
+                &lt;div class="stacked-items"&gt;
+                    &lt;nav class="stacked-items"&gt;
+                        &lt;select id="features-menu"&gt;
+                            &lt;option value="summarize"&gt;Summarize&lt;/option&gt;
+                            &lt;option value="completion"&gt;Completion&lt;/option&gt;
+                            &lt;option value="auto-tagging"&gt;auto-tagging&lt;/option&gt;
+                            &lt;option value="translation"&gt;translate&lt;/option&gt;
+                            &lt;option value="free-prompt" selected&gt;Free prompt&lt;/option&gt;
+                        &lt;/select&gt;
+                        &lt;select id="language-menu" style="display: none;"&gt;
+                            &lt;option value="english" selected&gt;English&lt;/option&gt;
+                            &lt;option value="french"&gt;French&lt;/option&gt;
+                            &lt;option value="romanian"&gt;Romanian&lt;/option&gt;
+                            &lt;option value="spanish"&gt;Spanish&lt;/option&gt;
+                        &lt;/select&gt;
+                    &lt;/nav&gt;
+                    &lt;div class="radio-btn-container"&gt;
+                        &lt;div class="radio-btn"&gt;
+                            &lt;input type="radio" id="requestMode" name="options" value="requestMode" checked&gt;
+                            &lt;label for="requestMode"&gt;Default Response Mode&lt;/label&gt;&lt;br&gt;
+                        &lt;/div&gt;
+                        &lt;div class="radio-btn"&gt;
+                            &lt;input type="radio" id="streamMode" name="options" value="streamMode"&gt;
+                            &lt;label for="requestMode"&gt;Stream Response Mode&lt;/label&gt;&lt;br&gt;
+                        &lt;/div&gt;
+                    &lt;/div&gt;
+                    &lt;div class="form-button-container"&gt;
+                        &lt;div class="stacked-items"&gt;
+                            &lt;div class="form-button"&gt;
                               &lt;input class="button" title="Clear the messages, but do not reset context." id="clearWin"
-                                type="button" value="Clear Window" />
-                              &lt;input class="button" title="Stop the current request." id="stopRqst" type="button" value="$services.localization.render('llm.ui.stop')" style="display: none;" />
-                            &lt;/div>
-                            &lt;div class="form-button">
+                                type="button" value="Clear Window" /&gt;
+                              &lt;input class="button" title="Stop the current request." id="stopRqst" type="button" value="$services.localization.render('llm.ui.stop')" style="display: none;" /&gt;
+                            &lt;/div&gt;
+                            &lt;div class="form-button"&gt;
                                 &lt;input class="button" title="Submit your message to the selected model." id="subButton"
-                                    type="submit" value="$services.localization.render('llm.ui.submit')" />
+                                    type="submit" value="$services.localization.render('llm.ui.submit')" /&gt;
                                 &lt;input class="button"
                                     title="Clear the conversation context (mean every message you sent until now will not be considered anymore)."
-                                    id="clearCtxt" type="button" value="Clear Context" />
-                            &lt;/div>
-                        &lt;/div>
-                    &lt;/div>
-                &lt;/div>
-            &lt;/div>
-            &lt;input type="hidden" name="form_token" value="${services.csrf.token}" />
-        &lt;/form>
-    &lt;/div>
-&lt;/div>
-&lt;script type="text/javascript">
+                                    id="clearCtxt" type="button" value="Clear Context" /&gt;
+                            &lt;/div&gt;
+                        &lt;/div&gt;
+                    &lt;/div&gt;
+                &lt;/div&gt;
+            &lt;/div&gt;
+            &lt;input type="hidden" name="form_token" value="${services.csrf.token}" /&gt;
+        &lt;/form&gt;
+    &lt;/div&gt;
+&lt;/div&gt;
+&lt;script type="text/javascript"&gt;
     var configs = "$objArray".replace("[","").split(", ");
     console.log(configs);
     require(['xwiki-llm'], function (llm) {
         llm.init(configs);
     });
-&lt;/script>
+&lt;/script&gt;
 {{/html}}
 {{/velocity}}</content>
 </xwikidoc>
