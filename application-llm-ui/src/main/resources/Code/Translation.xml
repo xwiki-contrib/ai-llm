@@ -27,6 +27,7 @@
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
+  <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
   <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
@@ -34,7 +35,7 @@
   <title/>
   <comment/>
   <minorEdit>false</minorEdit>
-  <syntaxId>xwiki/2.1</syntaxId>
+  <syntaxId>plain/1.0</syntaxId>
   <hidden>true</hidden>
   <content>llm.editor.modal.title=LLM Assistant
 llm.editor.modal.button=Ok
