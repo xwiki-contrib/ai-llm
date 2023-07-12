@@ -177,6 +177,15 @@
         chatContent.scrollTop = chatContent.scrollHeight;
     }
 
+    function isJSON(str) {
+        try {
+            JSON.parse(str);
+        } catch (e) {
+            return false;
+        }
+        return true;
+    }
+
     function blockStreamMode() {
         const model = document.querySelector('#model-menu').value;
         const streamMode = document.querySelector('#streamMode');
@@ -368,7 +377,6 @@
 
     function errorCatcher(chatContent, error) {
         chatContent.innerHTML += errorMessagePrint("An error occured: " + error.message);
-        //TODO : finish error handling for unexpected output + out of token + wrong api key.
     }
 
     function changeBtnState() {
@@ -388,6 +396,94 @@
         }
     }
 
+    function handleValidChunk(jsonMessages, completedReply, beginRep, isErr, model, startTime, userText) {
+        for (const jsonMessage of jsonMessages) {
+            if (jsonMessage.trim() !== '') {
+                console.log(jsonMessage);
+                const message = JSON.parse(jsonMessage);
+                let reply = '';
+                // Extract the generated reply from the response
+                if (message.choices[0].finish_reason !== 'stop') {
+                    reply = message.choices[0].delta.content;
+                }
+                console.log('Generated reply:', reply);
+
+                // Handle the generated reply as desired
+                if (reply) {
+                    completedReply += reply;
+                    if (completedReply.indexOf("An error occured") !== -1) {
+                        isErr = true;
+                        chatContent.innerHTML += errorMessagePrint(reply);
+                    }
+                    else if (completedReply.indexOf('ERROR: ') !== -1) {
+                        isErr = true;
+                        chatContent.innerHTML += errorMessagePrint("An error occured: " + completedReply);
+                    }
+                    else {
+                        if (beginRep) {
+                            initChatOnStream(chatContent, model);
+                            beginRep = false;
+                        }
+                        const elapsedTime = (Date.now() - startTime) / 1000;
+                        updateAssistantChat(nbAssistMsg, elapsedTime, reply, model);
+                    }
+                }
+
+            }
+        }
+        return { isErr, beginRep, completedReply };
+    }
+
+    function processStream({ done, value }, chatContent, completedReply, accumulatedChunks, isErr, beginRep, reader, model, startTime, userText) {
+        try {
+            if (done) {
+                console.log('Stream ended');
+                console.log(accumulatedChunks);
+                console.log(isErr);
+                if (!isErr) {
+                    document.querySelector('#copy-button-' + nbAssistMsg).style.display = "block";
+                    document.querySelector('#include-button-' + nbAssistMsg).style.display = "block";
+                    console.log(completedReply);
+                    context[contextSize] += userText;
+                    updateChatOnStream(chatContent, completedReply);
+                }
+                else {
+                    if (isJSON(accumulatedChunks)) {
+                        let message = JSON.parse(accumulatedChunks);
+                        errorCatcher(chatContent, message.error);
+                    }
+                }
+                changeBtnState();
+                return;
+            }
+            else {
+                accumulatedChunks += value;
+
+                // Extract complete JSON messages
+                let jsonMessages;
+                let isValidChunk = true;
+                if (accumulatedChunks.indexOf('data: ') !== -1) {
+                    jsonMessages = accumulatedChunks.split('data: ').filter(Boolean);
+                }
+                else {
+                    isValidChunk = false;
+                }
+                // Process complete JSON messages
+                if (isValidChunk) {
+                    accumulatedChunks = jsonMessages.pop(); // Keep the incomplete message for the next iteration
+                    ({ isErr, beginRep, completedReply } = handleValidChunk(jsonMessages, completedReply, beginRep, isErr, model, startTime, userText));
+                    return reader.read().then(value =&gt;
+                        processStream(value, chatContent, completedReply, accumulatedChunks, isErr, beginRep, reader, model, startTime, userText));
+                }
+                else
+                    return reader.read().then(value =&gt;
+                        processStream(value, chatContent, completedReply, accumulatedChunks, true, beginRep, reader, model, startTime, userText));
+            }
+        } catch (error) {
+            console.error('error stream : ', error);
+        }
+
+    }
 
     function streamResponse(chatContent, stream, model, startTime, userText) {
         const reader = stream.getReader();
@@ -395,65 +491,9 @@
         let completedReply = '';
         let isErr = false;
         let beginRep = true;
-        function processStream({ done, value }) {
-            try {
-                if (done) {
-                    console.log('Stream ended');
-                    if (!isErr) {
-                        document.querySelector('#copy-button-' + nbAssistMsg).style.display = "block";
-                        document.querySelector('#include-button-' + nbAssistMsg).style.display = "block";
-                        updateChatOnStream(chatContent, completedReply);
-                    }
-                    changeBtnState();
-                    return;
-                }
-                accumulatedChunks += value;
 
-                // Extract complete JSON messages
-                let jsonMessages = accumulatedChunks.split('data: ').filter(Boolean);
-                accumulatedChunks = jsonMessages.pop(); // Keep the incomplete message for the next iteration
-                // Process complete JSON messages
-                for (const jsonMessage of jsonMessages) {
-                    if (jsonMessage.trim() !== '') {
-                        console.log(jsonMessage);
-                        const message = JSON.parse(jsonMessage);
-                        let reply = '';
-                        // Extract the generated reply from the response
-                        if (message.choices[0].finish_reason !== 'stop') {
-                            reply = message.choices[0].delta.content;
-                        }
-                        console.log('Generated reply:', reply);
-
-                        // Handle the generated reply as desired
-                        // ...
-                        if (reply) {
-                            completedReply += reply;
-                            if (completedReply.indexOf("An error occured") !== -1) {
-                                isErr = true;
-                                chatContent.innerHTML += errorMessagePrint(reply);
-                            }
-                            else if (model === 'ggml-gpt4all' &amp;&amp; completedReply.indexOf('ERROR') != -1) {
-                                chatContent.innerHTML += errorMessagePrint("An error occured: " + completedReply);
-                            }
-                            else {
-                                if (beginRep) {
-                                    initChatOnStream(chatContent, model);
-                                    beginRep = false;
-                                }
-                                const elapsedTime = (Date.now() - startTime) / 1000;
-                                updateAssistantChat(nbAssistMsg, elapsedTime, reply, model);
-                            }
-                        }
-
-                    }
-                }
-                return reader.read().then(processStream);
-            } catch (error) {
-                console.log('error stream : ', error);
-            }
-
-        }
-        return reader.read().then(processStream);
+        return reader.read().then(value =&gt;
+            processStream(value, chatContent, completedReply, accumulatedChunks, isErr, beginRep, reader, model, startTime, userText));
     }
 
     function streamingRequest(chatContent, URI, options, startTime, model, userText) {
@@ -498,7 +538,7 @@
                     chatContent.innerHTML += errorMessagePrint("An error occured: " + data.error.message);
                 } else {
                     const content = data.choices[0].message.content;
-                    if (model === 'ggml-gpt4all' &amp;&amp; content.indexOf('ERROR') != -1) {
+                    if (content.indexOf('ERROR: ') != -1) {
                         chatContent.innerHTML += errorMessagePrint("An error occured: " + content);
                     }
                     else {

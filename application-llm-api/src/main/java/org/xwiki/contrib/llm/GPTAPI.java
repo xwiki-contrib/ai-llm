@@ -57,4 +57,6 @@ import java.util.Map;
 public interface GPTAPI {
     public String getLLMChatCompletion(Map<String, Object> data, String openAIKey) throws GPTAPIException;
     public String getModels(String token) throws GPTAPIException;
+    public GPTAPIConfig getConfig(String id) throws GPTAPIException;
+    public Map<String, GPTAPIConfig> getConfigs() throws GPTAPIException;
 }

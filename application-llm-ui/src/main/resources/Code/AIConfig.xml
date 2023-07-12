@@ -124,7 +124,7 @@
       <Name>OpenAI</Name>
     </property>
     <property>
-      <token></token>
+      <token/>
     </property>
     <property>
       <url>https://api.openai.com/v1/</url>

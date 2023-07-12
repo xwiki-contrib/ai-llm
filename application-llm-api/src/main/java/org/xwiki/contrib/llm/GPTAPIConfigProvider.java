@@ -31,6 +31,8 @@ import com.xpn.xwiki.web.Utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xwiki.component.annotation.Component;
+import org.xwiki.component.annotation.Role;
 import org.xwiki.context.Execution;
 import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
@@ -48,44 +50,8 @@ import javax.print.Doc;
 
 import org.xwiki.contrib.llm.GPTAPIConfig;
 
-public class GPTAPIConfigProvider {
-    protected Logger logger = LoggerFactory.getLogger(GPTAPIConfigProvider.class);
-
-    public GPTAPIConfigProvider() {
-        super();
-    }
-
-    public Map<String, GPTAPIConfig> getConfigObjects() {
-        Map<String, GPTAPIConfig> configProperties = new HashMap<>();
-        try {
-            Execution execution = Utils.getComponent(Execution.class);
-            XWikiContext context = (XWikiContext) execution.getContext().getProperty("xwikicontext");
-            com.xpn.xwiki.XWiki xwiki = context.getWiki();
-
-            XWikiDocument doc = xwiki.getDocument("AI.Code.AIConfig", context);
-            List<BaseObject> configObjects = doc.getObjects("AI.Code.AIConfigClass");
-            int i = 0;
-            for (BaseObject configObject : configObjects) {
-                Map<String, Object> configObjMap = new HashMap<>();
-                if (configObject == null)
-                    continue;
-                Collection<BaseStringProperty> fields = configObject.getFieldList();
-                for (BaseStringProperty field : fields) {
-                    logger.info("Test : " + field);
-                    configObjMap.put(field.getName(), field.getValue());
-                }
-                GPTAPIConfig res = new GPTAPIConfig(configObjMap);
-                configProperties.put(res.getName().toLowerCase(), res);
-                i++;
-            }
-            if (configProperties.isEmpty())
-                throw new Exception("Final Map is empty");
-            return configProperties;
-        } catch (Exception e) {
-            logger.error("Error trying to access the config :", e);
-            System.err.println("Error trying to access the config :" + e);
-            return configProperties;
-        }
-
-    }
+@Component
+@Role
+public interface GPTAPIConfigProvider {
+    public Map<String, GPTAPIConfig> getConfigObjects() throws GPTAPIException;
 }

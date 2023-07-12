@@ -1,3 +1,3 @@
 org.xwiki.contrib.llm.internal.DefaultGPTAPI
+org.xwiki.contrib.llm.internal.DefaultGPTAPIConfigProvider
 org.xwiki.contrib.llm.GPTRestAPI
-

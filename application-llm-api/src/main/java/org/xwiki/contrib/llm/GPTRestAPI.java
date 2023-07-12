@@ -21,14 +21,18 @@ package org.xwiki.contrib.llm;
 
 import javax.ws.rs.*;
 
+import com.fasterxml.jackson.databind.ser.std.StdKeySerializers.Default;
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
 import com.xpn.xwiki.objects.BaseObject;
+
+import liquibase.pro.packaged.I;
 
 import org.xwiki.stability.Unstable;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
@@ -54,6 +58,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
+import org.xwiki.contrib.llm.internal.DefaultGPTAPIConfigProvider;
 
 @Component
 @Named("org.xwiki.contrib.llm.GPTRestAPI")
@@ -67,6 +72,9 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     protected ComponentManager componentManager;
     @Inject
     protected Logger logger;
+
+    @Inject
+    private GPTAPI gptApi;
 
     @GET
     public Response get() {
@@ -90,22 +98,12 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @Consumes("application/json")
     public Response getContents(Map<String, Object> data) throws XWikiRestException {
         try {
-            GPTAPIConfigProvider configRetriver = new GPTAPIConfigProvider();
-            Map<String, GPTAPIConfig> configMap = configRetriver.getConfigObjects();
-            if (configMap.isEmpty()) {
-                logger.info("Config empty !!!");
-                throw new Exception("There is no configuration available. Please create one.");
-            } else
-                for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
-                    String valueToStr = entry.getValue().toString();
-                    logger.info("key: " + entry.getKey() + "; value: " + valueToStr);
-                }
-
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 logger.info("key: " + entry.getKey() + "; value: " + entry.getValue());
             }
-            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null
-                    || data.get("prompt") == null) {
+            boolean isMapEmpty = data.get("text") == null || data.get("modelType") == null || data.get("model") == null
+                    || data.get("prompt") == null;
+            if (isMapEmpty) {
                 logger.info("Invalid error data");
                 return Response.status(Response.Status.BAD_REQUEST).entity("Invalid input data.").build();
             }
@@ -129,10 +127,10 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             boolean isStreaming = (Objects.equals(data.get("stream").toString(), "streamMode"));
             logger.info("is streaming : " + isStreaming);
             logger.info("config : " + modelType);
-            GPTAPIConfig config = configMap.get(modelType);
+            GPTAPIConfig config = gptApi.getConfig(modelType);
             if (config == null) {
                 throw new Exception(
-                        "There is no configuration available for this model, please tell your administrator to add one.");
+                        "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
             }
 
             // Create an instance of HttpClient.
@@ -182,7 +180,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             int statusCode = client.executeMethod(post);
             if (statusCode != HttpStatus.SC_OK) {
                 logger.error("Method failed: " + post.getStatusLine());
-                throw new XWikiRestException(post.getStatusLine().toString() + post.getStatusText(), null);
+                // throw new XWikiRestException(post.getStatusLine().toString() +
+                // post.getStatusText(), null);
             }
 
             if (!isStreaming) {
@@ -210,26 +209,10 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                         boolean isErrSent = false;
                         boolean stop = false;
                         while ((line = reader.readLine()) != null && !stop) {
-                            if (statusCode != HttpStatus.SC_OK) {
-                                String errorLine = "An error occured : " + post.getStatusLine();
-                                logger.error("An error occured : " + post.getStatusLine());
-                                String errorStreamMessage = "data: {\"choices\":[{\"delta\":{\"content\":\"" + errorLine
-                                        + "\"}}]}";
-                                writer.write(errorStreamMessage);
-                                writer.flush();
-                                isErrSent = true;
-                            }
-                            if (isErrSent) {
-                                writer.write("data: [DONE]");
-                                writer.flush();
-                                stop = true;
-                            } else {
                                 // Write each line to the output
                                 logger.info("stream response line: " + line);
                                 writer.write(line);
                                 writer.flush();
-                            }
-
                         }
                     }
                 };
@@ -239,7 +222,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             logger.error("Error processing request: " + e);
             JSONObject builder = new JSONObject();
             JSONObject root = new JSONObject();
-            root.put("error", e.getMessage());
+            root.put("error", "An error occured. " + e.getMessage());
             builder.put("", root);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity(builder.toString())
@@ -252,10 +235,17 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @Path("/models")
     @Consumes("application/json")
     public Response getModels() throws XWikiRestException {
-        GPTAPIConfigProvider configRetriver = new GPTAPIConfigProvider();
-        Map<String, GPTAPIConfig> configMap = configRetriver.getConfigObjects();
+        Map<String, GPTAPIConfig> configMap;
+        try {
+            configMap = gptApi.getConfigs();
+        } catch (GPTAPIException e) {
+            logger.error("Error in getModels REST method: ", e);
+            configMap = new HashMap<>();
+        }
         JSONArray finalResponse = new JSONArray();
         try {
+            if (configMap.isEmpty())
+                throw new Exception("The configurations object is empty.");
             for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
                 HttpClient client = new HttpClient();
                 String url = entry.getValue().getURL() + "models";

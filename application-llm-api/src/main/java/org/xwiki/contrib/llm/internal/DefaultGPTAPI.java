@@ -29,6 +29,8 @@ import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
 import com.xpn.xwiki.web.Utils;
 
+import liquibase.pro.packaged.is;
+
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.GetMethod;
@@ -40,7 +42,6 @@ import org.xwiki.context.Execution;
 import org.xwiki.contrib.llm.GPTAPI;
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIConfig;
-import org.xwiki.contrib.llm.GPTAPIEmbeddingBERT;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.rest.XWikiRestException;
@@ -65,6 +66,9 @@ import java.util.Objects;
 public class DefaultGPTAPI implements GPTAPI {
     @Inject
     protected Logger logger;
+
+    @Inject
+    GPTAPIConfigProvider configProvider;
 
     @Override
     public String getLLMChatCompletion(Map<String, Object> data, String openAIKey) throws GPTAPIException {
@@ -179,6 +183,7 @@ public class DefaultGPTAPI implements GPTAPI {
         }
     }
 
+    @Override
     public String getModels(String token) throws GPTAPIException {
         try {
             // Create an instance of HttpClient.
@@ -187,9 +192,9 @@ public class DefaultGPTAPI implements GPTAPI {
             String url = "";
             String finalResponseBody = "";
             for (int i = 0; i < 2; i++) {
-                if(i == 0)
+                if (i == 0)
                     url = "https://api.openai.com/v1/models";
-                else if(i == 1){
+                else if (i == 1) {
                     url = "https://llmapi.ai.devxwiki.com/v1/models";
                 }
                 // Create a method instance.
@@ -224,6 +229,33 @@ public class DefaultGPTAPI implements GPTAPI {
             JSONObject builder = new JSONObject();
             builder.put("", e.getMessage());
             return builder.toString();
+        }
+    }
+
+    @Override
+    public GPTAPIConfig getConfig(String id) throws GPTAPIException {
+        try {
+            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects();
+            GPTAPIConfig res = configMap.get(id);
+            if (res == null) {
+                throw new Exception(
+                        "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
+            }
+            return res;
+        } catch (Exception e) {
+            logger.error("Error trying to get specific configuration parameters: ", e);
+            return new GPTAPIConfig();
+        }
+    }
+
+    @Override
+    public Map<String, GPTAPIConfig> getConfigs() throws GPTAPIException {
+        try{
+            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects();
+            return configMap;
+        } catch(Exception e){
+            logger.error("Error trying to get the configurations java object: ", e);
+            return null;
         }
     }
 }

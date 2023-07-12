@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
@@ -32,8 +33,13 @@ import org.jmock.Expectations;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.xwiki.contrib.llm.GPTAPI;
+import org.xwiki.contrib.llm.GPTAPIConfig;
+import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.test.jmock.AbstractMockingComponentTestCase;
 import org.xwiki.test.jmock.annotation.MockingRequirement;
+import org.xwiki.test.jmock.annotation.MockingRequirements;
+import org.xwiki.test.junit5.mockito.InjectMockComponents;
+import org.xwiki.test.junit5.mockito.MockComponent;
 
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
@@ -41,7 +47,9 @@ import com.xpn.xwiki.objects.BaseObject;
 
 import groovy.transform.Undefined.EXCEPTION;
 
-@MockingRequirement(value = DefaultGPTAPI.class, exceptions = { Logger.class })
+@MockingRequirements({
+        @MockingRequirement(value = DefaultGPTAPI.class, exceptions = { Logger.class })
+})
 public class GPTAPITest extends AbstractMockingComponentTestCase<GPTAPI> {
 
     String API_KEY = "";

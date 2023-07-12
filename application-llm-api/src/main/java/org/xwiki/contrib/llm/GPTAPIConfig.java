@@ -28,7 +28,7 @@ public class GPTAPIConfig {
     private String token;
     private String modelsURL;
 
-    GPTAPIConfig(Map<String, Object> properties) {
+    public GPTAPIConfig(Map<String, Object> properties) {
         this.name = (String) properties.get("Name");
         this.url = (String) properties.get("url");
         this.configModels = (String) properties.get("Config");
@@ -36,7 +36,7 @@ public class GPTAPIConfig {
         this.modelsURL = (String) properties.get("modelurl");
     }
 
-    GPTAPIConfig() {
+    public GPTAPIConfig() {
     }
 
     public String getName() {
