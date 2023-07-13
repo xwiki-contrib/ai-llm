@@ -52,6 +52,7 @@ import javax.ws.rs.core.StreamingOutput;
 
 import org.apache.commons.httpclient.*;
 import org.apache.commons.httpclient.methods.*;
+import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.slf4j.Logger;
 
 import java.nio.charset.StandardCharsets;
@@ -209,10 +210,10 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                         boolean isErrSent = false;
                         boolean stop = false;
                         while ((line = reader.readLine()) != null && !stop) {
-                                // Write each line to the output
-                                logger.info("stream response line: " + line);
-                                writer.write(line);
-                                writer.flush();
+                            // Write each line to the output
+                            logger.info("stream response line: " + line);
+                            writer.write(line);
+                            writer.flush();
                         }
                     }
                 };
@@ -247,25 +248,32 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             if (configMap.isEmpty())
                 throw new Exception("The configurations object is empty.");
             for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
-                HttpClient client = new HttpClient();
-                String url = entry.getValue().getURL() + "models";
-                logger.info("calling url : " + url);
-                GetMethod get = new GetMethod(url);
-                get.setRequestHeader("Content-Type", "application/json");
-                get.setRequestHeader("Accept", "application/json");
-                get.setRequestHeader("Authorization", "Bearer " + entry.getValue().getToken());
-                int statusCode = client.executeMethod(get);
-                if (statusCode != HttpStatus.SC_OK) {
-                    logger.error("Method failed: " + get.getStatusLine());
-                    throw new XWikiRestException(get.getStatusLine().toString() + get.getStatusText(), null);
+                try {
+                    HttpClient client = new HttpClient();
+                    String url = entry.getValue().getURL() + "models";
+                    logger.info("calling url : " + url);
+                    GetMethod get = new GetMethod(url);
+                    get.setRequestHeader("Content-Type", "application/json");
+                    get.setRequestHeader("Accept", "application/json");
+                    get.setRequestHeader("Authorization", "Bearer " + entry.getValue().getToken());
+                    // setting the timeouts
+                    get.getParams().setParameter(HttpMethodParams.SO_TIMEOUT, 10000);
+                    client.getHttpConnectionManager().getParams().setConnectionTimeout(10000);
+                    int statusCode = client.executeMethod(get);
+                    if (statusCode != HttpStatus.SC_OK) {
+                        logger.error("Method failed: " + get.getStatusLine());
+                        throw new XWikiRestException(get.getStatusLine().toString() + get.getStatusText(), null);
+                    }
+                    byte[] responseBody = get.getResponseBody();
+                    get.releaseConnection();
+                    logger.info("response body" + new String(responseBody));
+                    JSONObject responseBodyJson = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
+                    responseBodyJson.put("prefix", entry.getValue().getName().toLowerCase());
+                    responseBodyJson.put("filter", entry.getValue().getConfigModels());
+                    finalResponse.put(responseBodyJson);
+                } catch (Exception e) {
+                    logger.error("An error occured on one of the requested URI: ", e);
                 }
-                byte[] responseBody = get.getResponseBody();
-                get.releaseConnection();
-                logger.info("response body" + new String(responseBody));
-                JSONObject responseBodyJson = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
-                responseBodyJson.put("prefix", entry.getValue().getName().toLowerCase());
-                responseBodyJson.put("filter", entry.getValue().getConfigModels());
-                finalResponse.put(responseBodyJson);
             }
             byte[] finalResponseBytes = finalResponse.toString().getBytes(StandardCharsets.UTF_8);
             return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
