@@ -57,11 +57,11 @@ public class GPTAPITest extends AbstractMockingComponentTestCase<GPTAPI> {
     @Test
     public void callChatGPT() throws Exception {
         Map<String, Object> test = new HashMap<String, Object>();
-        test.put("model", "gpt-4");
-        test.put("modelType", "openai");
+        test.put("model", "gpt-3.5-turbo");
+        test.put("modelType", "localai");
         test.put("text", "hello");
         test.put("prompt", "");
-        test.put("stream", "requestMode");
+        test.put("stream","requestMode");
         DefaultGPTAPI gptApi = (DefaultGPTAPI) getMockedComponent();
 
         this.getMockery().checking(new Expectations() {
@@ -86,12 +86,11 @@ public class GPTAPITest extends AbstractMockingComponentTestCase<GPTAPI> {
 
         // Valid data to send
         Map<String, Object> data = new HashMap<>();
-        data.put("model", "gpt-4");
-        data.put("modelType", "openai");
+        data.put("model", "gpt-3.5-turbo");
+        data.put("modelType", "localai");
         data.put("prompt", "answer with a single word : test");
         data.put("text", "this is a test");
-        data.put("stream", "requestMode");
-
+        data.put("stream","requestMode");
         String res = gptApi.getLLMChatCompletion(data, API_KEY);
 
         // Set of manipulation to get the content with JSON method.
@@ -119,9 +118,8 @@ public class GPTAPITest extends AbstractMockingComponentTestCase<GPTAPI> {
 
         // Invalid data (missing key)
         Map<String, Object> data = new HashMap<>();
-        data.put("model", "gpt-4");
+        data.put("model", "gpt-3.5-turbo");
         data.put("text", "hello");
-        data.put("stream", "requestMode");
         // call method
         String res = gptApi.getLLMChatCompletion(data, API_KEY);
         System.out.println(res);
@@ -133,7 +131,7 @@ public class GPTAPITest extends AbstractMockingComponentTestCase<GPTAPI> {
         data2.put("modelType", "openA");
         data2.put("text", "hello");
         data2.put("prompt", "");
-        data2.put("stream", "requestMode");
+        data2.put("stream","requestMode");
 
         String res2 = gptApi.getLLMChatCompletion(data2, API_KEY);
         System.out.println("res2 : " + res2);
