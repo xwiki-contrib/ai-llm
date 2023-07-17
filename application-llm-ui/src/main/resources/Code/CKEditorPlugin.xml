@@ -143,6 +143,11 @@
             keys: [
               "editor.modal.title",
               "editor.modal.button",
+              "ui.copy",
+              "ui.include",
+              "ui.copyLabel",
+              "ui.includeLabel",
+              "ui.assistantInfoName",
             ]
           });
 
@@ -223,7 +228,14 @@
           language: $('html').attr('lang') || ''
         }))
       }, editor.config['llm-action']);
-
+      editor.config.extraQuickActions = [{
+        group: 'Content',
+        id: 'llm-ai',
+        name: 'AI',
+        iconClass: 'fa fa-laptop',
+        description: 'Insert content from AI',
+        command: 'llmaction'
+      }];
       this.initLLMButton(editor);
       //this.includeMsg(editor);
     },
@@ -260,18 +272,7 @@
       });
     },
 
-    includeMsg: function(editor){
-      require(['xwiki-llm'], function(llm) {
-        function handleClicks(event){
-          const target = event.target;
-          if (target.classList.contains('include-button')) {
-            const msgID = target.id;
-            const textToInsert = llm.includeInDoc(msgID);
-            editor.insertText(textToInsert);
-          }
-        }
-      });
-    },
+
   });
 })();</code>
     </property>

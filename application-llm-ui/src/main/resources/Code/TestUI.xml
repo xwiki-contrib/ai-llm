@@ -39,29 +39,13 @@
   <hidden>true</hidden>
   <content>{{include reference="AI.Code.ChatUIMacros"/}}
 {{velocity}}
-#set($MyDoc = $xwiki.getDocument("AI.Code.AIConfig"))##
-#set($class = $xwiki.getClass("AI.Code.AIConfigClass"))##
-#set($objArray = [])##
-#foreach($obj in $MyDoc.getObjects("AI.Code.AIConfigClass"))##
-  #set($objData = "")##
-  #set($discard = $MyDoc.use($obj))##
-  #foreach($prop in $class.properties)##
-    #set($value = $MyDoc.display($prop.getName()))##
-    #set($valueWithoutHTML = $value.replaceAll("&lt;.*?&gt;", ""))##
-    #set($value3 = $valueWithoutHTML.replaceAll("\{\{html.*?\}\}", ""))##
-    #set($value4 = $value3.replaceAll("&amp;#123;","{"))##
-    #set($value5 = $value4.replaceAll("\{\{/html\}\}",""))##
-    #set($value6 = $value5.replace('"', '\"'))##
-    #set($valueJSProof = $value6.replaceAll("&amp;nbsp;",""))##
-    #set($objData = "${objData}$foreach.count:${valueJSProof};")##
-  #end##
-  #set($discard = $objArray.add($objData))##
-#end##
 {{html clean="false"}}
 &lt;div id="chatUI"&gt;
     &lt;select id="model-menu"&gt;
     &lt;/select&gt;
-    &lt;div id="chatContent"&gt;&lt;/div&gt;
+    &lt;div id="chatContent"&gt;
+
+    &lt;/div&gt;
     &lt;div id="formContainer"&gt;
         &lt;form id="userChat" method="POST" onsubmit="return false;"&gt;
             &lt;textarea name="input" id="txt-input" rows="10"&gt;&lt;/textarea&gt;
@@ -82,29 +66,18 @@
                             &lt;option value="spanish"&gt;Spanish&lt;/option&gt;
                         &lt;/select&gt;
                     &lt;/nav&gt;
-                    &lt;div class="radio-btn-container"&gt;
-                        &lt;div class="radio-btn"&gt;
-                            &lt;input type="radio" id="requestMode" name="options" value="requestMode" checked&gt;
-                            &lt;label for="requestMode"&gt;Default Response Mode&lt;/label&gt;&lt;br&gt;
-                        &lt;/div&gt;
-                        &lt;div class="radio-btn"&gt;
-                            &lt;input type="radio" id="streamMode" name="options" value="streamMode"&gt;
-                            &lt;label for="requestMode"&gt;Stream Response Mode&lt;/label&gt;&lt;br&gt;
-                        &lt;/div&gt;
-                    &lt;/div&gt;
                     &lt;div class="form-button-container"&gt;
                         &lt;div class="stacked-items"&gt;
                             &lt;div class="form-button"&gt;
-                              &lt;input class="button" title="Clear the messages, but do not reset context." id="clearWin"
-                                type="button" value="Clear Window" /&gt;
-                              &lt;input class="button" title="Stop the current request." id="stopRqst" type="button" value="$services.localization.render('llm.ui.stop')" style="display: none;" /&gt;
+                                                      &lt;input class="button" title="Stop the current request." id="stopRqst" type="button" value="$services.localization.render('llm.ui.stop')" style="display: none;" /&gt;
+                            &lt;/div&gt;
+                            &lt;div class="form-button"&gt;
+                              &lt;input class="button" title="Clear messages and set up a blank space" id="clearWin"
+                                type="button" value="$services.localization.render('llm.ui.newconv')" /&gt;
                             &lt;/div&gt;
                             &lt;div class="form-button"&gt;
                                 &lt;input class="button" title="Submit your message to the selected model." id="subButton"
                                     type="submit" value="$services.localization.render('llm.ui.submit')" /&gt;
-                                &lt;input class="button"
-                                    title="Clear the conversation context (mean every message you sent until now will not be considered anymore)."
-                                    id="clearCtxt" type="button" value="Clear Context" /&gt;
                             &lt;/div&gt;
                         &lt;/div&gt;
                     &lt;/div&gt;
@@ -115,10 +88,8 @@
     &lt;/div&gt;
 &lt;/div&gt;
 &lt;script type="text/javascript"&gt;
-    var configs = "$objArray".replace("[","").split(", ");
-    console.log(configs);
     require(['xwiki-llm'], function (llm) {
-        llm.init(configs);
+        llm.init();
     });
 &lt;/script&gt;
 {{/html}}

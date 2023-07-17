@@ -151,7 +151,32 @@
     let nbToken = 0;
     let btnEnabled = true;
     let maxToken = 2000;
-    var configsJson = new Array();
+
+
+    define('llm-translation', {
+        prefix: 'llm.',
+        keys: [
+            "ui.copy",
+            "ui.include",
+            "ui.copyLabel",
+            "ui.includeLabel",
+            "ui.assistantInfoName",
+        ]
+    });
+    let copyBtnValue;
+    let copyBtnLabel
+    let includeBtnValue;
+    let includeBtnLabel;
+    let assistInfoName;
+    require(['xwiki-l10n!llm-translation'], function (l10n) {
+        copyBtnValue = l10n.get('ui.copy');
+        console.log(copyBtnValue);
+        includeBtnValue = l10n.get('ui.include');
+        copyBtnLabel = l10n.get('ui.copyLabel');
+        includeBtnLabel = l10n.get('ui.includeLabel');
+        assistInfoName = l10n.get('ui.assistantInfoName');
+    });
+
 
     // controler to stop a request if needed.
     let globalAbortController = new AbortController();
@@ -186,48 +211,100 @@
         return true;
     }
 
-    function blockStreamMode() {
-        const model = document.querySelector('#model-menu').value;
-        const streamMode = document.querySelector('#streamMode');
-        const requestMode = document.querySelector('#requestMode');
-        const cannotStream = (model.indexOf('openai') === -1) &amp;&amp; (model.indexOf('localai') === -1);
-        if (cannotStream) {
-            streamMode.disabled = true;
-            streamMode.checked = false;
-            requestMode.checked = true;
-        }
-        else {
-            streamMode.disabled = false;
-        }
+    function addUserChat(userChat) {
+        const preElement = document.createElement('pre');
+        preElement.classList.add('user-message');
+        preElement.textContent = userChat;
+        console.log('test : ', preElement);
+        return preElement;
     }
 
-    function addUserChat(userChat) {
-        return `&lt;pre class="user-message"&gt;${userChat}&lt;/pre&gt;`;
-    }
 
     function addAssistantChat(assistantChat, model, elapsedTime) {
         nbAssistMsg++;
-        const html = `&lt;div id="assist-msg-` + `${nbAssistMsg}" class="assistant-message"&gt;
-  &lt;div class="model-info" id="mod-inf-`+ `${nbAssistMsg}"&gt;Assistant (${model}) - ${elapsedTime} sec&lt;/div&gt;
-    &lt;pre class="message-content" id="msg-content-`+ `${nbAssistMsg}"&gt;${assistantChat}&lt;/pre&gt;
-    &lt;div class="astMsgButton"&gt;
-        &lt;button type="button" class="copy-button" id="copy-button-`+ `${nbAssistMsg}" style="display: none;" title="Copy the message to clipboard."&gt;Copy&lt;/button&gt;
-        &lt;button type="button" class="include-button" id="include-button-`+ `${nbAssistMsg}" style="display: none;" title="Include the message in the edited page."&gt;Include&lt;/button&gt;
-    &lt;/div&gt;
-  &lt;/div&gt;`;
-        return html;
+        const div = document.createElement('div');
+        div.id = `assist-msg-${nbAssistMsg}`;
+        div.classList.add('assistant-message');
+
+        const modelInfo = document.createElement('div');
+        modelInfo.classList.add('model-info');
+        modelInfo.id = `mod-inf-${nbAssistMsg}`;
+        modelInfo.textContent = `${assistInfoName} (${model}) - ${elapsedTime} sec`;
+        div.appendChild(modelInfo);
+
+        const messageContent = document.createElement('pre');
+        messageContent.classList.add('message-content');
+        messageContent.id = `msg-content-${nbAssistMsg}`;
+        messageContent.textContent = assistantChat;
+        div.appendChild(messageContent);
+
+        const astMsgButton = document.createElement('div');
+        astMsgButton.classList.add('astMsgButton');
+
+        const copyButton = document.createElement('button');
+        copyButton.type = 'button';
+        copyButton.classList.add('copy-button');
+        copyButton.id = `copy-button-${nbAssistMsg}`;
+        copyButton.style.display = 'none';
+        copyButton.title = copyBtnLabel;
+        copyButton.textContent = copyBtnValue;
+        astMsgButton.appendChild(copyButton);
+
+        const includeButton = document.createElement('button');
+        includeButton.type = 'button';
+        includeButton.classList.add('include-button');
+        includeButton.id = `include-button-${nbAssistMsg}`;
+        includeButton.style.display = 'none';
+        includeButton.title = includeBtnLabel;
+        includeButton.textContent = includeBtnValue;
+        astMsgButton.appendChild(includeButton);
+
+        div.appendChild(astMsgButton);
+
+        return div;
     }
+
 
     function addSystemChat(msg) {
-        const html = `&lt;div id="system-msg" class="system-message"&gt;
-                      &lt;div class="system-info"&gt;System&lt;/div&gt;
-                      &lt;pre class="message-content"&gt;${msg}&lt;/pre&gt;
-                    &lt;/div&gt;`;
-        return html;
+        const divElement = document.createElement('div');
+        divElement.id = 'system-msg';
+        divElement.classList.add('system-message');
+
+        const systemInfo = document.createElement('div');
+        systemInfo.classList.add('system-info');
+        systemInfo.textContent = 'System';
+        divElement.appendChild(systemInfo);
+
+        const messageContent = document.createElement('pre');
+        messageContent.classList.add('message-content');
+        messageContent.textContent = msg;
+        divElement.appendChild(messageContent);
+
+        return divElement;
     }
 
+
+    // Add the loading animation to the interface.
+    function addLoading(chatContent) {
+        chatContent.innerHTML += `&lt;div class="waiting-line"&gt;
+        &lt;div class="dot dot1"&gt;&lt;/div&gt;
+        &lt;div class="dot dot2"&gt;&lt;/div&gt;
+        &lt;div class="dot dot3"&gt;&lt;/div&gt;
+      &lt;/div&gt;
+      `;
+    }
+
+    // Remove the loading animation from the interface.
+    function removeLoading(chatContent) {
+        const loadingLine = chatContent.querySelector('.waiting-line');
+        if (loadingLine) {
+            loadingLine.remove();
+        }
+    }
+
+
     function updateAssistantChat(msgIdNum, updatedTime, chunkReply, model) {
-        document.querySelector('#mod-inf-' + msgIdNum).textContent = `Assistant (${model}) - ${updatedTime} sec`;
+        document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec`;
         document.querySelector('#msg-content-' + msgIdNum).textContent += chunkReply;
     }
 
@@ -303,13 +380,12 @@
         return prompt;
     }
 
-    function getRequestParams(userText, modelType, model, prompt, context, isStreaming) {
+    function getRequestParams(userText, modelType, model, prompt, context) {
         const params = {
             text: userText,
             modelType: modelType,
             model: model,
             prompt: context + prompt,
-            stream: isStreaming,
         };
         return params;
     }
@@ -345,7 +421,6 @@
         return new Promise(function (resolve) {
             const target = event.target;
             const msgID = target.id;
-            // Vérifiez si l'élément cible a la classe copy-button
             if (target.classList.contains('copy-button')) {
                 copyTextToClipboard(msgID);
             }
@@ -353,9 +428,10 @@
         });
     }
 
-    // Update the interface and the context with the new infos.
+    // Update the interface and the context with the new infos (non-streaming request only here).
     function updateChat(chatContent, generatedContent, model, elapsedTime, userText) {
-        chatContent.innerHTML += addAssistantChat(generatedContent, model, elapsedTime);
+        removeLoading(chatContent);
+        chatContent.appendChild(addAssistantChat(generatedContent, model, elapsedTime));
         let actualMsgID = nbAssistMsg;
         console.log(actualMsgID);
         document.querySelector('#copy-button-' + actualMsgID).style.display = "block";
@@ -366,7 +442,8 @@
     }
 
     function initChatOnStream(chatContent, model) {
-        chatContent.innerHTML += addAssistantChat('', model, 0);
+        removeLoading(chatContent);
+        chatContent.appendChild(addAssistantChat('', model, 0));
     }
 
     function updateChatOnStream(chatContent, completedReply) {
@@ -382,14 +459,12 @@
     function changeBtnState() {
         if (btnEnabled) {
             document.querySelector('#subButton').disabled = true;
-            document.querySelector('#clearCtxt').disabled = true;
             document.querySelector('#clearWin').disabled = true;
             document.querySelector('#stopRqst').style.display = "block";
             btnEnabled = false;
         }
         else {
             document.querySelector('#subButton').disabled = false;
-            document.querySelector('#clearCtxt').disabled = false;
             document.querySelector('#clearWin').disabled = false;
             document.querySelector('#stopRqst').style.display = "none";
             btnEnabled = true;
@@ -497,6 +572,7 @@
     }
 
     function streamingRequest(chatContent, URI, options, startTime, model, userText) {
+        addLoading(chatContent);
         fetch(URI, options).then((response) =&gt; {
             const reader = response.body.getReader();
             return new ReadableStream({
@@ -518,14 +594,17 @@
         }).then((stream) =&gt; {
             return streamResponse(chatContent, stream, model, startTime, userText);
         }).catch((error) =&gt; {
-            console.log('stream error');
-            console.error('Error:', error);
-            errorCatcher(chatContent, error);
-            changeBtnState();
+            if (error.name !== 'AbortError') {
+                console.log('stream error');
+                console.error('Error:', error);
+                errorCatcher(chatContent, error);
+                changeBtnState();
+            }
         });
     }
 
     function requestModeResponse(URI, options, start, model, chatContent, userText) {
+        addLoading(chatContent);
         fetch(URI, options)
             .then(response =&gt; response.json())
             .then(data =&gt; {
@@ -560,12 +639,13 @@
             });
     }
 
-    function postRequest(options, chatContent, model, userText, requestMode) {
+    function postRequest(options, chatContent, model, userText, isStreaming) {
         changeBtnState();
         document.querySelector('#txt-input').value = '';
         const URI = "/xwiki/rest/v1/chat/completions";
         const start = Date.now();
-        if (requestMode === 'streamMode') {
+        console.log(isStreaming);
+        if (isStreaming === "true") {
             streamingRequest(chatContent, URI, options, start, model, userText);
         }
         else requestModeResponse(URI, options, start, model, chatContent, userText);
@@ -573,6 +653,8 @@
     }
 
     function getModels(options) {
+        changeBtnState();
+        document.querySelector('#stopRqst').style.display = "none";
         fetch('/xwiki/rest/v1/models', options)
             .then(response =&gt; {
                 if (!response.ok) {
@@ -583,9 +665,10 @@
             .then(json =&gt; {
                 console.log(json);
                 initModelMenu(json);
+                changeBtnState();
             })
             .catch(e =&gt; {
-                console.log('An error occured trying to get the model list : ' + e.message);
+                console.error('An error occured trying to get the model list : ' + e.message);
             });
     }
 
@@ -600,42 +683,48 @@
         console.log("sending...");
 
         // Which model should we adress and what feature is wanted
-        const selectedMod = document.querySelector('#model-menu').value;
+        const modelMenu = document.querySelector('#model-menu');
+        const selectedMod = modelMenu.value;
         const modelType = selectedMod.substring(0, selectedMod.indexOf("/"));
         const model = selectedMod.substring(selectedMod.indexOf("/") + 1);
         const selectedPrompt = document.querySelector('#features-menu').value;
         const prompt = getPrompt(selectedPrompt);
-        const requestMode = document.querySelector('input[name="options"]:checked').value;
+        const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");;
+        console.log('isStreaming: ', isStreaming);
         maxToken = chooseMaxToken(modelType);
         console.log(maxToken);
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');
         if (prompt !== '') {
-            chatContent.innerHTML += addSystemChat('The prompt used is: ' + prompt);
+            chatContent.appendChild(addSystemChat('The prompt used is: ' + prompt));
         }
-        chatContent.innerHTML += addUserChat(userText);
+        chatContent.appendChild(addUserChat(userText));
         scrollToBottom();
 
         // Create the string containing csrf token
         const csrf = '${services.csrf.token}';
 
-        const params = getRequestParams(userText, modelType, model, prompt, context, requestMode);
+        const params = getRequestParams(userText, modelType, model, prompt, context, isStreaming);
         const options = getRequestOptions(params, csrf);
 
         // Make the POST request with query parameters
-        postRequest(options, chatContent, model, userText, requestMode);
+        postRequest(options, chatContent, model, userText, isStreaming);
 
     }
 
     function abortRequest() {
-        const chatContent = document.querySelector('#chatContent');
         globalAbortController.abort();
+        const chatContent = document.querySelector('#chatContent');
+        console.log(chatContent);
+        chatContent.appendChild(addSystemChat("You aborted the ongoing request."));
+        console.log('??');
+        removeLoading(chatContent);
+        scrollToBottom();
+        changeBtnState();
         // reset the signal
         globalAbortController = new AbortController();
         globalSignal = globalAbortController.signal;
-        chatContent.innerHTML += addSystemChat("You aborted the ongoing request");
-        scrollToBottom();
-        changeBtnState();
+        console.log('??');
     }
 
     function initFormEvent(form) {
@@ -654,22 +743,12 @@
             }
         });
 
-        // Add an event listener to the clear context button.
-        const clearCtxtButton = document.querySelector('#clearCtxt');
-        clearCtxtButton.addEventListener('click', (event) =&gt; {
-            context = [];
-            nbToken = 0;
-        });
-
         const clearWinButton = document.querySelector('#clearWin');
         clearWinButton.addEventListener('click', (event) =&gt; {
             document.querySelector('#chatContent').innerHTML = '';
             nbAssistMsg = 0;
-        });
-
-        const modelMenu = document.querySelector('#model-menu');
-        modelMenu.addEventListener('change', (event) =&gt; {
-            blockStreamMode();
+            context = [];
+            nbToken = 0;
         });
 
         const stopRqstButton = document.querySelector('#stopRqst');
@@ -678,46 +757,25 @@
         });
     }
 
-    function configsToJson(configArr) {
-        for (let conf of configArr) {
-            console.log('conf : ', conf);
-            var configArr = conf.split(";");
-            console.log(configArr);
-            let obj = {};
-            configArr.forEach(pair =&gt; {
-                console.log(pair);
-                let [key, ...value] = pair.split(':');
-                value = value.join(':');
-                if (value[0] === '{') {
-                    // if the value starts with a '{', it's a JSON object
-                    console.log(value);
-                    value = JSON.parse(value);
-                }
-                obj[key] = value;
-            });
-            configsJson.push(obj);
-        }
-        console.log('configsJson : ', configsJson);
-    }
-
     function initModelMenu(modelList) {
         console.log('modelList : ' + modelList);
         const modelMenu = document.querySelector('#model-menu');
         modelList.forEach(element =&gt; {
             const prefix = element.prefix;
             const filter = element.filter;
+            const isStreaming = element.canStream;
             for (let model of element.data) {
                 console.log(model.id);
                 const value = prefix + '/' + model.id;
                 const valueToDisplay = model.id + ' (' + prefix + ')';
                 if (filter.indexOf(model.id) != -1)
-                    modelMenu.innerHTML += `&lt;option value="${value}"&gt;${valueToDisplay}&lt;/option&gt;`
+                    modelMenu.innerHTML += `&lt;option value="${value}" data-streaming="${isStreaming}"&gt;${valueToDisplay}&lt;/option&gt;`
             }
         });
 
     }
 
-    function init(configArr) {
+    function init() {
         // alert("Received dom updated in JS");
         if (initDone)
             return;
@@ -730,8 +788,6 @@
             return;
         }
         initFormEvent(form);
-        configsToJson(configArr);
-        console.log('configsJson : ', configsJson);
 
         const csrf = '${services.csrf.token}';
         const options = getRequestOptions(null, csrf);

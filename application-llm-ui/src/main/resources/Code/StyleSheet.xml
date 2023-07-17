@@ -144,229 +144,260 @@
       <cache>long</cache>
     </property>
     <property>
-      <code>  .user-message {
-    position: relative;
-    float: right;
-    clear: both;
-    background-color: lightblue;
-    padding: 5px;
-    margin-bottom: 10px;
-    max-width: 70%;
-    width: fit-content;
-    border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
-    word-wrap: break-word;
-    white-space: pre-line;
-    word-break: break-word;
-    font-family: system-ui;
-  }
+      <code>.user-message {
+  position: relative;
+  float: right;
+  clear: both;
+  background-color: lightblue;
+  padding: 5px;
+  margin-bottom: 10px;
+  max-width: 70%;
+  width: fit-content;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  word-wrap: break-word;
+  white-space: pre-line;
+  word-break: break-word;
+  font-family: system-ui;
+}
 
-  .assistant-message {
-    position: relative;
-    float: bottom;
-    clear: both;
-    background-color: lightgreen;
-    padding: 5px;
-    margin-bottom: 10px;
-    width: fit-content;
-    max-width: 70%;
-    border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
-    word-wrap: break-word;
-  }
+.assistant-message {
+  position: relative;
+  float: bottom;
+  clear: both;
+  background-color: lightgreen;
+  padding: 5px;
+  margin-bottom: 10px;
+  width: fit-content;
+  max-width: 70%;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  word-wrap: break-word;
+}
 
-  .system-message {
-    position: relative;
-    float: bottom;
-    clear: both;
-    background-color: lightyellow;
-    padding: 5px;
-    margin-bottom: 10px;
-    width: 100%;
-    border-radius: 3px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
-    word-wrap: break-word;
-  }
+.system-message {
+  position: relative;
+  float: bottom;
+  clear: both;
+  background-color: lightyellow;
+  padding: 5px;
+  margin-bottom: 10px;
+  width: 100%;
+  border-radius: 3px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  word-wrap: break-word;
+}
 
-   .system-info {
-    font-weight: bold;
-    margin-bottom: 5px;
-  }
+.system-info {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
 
-  .model-info {
-    font-weight: bold;
-    margin-bottom: 5px;
-  }
+.model-info {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
 
-  .message-content {
-    margin-top: 5px;
-    font-family: system-ui;
-    white-space: pre-line;
-    word-break: break-word;
-  }
+.message-content {
+  margin-top: 5px;
+  font-family: system-ui;
+  white-space: pre-line;
+  word-break: break-word;
+}
 
-  #chatContent {
-    position: relative;
-    height: 400px;
-    max-width: 100%;
-    margin: 10px auto;
-    /* Center the chat container horizontally */
-    padding: 10px;
-    border: 1px solid lightgray;
-    border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    overflow-y: auto;
-    /* Enable vertical scroll when content exceeds container height */
-  }
+#chatContent {
+  position: relative;
+  height: 400px;
+  max-width: 100%;
+  margin: 10px auto;
+  /* Center the chat container horizontally */
+  padding: 10px;
+  border: 1px solid lightgray;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  overflow-y: auto;
+  /* Enable vertical scroll when content exceeds container height */
+}
 
-  .errorHandler {
-    position: relative;
-    float: bottom;
-    clear: both;
-    background-color: rgb(253, 97, 97);
-    padding: 5px;
-    margin-bottom: 10px;
-    width: fit-content;
-    max-width: 70%;
-    border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
-    word-wrap: break-word;
-  }
+.errorHandler {
+  position: relative;
+  float: bottom;
+  clear: both;
+  background-color: rgb(253, 97, 97);
+  padding: 5px;
+  margin-bottom: 10px;
+  width: fit-content;
+  max-width: 70%;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  word-wrap: break-word;
+}
 
-  .copy-button {
-    position: relative;
-    border-radius: 5px;
-    background-color: rgb(91, 155, 91);
-    border-color: black;
-    width: 63px;
-  }
+.copy-button {
+  position: relative;
+  border-radius: 5px;
+  background-color: rgb(91, 155, 91);
+  border-color: black;
+  width: 63px;
+}
 
-  .include-button {
-    position: relative;
-    border-radius: 5px;
-    background-color: rgb(91, 155, 91);
-    border-color: black;
-    width: 63px;
-  }
+.include-button {
+  position: relative;
+  border-radius: 5px;
+  background-color: rgb(91, 155, 91);
+  border-color: black;
+  width: 63px;
+}
 
-  .astMsgButton{
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-  }
+.astMsgButton{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
 
-  .stacked-items {
-    display: flex;
-    flex-direction: column;
-    align-items: start;
-  }
+.stacked-items {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+}
 
-  #chatUI nav{
-    position: relative;
-  }
+#chatUI nav{
+  position: relative;
+}
 
-  #userChat {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    width: 100%;
-  }
+#userChat {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+}
 
-  #txt-input, #subButton, #clearCtxt, #stopRqst, #clearWin{
-    margin-right: 10px;
-  }
+#txt-input, #subButton, #clearCtxt, #stopRqst, #clearWin{
+  margin-right: 10px;
+}
 
-  #chatUI form{
-    align-items: left;
-  }
+#chatUI form{
+  align-items: left;
+}
 
-  #chatUI select{
-    align-self: flex-start;
-  }
+#chatUI select{
+  align-self: flex-start;
+}
 
-  #chatUI nav{
-    align-self: flex-start;
-  }
+#chatUI nav{
+  align-self: flex-start;
+}
 
-  #chatUI .button{
-    width: 50%;
-    flex: 1;
-    margin: 5px 5px;
-  }
+#chatUI .button{
+  width: 50%;
+  flex: 1;
+  margin: 5px 5px;
+}
 
-  .form-button-container{
-    display: flex;
-    /*flex-direction: row;*/
-    margin-top: 40%;
-    justify-content: space-between;
-  }
+.form-button-container{
+  display: flex;
+  margin-top: 40%;
+  justify-content: space-between;
+}
 
-  .form-button{
-    display: flex;
-    /*flex-direction: row;*/
-    flex: 1;
-    width: 100%;
-  }
+.form-button{
+  display: flex;
+  flex: 1;
+  width: 100%;
+}
 
-  .astMsgButton {
-    display: flex;
-    justify-content: center;
-    margin-top: 10px;
-  }
+.astMsgButton {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
 
-  .astMsgButton button {
-    margin: 0 5px;
-  }
+.astMsgButton button {
+  margin: 0 5px;
+}
 
-  #formContainer {
-    display: flex;
-    align-items: flex-start;
-  }
+#formContainer {
+  display: flex;
+  align-items: flex-start;
+}
 
-  #model-menu {
-    width: 30%;
-    position: absolute;
-    top: 0;
-    right: 3%;
-  }
+#model-menu {
+  width: 30%;
+  position: absolute;
+  top: 0;
+  right: 3%;
+}
 
-  #language-menu {
-    width: 100%;
-    position: absolute;
-    top: 100%;
-    right: 0;
-  }
+#language-menu {
+  width: 100%;
+  position: absolute;
+  top: 100%;
+  right: 0;
+}
 
-  #features-menu{
-     width: 100%;
-  }
+#features-menu{
+  width: 100%;
+}
 
-  #txt-input{
-    resize: none;
-    width: 100%;
-    margin-bottom: 10px;
-  }
+#txt-input{
+  resize: none;
+  width: 100%;
+  margin-bottom: 10px;
+}
 
-  .radio-btn{
-    display: flex;
-    flex-direction: row;
-  }
+#stopRqst{
+  background-image: -webkit-linear-gradient(#FF3333, #FF3333 50%, #FF3333);
+  background-image: -o-linear-gradient(#FF3333, #FF3333 50%, #FF3333);
+  background-image: linear-gradient(#FF3333, #FF3333 50%, #FF3333);
+  border: none;
+}
 
-  .radio-btn-container{
-    position: absolute;
-    top: 76%;
-  }
 
-  #stopRqst{
-    background-image: -webkit-linear-gradient(#FF3333, #FF3333 50%, #FF3333);
-    background-image: -o-linear-gradient(#FF3333, #FF3333 50%, #FF3333);
-    background-image: linear-gradient(#FF3333, #FF3333 50%, #FF3333);
-    border: none; /* Supprimer la bordure */
+#chatUI .waiting-line {
+  width: 100%;
+  height: 20px;
+  display: flex;
+  justify-content: left;
+  align-items: center;
+}
+
+#chatUI .dot {
+  width: 1.25%;
+  height: 90%;
+  background-color: #C9C9C9;
+  border-radius: 50%;
+  animation: pulse 1s infinite;
+  margin-right: 0.5%;
+}
+
+#chatUI .dot1 {
+  animation-delay: 0.2s;
+}
+
+#chatUI .dot2 {
+  animation-delay: 0.4s;
+}
+
+#chatUI .dot3 {
+  animation-delay: 0.6s;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
   }
+  50% {
+    transform: scale(0.5);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 </code>
     </property>
     <property>

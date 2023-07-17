@@ -66,10 +66,10 @@
   $response.sendRedirect($xwiki.relativeRequestURL.replaceAll("&amp;add=1", ""))
 #end
 
-|=$services.localization.render('llm.config.name')|=$services.localization.render('llm.config.url')|=$services.localization.render('llm.config.configfile')|=$services.localization.render('llm.config.token')|=$services.localization.render('llm.config.delete')
+|=$services.localization.render('llm.config.name')|=$services.localization.render('llm.config.url')|=$services.localization.render('llm.config.configfile')|=$services.localization.render('llm.config.token')|=$services.localization.render('llm.config.requestmode')|=$services.localization.render('llm.config.delete')
 #foreach($serverObject in $configDoc.getObjects($configClassName))
   #set ($deleteURL = $configDoc.getURL('objectremove', "form_token=$!{services.csrf.getToken()}&amp;classname=${escapetool.url($configClassName)}&amp;classid=${serverObject.number}&amp;xredirect=${escapetool.url($redirect)}"))
-  |$serverObject.display('Name', 'edit')|$serverObject.display('url', 'edit')|$serverObject.display('Config', 'edit')|$serverObject.display('token', 'edit')|=[[image:icon:cross&gt;&gt;path:$deleteURL]]
+  |$serverObject.display('Name', 'edit')|$serverObject.display('url', 'edit')|$serverObject.display('Config', 'edit')|$serverObject.display('token', 'edit')|$serverObject.display('Requestmode', 'edit')|=[[image:icon:cross&gt;&gt;path:$deleteURL]]
 #end
 
 {{html clean="false"}}

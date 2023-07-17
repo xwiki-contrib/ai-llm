@@ -21,7 +21,6 @@ package org.xwiki.contrib.llm.internal;
 
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
-import com.robrua.nlp.bert.Bert;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;

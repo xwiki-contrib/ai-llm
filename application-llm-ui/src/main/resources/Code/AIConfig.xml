@@ -61,7 +61,7 @@
         <editor>PureText</editor>
         <hint/>
         <name>Config</name>
-        <number>4</number>
+        <number>3</number>
         <picker>1</picker>
         <prettyName>Config</prettyName>
         <restricted>0</restricted>
@@ -86,13 +86,28 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
       </Name>
+      <Requestmode>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayFormType>checkbox</displayFormType>
+        <displayType/>
+        <hint>Can stream</hint>
+        <name>Requestmode</name>
+        <number>4</number>
+        <prettyName>Requestmode</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </Requestmode>
       <token>
         <algorithm/>
         <customDisplay/>
         <disabled>0</disabled>
         <hint>Token</hint>
         <name>token</name>
-        <number>4</number>
+        <number>5</number>
         <picker>1</picker>
         <prettyName>AI Code Server Password</prettyName>
         <size>10</size>
@@ -124,7 +139,10 @@
       <Name>OpenAI</Name>
     </property>
     <property>
-      <token/>
+      <Requestmode>1</Requestmode>
+    </property>
+    <property>
+      <token></token>
     </property>
     <property>
       <url>https://api.openai.com/v1/</url>
@@ -151,7 +169,7 @@
         <editor>PureText</editor>
         <hint/>
         <name>Config</name>
-        <number>4</number>
+        <number>3</number>
         <picker>1</picker>
         <prettyName>Config</prettyName>
         <restricted>0</restricted>
@@ -176,13 +194,28 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
       </Name>
+      <Requestmode>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayFormType>checkbox</displayFormType>
+        <displayType/>
+        <hint>Can stream</hint>
+        <name>Requestmode</name>
+        <number>4</number>
+        <prettyName>Requestmode</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </Requestmode>
       <token>
         <algorithm/>
         <customDisplay/>
         <disabled>0</disabled>
         <hint>Token</hint>
         <name>token</name>
-        <number>4</number>
+        <number>5</number>
         <picker>1</picker>
         <prettyName>AI Code Server Password</prettyName>
         <size>10</size>
@@ -214,10 +247,121 @@
       <Name>LocalAI</Name>
     </property>
     <property>
+      <Requestmode>1</Requestmode>
+    </property>
+    <property>
       <token/>
     </property>
     <property>
       <url>https://llmapi.ai.devxwiki.com/v1/</url>
+    </property>
+  </object>
+  <object>
+    <name>AI.Code.AIConfig</name>
+    <number>2</number>
+    <className>AI.Code.AIConfigClass</className>
+    <guid>1e315cee-5a43-4885-9ae2-ab50833fd936</guid>
+    <class>
+      <name>AI.Code.AIConfigClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <Config>
+        <contenttype>FullyRenderedText</contenttype>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <hint/>
+        <name>Config</name>
+        <number>3</number>
+        <picker>1</picker>
+        <prettyName>Config</prettyName>
+        <restricted>0</restricted>
+        <rows>5</rows>
+        <size>40</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </Config>
+      <Name>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Server Name</hint>
+        <name>Name</name>
+        <number>1</number>
+        <picker>1</picker>
+        <prettyName>AI Code Server Name</prettyName>
+        <size>10</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </Name>
+      <Requestmode>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayFormType>checkbox</displayFormType>
+        <displayType/>
+        <hint>Can stream</hint>
+        <name>Requestmode</name>
+        <number>4</number>
+        <prettyName>Requestmode</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </Requestmode>
+      <token>
+        <algorithm/>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Token</hint>
+        <name>token</name>
+        <number>5</number>
+        <picker>1</picker>
+        <prettyName>AI Code Server Password</prettyName>
+        <size>10</size>
+        <storageType>Clear</storageType>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.PasswordClass</classType>
+      </token>
+      <url>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>URL Prefix</hint>
+        <name>url</name>
+        <number>2</number>
+        <picker>1</picker>
+        <prettyName>AI Code Server URL Prefix</prettyName>
+        <size>20</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </url>
+    </class>
+    <property>
+      <Config>vicuna-7b</Config>
+    </property>
+    <property>
+      <Name>Fastchat</Name>
+    </property>
+    <property>
+      <Requestmode>1</Requestmode>
+    </property>
+    <property>
+      <token/>
+    </property>
+    <property>
+      <url>https://fastchatapi.aigpu.devxwiki.com/v1/</url>
     </property>
   </object>
   <object>

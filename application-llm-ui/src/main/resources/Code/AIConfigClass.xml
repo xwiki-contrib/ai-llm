@@ -54,7 +54,7 @@
       <editor>PureText</editor>
       <hint/>
       <name>Config</name>
-      <number>4</number>
+      <number>3</number>
       <picker>1</picker>
       <prettyName>Config</prettyName>
       <restricted>0</restricted>
@@ -79,13 +79,28 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
     </Name>
+    <Requestmode>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint>Can stream</hint>
+      <name>Requestmode</name>
+      <number>4</number>
+      <prettyName>Requestmode</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </Requestmode>
     <token>
       <algorithm/>
       <customDisplay/>
       <disabled>0</disabled>
       <hint>Token</hint>
       <name>token</name>
-      <number>4</number>
+      <number>5</number>
       <picker>1</picker>
       <prettyName>AI Code Server Password</prettyName>
       <size>10</size>

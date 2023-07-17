@@ -38,6 +38,7 @@ import org.xwiki.stability.Unstable;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.BaseProperty;
 import com.xpn.xwiki.objects.BaseStringProperty;
 import com.xpn.xwiki.web.Utils;
 
@@ -56,9 +57,7 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider{
     public Map<String, GPTAPIConfig> getConfigObjects() throws GPTAPIException{
         Map<String, GPTAPIConfig> configProperties = new HashMap<>();
         try {
-            logger.info("test1");
             Execution execution = Utils.getComponent(Execution.class);
-            logger.info("test2");
             XWikiContext context = (XWikiContext) execution.getContext().getProperty("xwikicontext");
             com.xpn.xwiki.XWiki xwiki = context.getWiki();
 
@@ -68,8 +67,8 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider{
                 Map<String, Object> configObjMap = new HashMap<>();
                 if (configObject == null)
                     continue;
-                Collection<BaseStringProperty> fields = configObject.getFieldList();
-                for (BaseStringProperty field : fields) {
+                Collection<BaseProperty> fields = configObject.getFieldList();
+                for (BaseProperty field : fields) {
                     logger.info("Test : " + field);
                     configObjMap.put(field.getName(), field.getValue());
                 }

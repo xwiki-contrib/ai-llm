@@ -120,19 +120,18 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                 logger.info("modelType : ", modelType);
             } else {
                 model = modelInfoString;
-                modelType = "openai";
+                modelType = "default";
             }
             logger.info("modelType after evaluation :", modelType);
             logger.info("Received text: " + data.get("text"));
-            logger.info("Received mode: " + data.get("stream"));
-            boolean isStreaming = (Objects.equals(data.get("stream").toString(), "streamMode"));
-            logger.info("is streaming : " + isStreaming);
-            logger.info("config : " + modelType);
             GPTAPIConfig config = gptApi.getConfig(modelType);
             if (config == null) {
                 throw new Exception(
                         "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
             }
+            boolean isStreaming = config.getCanStream();
+            logger.info("is streaming : " + isStreaming);
+            logger.info("config : " + modelType);
 
             // Create an instance of HttpClient.
             HttpClient client = new HttpClient();
@@ -207,9 +206,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     public void write(OutputStream outputStream) throws IOException {
                         logger.info("Writing in output Stream..");
                         OutputStreamWriter writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8);
-                        boolean isErrSent = false;
-                        boolean stop = false;
-                        while ((line = reader.readLine()) != null && !stop) {
+                        while ((line = reader.readLine()) != null) {
                             // Write each line to the output
                             logger.info("stream response line: " + line);
                             writer.write(line);
@@ -258,7 +255,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     get.setRequestHeader("Authorization", "Bearer " + entry.getValue().getToken());
                     // setting the timeouts
                     get.getParams().setParameter(HttpMethodParams.SO_TIMEOUT, 10000);
-                    client.getHttpConnectionManager().getParams().setConnectionTimeout(10000);
+                    client.getHttpConnectionManager().getParams().setConnectionTimeout(5000);
                     int statusCode = client.executeMethod(get);
                     if (statusCode != HttpStatus.SC_OK) {
                         logger.error("Method failed: " + get.getStatusLine());
@@ -270,6 +267,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     JSONObject responseBodyJson = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
                     responseBodyJson.put("prefix", entry.getValue().getName().toLowerCase());
                     responseBodyJson.put("filter", entry.getValue().getConfigModels());
+                    responseBodyJson.put("canStream", entry.getValue().getCanStream());
                     finalResponse.put(responseBodyJson);
                 } catch (Exception e) {
                     logger.error("An error occured on one of the requested URI: ", e);

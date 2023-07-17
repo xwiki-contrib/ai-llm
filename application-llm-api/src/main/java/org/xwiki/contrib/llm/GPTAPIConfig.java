@@ -27,6 +27,7 @@ public class GPTAPIConfig {
     private String configModels;
     private String token;
     private String modelsURL;
+    private boolean canStream;
 
     public GPTAPIConfig(Map<String, Object> properties) {
         this.name = (String) properties.get("Name");
@@ -34,6 +35,10 @@ public class GPTAPIConfig {
         this.configModels = (String) properties.get("Config");
         this.token = (String) properties.get("token");
         this.modelsURL = (String) properties.get("modelurl");
+        if((Integer) properties.get("Requestmode") == 1)
+            this.canStream = true;
+        else
+            this.canStream = false;
     }
 
     public GPTAPIConfig() {
@@ -53,6 +58,10 @@ public class GPTAPIConfig {
 
     public String getToken() {
         return token;
+    }
+
+    public Boolean getCanStream(){
+        return canStream;
     }
 
     public void setName(String name) {
