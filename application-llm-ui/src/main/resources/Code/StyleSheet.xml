@@ -366,7 +366,7 @@
 }
 
 #chatUI .dot {
-  width: 1.25%;
+  width: 2%;
   height: 90%;
   background-color: #C9C9C9;
   border-radius: 50%;

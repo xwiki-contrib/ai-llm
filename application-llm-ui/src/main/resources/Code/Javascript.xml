@@ -653,8 +653,10 @@
     }
 
     function getModels(options) {
+        const chatContent = document.querySelector('#chatContent');
         changeBtnState();
         document.querySelector('#stopRqst').style.display = "none";
+        chatContent.appendChild(addSystemChat('Models are loading..'));
         fetch('/xwiki/rest/v1/models', options)
             .then(response =&gt; {
                 if (!response.ok) {
@@ -665,10 +667,13 @@
             .then(json =&gt; {
                 console.log(json);
                 initModelMenu(json);
+                chatContent.appendChild(addSystemChat('Models are now loaded.'));
                 changeBtnState();
             })
             .catch(e =&gt; {
                 console.error('An error occured trying to get the model list : ' + e.message);
+                chatContent.appendChild(addSystemChat('An error occured trying to get the model list : ' + e.message + 
+                '. Please make sure to have at least one configuration working.'));
             });
     }
 
@@ -680,7 +685,6 @@
             alert("Your request is empty, please write an input.");
             return false;
         }
-        console.log("sending...");
 
         // Which model should we adress and what feature is wanted
         const modelMenu = document.querySelector('#model-menu');
@@ -690,9 +694,7 @@
         const selectedPrompt = document.querySelector('#features-menu').value;
         const prompt = getPrompt(selectedPrompt);
         const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");;
-        console.log('isStreaming: ', isStreaming);
         maxToken = chooseMaxToken(modelType);
-        console.log(maxToken);
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');
         if (prompt !== '') {
@@ -776,11 +778,9 @@
     }
 
     function init() {
-        // alert("Received dom updated in JS");
         if (initDone)
             return;
         initDone = true;
-        // Here, do something that will be executed at the moment the event is fired.
         // Select the form element
         const form = document.querySelector('#userChat');
         if (!form) {

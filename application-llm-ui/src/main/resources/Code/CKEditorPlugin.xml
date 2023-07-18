@@ -137,7 +137,7 @@
       modal.on('show.bs.modal', function(event) {
         if (modalBody.is(':empty') &amp;&amp; !modalBody.hasClass('loading')) {
           modalBody.addClass('loading');
-           // First you need to define a module that holds the required translation keys.
+           // Define a module that holds the required translation keys.
           define('llm-translation', {
             prefix: 'llm.',
             keys: [
@@ -151,13 +151,12 @@
             ]
           });
 
-          // Then you require the translation messages using the dedicated loader.
+          // Require the translation messages using the dedicated loader.
           require(['xwiki-l10n!llm-translation'], function(l10n) {
             // Translation key without parameters.
             console.log(l10n['editor.modal.button']);
 
             // Translation key with parameters.
-            //console.log(l10n.get('selection.infoBar.allSelectedBut', 'parameter value'));
             submitButton.text(l10n.get('editor.modal.button'));
             modal.find('.modal-title').text(l10n.get('editor.modal.title'));
           });
@@ -237,7 +236,6 @@
         command: 'llmaction'
       }];
       this.initLLMButton(editor);
-      //this.includeMsg(editor);
     },
 
 
@@ -280,7 +278,7 @@
       <name>CKEditor Plugin JSX</name>
     </property>
     <property>
-      <parse>1</parse>
+      <parse>0</parse>
     </property>
     <property>
       <use>onDemand</use>
