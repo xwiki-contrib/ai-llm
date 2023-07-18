@@ -30,7 +30,7 @@
     <groupId>org.xwiki.contrib.llm</groupId>
     <artifactId>application-llm</artifactId>
     <description>LLM AI features for XWiki</description>
-    <version>0.3-SNAPSHOT</version>
+    <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>LLM - Parent POM</name>
     <scm>
