@@ -35,4 +35,11 @@
         <xwiki.extension.name>LLM Application</xwiki.extension.name>
         <xwiki.extension.category>application</xwiki.extension.category>
     </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.xwiki.contrib.llm</groupId>
+            <artifactId>application-llm-api</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+    </dependencies>
 </project>
