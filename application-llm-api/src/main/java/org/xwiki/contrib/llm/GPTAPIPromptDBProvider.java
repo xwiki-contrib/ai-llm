@@ -25,6 +25,6 @@ import java.util.Map;
 
 @Component
 @Role
-public interface GPTAPIConfigProvider {
-    public Map<String, GPTAPIConfig> getConfigObjects() throws GPTAPIException;
+public interface GPTAPIPromptDBProvider {
+    public Map<String,GPTAPIPrompt> getPromptDB();
 }

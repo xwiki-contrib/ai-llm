@@ -19,12 +19,28 @@
  */
 package org.xwiki.contrib.llm;
 
-import org.xwiki.component.annotation.Component;
-import org.xwiki.component.annotation.Role;
-import java.util.Map;
+import java.util.*;
 
-@Component
-@Role
-public interface GPTAPIConfigProvider {
-    public Map<String, GPTAPIConfig> getConfigObjects() throws GPTAPIException;
+public class GPTAPIPrompt{
+    private String name;
+    private String prompt;
+    private Boolean isActive;
+
+    public GPTAPIPrompt(Map<String, Object> dbMap){
+        this.name = (String) dbMap.get("title1");
+        this.prompt = (String) dbMap.get("content1");
+        this.isActive = ((Integer) dbMap.get("boolean1")) == 1;
+    }
+
+    public String getName(){
+        return name;
+    }
+
+    public String getPrompt(){
+        return prompt;   
+    }
+
+    public Boolean getIsActive(){
+        return isActive;
+    }
 }

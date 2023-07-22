@@ -43,6 +43,8 @@ import org.xwiki.contrib.llm.GPTAPI;
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.GPTAPIException;
+import org.xwiki.contrib.llm.GPTAPIPrompt;
+import org.xwiki.contrib.llm.GPTAPIPromptDBProvider;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
@@ -68,7 +70,10 @@ public class DefaultGPTAPI implements GPTAPI {
     protected Logger logger;
 
     @Inject
-    GPTAPIConfigProvider configProvider;
+    protected GPTAPIConfigProvider configProvider;
+
+    @Inject
+    protected GPTAPIPromptDBProvider dbProvider;
 
     @Override
     public String getLLMChatCompletion(Map<String, Object> data, String openAIKey) throws GPTAPIException {
@@ -255,6 +260,17 @@ public class DefaultGPTAPI implements GPTAPI {
             return configMap;
         } catch(Exception e){
             logger.error("Error trying to get the configurations java object: ", e);
+            return null;
+        }
+    }
+
+    @Override
+    public Map<String,GPTAPIPrompt> getPromptDB() throws GPTAPIException{
+        try{
+            Map<String,GPTAPIPrompt> dbMap = dbProvider.getPromptDB();
+            return dbMap;
+        } catch(Exception e){
+            logger.error("Error trying to get the prompt database : ", e);
             return null;
         }
     }

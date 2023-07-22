@@ -24,6 +24,7 @@ import javax.ws.rs.*;
 import com.fasterxml.jackson.databind.ser.std.StdKeySerializers.Default;
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
+import com.xpn.xwiki.XWiki;
 import com.xpn.xwiki.objects.BaseObject;
 
 import liquibase.pro.packaged.I;
@@ -76,23 +77,6 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
     @Inject
     private GPTAPI gptApi;
-
-    @GET
-    public Response get() {
-        try {
-            String message = "test";
-            return Response.status(Response.Status.OK)
-                    .entity(message)
-                    .type(MediaType.APPLICATION_JSON)
-                    .build();
-        } catch (Exception e) {
-            String errorMessage = "An error occurred: " + e.getMessage();
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(errorMessage)
-                    .type(MediaType.TEXT_PLAIN)
-                    .build();
-        }
-    }
 
     @POST
     @Path("/chat/completions")
@@ -231,7 +215,6 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
     @POST
     @Path("/models")
-    @Consumes("application/json")
     public Response getModels() throws XWikiRestException {
         Map<String, GPTAPIConfig> configMap;
         try {
@@ -286,4 +269,43 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     .build();
         }
     }
+
+    @POST
+    @Path("/prompts")
+    public Response getPromptDB() throws XWikiRestException {
+        Map<String, GPTAPIPrompt> dbMap;
+        try {
+            dbMap = gptApi.getPromptDB();
+        } catch (GPTAPIException e) {
+            logger.error("Exception in the REST getPromptDB method : ", e);
+            dbMap = new HashMap<>();
+        }
+        JSONArray finalResponse = new JSONArray();
+        try {
+            if (dbMap.isEmpty())
+                throw new Exception("The prompt database java object is empty.");
+            for (Map.Entry<String, GPTAPIPrompt> entryDB : dbMap.entrySet()) {
+                GPTAPIPrompt promptObj = entryDB.getValue();
+                if (entryDB.getKey().isEmpty() == false) {
+                    JSONObject jsonEntry = new JSONObject();
+                    System.out.println("entry for json: " + entryDB.getKey());
+                    jsonEntry.put("name", promptObj.getName());
+                    jsonEntry.put("prompt", promptObj.getPrompt());
+                    jsonEntry.put("active", promptObj.getIsActive());
+                    finalResponse.put(jsonEntry);
+                }
+            }
+            byte[] finalResponseBytes = finalResponse.toString().getBytes(StandardCharsets.UTF_8);
+            return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
+        } catch (Exception e) {
+            logger.error("An error occured trying to get the prompts: ", e);
+            JSONObject builder = new JSONObject();
+            builder.put("", e.getMessage());
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON)
+                    .build();
+        }
+    }
+
 }

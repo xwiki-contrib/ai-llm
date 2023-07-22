@@ -19,36 +19,8 @@
  */
 package org.xwiki.contrib.llm;
 
-import com.github.openjson.JSONObject;
-import com.xpn.xwiki.XWikiException;
-import com.xpn.xwiki.objects.BaseObject;
-
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.HttpStatus;
-import org.apache.commons.httpclient.methods.PostMethod;
-import org.apache.commons.httpclient.methods.StringRequestEntity;
-import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.Role;
-import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.rest.XWikiRestException;
-import org.xwiki.stability.Unstable;
-
-import javax.inject.Inject;
-import javax.inject.Named;
-import javax.inject.Singleton;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
 
 
@@ -59,4 +31,5 @@ public interface GPTAPI {
     public String getModels(String token) throws GPTAPIException;
     public GPTAPIConfig getConfig(String id) throws GPTAPIException;
     public Map<String, GPTAPIConfig> getConfigs() throws GPTAPIException;
+    public Map<String, GPTAPIPrompt> getPromptDB() throws GPTAPIException;
 }

@@ -35,6 +35,7 @@ import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.stability.Unstable;
 
+
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
