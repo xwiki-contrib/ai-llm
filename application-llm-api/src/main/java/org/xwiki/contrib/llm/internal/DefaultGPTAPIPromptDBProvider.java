@@ -80,7 +80,6 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
                 logger.info("documentName:", documentName);
                 logger.info("doc name : ", documentName);
                 System.out.println(documentName);
-                EntityReference docRef = new EntityReference(documentName, EntityType.PAGE, null, null);
                 XWikiDocument doc = xwiki.getDocument(documentName, context);
                 // Get the objects of the class 'AI.PromptDB.Code.PromptDBClass' from the
                 // current document

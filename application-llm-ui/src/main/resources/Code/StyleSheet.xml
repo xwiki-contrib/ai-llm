@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.Code.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>StyleSheet</title>
@@ -144,7 +144,7 @@
       <cache>long</cache>
     </property>
     <property>
-      <code>.user-message {
+      <code>#chatUI .user-message {
   position: relative;
   float: right;
   clear: both;
@@ -162,7 +162,7 @@
   font-family: system-ui;
 }
 
-.assistant-message {
+#chatUI .assistant-message {
   position: relative;
   float: bottom;
   clear: both;
@@ -177,7 +177,7 @@
   word-wrap: break-word;
 }
 
-.system-message {
+#chatUI .system-message {
   position: relative;
   float: bottom;
   clear: both;
@@ -191,17 +191,12 @@
   word-wrap: break-word;
 }
 
-.system-info {
+#chatUI .msg-info {
   font-weight: bold;
   margin-bottom: 5px;
 }
 
-.model-info {
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.message-content {
+#chatUI .message-content {
   margin-top: 5px;
   font-family: system-ui;
   white-space: pre-line;
@@ -222,7 +217,7 @@
   /* Enable vertical scroll when content exceeds container height */
 }
 
-.errorHandler {
+#chatUI .errorHandler {
   position: relative;
   float: bottom;
   clear: both;
@@ -237,7 +232,7 @@
   word-wrap: break-word;
 }
 
-.copy-button {
+#chatUI .copy-button {
   position: relative;
   border-radius: 5px;
   background-color: rgb(91, 155, 91);
@@ -245,7 +240,7 @@
   width: 63px;
 }
 
-.include-button {
+#chatUI .include-button {
   position: relative;
   border-radius: 5px;
   background-color: rgb(91, 155, 91);
@@ -253,13 +248,21 @@
   width: 63px;
 }
 
-.astMsgButton{
+#chatUI .userMsgButton {
+  position: relative;
+  border-radius: 5px;
+  background-color: rgb(128, 159, 255);
+  border-color: black;
+  width: 63px;
+}
+
+#chatUI .msgButtonWrapper{
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
 }
 
-.stacked-items {
+#chatUI .stacked-items {
   display: flex;
   flex-direction: column;
   align-items: start;
@@ -298,25 +301,25 @@
   margin: 5px 5px;
 }
 
-.form-button-container{
+#chatUI .form-button-container{
   display: flex;
   margin-top: 40%;
   justify-content: space-between;
 }
 
-.form-button{
+#chatUI .form-button{
   display: flex;
   flex: 1;
   width: 100%;
 }
 
-.astMsgButton {
+#chatUI .astMsgButtonWrapper {
   display: flex;
   justify-content: center;
   margin-top: 10px;
 }
 
-.astMsgButton button {
+#chatUI .astMsgButtonWrapper button {
   margin: 0 5px;
 }
 

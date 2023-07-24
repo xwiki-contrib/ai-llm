@@ -27,9 +27,9 @@
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <author>xwiki:XWiki.Admin</author>
   <parent>WebHome</parent>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <author>xwiki:XWiki.Admin</author>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>

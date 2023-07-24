@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>Prototype - GPT AI test</title>
@@ -53,11 +53,6 @@
                 &lt;div class="stacked-items"&gt;
                     &lt;nav class="stacked-items"&gt;
                         &lt;select id="features-menu"&gt;
-                            &lt;option value="summarize"&gt;Summarize&lt;/option&gt;
-                            &lt;option value="completion"&gt;Completion&lt;/option&gt;
-                            &lt;option value="auto-tagging"&gt;auto-tagging&lt;/option&gt;
-                            &lt;option value="translation"&gt;translate&lt;/option&gt;
-                            &lt;option value="free-prompt" selected&gt;Free prompt&lt;/option&gt;
                         &lt;/select&gt;
                         &lt;select id="language-menu" style="display: none;"&gt;
                             &lt;option value="english" selected&gt;English&lt;/option&gt;

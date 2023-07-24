@@ -20,14 +20,14 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.Code.Translation" locale="">
-  <web>AI.Code</web>
-  <name>Translation</name>
+<xwikidoc version="1.5" reference="AI.PromptDB.Code.PromptDBTranslations" locale="">
+  <web>AI.PromptDB.Code</web>
+  <name>PromptDBTranslations</name>
   <language/>
-  <defaultLanguage/>
+  <defaultLanguage>en</defaultLanguage>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>WebHome</parent>
+  <parent>PromptDBClass</parent>
   <author>xwiki:XWiki.Admin</author>
   <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
@@ -37,29 +37,54 @@
   <minorEdit>false</minorEdit>
   <syntaxId>plain/1.0</syntaxId>
   <hidden>true</hidden>
-  <content>llm.editor.modal.title=LLM Assistant
-llm.editor.modal.button=Ok
-llm.ui.copy=Copy
-llm.ui.copyLabel=Copy the message to clipboard.
-llm.ui.include=Include
-llm.ui.includeLabel=Include the message in the edited page.
-llm.ui.submit=Submit Chat
-llm.ui.stop=Stop
-llm.ui.newconv=New Conversation
-llm.ui.assistantInfoName=Assistant
-llm.config.label=LLM Assistant Configuration
-llm.config.label.hint=Configuration for the LLM application, need at least one configuration with one model and the associated URL prefix/token to work. The URL prefix should allow access to /models endpoint and /chat/completions. For example, if the prefix looks like http://example.url.com/ then http://example.url.com/models and http://example.url.com/chat/completions should be accesible.
-llm.config.name=Server Name
-llm.config.url=URL prefix
-llm.config.token=Token
-llm.config.configfile=Configuration File
-llm.config.delete=Delete
-llm.config.requestmode=Can Stream</content>
+  <content># Class fields
+AI.PromptDB.Code.PromptDBClass_title1=Title
+AI.PromptDB.Code.PromptDBClass_longText1=Description
+AI.PromptDB.Code.PromptDBClass_boolean1=active
+AI.PromptDB.Code.PromptDBClass_content1=Prompt
+AI.PromptDB.Code.PromptDBClass_default=Default
+
+# Sheet keys
+promptdb.sheet.description=This page controls how AI Prompt Database pages are displayed in both view and edit modes.
+promptdb.sheet.noObject=The current page doesn't have the expected AI Prompt Database object.
+promptdb.sheet.noFields=The AI Prompt Database application doesn't have any fields to display.
+
+# Live table generic keys
+promptdb.livetable.doc.title=Page Title
+promptdb.livetable.doc.name=Page Name
+promptdb.livetable.doc.space=Space
+promptdb.livetable.doc.fullname=Page full name
+promptdb.livetable.doc.location=Location
+promptdb.livetable.doc.author=Last Author
+promptdb.livetable.doc.creator=Creator
+promptdb.livetable.doc.date=Date
+promptdb.livetable.doc.creationDate=Creation Date
+promptdb.livetable._avatar=Avatar
+promptdb.livetable._images=Images
+promptdb.livetable._attachments=Attachments
+promptdb.livetable._actions=Actions
+promptdb.livetable._actions.edit=Edit
+promptdb.livetable._actions.delete=Delete
+promptdb.livetable.emptyvalue=-
+
+# Live table specific keys
+promptdb.livetable.title1=Title
+promptdb.livetable.longText1=Description
+promptdb.livetable.boolean1=active
+promptdb.livetable.content1=Prompt
+promptdb.livetable.default=Default
+
+# Other keys
+promptdb.entry.name=AI Prompt Database
+
+# Deprecated keys
+promptdb.dataSpace.title=Data
+</content>
   <object>
-    <name>AI.Code.Translation</name>
+    <name>AI.PromptDB.Code.PromptDBTranslations</name>
     <number>0</number>
     <className>XWiki.TranslationDocumentClass</className>
-    <guid>366e44d6-2e8a-46ce-a8c3-fa920e46b252</guid>
+    <guid>1cf30a7d-8717-4a32-9b74-b130473337c1</guid>
     <class>
       <name>XWiki.TranslationDocumentClass</name>
       <customClass/>

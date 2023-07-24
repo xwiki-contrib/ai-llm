@@ -21,26 +21,38 @@ package org.xwiki.contrib.llm;
 
 import java.util.*;
 
-public class GPTAPIPrompt{
+public class GPTAPIPrompt {
     private String name;
     private String prompt;
+    private String description;
     private Boolean isActive;
+    private Boolean isDefault;
 
-    public GPTAPIPrompt(Map<String, Object> dbMap){
+    public GPTAPIPrompt(Map<String, Object> dbMap) {
         this.name = (String) dbMap.get("title1");
         this.prompt = (String) dbMap.get("content1");
+        this.description = (String) dbMap.get("longText1");
         this.isActive = ((Integer) dbMap.get("boolean1")) == 1;
+        this.isDefault = ((Integer) dbMap.get("default")) == 1;
     }
 
-    public String getName(){
+    public String getName() {
         return name;
     }
 
-    public String getPrompt(){
-        return prompt;   
+    public String getPrompt() {
+        return prompt;
     }
 
-    public Boolean getIsActive(){
+    public String getDescription() {
+        return description;
+    }
+
+    public Boolean getIsActive() {
         return isActive;
+    }
+
+    public Boolean getIsDefault() {
+        return isDefault;
     }
 }

@@ -288,10 +288,11 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                 GPTAPIPrompt promptObj = entryDB.getValue();
                 if (entryDB.getKey().isEmpty() == false) {
                     JSONObject jsonEntry = new JSONObject();
-                    System.out.println("entry for json: " + entryDB.getKey());
                     jsonEntry.put("name", promptObj.getName());
                     jsonEntry.put("prompt", promptObj.getPrompt());
+                    jsonEntry.put("description", promptObj.getDescription());
                     jsonEntry.put("active", promptObj.getIsActive());
+                    jsonEntry.put("default", promptObj.getIsDefault());
                     finalResponse.put(jsonEntry);
                 }
             }
