@@ -142,7 +142,7 @@
       <Requestmode>1</Requestmode>
     </property>
     <property>
-      <token>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</token>
+      <token></token>
     </property>
     <property>
       <url>https://api.openai.com/v1/</url>
