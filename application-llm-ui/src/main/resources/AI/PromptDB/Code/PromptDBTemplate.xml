@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>PromptDBClass</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -133,9 +133,6 @@
     </property>
     <property>
       <longText1/>
-    </property>
-    <property>
-      <staticList1>[]</staticList1>
     </property>
   </object>
 </xwikidoc>

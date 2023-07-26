@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.Code.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>StyleSheet</title>
@@ -205,7 +205,8 @@
 
 #chatContent {
   position: relative;
-  height: 400px;
+  max-height: 400px;
+  min-height: 100px;
   max-width: 100%;
   margin: 10px auto;
   /* Center the chat container horizontally */
@@ -275,7 +276,6 @@
 #userChat {
   display: flex;
   flex-direction: row;
-  align-items: center;
   width: 100%;
 }
 
@@ -298,12 +298,11 @@
 #chatUI .button{
   width: 50%;
   flex: 1;
-  margin: 5px 5px;
 }
 
 #chatUI .form-button-container{
   display: flex;
-  margin-top: 40%;
+  margin-top: 0;
   justify-content: space-between;
 }
 
@@ -330,16 +329,8 @@
 
 #model-menu {
   width: 30%;
-  position: absolute;
-  top: 0;
-  right: 3%;
-}
-
-#language-menu {
-  width: 100%;
-  position: absolute;
-  top: 100%;
-  right: 0;
+  position: relative;
+  left: 70%;
 }
 
 #features-menu{
@@ -349,7 +340,6 @@
 #txt-input{
   resize: none;
   width: 100%;
-  margin-bottom: 10px;
 }
 
 #stopRqst{
@@ -400,7 +390,6 @@
     transform: scale(1);
   }
 }
-
 </code>
     </property>
     <property>

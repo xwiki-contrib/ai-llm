@@ -20,8 +20,8 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.Code.WebHome" locale="">
-  <web>AI.Code</web>
+<xwikidoc version="1.5" reference="AI.WebHome" locale="">
+  <web>AI</web>
   <name>WebHome</name>
   <language/>
   <defaultLanguage/>
@@ -29,10 +29,10 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>Main.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>Code</title>
+  <title>AI</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>

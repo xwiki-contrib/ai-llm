@@ -20,29 +20,29 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.PromptDB.Text Completion" locale="">
+<xwikidoc version="1.5" reference="AI.PromptDB.Free Pompt" locale="">
   <web>AI.PromptDB</web>
-  <name>Text Completion</name>
+  <name>Free Pompt</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.PromptDB.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>Translation (to french)</title>
+  <title>Free Pompt</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
-  <content>Translate the user text in french.</content>
+  <content/>
   <object>
-    <name>AI.PromptDB.Text Completion</name>
+    <name>AI.PromptDB.Free Pompt</name>
     <number>0</number>
     <className>AI.PromptDB.Code.PromptDBClass</className>
-    <guid>0476f353-dd91-4ff4-bca9-6f252a68ed87</guid>
+    <guid>7da43627-0056-4fe3-a6a2-39b78a839e50</guid>
     <class>
       <name>AI.PromptDB.Code.PromptDBClass</name>
       <customClass/>
@@ -129,13 +129,10 @@
       <boolean1>1</boolean1>
     </property>
     <property>
-      <default>0</default>
+      <default>1</default>
     </property>
     <property>
-      <longText1>A prompt to translate text from any language to french.</longText1>
-    </property>
-    <property>
-      <staticList1>[]</staticList1>
+      <longText1>The default prompt. It does not add anything to your personal request.</longText1>
     </property>
   </object>
 </xwikidoc>

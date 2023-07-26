@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.PromptDB.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>Summarize</title>
@@ -37,12 +37,12 @@
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
-  <content>Summarize the given content in a maximum of 2 paragraph.</content>
+  <content>Make a summary of the given text in a maximum of two paragraphs.</content>
   <object>
     <name>AI.PromptDB.Summarize</name>
     <number>0</number>
     <className>AI.PromptDB.Code.PromptDBClass</className>
-    <guid>8be49b3a-4185-41ab-af64-67fc4d302a8e</guid>
+    <guid>75e68197-f185-41f5-a625-99ffe4546c3e</guid>
     <class>
       <name>AI.PromptDB.Code.PromptDBClass</name>
       <customClass/>
@@ -132,10 +132,7 @@
       <default>0</default>
     </property>
     <property>
-      <longText1>A prompt to summarize content.</longText1>
-    </property>
-    <property>
-      <staticList1>[]</staticList1>
+      <longText1>A prompt to summarize your input in 2 paragraphs.</longText1>
     </property>
   </object>
 </xwikidoc>

@@ -20,26 +20,26 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.PromptDB.Code.PromptDBClass" locale="">
-  <web>AI.PromptDB.Code</web>
-  <name>PromptDBClass</name>
+<xwikidoc version="1.5" reference="AI.Code.AIConfigClass" locale="">
+  <web>AI.Code</web>
+  <name>AIConfigClass</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>PromptDB Class</title>
+  <title>AIConfigClass</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
   <content/>
   <class>
-    <name>AI.PromptDB.Code.PromptDBClass</name>
+    <name>AI.Code.AIConfigClass</name>
     <customClass/>
     <customMapping/>
     <defaultViewSheet/>
@@ -47,116 +47,89 @@
     <defaultWeb/>
     <nameField/>
     <validationScript/>
-    <boolean1>
+    <Config>
+      <contenttype>FullyRenderedText</contenttype>
       <customDisplay/>
-      <defaultValue/>
       <disabled>0</disabled>
-      <displayFormType>checkbox</displayFormType>
-      <displayType/>
+      <editor>PureText</editor>
       <hint/>
-      <name>boolean1</name>
+      <name>Config</name>
       <number>3</number>
-      <prettyName>active</prettyName>
-      <unmodifiable>0</unmodifiable>
-      <validationMessage/>
-      <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
-    </boolean1>
-    <content1>
-      <customDisplay>{{include reference="AppWithinMinutes.Content"/}}</customDisplay>
-      <disabled>0</disabled>
-      <hint/>
-      <name>content1</name>
-      <number>4</number>
-      <prettyName>Prompt</prettyName>
-      <script/>
-      <unmodifiable>0</unmodifiable>
-      <validationMessage/>
-      <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.ComputedFieldClass</classType>
-    </content1>
-    <default>
-      <customDisplay/>
-      <defaultValue/>
-      <disabled>0</disabled>
-      <displayFormType>checkbox</displayFormType>
-      <displayType/>
-      <hint/>
-      <name>default</name>
-      <number>5</number>
-      <prettyName>Default</prettyName>
-      <unmodifiable>0</unmodifiable>
-      <validationMessage/>
-      <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
-    </default>
-    <longText1>
-      <customDisplay/>
-      <disabled>0</disabled>
-      <editor>---</editor>
-      <hint/>
-      <name>longText1</name>
-      <number>2</number>
-      <picker>0</picker>
-      <prettyName>Description</prettyName>
+      <picker>1</picker>
+      <prettyName>Config</prettyName>
+      <restricted>0</restricted>
       <rows>5</rows>
       <size>40</size>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
-    </longText1>
-    <title1>
-      <customDisplay>{{include reference="AppWithinMinutes.Title"/}}</customDisplay>
+    </Config>
+    <Name>
+      <customDisplay/>
       <disabled>0</disabled>
-      <hint/>
-      <name>title1</name>
+      <hint>Server Name</hint>
+      <name>Name</name>
       <number>1</number>
-      <prettyName>Title</prettyName>
-      <script/>
+      <picker>1</picker>
+      <prettyName>AI Code Server Name</prettyName>
+      <size>10</size>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.ComputedFieldClass</classType>
-    </title1>
+      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+    </Name>
+    <Requestmode>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint>Can stream</hint>
+      <name>Requestmode</name>
+      <number>4</number>
+      <prettyName>Requestmode</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </Requestmode>
+    <token>
+      <algorithm/>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>Token</hint>
+      <name>token</name>
+      <number>5</number>
+      <picker>1</picker>
+      <prettyName>AI Code Server Password</prettyName>
+      <size>10</size>
+      <storageType>Clear</storageType>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.PasswordClass</classType>
+    </token>
+    <url>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>URL Prefix</hint>
+      <name>url</name>
+      <number>2</number>
+      <picker>1</picker>
+      <prettyName>AI Code Server URL Prefix</prettyName>
+      <size>20</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+    </url>
   </class>
   <object>
-    <name>AI.PromptDB.Code.PromptDBClass</name>
-    <number>0</number>
-    <className>AppWithinMinutes.MetadataClass</className>
-    <guid>39a473b6-d97d-4991-a9e5-7925edae67f3</guid>
-    <class>
-      <name>AppWithinMinutes.MetadataClass</name>
-      <customClass/>
-      <customMapping/>
-      <defaultViewSheet/>
-      <defaultEditSheet/>
-      <defaultWeb/>
-      <nameField/>
-      <validationScript/>
-      <dataSpaceName>
-        <customDisplay/>
-        <disabled>0</disabled>
-        <name>dataSpaceName</name>
-        <number>1</number>
-        <picker>0</picker>
-        <prettyName>Data Space Name</prettyName>
-        <size>30</size>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </dataSpaceName>
-    </class>
-    <property>
-      <dataSpaceName/>
-    </property>
-  </object>
-  <object>
-    <name>AI.PromptDB.Code.PromptDBClass</name>
+    <name>AI.Code.AIConfigClass</name>
     <number>0</number>
     <className>XWiki.ClassSheetBinding</className>
-    <guid>0259f365-1614-41fc-b3a2-c0de4bcb4b3a</guid>
+    <guid>223a97aa-febb-4957-9cfd-ffc754278493</guid>
     <class>
       <name>XWiki.ClassSheetBinding</name>
       <customClass/>
@@ -193,58 +166,14 @@
       </sheet>
     </class>
     <property>
-      <sheet>AI.PromptDB.Code.PromptDBSheet</sheet>
+      <sheet>AI.Code.AIConfigSheet</sheet>
     </property>
   </object>
   <object>
-    <name>AI.PromptDB.Code.PromptDBClass</name>
+    <name>AI.Code.AIConfigClass</name>
     <number>0</number>
     <className>XWiki.DocumentSheetBinding</className>
-    <guid>6dbf4a59-d37d-4186-8ea8-0ae9a0c8f047</guid>
-    <class>
-      <name>XWiki.DocumentSheetBinding</name>
-      <customClass/>
-      <customMapping/>
-      <defaultViewSheet/>
-      <defaultEditSheet/>
-      <defaultWeb/>
-      <nameField/>
-      <validationScript/>
-      <sheet>
-        <cache>0</cache>
-        <classname/>
-        <customDisplay/>
-        <disabled>0</disabled>
-        <displayType>input</displayType>
-        <hint/>
-        <idField/>
-        <multiSelect>0</multiSelect>
-        <name>sheet</name>
-        <number>1</number>
-        <picker>1</picker>
-        <prettyName>Sheet</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <separators/>
-        <size>30</size>
-        <sort>none</sort>
-        <sql/>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <valueField/>
-        <classType>com.xpn.xwiki.objects.classes.PageClass</classType>
-      </sheet>
-    </class>
-    <property>
-      <sheet>AppWithinMinutes.ClassEditSheet</sheet>
-    </property>
-  </object>
-  <object>
-    <name>AI.PromptDB.Code.PromptDBClass</name>
-    <number>1</number>
-    <className>XWiki.DocumentSheetBinding</className>
-    <guid>2bf1b19c-f598-40dd-80f7-8811cf674811</guid>
+    <guid>01ff5d12-59a2-4782-8f0c-0ddb65547e35</guid>
     <class>
       <name>XWiki.DocumentSheetBinding</name>
       <customClass/>
@@ -282,6 +211,34 @@
     </class>
     <property>
       <sheet>XWiki.ClassSheet</sheet>
+    </property>
+  </object>
+  <object>
+    <name>AI.Code.AIConfigClass</name>
+    <number>0</number>
+    <className>XWiki.SheetClass</className>
+    <guid>0ca4ad74-a994-405d-bc45-862dca78a657</guid>
+    <class>
+      <name>XWiki.SheetClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <defaultEditMode>
+        <disabled>0</disabled>
+        <name>defaultEditMode</name>
+        <number>1</number>
+        <prettyName>Default Edit Mode</prettyName>
+        <size>15</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </defaultEditMode>
+    </class>
+    <property>
+      <defaultEditMode>view</defaultEditMode>
     </property>
   </object>
 </xwikidoc>

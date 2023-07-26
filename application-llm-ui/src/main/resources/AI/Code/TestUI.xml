@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>Prototype - GPT AI test</title>
@@ -37,18 +37,16 @@
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
-  <content>{{include reference="AI.Code.ChatUIMacros"/}}
-{{velocity}}
+  <content>{{velocity}}
 {{html clean="false"}}
 &lt;div id="chatUI"&gt;
     &lt;select id="model-menu"&gt;
     &lt;/select&gt;
     &lt;div id="chatContent"&gt;
-
     &lt;/div&gt;
     &lt;div id="formContainer"&gt;
         &lt;form id="userChat" method="POST" onsubmit="return false;"&gt;
-            &lt;textarea name="input" id="txt-input" rows="10"&gt;&lt;/textarea&gt;
+            &lt;textarea name="input" id="txt-input"&gt;&lt;/textarea&gt;
             &lt;div id="form-control-panel"&gt;
                 &lt;div class="stacked-items"&gt;
                     &lt;nav class="stacked-items"&gt;

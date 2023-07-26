@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -133,19 +133,19 @@
       </url>
     </class>
     <property>
-      <Config/>
+      <Config>gpt-4,gpt-3.5-turbo</Config>
     </property>
     <property>
-      <Name/>
+      <Name>OpenAI</Name>
     </property>
     <property>
-      <Requestmode>0</Requestmode>
+      <Requestmode>1</Requestmode>
     </property>
     <property>
-      <token/>
+      <token>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</token>
     </property>
     <property>
-      <url/>
+      <url>https://api.openai.com/v1/</url>
     </property>
   </object>
   <object>
