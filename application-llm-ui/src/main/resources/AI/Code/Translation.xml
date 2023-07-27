@@ -54,7 +54,8 @@ llm.config.url=URL prefix
 llm.config.token=Token
 llm.config.configfile=Configuration File
 llm.config.delete=Delete
-llm.config.requestmode=Can Stream</content>
+llm.config.requestmode=Can Stream
+llm.config.groups=Group Allowed</content>
   <object>
     <name>AI.Code.Translation</name>
     <number>0</number>

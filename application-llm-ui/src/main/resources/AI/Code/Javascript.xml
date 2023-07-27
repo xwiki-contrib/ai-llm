@@ -218,9 +218,9 @@
             obj.style.overflowY = 'auto';
         } else {
             let nbPx = (nbChar / 66) * 18;
-            if(nbPx &lt; 100)
+            if (nbPx &lt; 100)
                 nbPx = 100;
-            else if(nbPx &gt; 200)
+            else if (nbPx &gt; 200)
                 nbPx = 200;
             obj.style.height = nbPx + 'px';
         }
@@ -554,15 +554,23 @@
         try {
             if (done) {
                 if (!isErr) {
-                    document.querySelector('#copy-button-' + nbAssistMsg).style.display = "block";
-                    document.querySelector('#include-button-' + nbAssistMsg).style.display = "block";
-                    context[contextSize] += userText;
-                    updateChatOnStream(chatContent, completedReply);
+                    const copyBtn = document.querySelector('#copy-button-' + nbAssistMsg);
+                    const includeBtn = document.querySelector('#include-button-' + nbAssistMsg);
+                    if(copyBtn &amp;&amp; includeBtn){
+                        context[contextSize] += userText;
+                        copyBtn.style.display = "block";
+                        includeBtn.style.display = "block";
+                        updateChatOnStream(chatContent, completedReply);
+                    }
+                    else{
+                        throw new Error('The model finished without responding. Please make sure the model can be loaded correctly on the server side.')
+                    }
                 }
                 else {
                     if (isJSON(accumulatedChunks)) {
                         let message = JSON.parse(accumulatedChunks);
                         errorCatcher(chatContent, message.error);
+                        removeLoading(chatContent);
                     }
                 }
                 changeBtnState();
@@ -593,6 +601,9 @@
             }
         } catch (error) {
             console.error('error stream : ', error);
+            errorCatcher(chatContent, error);
+            removeLoading(chatContent);
+            changeBtnState();
         }
 
     }
@@ -793,8 +804,8 @@
         scrollToBottom();
 
         // Create the string containing csrf token
-        const csrf = '${services.csrf.token}';
-
+        const csrf = document.querySelector('#form_token').value;
+        console.log('csrf: ',csrf);
         const params = getRequestParams(userText, modelType, model, prompt, context, isStreaming);
         const options = getRequestOptions(params, csrf);
 
@@ -879,7 +890,7 @@
         }
         initFormEvent(form);
 
-        const csrf = '${services.csrf.token}';
+        const csrf = document.querySelector('#form_token').value;
         const options = getRequestOptions(null, csrf);
         Promise.all([getModels(options), getPrompts(options)])
             .then((res) =&gt; {

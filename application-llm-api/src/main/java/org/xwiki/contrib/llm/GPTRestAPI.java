@@ -48,6 +48,8 @@ import org.xwiki.rest.XWikiRestException;
 import org.xwiki.rest.XWikiRestComponent;
 import org.xwiki.rest.internal.resources.pages.ModifiablePageResource;
 
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.StreamingOutput;
 
@@ -61,6 +63,7 @@ import java.util.Objects;
 
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.internal.DefaultGPTAPIConfigProvider;
+import org.xwiki.csrf.CSRFToken;
 
 @Component
 @Named("org.xwiki.contrib.llm.GPTRestAPI")
@@ -78,11 +81,26 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @Inject
     private GPTAPI gptApi;
 
+    @Inject
+    private CSRFToken csrfToken;
+
     @POST
     @Path("/chat/completions")
     @Consumes("application/json")
-    public Response getContents(Map<String, Object> data) throws XWikiRestException {
+    public Response getContents(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
         try {
+            List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
+            System.out.println("csrfList: "+csrfTokenList);
+            if(csrfTokenList.isEmpty())
+                return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.").build();
+            String token = csrfToken.getToken();
+            String csrfClient = csrfTokenList.get(0);
+            if (!csrfClient.equals(token)){
+                logger.info(token);
+                logger.info(csrfClient);
+                return Response.status(Response.Status.FORBIDDEN).build();
+            }
+
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 logger.info("key: " + entry.getKey() + "; value: " + entry.getValue());
             }

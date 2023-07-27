@@ -76,7 +76,7 @@
                     &lt;/div&gt;
                 &lt;/div&gt;
             &lt;/div&gt;
-            &lt;input type="hidden" name="form_token" value="${services.csrf.token}" /&gt;
+            &lt;input type="hidden" id="form_token" value="${services.csrf.token}" /&gt;
         &lt;/form&gt;
     &lt;/div&gt;
 &lt;/div&gt;
