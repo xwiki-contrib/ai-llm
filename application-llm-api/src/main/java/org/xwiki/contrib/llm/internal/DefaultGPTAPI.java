@@ -255,21 +255,21 @@ public class DefaultGPTAPI implements GPTAPI {
 
     @Override
     public Map<String, GPTAPIConfig> getConfigs() throws GPTAPIException {
-        try{
+        try {
             Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects();
             return configMap;
-        } catch(Exception e){
+        } catch (Exception e) {
             logger.error("Error trying to get the configurations java object: ", e);
             return null;
         }
     }
 
     @Override
-    public Map<String,GPTAPIPrompt> getPromptDB() throws GPTAPIException{
-        try{
-            Map<String,GPTAPIPrompt> dbMap = dbProvider.getPromptDB();
+    public Map<String, GPTAPIPrompt> getPromptDB() throws GPTAPIException {
+        try {
+            Map<String, GPTAPIPrompt> dbMap = dbProvider.getPromptDB();
             return dbMap;
-        } catch(Exception e){
+        } catch (Exception e) {
             logger.error("Error trying to get the prompt database : ", e);
             return null;
         }

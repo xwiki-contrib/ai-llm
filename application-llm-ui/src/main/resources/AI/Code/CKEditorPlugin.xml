@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -133,7 +133,7 @@
     onLoad: function() {
       var modal = this;
       var modalBody = modal.find('.modal-body');
-      var submitButton = modal.find('.modal-footer .btn-primary');
+      //var submitButton = modal.find('.modal-footer .btn-primary');
       modal.on('show.bs.modal', function(event) {
         if (modalBody.is(':empty') &amp;&amp; !modalBody.hasClass('loading')) {
           modalBody.addClass('loading');
@@ -157,14 +157,13 @@
             console.log(l10n['editor.modal.button']);
 
             // Translation key with parameters.
-            submitButton.text(l10n.get('editor.modal.button'));
+            //submitButton.text(l10n.get('editor.modal.button'));
             modal.find('.modal-title').text(l10n.get('editor.modal.title'));
           });
           var formURL = modal.data('input').formURL;
           $.get(formURL).done(function(html) {
             modalBody.html(html);
             var form = document.querySelector('#userChat');
-            console.log("FORM:", form);
             require(['xwiki-llm'], function(llm) {
               llm.init();
               const editorElement = document.querySelector('#xwikicontent');
@@ -189,16 +188,6 @@
             modalBody.removeClass('loading');
           });
         }
-      });
-      /*
-      // not needed
-      modal.on('change', 'input[name="filePath"]', function(event) {
-        submitButton.prop('disabled', !$(event.target).val());
-      });
-      */
-      submitButton.on('click', function(event) {
-        // do something
-        alert('submitButton !');
       });
     }
   });
@@ -242,12 +231,14 @@
     initLLMButton: function(editor) {
       var thisPlugin = this;
       var llmConfig = editor.config['llm-action'];
-      editor.ui.addButton('llmButton', {
-        label: 'LLM Button', //editor.localization.get('llm.editor.button.title'),
-        icon: 'paste',
-        command: 'llmaction',
-        toolbar: 'insert,70'
-      });
+      if(true){
+        editor.ui.addButton('llmButton', {
+          label: 'LLM Button', //editor.localization.get('llm.editor.button.title'),
+          icon: 'paste',
+          command: 'llmaction',
+          toolbar: 'insert,70'
+        });
+      }
 
       editor.addCommand('llmaction', {
         async: true,
@@ -261,7 +252,6 @@
               localization: editor.localization
             }).done(function(formData) {
               // do something here
-              alert("in llmaction return")
             }).always(function() {
               editor.fire('afterCommandExec', {name: command.name, command: command});
             });

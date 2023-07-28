@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -106,15 +106,15 @@
         <customDisplay/>
         <defaultValue/>
         <disabled>0</disabled>
-        <displayType>input</displayType>
+        <displayType>checkbox</displayType>
         <freeText/>
         <hint/>
         <largeStorage>0</largeStorage>
-        <multiSelect>0</multiSelect>
+        <multiSelect>1</multiSelect>
         <name>RightLLM</name>
         <number>6</number>
-        <picker>1</picker>
-        <prettyName>RightLLM</prettyName>
+        <picker>0</picker>
+        <prettyName>Group Allowed to use LLM</prettyName>
         <relationalStorage>0</relationalStorage>
         <separator> </separator>
         <separators/>
@@ -158,9 +158,6 @@
       </url>
     </class>
     <property>
-      <AllowedGroup/>
-    </property>
-    <property>
       <Config>gpt-4,gpt-3.5-turbo</Config>
     </property>
     <property>
@@ -170,7 +167,7 @@
       <Requestmode>1</Requestmode>
     </property>
     <property>
-      <RightLLM>XWiki.XWikiAllGroup</RightLLM>
+      <RightLLM>XWiki.Test,XWiki.XWikiAdminGroup</RightLLM>
     </property>
     <property>
       <token/>
@@ -245,15 +242,15 @@
         <customDisplay/>
         <defaultValue/>
         <disabled>0</disabled>
-        <displayType>input</displayType>
+        <displayType>checkbox</displayType>
         <freeText/>
         <hint/>
         <largeStorage>0</largeStorage>
-        <multiSelect>0</multiSelect>
+        <multiSelect>1</multiSelect>
         <name>RightLLM</name>
         <number>6</number>
-        <picker>1</picker>
-        <prettyName>RightLLM</prettyName>
+        <picker>0</picker>
+        <prettyName>Group Allowed to use LLM</prettyName>
         <relationalStorage>0</relationalStorage>
         <separator> </separator>
         <separators/>
@@ -297,9 +294,6 @@
       </url>
     </class>
     <property>
-      <AllowedGroup/>
-    </property>
-    <property>
       <Config>gpt4all-j</Config>
     </property>
     <property>
@@ -309,7 +303,7 @@
       <Requestmode>1</Requestmode>
     </property>
     <property>
-      <RightLLM>XWiki.XWikiAllGroup</RightLLM>
+      <RightLLM>XWiki.XWikiAdminGroup</RightLLM>
     </property>
     <property>
       <token/>

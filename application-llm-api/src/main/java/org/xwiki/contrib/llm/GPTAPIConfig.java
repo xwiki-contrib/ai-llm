@@ -28,6 +28,7 @@ public class GPTAPIConfig {
     private String token;
     private String modelsURL;
     private boolean canStream;
+    private String allowedGroup;
 
     public GPTAPIConfig(Map<String, Object> properties) {
         this.name = (String) properties.get("Name");
@@ -39,6 +40,7 @@ public class GPTAPIConfig {
             this.canStream = true;
         else
             this.canStream = false;
+        this.allowedGroup = (String) properties.get("RightLLM");
     }
 
     public GPTAPIConfig() {
@@ -62,6 +64,10 @@ public class GPTAPIConfig {
 
     public Boolean getCanStream(){
         return canStream;
+    }
+
+    public String getAllowedGroup(){
+        return allowedGroup;
     }
 
     public void setName(String name) {

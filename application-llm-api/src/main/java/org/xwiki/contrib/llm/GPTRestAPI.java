@@ -21,18 +21,11 @@ package org.xwiki.contrib.llm;
 
 import javax.ws.rs.*;
 
-import com.fasterxml.jackson.databind.ser.std.StdKeySerializers.Default;
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
-import com.xpn.xwiki.XWiki;
-import com.xpn.xwiki.objects.BaseObject;
-
-import liquibase.pro.packaged.I;
-
 import org.xwiki.stability.Unstable;
 
 import java.io.*;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,10 +52,6 @@ import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.slf4j.Logger;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
-
-import org.xwiki.contrib.llm.GPTAPIConfigProvider;
-import org.xwiki.contrib.llm.internal.DefaultGPTAPIConfigProvider;
 import org.xwiki.csrf.CSRFToken;
 
 @Component
@@ -90,12 +79,12 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     public Response getContents(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
         try {
             List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
-            System.out.println("csrfList: "+csrfTokenList);
-            if(csrfTokenList.isEmpty())
-                return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.").build();
+            if (csrfTokenList.isEmpty())
+                return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
+                        .build();
             String token = csrfToken.getToken();
             String csrfClient = csrfTokenList.get(0);
-            if (!csrfClient.equals(token)){
+            if (!csrfClient.equals(token)) {
                 logger.info(token);
                 logger.info(csrfClient);
                 return Response.status(Response.Status.FORBIDDEN).build();
@@ -233,7 +222,19 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
     @POST
     @Path("/models")
-    public Response getModels() throws XWikiRestException {
+    public Response getModels(@Context HttpHeaders headers) throws XWikiRestException {
+        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
+        if (csrfTokenList.isEmpty())
+            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
+                    .build();
+        String token = csrfToken.getToken();
+        String csrfClient = csrfTokenList.get(0);
+        if (!csrfClient.equals(token)) {
+            logger.info(token);
+            logger.info(csrfClient);
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
+
         Map<String, GPTAPIConfig> configMap;
         try {
             configMap = gptApi.getConfigs();
@@ -290,7 +291,19 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
     @POST
     @Path("/prompts")
-    public Response getPromptDB() throws XWikiRestException {
+    public Response getPromptDB(@Context HttpHeaders headers) throws XWikiRestException {
+        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
+        if (csrfTokenList.isEmpty())
+            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
+                    .build();
+        String token = csrfToken.getToken();
+        String csrfClient = csrfTokenList.get(0);
+        if (!csrfClient.equals(token)) {
+            logger.info(token);
+            logger.info(csrfClient);
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
+
         Map<String, GPTAPIPrompt> dbMap;
         try {
             dbMap = gptApi.getPromptDB();
