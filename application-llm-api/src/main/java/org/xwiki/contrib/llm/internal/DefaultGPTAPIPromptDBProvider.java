@@ -68,8 +68,9 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
             Query query = queryManager.createQuery(hql, Query.HQL);
             // The query will return a list of document names instead of objects
             List<String> documentNames = query.execute();
-            logger.info("documentName: ");
-            System.out.println(documentNames);
+            // get rid of this doc since it is a template, it cause crash.
+            documentNames.remove("AI.PromptDB.Code.PromptDBTemplate");
+            logger.info("documentName: " + documentNames);
             // Check if the query returned an empty result
             if (documentNames.isEmpty())
                 throw new Exception("The Query for prompt object returned an empty result.");
@@ -90,14 +91,19 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
                     System.out.println(object);
 
                     if (object != null) {
+                        if(doc.getTitle() == "PromptDBTemplate")
+                            continue;
                         Map<String, Object> dbObjMap = new HashMap<>();
                         Collection<BaseProperty> fields = object.getFieldList();
                         for (BaseProperty field : fields) {
                             logger.info(field.toFormString());
                             dbObjMap.put(field.getName(), field.getValue());
                         }
+                        logger.info("title of the doc : {}",doc.getTitle());
+                        System.out.println(doc.getTitle());
                         dbObjMap.put("title1", doc.getTitle());
                         dbObjMap.put("content1",doc.getContent());
+                        
                         if (!dbObjMap.isEmpty()) {
                             GPTAPIPrompt res = new GPTAPIPrompt(dbObjMap);
                             if (res.getName() == null || res.getPrompt() == null || res.getIsActive() == null) {

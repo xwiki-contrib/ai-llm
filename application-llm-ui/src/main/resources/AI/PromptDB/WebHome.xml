@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>AI Prompt Database</title>
@@ -44,6 +44,7 @@
   'content1': {"filterable":false,"sortable":false,"html":true},
   'boolean1': {},
   'default': {},
+  'shortText1': {},
   '_actions': {"sortable":false,"filterable":false,"html":true,"actions":["edit","delete"]}
 })
 #set ($options = {
@@ -55,7 +56,7 @@
   'selectedColumn': 'doc.title',
   'defaultOrder': 'asc'
 })
-#set ($columns = ['doc.title', 'longText1', 'content1', 'boolean1', 'default', '_actions'])
+#set ($columns = ['doc.title', 'longText1', 'content1', 'boolean1', 'default', 'shortText1', '_actions'])
 #livetable('promptdb' $columns $columnsProperties $options)
 {{/velocity}}</content>
   <object>
@@ -131,7 +132,7 @@
       <class>AI.PromptDB.Code.PromptDBClass</class>
     </property>
     <property>
-      <columns>title1 longText1 content1 boolean1 default _actions</columns>
+      <columns>title1 longText1 content1 boolean1 default shortText1 _actions</columns>
     </property>
     <property>
       <dataSpace/>

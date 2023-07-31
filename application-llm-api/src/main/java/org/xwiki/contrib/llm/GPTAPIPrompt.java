@@ -21,12 +21,15 @@ package org.xwiki.contrib.llm;
 
 import java.util.*;
 
+import org.apache.ecs.xhtml.s;
+
 public class GPTAPIPrompt {
     private String name;
     private String prompt;
     private String description;
     private Boolean isActive;
     private Boolean isDefault;
+    private Float temperature;
 
     public GPTAPIPrompt(Map<String, Object> dbMap) {
         this.name = (String) dbMap.get("title1");
@@ -34,6 +37,9 @@ public class GPTAPIPrompt {
         this.description = (String) dbMap.get("longText1");
         this.isActive = ((Integer) dbMap.get("boolean1")) == 1;
         this.isDefault = ((Integer) dbMap.get("default")) == 1;
+        System.out.println((String) dbMap.get("shortText1"));
+        if ((String) dbMap.get("shortText1") != "")
+            this.temperature = Float.parseFloat((String) dbMap.get("shortText1"));
     }
 
     public String getName() {
@@ -54,5 +60,9 @@ public class GPTAPIPrompt {
 
     public Boolean getIsDefault() {
         return isDefault;
+    }
+
+    public Float getTemperature() {
+        return temperature;
     }
 }

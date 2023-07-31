@@ -167,7 +167,7 @@
       <Requestmode>1</Requestmode>
     </property>
     <property>
-      <RightLLM>XWiki.Test,XWiki.XWikiAdminGroup</RightLLM>
+      <RightLLM>XWiki.XWikiAdminGroup,XWiki.XWikiAllGroup</RightLLM>
     </property>
     <property>
       <token/>
@@ -303,7 +303,7 @@
       <Requestmode>1</Requestmode>
     </property>
     <property>
-      <RightLLM>XWiki.XWikiAdminGroup</RightLLM>
+      <RightLLM>XWiki.XWikiAdminGroup,XWiki.XWikiAllGroup</RightLLM>
     </property>
     <property>
       <token/>

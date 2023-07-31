@@ -137,7 +137,7 @@
       modal.on('show.bs.modal', function(event) {
         if (modalBody.is(':empty') &amp;&amp; !modalBody.hasClass('loading')) {
           modalBody.addClass('loading');
-           // Define a module that holds the required translation keys.
+          // Define a module that holds the required translation keys.
           define('llm-translation', {
             prefix: 'llm.',
             keys: [
@@ -182,7 +182,7 @@
             });
           }).fail(function() {
             var errorMessage = $('&lt;div class="box errormessage"&gt;&lt;/div&gt;')
-              .text(l10n.get('llm.editor.modal.failedToLoadForm'));
+            .text(l10n.get('llm.editor.modal.failedToLoadForm'));
             modalBody.empty().append(errorMessage);
           }).always(function() {
             modalBody.removeClass('loading');
@@ -207,7 +207,9 @@
     // no sure we need all this..
     requires: 'uploadwidget,notification,xwiki-localization,xwiki-macro,xwiki-dialog',
 
-    init : function(editor) {
+    init: async function (editor) {
+      var thisPlugin = this;
+
       // Fill missing configuration with default values.
       editor.config['llm-action'] = $.extend({
         enabled: false,
@@ -216,6 +218,7 @@
           language: $('html').attr('lang') || ''
         }))
       }, editor.config['llm-action']);
+
       editor.config.extraQuickActions = [{
         group: 'Content',
         id: 'llm-ai',
@@ -224,26 +227,52 @@
         description: 'Insert content from AI',
         command: 'llmaction'
       }];
+
+      var authorizedPromise;
+      // Convert require into a Promise
+      const requirePromise = new Promise((resolve, reject) =&gt; {
+        require(['xwiki-meta', 'xwiki-llm'], (xm, llm) =&gt; {
+          const csrf_token = xm.form_token;
+          authorizedPromise = llm.getCheck(csrf_token);
+          resolve();
+        }, reject);
+      });
       this.initLLMButton(editor);
+      // Wait for the requirePromise to resolve before continuing.
+      await requirePromise;
+      try {
+        const authorized = await authorizedPromise;
+        console.log('authorized: ', authorized);
+          if (authorized) {
+            const command = editor.getCommand('llmaction');
+            // const button = editor.ui.get('llmButton');
+            //console.log(button);
+              command.enable();
+              //console.log(button.getState());
+            console.log('test');
+          }
+      }catch (error) {
+        console.error('Error occurred while checking authorization:', error);
+      }
     },
 
 
     initLLMButton: function(editor) {
+      console.log(this);
+      console.log(editor);
       var thisPlugin = this;
       var llmConfig = editor.config['llm-action'];
-      if(true){
-        editor.ui.addButton('llmButton', {
-          label: 'LLM Button', //editor.localization.get('llm.editor.button.title'),
-          icon: 'paste',
-          command: 'llmaction',
-          toolbar: 'insert,70'
-        });
-      }
-
+      editor.ui.addButton('llmButton', {
+        label: 'LLM Button',
+        icon: 'paste',
+        command: 'llmaction',
+        toolbar: 'insert,70'
+      });
+      console.log('init ckeditor done.');
       editor.addCommand('llmaction', {
         async: true,
         contextSensitive: false,
-        startDisabled: false,
+        startDisabled: true,
         exec: function(editor) {
           var command = this;
           require(['llmActionModal'], function(llmActionModal) {
@@ -259,8 +288,6 @@
         }
       });
     },
-
-
   });
 })();</code>
     </property>

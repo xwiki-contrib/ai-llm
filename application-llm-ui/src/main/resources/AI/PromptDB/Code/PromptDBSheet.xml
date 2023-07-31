@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>PromptDBClass</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -105,6 +105,18 @@
       &lt;/label&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('content1')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('shortText1')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.PromptDB.Code.PromptDBClass_0_shortText1"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('shortText1', false, false))
+      &lt;/label&gt;
+      &lt;span class="xHint"&gt;
+        $escapetool.xml($services.localization.render('Number between 0 and 1'))
+      &lt;/span&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('shortText1')&lt;/dd&gt;
     #if ($editing)
       &lt;dt&gt;
         &lt;label for="AI.PromptDB.Code.PromptDBClass_0_default"&gt;

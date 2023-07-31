@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.Code.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -422,12 +422,15 @@
         return Math.floor(tokenCount);
     }
 
-    function getRequestParams(userText, modelType, model, prompt, context) {
+    function getRequestParams(userText, modelType, model, prompt, context, temp) {
+        console.log('temp in request param',temp);
         const params = {
             text: userText,
             modelType: modelType,
             model: model,
-            prompt: context + prompt,
+            context: context,
+            prompt: prompt,
+            temperature: Number(temp),
         };
         return params;
     }
@@ -556,13 +559,13 @@
                 if (!isErr) {
                     const copyBtn = document.querySelector('#copy-button-' + nbAssistMsg);
                     const includeBtn = document.querySelector('#include-button-' + nbAssistMsg);
-                    if(copyBtn &amp;&amp; includeBtn){
+                    if (copyBtn &amp;&amp; includeBtn) {
                         context[contextSize] += userText;
                         copyBtn.style.display = "block";
                         includeBtn.style.display = "block";
                         updateChatOnStream(chatContent, completedReply);
                     }
-                    else{
+                    else {
                         throw new Error('The model finished without responding. Please make sure the model can be loaded correctly on the server side.')
                     }
                 }
@@ -738,6 +741,29 @@
         });
     }
 
+    function getCheck(csrf_token) {
+        return new Promise((resolve, reject) =&gt; {
+            const options = getRequestOptions(null, csrf_token);
+            const root = getRoot();
+            const URI = root !== '' ? root + "/rest/v1/check-access" : "/rest/v1/check-access";
+            fetch(URI, options)
+                .then(response =&gt; {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(json =&gt; {
+                    console.log('jsonCheck : ', json);
+                    resolve(json.check);
+                })
+                .catch(e =&gt; {
+                    console.error("An error occured trying to check the rights for the LLM extension.", e)
+                })
+
+        });
+    }
+
     function getModels(options) {
         return new Promise((resolve, reject) =&gt; {
             const chatContent = document.querySelector('#chatContent');
@@ -791,8 +817,11 @@
         const selectedMod = modelMenu.value;
         const modelType = selectedMod.substring(0, selectedMod.indexOf("/"));
         const model = selectedMod.substring(selectedMod.indexOf("/") + 1);
-        const selectedPrompt = document.querySelector('#features-menu').value;
-        const prompt = selectedPrompt;
+        const selectedPrompt = document.querySelector('#features-menu');
+        const prompt = selectedPrompt.value;
+        const temp = parseFloat(selectedPrompt.options[selectedPrompt.selectedIndex].getAttribute("data-temp"));
+        console.log('temp: ', temp);
+        console.log('type of temp: ', typeof(temp));
         const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");;
         maxToken = chooseMaxToken(modelType);
         // Adding the user chat in the page
@@ -805,8 +834,8 @@
 
         // Create the string containing csrf token
         const csrf = document.querySelector('#form_token').value;
-        console.log('csrf: ',csrf);
-        const params = getRequestParams(userText, modelType, model, prompt, context, isStreaming);
+        const params = getRequestParams(userText, modelType, model, prompt, context, temp);
+        console.log(params);
         const options = getRequestOptions(params, csrf);
 
         // Make the POST request with query parameters
@@ -868,12 +897,13 @@
             const isActive = element.active;
             const isDefault = element.default;
             const description = element.description;
+            const temperature = element.temperature;
             if (isActive) {
                 const promptMenu = document.querySelector('#features-menu');
                 if (isDefault)
-                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" selected&gt;${name}&lt;/option&gt;`;
+                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" data-temp="${temperature}" selected&gt;${name}&lt;/option&gt;`;
                 else
-                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}"&gt;${name}&lt;/option&gt;`;
+                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" data-temp="${temperature}"&gt;${name}&lt;/option&gt;`;
             }
         })
     }
@@ -902,7 +932,7 @@
         handleAutoResizeInput();
     }
 
-    return { init, includeInDoc, handleButtonClick };
+    return { init, includeInDoc, handleButtonClick, getCheck };
 });</code>
     </property>
     <property>

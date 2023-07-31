@@ -74,17 +74,26 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
             List<BaseObject> configObjects = doc.getObjects("AI.Code.AIConfigClass");
 
             // Build the Java configurationObject with a Map.
+            if(configObjects.isEmpty()){
+                throw new Exception("There is no configuration.");
+            }
+            // Iteration count 
+            int i = 0;
+            // Number of null object.
+            int nbNull = 0;
             for (BaseObject configObject : configObjects) {
+                i++;
                 Map<String, Object> configObjMap = new HashMap<>();
-                if (configObject == null)
+                if (configObject == null){
+                    nbNull++;
                     continue;
+                }
                 Collection<BaseProperty> fields = configObject.getFieldList();
                 for (BaseProperty field : fields) {
                     configObjMap.put(field.getName(), field.getValue());
                 }
                 GPTAPIConfig res = new GPTAPIConfig(configObjMap);
                 String[] allowedGroupTab = res.getAllowedGroup().split(",");
-                logger.info("Allowed Group to use this configuration: [{}]", allowedGroupTab.toString());
                 // Test for every group allowed if the user is part of these group.
                 for (String group : allowedGroupTab) {
                     if (xwikiUser.isUserInGroup(group)) {
@@ -95,13 +104,14 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
                         continue;
                 }
             }
-            if (configProperties.isEmpty())
-                throw new Exception(
-                        "Final Config Map is empty. Check that the user using the extension remain in a group that is allowed in the LLM configuration.");
+            if(nbNull == i){
+                GPTAPIConfig nullConfig = new GPTAPIConfig();
+                configProperties.put("nullConf", nullConfig);
+                throw new Exception("The configurations are empty !");
+            }
             return configProperties;
         } catch (Exception e) {
             logger.error("Error trying to access the config :", e);
-            System.err.println("Error trying to access the config :" + e);
             return configProperties;
         }
 

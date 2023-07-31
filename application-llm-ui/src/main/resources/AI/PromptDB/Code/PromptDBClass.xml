@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>PromptDB Class</title>
@@ -83,7 +83,7 @@
       <displayType/>
       <hint/>
       <name>default</name>
-      <number>5</number>
+      <number>6</number>
       <prettyName>Default</prettyName>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
@@ -106,6 +106,20 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
     </longText1>
+    <shortText1>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>Number between 0 and 1</hint>
+      <name>shortText1</name>
+      <number>5</number>
+      <picker>0</picker>
+      <prettyName>Temperature</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+    </shortText1>
     <title1>
       <customDisplay>{{include reference="AppWithinMinutes.Title"/}}</customDisplay>
       <disabled>0</disabled>

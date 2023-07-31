@@ -116,7 +116,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             logger.info("modelType after evaluation :", modelType);
             logger.info("Received text: " + data.get("text"));
             GPTAPIConfig config = gptApi.getConfig(modelType);
-            if (config == null) {
+            if (config.getName() == "default") {
                 throw new Exception(
                         "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
             }
@@ -143,8 +143,13 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             JSONArray messagesArray = new JSONArray();
             JSONObject systemMessage = new JSONObject();
             systemMessage.put("role", "system");
-            systemMessage.put("content", data.get("prompt").toString());
+            systemMessage.put("content", data.get("context").toString());
+            JSONObject systemMessage2 = new JSONObject();
+            systemMessage2.put("role", "system");
+            systemMessage2.put("content", data.get("prompt").toString());
             messagesArray.put(systemMessage);
+            messagesArray.put(systemMessage2);
+
 
             JSONObject userMessage = new JSONObject();
             userMessage.put("role", "user");
@@ -156,6 +161,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             jsonInput.put("model", model);
             if (isStreaming)
                 jsonInput.put("stream", isStreaming);
+            jsonInput.put("temperature", data.get("temperature"));
             jsonInput.put("messages", messagesArray);
             String jsonInputString = jsonInput.toString();
             logger.info("Sending: " + jsonInputString);
@@ -267,7 +273,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     get.releaseConnection();
                     logger.info("response body" + new String(responseBody));
                     JSONObject responseBodyJson = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
-                    responseBodyJson.put("prefix", entry.getValue().getName().toLowerCase());
+                    responseBodyJson.put("prefix", entry.getValue().getName());
                     responseBodyJson.put("filter", entry.getValue().getConfigModels());
                     responseBodyJson.put("canStream", entry.getValue().getCanStream());
                     finalResponse.put(responseBodyJson);
@@ -324,6 +330,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     jsonEntry.put("description", promptObj.getDescription());
                     jsonEntry.put("active", promptObj.getIsActive());
                     jsonEntry.put("default", promptObj.getIsDefault());
+                    jsonEntry.put("temperature", promptObj.getTemperature());
                     finalResponse.put(jsonEntry);
                 }
             }
@@ -331,6 +338,50 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
         } catch (Exception e) {
             logger.error("An error occured trying to get the prompts: ", e);
+            JSONObject builder = new JSONObject();
+            builder.put("", e.getMessage());
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON)
+                    .build();
+        }
+    }
+
+    @POST
+    @Path("/check-access")
+    public Response check(@Context HttpHeaders headers) throws XWikiRestException {
+        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
+        if (csrfTokenList.isEmpty())
+            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
+                    .build();
+        String token = csrfToken.getToken();
+        String csrfClient = csrfTokenList.get(0);
+        if (!csrfClient.equals(token)) {
+            logger.info(token);
+            logger.info(csrfClient);
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
+        Map<String, GPTAPIConfig> configMap;
+        try {
+            configMap = gptApi.getConfigs();
+            if (configMap.isEmpty())
+                throw new GPTAPIException(
+                        "The Configuration Map is empty. That mean the user has no right to access those configuration.");
+        } catch (GPTAPIException e) {
+            logger.error("An error occured:", e);
+            configMap = new HashMap<>();
+            JSONObject response = new JSONObject();
+            response.put("check", false);
+            byte[] responseByte = response.toString().getBytes(StandardCharsets.UTF_8);
+            return Response.ok(responseByte, MediaType.APPLICATION_JSON).build();
+        }
+        try {
+            JSONObject response = new JSONObject();
+            response.put("check", true);
+            byte[] responseByte = response.toString().getBytes(StandardCharsets.UTF_8);
+            return Response.ok(responseByte, MediaType.APPLICATION_JSON).build();
+        } catch (Exception e) {
+            logger.error("An error occured in the access checking: ", e);
             JSONObject builder = new JSONObject();
             builder.put("", e.getMessage());
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)

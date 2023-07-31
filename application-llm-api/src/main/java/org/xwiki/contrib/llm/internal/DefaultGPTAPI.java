@@ -255,13 +255,8 @@ public class DefaultGPTAPI implements GPTAPI {
 
     @Override
     public Map<String, GPTAPIConfig> getConfigs() throws GPTAPIException {
-        try {
-            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects();
-            return configMap;
-        } catch (Exception e) {
-            logger.error("Error trying to get the configurations java object: ", e);
-            return null;
-        }
+        Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects();
+        return configMap;
     }
 
     @Override

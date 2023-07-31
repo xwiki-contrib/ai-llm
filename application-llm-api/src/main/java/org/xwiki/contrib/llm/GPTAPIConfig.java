@@ -44,6 +44,8 @@ public class GPTAPIConfig {
     }
 
     public GPTAPIConfig() {
+        this.name = "default";
+        this.url = "test";
     }
 
     public String getName() {
@@ -70,22 +72,6 @@ public class GPTAPIConfig {
         return allowedGroup;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public void setURL(String url) {
-        this.url = url;
-    }
-
-    public void setConfigJSON(String configModels) {
-        this.configModels = configModels;
-    }
-
-    public void setToken(String token) {
-        this.token = token;
-    }
-
     @Override
     public String toString() {
         String res = "Name : " + name + "\n";
@@ -93,6 +79,7 @@ public class GPTAPIConfig {
         res += "Config param : " + configModels + "\n";
         res += "Token : " + token + "\n";
         res += "modelsURL : " + modelsURL + "\n";
+        res += "canStream : " + canStream + "\n";
         return res;
     }
 }
