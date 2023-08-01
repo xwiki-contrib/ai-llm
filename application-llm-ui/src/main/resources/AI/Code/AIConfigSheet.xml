@@ -1,37 +1,19 @@
-<?xml version="1.1" encoding="UTF-8"?>
-
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
+<?xml version='1.1' encoding='UTF-8'?>
 <xwikidoc version="1.5" reference="AI.Code.AIConfigSheet" locale="">
   <web>AI.Code</web>
   <name>AIConfigSheet</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
-  <creator>xwiki:XWiki.Admin</creator>
+  <creator>XWiki.superadmin</creator>
+  <creationDate>1690373287000</creationDate>
   <parent>WebHome</parent>
-  <author>xwiki:XWiki.Admin</author>
+  <author>XWiki.superadmin</author>
   <originalMetadataAuthor>XWiki.superadmin</originalMetadataAuthor>
-  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
-  <version>1.1</version>
+  <contentAuthor>XWiki.superadmin</contentAuthor>
+  <date>1690469046000</date>
+  <contentUpdateDate>1690469046000</contentUpdateDate>
+  <version>7.1</version>
   <title>AIConfigSheet</title>
   <comment/>
   <minorEdit>false</minorEdit>
@@ -48,16 +30,16 @@
   #set ($discard = $configDoc.save('Created empty AI LLM configuration', true))
 #end
 {{html clean="false"}}
-  &lt;form id="ai-llm-Config" method="post" action="$configDoc.getURL("save", "xredirect=$escapetool.url(${redirect})")" class="withLock xform"&gt;
-    &lt;fieldset&gt;
-      &lt;dl&gt;
-        &lt;dt&gt;
-          &lt;label for='ai-llm-Instances'&gt;$services.localization.render('llm.config.label')&lt;/label&gt;
-          &lt;span class='xHint'&gt;$services.localization.render('llm.config.label.hint')&lt;/span&gt;
-        &lt;/dt&gt;
-        &lt;dd&gt;
-          &lt;br /&gt;
-          &lt;div id='ai-llm-Instances'&gt;
+  &lt;form id="ai-llm-Config" method="post" action="$configDoc.getURL("save", "xredirect=$escapetool.url(${redirect})")" class="withLock xform">
+    &lt;fieldset>
+      &lt;dl>
+        &lt;dt>
+          &lt;label for='ai-llm-Instances'>$services.localization.render('llm.config.label')&lt;/label>
+          &lt;span class='xHint'>$services.localization.render('llm.config.label.hint')&lt;/span>
+        &lt;/dt>
+        &lt;dd>
+          &lt;br />
+          &lt;div id='ai-llm-Instances'>
 {{/html}}
 
 #if ($request.add)
@@ -69,20 +51,20 @@
 |=$services.localization.render('llm.config.name')|=$services.localization.render('llm.config.url')|=$services.localization.render('llm.config.configfile')|=$services.localization.render('llm.config.token')|=$services.localization.render('llm.config.requestmode')|=$services.localization.render('llm.config.groups')|=$services.localization.render('llm.config.delete')
 #foreach($serverObject in $configDoc.getObjects($configClassName))
   #set ($deleteURL = $configDoc.getURL('objectremove', "form_token=$!{services.csrf.getToken()}&amp;classname=${escapetool.url($configClassName)}&amp;classid=${serverObject.number}&amp;xredirect=${escapetool.url($redirect)}"))
-  |$serverObject.display('Name', 'edit')|$serverObject.display('url', 'edit')|$serverObject.display('Config', 'edit')|$serverObject.display('token', 'edit')|$serverObject.display('Requestmode', 'edit')|$serverObject.display('RightLLM', 'edit')|=[[image:icon:cross&gt;&gt;path:$deleteURL]]
+  |$serverObject.display('Name', 'edit')|$serverObject.display('url', 'edit')|$serverObject.display('Config', 'edit')|$serverObject.display('token', 'edit')|$serverObject.display('Requestmode', 'edit')|$serverObject.display('RightLLM', 'edit')|=[[image:icon:cross>>path:$deleteURL]]
 #end
 
 {{html clean="false"}}
-          &lt;/div&gt;
-        &lt;/dd&gt;
-      &lt;/dl&gt;
-    &lt;/fieldset&gt;
-    &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
-    &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" /&gt;
-    &lt;span class="buttonwrapper"&gt;
-      &lt;a href="${xwiki.relativeRequestURL}&amp;add=1" class="xobject-add-control"&gt;$services.localization.render('Add')&lt;/a&gt;
-    &lt;/span&gt;
-  &lt;/form&gt;
+          &lt;/div>
+        &lt;/dd>
+      &lt;/dl>
+    &lt;/fieldset>
+    &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" />
+    &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" />
+    &lt;span class="buttonwrapper">
+      &lt;a href="${xwiki.relativeRequestURL}&amp;add=1" class="xobject-add-control">$services.localization.render('Add')&lt;/a>
+    &lt;/span>
+  &lt;/form>
 {{/html}}
 {{/velocity}}</content>
 </xwikidoc>

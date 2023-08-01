@@ -1,40 +1,22 @@
-<?xml version="1.1" encoding="UTF-8"?>
-
-<!--
- * See the NOTICE file distributed with this work for additional
- * information regarding copyright ownership.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
-
+<?xml version='1.1' encoding='UTF-8'?>
 <xwikidoc version="1.5" reference="AI.Code.Javascript" locale="">
   <web>AI.Code</web>
   <name>Javascript</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
-  <creator>xwiki:XWiki.Admin</creator>
+  <creator>XWiki.superadmin</creator>
+  <creationDate>1690373287000</creationDate>
   <parent>AI.Code.WebHome</parent>
-  <author>xwiki:XWiki.Admin</author>
+  <author>XWiki.MunozMateo</author>
   <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
-  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
-  <version>1.1</version>
+  <contentAuthor>XWiki.superadmin</contentAuthor>
+  <date>1690913083000</date>
+  <contentUpdateDate>1690373287000</contentUpdateDate>
+  <version>2.82</version>
   <title/>
   <comment/>
-  <minorEdit>false</minorEdit>
+  <minorEdit>true</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
   <content>{{velocity}}
@@ -152,6 +134,7 @@
     let btnEnabled = true;
     let maxToken = 2000;
     let domain = window.location.origin;
+    let paramView = false;
 
     define('llm-translation', {
         prefix: 'llm.',
@@ -161,6 +144,9 @@
             "ui.copyLabel",
             "ui.includeLabel",
             "ui.assistantInfoName",
+            "ui.editButton",
+            "ui.editLabel",
+            "editor.modal.title",
         ]
     });
     let copyBtnValue;
@@ -168,12 +154,16 @@
     let includeBtnValue;
     let includeBtnLabel;
     let assistInfoName;
+    let editButtonValue;
+    let editButtonLabel;
     require(['xwiki-l10n!llm-translation'], function (l10n) {
         copyBtnValue = l10n.get('ui.copy');
         includeBtnValue = l10n.get('ui.include');
         copyBtnLabel = l10n.get('ui.copyLabel');
         includeBtnLabel = l10n.get('ui.includeLabel');
         assistInfoName = l10n.get('ui.assistantInfoName');
+        editButtonValue = l10n.get('ui.editButton');
+        editButtonLabel = l10n.get('ui.editLabel');
     });
 
 
@@ -182,7 +172,7 @@
     let globalSignal = globalAbortController.signal;
 
     var loadCSS = function (url) {
-        $('&lt;link&gt;').attr({
+        $('&lt;link>').attr({
             type: 'text/css',
             rel: 'stylesheet',
             href: url
@@ -213,14 +203,14 @@
         let nbChar = obj.value.length;
         if (scrollHeight &lt; 100) { // min height of 100px
             obj.style.height = '100px';
-        } else if (scrollHeight &gt; 200) { // max height 200px
+        } else if (scrollHeight > 200) { // max height 200px
             obj.style.height = '200px';
             obj.style.overflowY = 'auto';
         } else {
             let nbPx = (nbChar / 66) * 18;
             if (nbPx &lt; 100)
                 nbPx = 100;
-            else if (nbPx &gt; 200)
+            else if (nbPx > 200)
                 nbPx = 200;
             obj.style.height = nbPx + 'px';
         }
@@ -229,7 +219,7 @@
 
     function handleAutoResizeInput() {
         let textarea = document.querySelector('#txt-input');
-        textarea.addEventListener('input', (event) =&gt; {
+        textarea.addEventListener('input', (event) => {
             autoResizeInput(textarea);
         });
         autoResizeInput(textarea);
@@ -265,8 +255,8 @@
         msgBtn.classList.add('userMsgButton');
         msgBtn.type = 'button';
         msgBtn.id = `user-btn-${nbAssistMsg}`;
-        msgBtn.title = 'Move the message in the message edition area.';
-        msgBtn.textContent = 'Edit';
+        msgBtn.title = editButtonLabel;
+        msgBtn.textContent = editButtonValue;
         userMsgButtons.appendChild(msgBtn);
         preElement.appendChild(userMsgButtons);
 
@@ -345,11 +335,11 @@
 
     // Add the loading animation to the interface.
     function addLoading(chatContent) {
-        chatContent.innerHTML += `&lt;div class="waiting-line"&gt;
-  &lt;div class="dot dot1"&gt;&lt;/div&gt;
-  &lt;div class="dot dot2"&gt;&lt;/div&gt;
-  &lt;div class="dot dot3"&gt;&lt;/div&gt;
-  &lt;/div&gt;
+        chatContent.innerHTML += `&lt;div class="waiting-line">
+  &lt;div class="dot dot1">&lt;/div>
+  &lt;div class="dot dot2">&lt;/div>
+  &lt;div class="dot dot3">&lt;/div>
+  &lt;/div>
   `;
         scrollToBottom();
     }
@@ -369,11 +359,11 @@
     }
 
     function errorMessagePrint(errorMessage) {
-        return `&lt;div class="errorHandler"&gt;${errorMessage}&lt;/div&gt;`;
+        return `&lt;div class="errorHandler">${errorMessage}&lt;/div>`;
     }
 
     function copyTextToClipboard(numMsgToCopy) {
-        return new Promise((resolve, reject) =&gt; {
+        return new Promise((resolve, reject) => {
             const numericID = numMsgToCopy.replace("copy-button-", "");
             const numMsg = parseInt(numericID);
             const text = document.querySelector('#msg-content-' + numMsg).textContent;
@@ -385,7 +375,7 @@
     }
 
     function includeInDoc(msgID) {
-        return new Promise((resolve, reject) =&gt; {
+        return new Promise((resolve, reject) => {
             const numericID = msgID.replace("include-button-", "");
             const numMsg = parseInt(numericID);
             const text = document.querySelector('#msg-content-' + numMsg).textContent;
@@ -394,7 +384,7 @@
     }
 
     function editUserMsg(msgID) {
-        return new Promise((resolve, reject) =&gt; {
+        return new Promise((resolve, reject) => {
             const numericID = msgID.replace("user-btn-", "");
             const numMsg = parseInt(numericID);
             const text = document.querySelector('#user-content-' + numMsg).textContent;
@@ -414,7 +404,7 @@
     function countTokens(query) {
         query = query.trim();
         const words = query.split(' ');
-        const filteredWords = words.filter(word =&gt; word !== '');
+        const filteredWords = words.filter(word => word !== '');
 
         // One token equal to approximatively 1.3 token (based on OpenAI tokenization)
         const tokenCount = filteredWords.length * 1.3;
@@ -423,7 +413,7 @@
     }
 
     function getRequestParams(userText, modelType, model, prompt, context, temp) {
-        console.log('temp in request param',temp);
+        console.log('temp in request param', temp);
         const params = {
             text: userText,
             modelType: modelType,
@@ -453,7 +443,7 @@
         contextSize++;
         // Manage the number of token so the request is not too long.
         let ind = 0;
-        while (nbToken &gt; maxToken) {
+        while (nbToken > maxToken) {
             nbToken -= countTokens(context[ind]);
             context.shift();
             ind++;
@@ -505,13 +495,13 @@
     function changeBtnState() {
         if (btnEnabled) {
             document.querySelector('#subButton').disabled = true;
-            document.querySelector('#clearWin').disabled = true;
+            document.querySelector('#dropMenu').disabled = true;
             document.querySelector('#stopRqst').style.display = "block";
             btnEnabled = false;
         }
         else {
             document.querySelector('#subButton').disabled = false;
-            document.querySelector('#clearWin').disabled = false;
+            document.querySelector('#dropMenu').disabled = false;
             document.querySelector('#stopRqst').style.display = "none";
             btnEnabled = true;
         }
@@ -566,7 +556,7 @@
                         updateChatOnStream(chatContent, completedReply);
                     }
                     else {
-                        throw new Error('The model finished without responding. Please make sure the model can be loaded correctly on the server side.')
+                        throw new Error('The model finished without responding. Please make sure the model can be loaded correctly on the server side. The server may have run out of capacity while running the model.');
                     }
                 }
                 else {
@@ -595,11 +585,11 @@
                 if (isValidChunk) {
                     accumulatedChunks = jsonMessages.pop(); // Keep the incomplete message for the next iteration
                     ({ isErr, beginRep, completedReply } = handleValidChunk(jsonMessages, completedReply, beginRep, isErr, model, startTime, userText));
-                    return reader.read().then(value =&gt;
+                    return reader.read().then(value =>
                         processStream(value, chatContent, completedReply, accumulatedChunks, isErr, beginRep, reader, model, startTime, userText));
                 }
                 else
-                    return reader.read().then(value =&gt;
+                    return reader.read().then(value =>
                         processStream(value, chatContent, completedReply, accumulatedChunks, true, beginRep, reader, model, startTime, userText));
             }
         } catch (error) {
@@ -618,18 +608,18 @@
         let isErr = false;
         let beginRep = true;
 
-        return reader.read().then(value =&gt;
+        return reader.read().then(value =>
             processStream(value, chatContent, completedReply, accumulatedChunks, isErr, beginRep, reader, model, startTime, userText));
     }
 
     function streamingRequest(chatContent, URI, options, startTime, model, userText) {
         addLoading(chatContent);
-        fetch(URI, options).then((response) =&gt; {
+        fetch(URI, options).then((response) => {
             const reader = response.body.getReader();
             return new ReadableStream({
                 start(controller) {
                     function push() {
-                        reader.read().then(({ done, value }) =&gt; {
+                        reader.read().then(({ done, value }) => {
                             if (done) {
                                 controller.close();
                                 return;
@@ -642,9 +632,9 @@
                     push();
                 }
             });
-        }).then((stream) =&gt; {
+        }).then((stream) => {
             return streamResponse(chatContent, stream, model, startTime, userText);
-        }).catch((error) =&gt; {
+        }).catch((error) => {
             if (error.name !== 'AbortError') {
                 console.error('Error:', error);
                 errorCatcher(chatContent, error);
@@ -656,8 +646,8 @@
     function requestModeResponse(URI, options, start, model, chatContent, userText) {
         addLoading(chatContent);
         fetch(URI, options)
-            .then(response =&gt; response.json())
-            .then(data =&gt; {
+            .then(response => response.json())
+            .then(data => {
                 const elapsedTime = (Date.now() - start) / 1000;
                 if (data.code) {
                     console.error(data.code);
@@ -677,7 +667,7 @@
                 scrollToBottom();
                 changeBtnState();
             })
-            .catch(error =&gt; {
+            .catch(error => {
                 // Handle any errors except abort error, because
                 // this happen on purpose.
                 if (error.name !== 'AbortError') {
@@ -701,8 +691,37 @@
 
     }
 
+    function showParam() {
+        const chatUI = document.querySelector('#chatUI');
+        if(!paramView){
+            const settingsDiv = document.createElement('div');
+            settingsDiv.id = 'settings';
+            
+            const title =  document.createElement('h2');
+            title.textContent = 'Settings';
+            settingsDiv.appendChild(title);
+            
+            const tempSlider = document.createElement('input');
+            tempSlider.type = 'range';
+            tempSlider.value = '1';
+            tempSlider.min = '0';
+            tempSlider.max = '2';
+            tempSlider.step = '0.1';
+            tempSlider.id = 'sliderTemp';
+            settingsDiv.appendChild(tempSlider);
+            
+            document.querySelector('#chatUI').appendChild(settingsDiv);
+        }
+        else{
+            const settings = document.querySelector('#settings');
+            chatUI.removeChild(settings);
+        }
+        paramView = !paramView;
+        
+    }
+
     function getPrompts(options) {
-        return new Promise((resolve, reject) =&gt; {
+        return new Promise((resolve, reject) => {
             const chatContent = document.querySelector('#chatContent');
             changeBtnState();
             document.querySelector('#stopRqst').style.display = "none";
@@ -710,13 +729,13 @@
             const root = getRoot();
             const URI = root !== '' ? root + "/rest/v1/prompts" : "/rest/v1/prompts";
             fetch(URI, options)
-                .then(response =&gt; {
+                .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json();
                 })
-                .then(json =&gt; {
+                .then(json => {
                     initPromptMenu(json);
                     changeBtnState();
                     document.querySelector('#stopRqst').style.display = "none";
@@ -731,7 +750,7 @@
                         resolve(true);
                     }
                 })
-                .catch(e =&gt; {
+                .catch(e => {
                     console.error('An error occured trying to get the prompt list : ' + e.message);
                     const dbLink = getRoot() !== '' ? domain + getRoot() + '/bin/view/AI/PromptDB/' : '/bin/view/AI/PromptDB/';
                     chatContent.appendChild(addSystemChat('An error occured trying to get the prompt list : ' + e.message +
@@ -742,22 +761,22 @@
     }
 
     function getCheck(csrf_token) {
-        return new Promise((resolve, reject) =&gt; {
+        return new Promise((resolve, reject) => {
             const options = getRequestOptions(null, csrf_token);
             const root = getRoot();
             const URI = root !== '' ? root + "/rest/v1/check-access" : "/rest/v1/check-access";
             fetch(URI, options)
-                .then(response =&gt; {
+                .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json();
                 })
-                .then(json =&gt; {
+                .then(json => {
                     console.log('jsonCheck : ', json);
                     resolve(json.check);
                 })
-                .catch(e =&gt; {
+                .catch(e => {
                     console.error("An error occured trying to check the rights for the LLM extension.", e)
                 })
 
@@ -765,7 +784,7 @@
     }
 
     function getModels(options) {
-        return new Promise((resolve, reject) =&gt; {
+        return new Promise((resolve, reject) => {
             const chatContent = document.querySelector('#chatContent');
             changeBtnState();
             document.querySelector('#stopRqst').style.display = "none";
@@ -773,13 +792,13 @@
             const URI = root !== '' ? root + "/rest/v1/models" : "/rest/v1/models";
             chatContent.appendChild(addSystemChat('Models are loading..', null, null));
             fetch(URI, options)
-                .then(response =&gt; {
+                .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return response.json();
                 })
-                .then(json =&gt; {
+                .then(json => {
                     if (Object.keys(json).length === 0) {
                         throw new Error('There is no models to load');
                     }
@@ -790,7 +809,7 @@
                     }
                     resolve(true);
                 })
-                .catch(e =&gt; {
+                .catch(e => {
                     console.error('An error occured trying to get the model list : ' + e.message);
                     const baseURL = '/bin/admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application';
                     const url = getRoot() !== '' ? getRoot() + baseURL : baseURL;
@@ -800,6 +819,29 @@
                         configPage, 'Configuration panel'));
                     reject(false);
                 });
+        });
+    }
+
+    function isUserAdmin(options) {
+        return new Promise((resolve, reject) => {
+            const root = getRoot();
+            const URI = root !== '' ? root + "/rest/v1/permission" : "/rest/v1/permission";
+            fetch(URI, options)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(json => {
+                    console.log('jsonAdmins : ', json);
+                    console.log('isAdmin:', json.isAdmin);
+                    resolve(json.isAdmin);
+                })
+                .catch(e => {
+                    console.error("An error occured trying to check the user permission for the LLM extension.", e)
+                    reject();
+                })
         });
     }
 
@@ -821,7 +863,7 @@
         const prompt = selectedPrompt.value;
         const temp = parseFloat(selectedPrompt.options[selectedPrompt.selectedIndex].getAttribute("data-temp"));
         console.log('temp: ', temp);
-        console.log('type of temp: ', typeof(temp));
+        console.log('type of temp: ', typeof (temp));
         const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");;
         maxToken = chooseMaxToken(modelType);
         // Adding the user chat in the page
@@ -857,10 +899,13 @@
 
     function initFormEvent(form) {
         // Add an event listener to the form submit event
-        form.addEventListener('submit', (event) =&gt; { submitChat(event, form) });
+        const subBtn = document.querySelector('#subButton');
+        subBtn.addEventListener('click', (event) => {
+            submitChat(event, form)
+        });
 
-        const clearWinButton = document.querySelector('#clearWin');
-        clearWinButton.addEventListener('click', (event) =&gt; {
+        const newConvButton = document.querySelector('#newconv');
+        newConvButton.addEventListener('click', (event) => {
             document.querySelector('#chatContent').innerHTML = '';
             nbAssistMsg = 0;
             context = [];
@@ -868,14 +913,68 @@
         });
 
         const stopRqstButton = document.querySelector('#stopRqst');
-        stopRqstButton.addEventListener('click', (event) =&gt; {
+        stopRqstButton.addEventListener('click', (event) => {
             abortRequest();
         });
     }
 
+    async function changeDropMenuOnRight(isAdmin) {
+        const menuTiles = document.querySelectorAll('.dropTile');
+        menuTiles.forEach(element => {
+            element.style.color = 'grey';
+            element.style.pointerEvents = 'none';
+        });
+        if (isAdmin) {
+            menuTiles.forEach(element => {
+                element.style.color = 'black';
+                element.style.pointerEvents = 'auto';
+            });
+        }
+        else {
+            menuTiles.forEach(element => {
+                if (element.getAttribute('data-protected') === 'false') {
+                    element.style.color = 'black';
+                    element.style.pointerEvents = 'auto';
+                }
+                else {
+                    element.setAttribute('href', '');
+                }
+            })
+        }
+    }
+
+    function initDropMenu(isAdmin) {
+        const dropMenuBtn = document.querySelector('#dropMenu');
+        dropMenuBtn.addEventListener('click', (event) => {
+            const menuContent = document.querySelector('#dropMenuContent');
+            if (menuContent.style.display === 'none' || menuContent.style.display === '') {
+                const top = dropMenuBtn.offsetTop + dropMenuBtn.offsetHeight;
+                const left = dropMenuBtn.offsetLeft;
+                menuContent.style.top = top + "px";
+                menuContent.style.left = left + "px";
+                menuContent.style.display = 'flex';
+            }
+            else
+                menuContent.style.display = 'none';
+        });
+        changeDropMenuOnRight(isAdmin);
+        document.addEventListener('click', (event) => {
+            const menuContent = document.querySelector('#dropMenuContent');
+            const dropMenuBtn = document.querySelector('#dropMenu');
+            if (menuContent.style.display === 'flex' &amp;&amp; event.target !== dropMenuBtn)
+                menuContent.style.display = 'none';
+        });
+
+        const settingsTile = document.querySelector('#settingsTile');
+        settingsTile.addEventListener('click', (event) => {
+            if (isAdmin)
+                showParam();
+        })
+    }
+
     function initModelMenu(modelList) {
         const modelMenu = document.querySelector('#model-menu');
-        modelList.forEach(element =&gt; {
+        modelList.forEach(element => {
             const prefix = element.prefix;
             const filter = element.filter;
             const filterTab = filter.split(',');
@@ -884,14 +983,14 @@
                 const value = prefix + '/' + model.id;
                 const valueToDisplay = model.id + ' (' + prefix + ')';
                 if (filterTab.includes(model.id) || filter === '')
-                    modelMenu.innerHTML += `&lt;option value="${value}" data-streaming="${isStreaming}"&gt;${valueToDisplay}&lt;/option&gt;`
+                    modelMenu.innerHTML += `&lt;option value="${value}" data-streaming="${isStreaming}">${valueToDisplay}&lt;/option>`
             }
         });
 
     }
 
     function initPromptMenu(promptList) {
-        promptList.forEach(element =&gt; {
+        promptList.forEach(element => {
             const name = element.name;
             const prompt = element.prompt;
             const isActive = element.active;
@@ -901,9 +1000,9 @@
             if (isActive) {
                 const promptMenu = document.querySelector('#features-menu');
                 if (isDefault)
-                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" data-temp="${temperature}" selected&gt;${name}&lt;/option&gt;`;
+                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" data-temp="${temperature}" selected>${name}&lt;/option>`;
                 else
-                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" data-temp="${temperature}"&gt;${name}&lt;/option&gt;`;
+                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" data-temp="${temperature}">${name}&lt;/option>`;
             }
         })
     }
@@ -919,13 +1018,16 @@
             return;
         }
         initFormEvent(form);
-
         const csrf = document.querySelector('#form_token').value;
         const options = getRequestOptions(null, csrf);
+        Promise.all([isUserAdmin(options)])
+            .then((res) => {
+                initDropMenu(res[0]);
+            });
         Promise.all([getModels(options), getPrompts(options)])
-            .then((res) =&gt; {
+            .then((res) => {
                 if (res[0] &amp;&amp; res[1])
-                    setTimeout(() =&gt; {
+                    setTimeout(() => {
                         document.querySelector('#chatContent').innerHTML = '';
                     }, 2000);
             });
@@ -936,7 +1038,7 @@
 });</code>
     </property>
     <property>
-      <name/>
+      <name></name>
     </property>
     <property>
       <parse/>
@@ -1071,7 +1173,7 @@
       <async_enabled>0</async_enabled>
     </property>
     <property>
-      <content/>
+      <content></content>
     </property>
     <property>
       <extensionPointId>org.xwiki.platform.requirejs.module</extensionPointId>

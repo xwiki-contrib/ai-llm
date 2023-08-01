@@ -32,4 +32,5 @@ public interface GPTAPI {
     public GPTAPIConfig getConfig(String id) throws GPTAPIException;
     public Map<String, GPTAPIConfig> getConfigs() throws GPTAPIException;
     public Map<String, GPTAPIPrompt> getPromptDB() throws GPTAPIException;
+    public Boolean isUserAdmin() throws GPTAPIException;
 }

@@ -150,7 +150,6 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             messagesArray.put(systemMessage);
             messagesArray.put(systemMessage2);
 
-
             JSONObject userMessage = new JSONObject();
             userMessage.put("role", "user");
             userMessage.put("content", data.get("text").toString());
@@ -391,4 +390,35 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
         }
     }
 
+    @POST
+    @Path("/permission")
+    public Response isUserAdmin(@Context HttpHeaders headers) {
+        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
+        if (csrfTokenList.isEmpty())
+            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
+                    .build();
+        String token = csrfToken.getToken();
+        String csrfClient = csrfTokenList.get(0);
+        if (!csrfClient.equals(token)) {
+            logger.info(token);
+            logger.info(csrfClient);
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
+        try {
+            Boolean isAdmin = gptApi.isUserAdmin();
+            logger.info("isAdmin user:" + isAdmin);
+            JSONObject res = new JSONObject();
+            res.put("isAdmin", isAdmin);
+            byte[] resByte = res.toString().getBytes(StandardCharsets.UTF_8);
+            return Response.ok(resByte, MediaType.APPLICATION_JSON).build();
+        } catch (GPTAPIException e) {
+            logger.error("An error occured while trying to get user permission.", e);
+            JSONObject builder = new JSONObject();
+            builder.put("", e.getMessage());
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON)
+                    .build();
+        }
+    }
 }

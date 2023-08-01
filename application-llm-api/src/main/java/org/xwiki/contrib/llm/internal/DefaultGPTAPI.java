@@ -24,6 +24,7 @@ import com.github.openjson.JSONObject;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.api.User;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
@@ -268,5 +269,17 @@ public class DefaultGPTAPI implements GPTAPI {
             logger.error("Error trying to get the prompt database : ", e);
             return null;
         }
+    }
+
+    @Override
+    public Boolean isUserAdmin() throws GPTAPIException {
+        Execution execution = Utils.getComponent(Execution.class);
+        XWikiContext context = (XWikiContext) execution.getContext().getProperty("xwikicontext");
+        com.xpn.xwiki.XWiki xwiki = context.getWiki();
+
+        // Get the user using the Extension in the actual context.
+        DocumentReference username = context.getUserReference();
+        User xwikiUser = xwiki.getUser(username, context);
+        return xwikiUser.hasWikiAdminRights();
     }
 }
