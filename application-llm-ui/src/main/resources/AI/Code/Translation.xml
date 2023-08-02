@@ -1,19 +1,37 @@
-<?xml version='1.1' encoding='UTF-8'?>
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
 <xwikidoc version="1.5" reference="AI.Code.Translation" locale="">
   <web>AI.Code</web>
   <name>Translation</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
-  <creator>XWiki.superadmin</creator>
-  <creationDate>1690373287000</creationDate>
+  <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
-  <author>XWiki.MunozMateo</author>
+  <author>xwiki:XWiki.Admin</author>
   <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
-  <contentAuthor>XWiki.MunozMateo</contentAuthor>
-  <date>1690898441000</date>
-  <contentUpdateDate>1690898441000</contentUpdateDate>
-  <version>7.1</version>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
   <title/>
   <comment/>
   <minorEdit>false</minorEdit>
@@ -33,6 +51,9 @@ llm.ui.editLabel=Move the message in the message edition area.
 llm.ui.configRedir=Configuration
 llm.ui.promptDBRedir=Prompt Database
 llm.ui.param=Advanced Settings
+llm.ui.settingsTitle=Settings
+llm.ui.tempSlide=Temperature
+llm.ui.isTempUsableLabel=Use Custom Temperature
 llm.config.label=LLM Assistant Configuration
 llm.config.label.hint=Configuration for the LLM application, need at least one configuration with one model and the associated URL prefix/token to work. The URL prefix should allow access to /models endpoint and /chat/completions. For example, if the prefix looks like http://example.url.com/ then http://example.url.com/models and http://example.url.com/chat/completions should be accesible.
 llm.config.name=Server Name

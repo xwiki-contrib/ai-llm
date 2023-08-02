@@ -141,14 +141,22 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             }
 
             JSONArray messagesArray = new JSONArray();
+            List<Map<String, String>> listObjs = (List<Map<String, String>>) data.get("context");
+            for (Map<String, String> map : listObjs) {
+                for (Map.Entry<String, String> entry : map.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    logger.info("Key: " + key + ", Value: " + value);
+                    JSONObject contextElement = new JSONObject();
+                    contextElement.put("role", key);
+                    contextElement.put("content", value);
+                    messagesArray.put(contextElement);
+                }
+            }
             JSONObject systemMessage = new JSONObject();
             systemMessage.put("role", "system");
-            systemMessage.put("content", data.get("context").toString());
-            JSONObject systemMessage2 = new JSONObject();
-            systemMessage2.put("role", "system");
-            systemMessage2.put("content", data.get("prompt").toString());
+            systemMessage.put("content", data.get("prompt").toString());
             messagesArray.put(systemMessage);
-            messagesArray.put(systemMessage2);
 
             JSONObject userMessage = new JSONObject();
             userMessage.put("role", "user");
@@ -204,7 +212,6 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                         OutputStreamWriter writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8);
                         while ((line = reader.readLine()) != null) {
                             // Write each line to the output
-                            logger.info("stream response line: " + line);
                             writer.write(line);
                             writer.flush();
                         }

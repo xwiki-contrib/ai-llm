@@ -23,14 +23,8 @@ import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
 
 import com.xpn.xwiki.XWikiContext;
-import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.api.User;
-import com.xpn.xwiki.doc.XWikiDocument;
-import com.xpn.xwiki.objects.BaseObject;
-import com.xpn.xwiki.objects.BaseProperty;
 import com.xpn.xwiki.web.Utils;
-
-import liquibase.pro.packaged.is;
 
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
@@ -52,13 +46,8 @@ import org.xwiki.stability.Unstable;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import javax.ws.rs.HttpMethod;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
 import java.io.*;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
