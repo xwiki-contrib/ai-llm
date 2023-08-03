@@ -277,7 +277,6 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     }
                     byte[] responseBody = get.getResponseBody();
                     get.releaseConnection();
-                    logger.info("response body" + new String(responseBody));
                     JSONObject responseBodyJson = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
                     responseBodyJson.put("prefix", entry.getValue().getName());
                     responseBodyJson.put("filter", entry.getValue().getConfigModels());
@@ -303,7 +302,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
     @POST
     @Path("/prompts")
-    public Response getPromptDB(@Context HttpHeaders headers) throws XWikiRestException {
+    @Consumes("application/json")
+    public Response getPromptDB(Map<String,Object> data, @Context HttpHeaders headers) throws XWikiRestException {
         List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
         if (csrfTokenList.isEmpty())
             return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
@@ -318,15 +318,13 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
         Map<String, GPTAPIPrompt> dbMap;
         try {
-            dbMap = gptApi.getPromptDB();
+            dbMap = gptApi.getPromptDB(data.get("prompt").toString());
         } catch (GPTAPIException e) {
             logger.error("Exception in the REST getPromptDB method : ", e);
             dbMap = new HashMap<>();
         }
         JSONArray finalResponse = new JSONArray();
         try {
-            if (dbMap.isEmpty())
-                throw new Exception("The prompt database java object is empty.");
             for (Map.Entry<String, GPTAPIPrompt> entryDB : dbMap.entrySet()) {
                 GPTAPIPrompt promptObj = entryDB.getValue();
                 if (entryDB.getKey().isEmpty() == false) {

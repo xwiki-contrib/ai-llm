@@ -250,9 +250,9 @@ public class DefaultGPTAPI implements GPTAPI {
     }
 
     @Override
-    public Map<String, GPTAPIPrompt> getPromptDB() throws GPTAPIException {
+    public Map<String, GPTAPIPrompt> getPromptDB(String promptName) throws GPTAPIException {
         try {
-            Map<String, GPTAPIPrompt> dbMap = dbProvider.getPromptDB();
+            Map<String, GPTAPIPrompt> dbMap = dbProvider.getPromptDB(promptName);
             return dbMap;
         } catch (Exception e) {
             logger.error("Error trying to get the prompt database : ", e);

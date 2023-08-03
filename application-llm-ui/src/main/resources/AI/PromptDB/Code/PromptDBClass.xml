@@ -75,6 +75,33 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.ComputedFieldClass</classType>
     </content1>
+    <databaseList1>
+      <cache>0</cache>
+      <classname/>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayType>input</displayType>
+      <freeText/>
+      <hint/>
+      <idField/>
+      <multiSelect>0</multiSelect>
+      <name>databaseList1</name>
+      <number>7</number>
+      <picker>1</picker>
+      <prettyName>Database List</prettyName>
+      <relationalStorage>1</relationalStorage>
+      <separator> </separator>
+      <separators/>
+      <size>1</size>
+      <sort>none</sort>
+      <sql>select doc.fullName, doc.title from XWikiDocument doc, BaseObject as obj where doc.fullName = obj.name and obj.className = 'AI.PromptDB.Code.PromptDBClass' and doc.name &lt;&gt; 'PromptDBTemplate'</sql>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <valueField/>
+      <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
+    </databaseList1>
     <default>
       <customDisplay/>
       <defaultValue/>
@@ -109,7 +136,7 @@
     <shortText1>
       <customDisplay/>
       <disabled>0</disabled>
-      <hint>Number between 0 and 1</hint>
+      <hint>Number between 0 and 2</hint>
       <name>shortText1</name>
       <number>5</number>
       <picker>0</picker>

@@ -44,6 +44,7 @@ AI.PromptDB.Code.PromptDBClass_boolean1=active
 AI.PromptDB.Code.PromptDBClass_content1=Prompt
 AI.PromptDB.Code.PromptDBClass_shortText1=Temperature
 AI.PromptDB.Code.PromptDBClass_default=Default
+AI.PromptDB.Code.PromptDBClass_databaseList1=Database List
 
 # Sheet keys
 promptdb.sheet.description=This page controls how AI Prompt Database pages are displayed in both view and edit modes.
@@ -75,6 +76,7 @@ promptdb.livetable.boolean1=active
 promptdb.livetable.content1=Prompt
 promptdb.livetable.shortText1=Temperature
 promptdb.livetable.default=Default
+promptdb.livetable.databaseList1=Database List
 
 # Other keys
 promptdb.entry.name=AI Prompt Database

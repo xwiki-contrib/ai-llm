@@ -39,6 +39,8 @@
   <hidden>true</hidden>
   <content>{{velocity}}
 {{html clean="false"}}
+#template('display_macros.vm')
+#initRequiredSkinExtensions()
 &lt;div id="chatUI"&gt;
     &lt;select id="model-menu"&gt;
     &lt;/select&gt;
@@ -50,7 +52,11 @@
             &lt;div id="form-control-panel"&gt;
                 &lt;div class="stacked-items"&gt;
                     &lt;nav class="stacked-items"&gt;
-                        &lt;select id="features-menu"&gt;
+                        #set($placeholder = $services.localization.render('llm.ui.featureMenuPlaceholder'))
+                        #set ($discard = $xwiki.jsfx.use('uicomponents/suggest/suggestPropertyValues.js',
+                        {'forceSkinAction': true, 'language': $xcontext.locale}))
+                        #set ($discard = $xwiki.jsx.use('AI.Code.LoadPromptMenuJQuery'))
+                        &lt;select name="manager" value=""&gt;
                         &lt;/select&gt;
                     &lt;/nav&gt;
                     &lt;div class="form-button-container"&gt;
@@ -65,14 +71,17 @@
                                 &lt;div id="dropDownContainer" style="position: relative;"&gt;
                                     &lt;input type="button" class="button" value="&amp;#x2630;" id="dropMenu"&gt;
                                     &lt;div class="dropdown-content" id="dropMenuContent"&gt;
-                                        &lt;a id="newconv" class="dropTile" data-protected="false"&gt;$services.localization.render('llm.ui.newconv')&lt;/a&gt;
-                                        &lt;hr/&gt;
+                                        &lt;a id="newconv" class="dropTile"
+                                            data-protected="false"&gt;$services.localization.render('llm.ui.newconv')&lt;/a&gt;
+                                        &lt;hr /&gt;
                                         &lt;a href="/xwiki/bin/admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application"
-                                            id="configRedir" class="dropTile" data-protected="true"&gt;$services.localization.render('llm.ui.configRedir')&lt;/a&gt;
-                                        &lt;a href="/xwiki/bin/view/AI/PromptDB/"
-                                            id="promptDBRedir" class="dropTile" data-protected="true"&gt;$services.localization.render('llm.ui.promptDBRedir')&lt;/a&gt;
-                                        &lt;hr/&gt;
-                                        &lt;a id="settingsTile" class="dropTile" data-protected="true"&gt;$services.localization.render('llm.ui.param')&lt;/a&gt;
+                                            id="configRedir" class="dropTile"
+                                            data-protected="true"&gt;$services.localization.render('llm.ui.configRedir')&lt;/a&gt;
+                                        &lt;a href="/xwiki/bin/view/AI/PromptDB/" id="promptDBRedir" class="dropTile"
+                                            data-protected="false"&gt;$services.localization.render('llm.ui.promptDBRedir')&lt;/a&gt;
+                                        &lt;hr /&gt;
+                                        &lt;a id="settingsTile" class="dropTile"
+                                            data-protected="false"&gt;$services.localization.render('llm.ui.param')&lt;/a&gt;
                                     &lt;/div&gt;
                                 &lt;/div&gt;
                             &lt;/div&gt;
@@ -89,6 +98,12 @@
         llm.init();
     });
 &lt;/script&gt;
+#getRequiredSkinExtensions($requiredSkinExtensions)
+## We use the X-XWIKI-HTML-HEAD custom HTTP header to return the required JavaScript and CSS resources. Note that the
+## HTML of the UI element is returned in the response body.
+#set ($discard = $response.setHeader('X-XWIKI-HTML-HEAD', $requiredSkinExtensions))
 {{/html}}
-{{/velocity}}</content>
+{{/velocity}}
+
+</content>
 </xwikidoc>

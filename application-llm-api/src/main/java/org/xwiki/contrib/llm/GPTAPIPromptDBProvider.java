@@ -26,5 +26,5 @@ import java.util.Map;
 @Component
 @Role
 public interface GPTAPIPromptDBProvider {
-    public Map<String,GPTAPIPrompt> getPromptDB();
+    public Map<String,GPTAPIPrompt> getPromptDB(String promptName);
 }

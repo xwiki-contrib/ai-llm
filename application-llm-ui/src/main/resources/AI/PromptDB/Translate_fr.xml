@@ -20,26 +20,26 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.PromptDB.Auto-tagging" locale="">
+<xwikidoc version="1.5" reference="AI.PromptDB.Translate_fr" locale="">
   <web>AI.PromptDB</web>
-  <name>Auto-tagging</name>
+  <name>Translate_fr</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>AI.PromptDB.WebHome</parent>
+  <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.TestTest</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>Auto-tagging</title>
-  <comment/>
+  <title>Translate (FR)</title>
+  <comment></comment>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
-  <hidden>true</hidden>
-  <content>Based on the given text, give the three most revelant subject in the text . Each tag as to be a single word.</content>
+  <hidden>false</hidden>
+  <content>Translate the given text in french.</content>
   <object>
-    <name>AI.PromptDB.Auto-tagging</name>
+    <name>AI.PromptDB.Translate_fr</name>
     <number>0</number>
     <className>AI.PromptDB.Code.PromptDBClass</className>
     <guid>a8cf4544-d0fa-4b6d-b50d-1f361070a515</guid>
@@ -80,6 +80,33 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.ComputedFieldClass</classType>
       </content1>
+      <databaseList1>
+        <cache>0</cache>
+        <classname/>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayType>input</displayType>
+        <freeText/>
+        <hint/>
+        <idField/>
+        <multiSelect>0</multiSelect>
+        <name>databaseList1</name>
+        <number>7</number>
+        <picker>1</picker>
+        <prettyName>Database List</prettyName>
+        <relationalStorage>1</relationalStorage>
+        <separator> </separator>
+        <separators/>
+        <size>1</size>
+        <sort>none</sort>
+        <sql>select doc.fullName, doc.title from XWikiDocument doc, BaseObject as obj where doc.fullName = obj.name and obj.className = 'AI.PromptDB.Code.PromptDBClass' and doc.name &lt;&gt; 'PromptDBTemplate'</sql>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <valueField/>
+        <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
+      </databaseList1>
       <default>
         <customDisplay/>
         <defaultValue/>
@@ -114,7 +141,7 @@
       <shortText1>
         <customDisplay/>
         <disabled>0</disabled>
-        <hint>Number between 0 and 1</hint>
+        <hint>Number between 0 and 2</hint>
         <name>shortText1</name>
         <number>5</number>
         <picker>0</picker>
@@ -143,10 +170,13 @@
       <boolean1>1</boolean1>
     </property>
     <property>
+      <databaseList1>AI.PromptDB.Translate_fr</databaseList1>
+    </property>
+    <property>
       <default>0</default>
     </property>
     <property>
-      <longText1>A prompt to generate the three most revelant tags of the provided text.</longText1>
+      <longText1>A prompt to translate a text in french.</longText1>
     </property>
     <property>
       <shortText1>0.3</shortText1>

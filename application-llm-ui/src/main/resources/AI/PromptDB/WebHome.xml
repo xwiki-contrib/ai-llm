@@ -45,6 +45,7 @@
   'boolean1': {},
   'default': {},
   'shortText1': {},
+  'databaseList1': {},
   '_actions': {"sortable":false,"filterable":false,"html":true,"actions":["edit","delete"]}
 })
 #set ($options = {
@@ -56,7 +57,7 @@
   'selectedColumn': 'doc.title',
   'defaultOrder': 'asc'
 })
-#set ($columns = ['doc.title', 'longText1', 'content1', 'boolean1', 'default', 'shortText1', '_actions'])
+#set ($columns = ['doc.title', 'longText1', 'content1', 'boolean1', 'default', 'shortText1', 'databaseList1', '_actions'])
 #livetable('promptdb' $columns $columnsProperties $options)
 {{/velocity}}</content>
   <object>
@@ -132,7 +133,7 @@
       <class>AI.PromptDB.Code.PromptDBClass</class>
     </property>
     <property>
-      <columns>title1 longText1 content1 boolean1 default shortText1 _actions</columns>
+      <columns>title1 longText1 content1 boolean1 default shortText1 databaseList1 _actions</columns>
     </property>
     <property>
       <dataSpace/>

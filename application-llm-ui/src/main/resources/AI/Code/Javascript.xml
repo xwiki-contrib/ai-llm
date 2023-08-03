@@ -37,24 +37,7 @@
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
-  <content>{{velocity}}
-#set($MyDoc = $xwiki.getDocument("AI.Code.AIConfig"))
-#set($class = $xwiki.getClass("AI.Code.AIConfigClass"))
-#set($objArray = [])
-
-#foreach($obj in $MyDoc.getObjects("AI.Code.AIConfigClass"))
-  #set($objData = [])  ## Créez un nouveau tableau pour chaque objet
-  #set($discard = $MyDoc.use($obj))
-  #foreach($prop in $class.properties) ## Parcourez toutes les propriétés
-    ## Ajoutez chaque propriété au tableau de l'objet
-    #set($value = $MyDoc.display($prop.getName()))
-    #set($discard = $objData.add({ "property": $prop.name, "value": $value }))
-  #end
-
-  ## Ajoutez le tableau de l'objet au tableau principal
-  #set($discard = $objArray.add($objData))
-#end
-{{/velocity}}</content>
+  <content/>
   <object>
     <name>AI.Code.Javascript</name>
     <number>0</number>
@@ -170,6 +153,7 @@
             "editor.modal.title",
             "ui.tempSlide",
             "ui.isTempUsableLabel",
+            "ui.featureMenuPlaceholder"
         ]
     });
     let copyBtnValue;
@@ -507,7 +491,7 @@
         let actualMsgID = nbAssistMsg;
         document.querySelector('#copy-button-' + actualMsgID).style.display = "block";
         document.querySelector('#include-button-' + actualMsgID).style.display = "block";
-        context[contextSize].push({user: userText, assistant: generatedContent});
+        context[contextSize].push({ user: userText, assistant: generatedContent });
         tokenManager();
     }
 
@@ -585,7 +569,7 @@
                     const copyBtn = document.querySelector('#copy-button-' + nbAssistMsg);
                     const includeBtn = document.querySelector('#include-button-' + nbAssistMsg);
                     if (copyBtn &amp;&amp; includeBtn) {
-                        context.push({user: userText}); 
+                        context.push({ user: userText });
                         copyBtn.style.display = "block";
                         includeBtn.style.display = "block";
                         updateChatOnStream(chatContent, completedReply);
@@ -826,12 +810,11 @@
 
     }
 
-    function getPrompts(options) {
+    function getPrompt(options) {
         return new Promise((resolve, reject) =&gt; {
             const chatContent = document.querySelector('#chatContent');
             changeBtnState();
             document.querySelector('#stopRqst').style.display = "none";
-            chatContent.appendChild(addSystemChat('Prompts are loading..'), null, null);
             const root = getRoot();
             const URI = root !== '' ? root + "/rest/v1/prompts" : "/rest/v1/prompts";
             fetch(URI, options)
@@ -842,26 +825,28 @@
                     return response.json();
                 })
                 .then(json =&gt; {
-                    initPromptMenu(json);
                     changeBtnState();
                     document.querySelector('#stopRqst').style.display = "none";
                     if (json.length === 0) {
-                        const msg = 'There is no prompt to load. You can still use the interface as is, but if you want to add quick actions please add corresponding prompt to the database linked below.';
-                        const dbLink = getRoot() !== '' ? domain + getRoot() + '/bin/view/AI/PromptDB/' : '/bin/view/AI/PromptDB/';
-                        chatContent.appendChild(addSystemChat(msg, dbLink, 'Application PromptDB'));
-                        resolve(false);
+                        if (JSON.parse(options.body).prompt !== '') {
+                            const msg = 'There is no such prompt as \"' + JSON.parse(options.body).prompt + '\" to load, no prompt are used. You can still use the interface as is, but if you want to add quick actions please add corresponding prompt to the database linked below.';
+                            const dbLink = getRoot() !== '' ? domain + getRoot() + '/bin/view/AI/PromptDB/' : '/bin/view/AI/PromptDB/';
+                            chatContent.appendChild(addSystemChat(msg, dbLink, 'Application PromptDB'));
+                        }
+                        json = [{ prompt: '', temperature: 1 }];
+                        resolve(json);
                     }
                     else {
-                        chatContent.appendChild(addSystemChat('Prompts are loaded.'), null, null);
-                        resolve(true);
+                        console.log(json);
+                        resolve(json);
                     }
                 })
                 .catch(e =&gt; {
-                    console.error('An error occured trying to get the prompt list : ' + e.message);
+                    console.error('An error occured trying to get the prompt : ' + e.message);
                     const dbLink = getRoot() !== '' ? domain + getRoot() + '/bin/view/AI/PromptDB/' : '/bin/view/AI/PromptDB/';
                     chatContent.appendChild(addSystemChat('An error occured trying to get the prompt list : ' + e.message +
                         '.' + 'Please look at the prompt database on the link below.', dbLink, 'Application PromptDB'));
-                    reject(false);
+                    reject(null);
                 })
         });
     }
@@ -910,7 +895,6 @@
                     else {
                         initModelMenu(json);
                         chatContent.appendChild(addSystemChat('Models are now loaded.', null, null));
-                        changeBtnState();
                     }
                     resolve(true);
                 })
@@ -948,7 +932,7 @@
         });
     }
 
-    function submitChat(event, form) {
+    async function submitChat(event, form) {
         event.preventDefault(); // Prevent the form from submitting normally
         // Get the text from the textarea
         const userText = form.elements.input.value;
@@ -957,13 +941,18 @@
             return false;
         }
 
+        // Create the string containing csrf token
+        const csrf = document.querySelector('#form_token').value;
         // Which model should we adress and what feature is wanted
         const modelMenu = document.querySelector('#model-menu');
         const selectedMod = modelMenu.value;
         const modelType = selectedMod.substring(0, selectedMod.indexOf("/"));
         const model = selectedMod.substring(selectedMod.indexOf("/") + 1);
         const selectedPrompt = document.querySelector('#features-menu');
-        const prompt = selectedPrompt.value;
+        console.log('selected prompt : ', selectedPrompt.textContent);
+        const optionsPromptRq = getRequestOptions({ prompt: selectedPrompt.textContent }, csrf);
+        const promptData = await getPrompt(optionsPromptRq);
+        console.log('promptData: ', promptData);
         let temp;
         if (paramView) {
             const isTempUsable = document.querySelector('#isTempUsable');
@@ -972,23 +961,21 @@
                 temp = parseFloat(document.querySelector('#sliderTemp').value);
         }
         else
-            temp = parseFloat(selectedPrompt.options[selectedPrompt.selectedIndex].getAttribute("data-temp"));
+            temp = promptData[0].temperature;
         const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");;
         maxToken = chooseMaxToken(modelType);
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');
-        if (prompt !== '') {
+        if (promptData[0].prompt !== '') {
             if (isCustomTemp)
-                chatContent.appendChild(addSystemChat('The prompt used is: ' + prompt + ' With a custom temperature of ' + settingsTemp + '.'));
+                chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData[0].prompt + ' With a custom temperature of ' + settingsTemp + '.'));
             else
-                chatContent.appendChild(addSystemChat('The prompt used is: ' + prompt));
+                chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData[0].prompt));
         }
         chatContent.appendChild(addUserChat(userText));
         scrollToBottom();
 
-        // Create the string containing csrf token
-        const csrf = document.querySelector('#form_token').value;
-        const params = getRequestParams(userText, modelType, model, prompt, context, temp);
+        const params = getRequestParams(userText, modelType, model, promptData[0].prompt, context, temp);
         const options = getRequestOptions(params, csrf);
 
         // Make the POST request with query parameters
@@ -1053,6 +1040,7 @@
                 }
             })
         }
+
     }
 
     function initDropMenu(isAdmin) {
@@ -1079,8 +1067,7 @@
 
         const settingsTile = document.querySelector('#settingsTile');
         settingsTile.addEventListener('click', (event) =&gt; {
-            if (isAdmin)
-                showParam();
+            showParam();
         })
     }
 
@@ -1101,24 +1088,6 @@
 
     }
 
-    function initPromptMenu(promptList) {
-        promptList.forEach(element =&gt; {
-            const name = element.name;
-            const prompt = element.prompt;
-            const isActive = element.active;
-            const isDefault = element.default;
-            const description = element.description;
-            const temperature = element.temperature;
-            if (isActive) {
-                const promptMenu = document.querySelector('#features-menu');
-                if (isDefault)
-                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" data-temp="${temperature}" selected&gt;${name}&lt;/option&gt;`;
-                else
-                    promptMenu.innerHTML += `&lt;option value="${prompt}" title="${description}" data-temp="${temperature}"&gt;${name}&lt;/option&gt;`;
-            }
-        })
-    }
-
     function init() {
         if (initDone)
             return;
@@ -1136,11 +1105,12 @@
             .then((res) =&gt; {
                 initDropMenu(res[0]);
             });
-        Promise.all([getModels(options), getPrompts(options)])
+        Promise.all([getModels(options)])
             .then((res) =&gt; {
-                if (res[0] &amp;&amp; res[1])
+                if (res[0])
                     setTimeout(() =&gt; {
                         document.querySelector('#chatContent').innerHTML = '';
+                        changeBtnState();
                     }, 2000);
             });
         handleAutoResizeInput();

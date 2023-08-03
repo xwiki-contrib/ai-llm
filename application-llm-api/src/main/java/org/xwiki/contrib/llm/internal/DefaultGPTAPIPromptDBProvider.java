@@ -56,7 +56,7 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
     }
 
     @Override
-    public Map<String, GPTAPIPrompt> getPromptDB() {
+    public Map<String, GPTAPIPrompt> getPromptDB(String promptName) {
         Map<String, GPTAPIPrompt> promptDBMap = new HashMap<>();
         try {
             Execution execution = Utils.getComponent(Execution.class);
@@ -87,11 +87,14 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
 
                 if (doc != null) {
                     BaseObject object = doc.getObject("AI.PromptDB.Code.PromptDBClass");
-                    logger.info("obj:");
-                    System.out.println(object);
+                    // logger.info("obj:");
+                    // System.out.println(object);
 
                     if (object != null) {
-                        if(doc.getTitle() == "PromptDBTemplate")
+                        logger.info("title of the doc : {}", doc.getTitle());
+                        logger.info("prompt wanted : {}", promptName);
+                        System.out.println(doc.getTitle());
+                        if (!doc.getTitle().equals(promptName))
                             continue;
                         Map<String, Object> dbObjMap = new HashMap<>();
                         Collection<BaseProperty> fields = object.getFieldList();
@@ -99,11 +102,9 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
                             logger.info(field.toFormString());
                             dbObjMap.put(field.getName(), field.getValue());
                         }
-                        logger.info("title of the doc : {}",doc.getTitle());
-                        System.out.println(doc.getTitle());
                         dbObjMap.put("title1", doc.getTitle());
-                        dbObjMap.put("content1",doc.getContent());
-                        
+                        dbObjMap.put("content1", doc.getContent());
+
                         if (!dbObjMap.isEmpty()) {
                             GPTAPIPrompt res = new GPTAPIPrompt(dbObjMap);
                             if (res.getName() == null || res.getPrompt() == null || res.getIsActive() == null) {
@@ -117,8 +118,8 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
             }
             // Check if the final map is empty
             if (promptDBMap.isEmpty())
-                throw new Exception("Final Map is empty");
-            else{
+                return promptDBMap;
+            else {
                 System.out.println(promptDBMap.toString());
             }
             return promptDBMap;

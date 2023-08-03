@@ -166,7 +166,6 @@
           var formURL = modal.data('input').formURL;
           $.get(formURL).done(function(html) {
             modalBody.html(html);
-            var form = document.querySelector('#userChat');
             require(['xwiki-llm'], function(llm) {
               llm.init();
               const editorElement = document.querySelector('#xwikicontent');
