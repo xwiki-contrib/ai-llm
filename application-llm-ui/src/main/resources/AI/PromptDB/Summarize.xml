@@ -37,7 +37,7 @@
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>false</hidden>
-  <content>Make a summary of the given text in a maximum of two paragraphs.</content>
+  <content>Your task is to summarize the user text in the way asked. You have to use the user content information only.</content>
   <object>
     <name>AI.PromptDB.Summarize</name>
     <number>0</number>
@@ -67,19 +67,6 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
       </boolean1>
-      <content1>
-        <customDisplay>{{include reference="AppWithinMinutes.Content"/}}</customDisplay>
-        <disabled>0</disabled>
-        <hint/>
-        <name>content1</name>
-        <number>4</number>
-        <prettyName>Prompt</prettyName>
-        <script/>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.ComputedFieldClass</classType>
-      </content1>
       <databaseList1>
         <cache>0</cache>
         <classname/>
@@ -88,11 +75,11 @@
         <disabled>0</disabled>
         <displayType>input</displayType>
         <freeText/>
-        <hint/>
+        <hint>This field is needed for retrieving the data in the extension. You dont need to set it up in any way.</hint>
         <idField/>
         <multiSelect>0</multiSelect>
         <name>databaseList1</name>
-        <number>7</number>
+        <number>8</number>
         <picker>1</picker>
         <prettyName>Database List</prettyName>
         <relationalStorage>1</relationalStorage>
@@ -115,7 +102,7 @@
         <displayType/>
         <hint/>
         <name>default</name>
-        <number>6</number>
+        <number>7</number>
         <prettyName>Default</prettyName>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
@@ -141,9 +128,9 @@
       <shortText1>
         <customDisplay/>
         <disabled>0</disabled>
-        <hint>Number between 0 and 2</hint>
+        <hint>Number between 0 and 2 (0 being less creative and 2 most creative).</hint>
         <name>shortText1</name>
-        <number>5</number>
+        <number>6</number>
         <picker>0</picker>
         <prettyName>Temperature</prettyName>
         <size>30</size>
@@ -152,6 +139,22 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
       </shortText1>
+      <sysPrompt>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <editor>Wysiwyg</editor>
+        <hint>The system prompt is the initial set of instructions that sets the boundaries for an AI conversation. What rules the assistant should follow, what topics to avoid, how the assistant should format responses, and more.</hint>
+        <name>sysPrompt</name>
+        <number>4</number>
+        <picker>0</picker>
+        <prettyName>SYSTEM PROMPT</prettyName>
+        <rows>10</rows>
+        <size>40</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </sysPrompt>
       <title1>
         <customDisplay>{{include reference="AppWithinMinutes.Title"/}}</customDisplay>
         <disabled>0</disabled>
@@ -165,6 +168,22 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.ComputedFieldClass</classType>
       </title1>
+      <userPrompt>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <editor>Wysiwyg</editor>
+        <hint>A text or instruction provided to guide the model's response generation. It sets the context and provides guidelines for producing relevant output.</hint>
+        <name>userPrompt</name>
+        <number>5</number>
+        <picker>0</picker>
+        <prettyName> USER PROMPT</prettyName>
+        <rows>10</rows>
+        <size>40</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </userPrompt>
     </class>
     <property>
       <boolean1>1</boolean1>
@@ -180,6 +199,12 @@
     </property>
     <property>
       <shortText1>0.3</shortText1>
+    </property>
+    <property>
+      <sysPrompt>Your task is to summarize the user content in the way asked. You have to use only the informations in the provided content to make the summary.</sysPrompt>
+    </property>
+    <property>
+      <userPrompt>Summarize the following text in 2 paragraphs:  </userPrompt>
     </property>
   </object>
 </xwikidoc>

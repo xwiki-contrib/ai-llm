@@ -136,8 +136,8 @@
     let maxToken = 2000;
     let domain = window.location.origin;
     let paramView, paramExist = false;
-    let isCustomTemp = false;
     let settingsTemp = 1;
+    let promptData;
 
     define('llm-translation', {
         prefix: 'llm.',
@@ -152,7 +152,8 @@
             "ui.settingsTitle",
             "editor.modal.title",
             "ui.tempSlide",
-            "ui.isTempUsableLabel",
+            "ui.sysPromptLabel",
+            "ui.userPromptLabel",
             "ui.featureMenuPlaceholder"
         ]
     });
@@ -165,7 +166,8 @@
     let editButtonLabel;
     let settingsTitle;
     let sliderLabel;
-    let isTempUsableLabel;
+    let sysPrptDisLabel;
+    let userPrptDisLabel;
     require(['xwiki-l10n!llm-translation'], function (l10n) {
         copyBtnValue = l10n.get('ui.copy');
         includeBtnValue = l10n.get('ui.include');
@@ -176,7 +178,8 @@
         editButtonLabel = l10n.get('ui.editLabel');
         settingsTitle = l10n.get('ui.settingsTitle');
         sliderLabel = l10n.get('ui.tempSlide');
-        isTempUsableLabel = l10n.get('ui.isTempUsableLabel');
+        sysPrptDisLabel = l10n.get('ui.sysPromptLabel');
+        userPrptDisLabel = l10n.get('ui.userPromptLabel');
     });
 
 
@@ -285,7 +288,7 @@
         const modelInfo = document.createElement('div');
         modelInfo.classList.add('msg-info');
         modelInfo.id = `mod-inf-${nbAssistMsg}`;
-        if (isCustomTemp &amp;&amp; paramView) {
+        if (paramView) {
             modelInfo.textContent = `${assistInfoName} (${model}) - ${elapsedTime} sec - T: ${settingsTemp}`;
         }
         else {
@@ -371,7 +374,7 @@
 
 
     function updateAssistantChat(msgIdNum, updatedTime, chunkReply, model) {
-        if (isCustomTemp &amp;&amp; paramView)
+        if (paramView)
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec - T: ${settingsTemp}`;
         else
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec`;
@@ -710,7 +713,35 @@
 
     }
 
-    function addTempSettings() {
+    function promptSettings() {
+        const sysPromptDisplay = document.createElement('textarea');
+        sysPromptDisplay.id = 'sysPromptDisplay';
+        sysPromptDisplay.style.resize = 'none';
+        sysPromptDisplay.style.height = '100px';
+        sysPromptDisplay.textContent = promptData[0].prompt;
+        const sysPromptDisplayLabel = document.createElement('label');
+        sysPromptDisplayLabel.htmlFor = 'sysPromptDisplay';
+        sysPromptDisplayLabel.innerHTML = sysPrptDisLabel;
+        const sysPromptDisplayContainer = document.createElement('div');
+        sysPromptDisplayContainer.style.flex = '1';
+        sysPromptDisplayContainer.style.display = 'flex';
+        sysPromptDisplayContainer.style.flexDirection = 'column';
+        sysPromptDisplayContainer.appendChild(sysPromptDisplayLabel);
+        sysPromptDisplayContainer.appendChild(sysPromptDisplay);
+
+        sysPromptDisplay.onchange = function(){
+            promptData[0].prompt = this.value;
+        }
+
+        const promptDisplayContainer = document.createElement('div');
+        promptDisplayContainer.style.display = 'flex';
+        promptDisplayContainer.style.flexDirection = 'column';
+        promptDisplayContainer.appendChild(sysPromptDisplayContainer);
+
+        return promptDisplayContainer;
+    }
+
+    function tempSettings() {
         const tempSlider = document.createElement('input');
         tempSlider.type = 'range';
         tempSlider.value = settingsTemp;
@@ -743,7 +774,6 @@
         tempLabel.htmlFor = 'sliderTemp';
         tempLabel.innerHTML = sliderLabel;
 
-
         const slideContainer = document.createElement('div');
         slideContainer.style.display = 'flex';
         slideContainer.style.flex = '1';
@@ -755,24 +785,6 @@
         sliderAndValueContainer.appendChild(tempSlider);
         sliderAndValueContainer.appendChild(sliderValueDisplay);
 
-        const isTempUsable = document.createElement('input');
-        isTempUsable.type = 'checkbox';
-        isTempUsable.id = 'isTempUsable';
-        isTempUsable.style.bottom = '8px';
-        const labelTempEditable = document.createElement('label');
-        labelTempEditable.htmlFor = 'isTempUsable';
-        labelTempEditable.innerHTML = isTempUsableLabel;
-
-        const isTempUsableContainer = document.createElement('div');
-        isTempUsableContainer.appendChild(labelTempEditable);
-        isTempUsableContainer.appendChild(isTempUsable);
-        isTempUsableContainer.style.flex = '1';
-        isTempUsableContainer.style.display = 'flex';
-        isTempUsableContainer.style.alignItems = 'flex-end';
-        isTempUsableContainer.style.justifyContent = 'left';
-        isTempUsableContainer.style.marginLeft = '10px';
-
-        sliderAndValueContainer.appendChild(isTempUsableContainer);
         slideContainer.appendChild(sliderAndValueContainer);
 
         return slideContainer;
@@ -793,12 +805,15 @@
             title.textContent = settingsTitle;
             settingsDiv.appendChild(title);
 
-            settingsDiv.appendChild(addTempSettings());
+            settingsDiv.appendChild(tempSettings());
+            settingsDiv.appendChild(promptSettings());
 
             document.querySelector('#chatUI').appendChild(settingsDiv);
             paramExist = true;
         }
         else if (!paramView) {
+            const sysPromptDisplay = document.querySelector('#sysPromptDisplay');
+            sysPromptDisplay.textContent = promptData[0].prompt;
             const settings = document.querySelector('#settings');
             settings.style.display = 'block';
         }
@@ -837,7 +852,6 @@
                         resolve(json);
                     }
                     else {
-                        console.log(json);
                         resolve(json);
                     }
                 })
@@ -869,7 +883,6 @@
                 .catch(e =&gt; {
                     console.error("An error occured trying to check the rights for the LLM extension.", e)
                 })
-
         });
     }
 
@@ -948,17 +961,9 @@
         const selectedMod = modelMenu.value;
         const modelType = selectedMod.substring(0, selectedMod.indexOf("/"));
         const model = selectedMod.substring(selectedMod.indexOf("/") + 1);
-        const selectedPrompt = document.querySelector('#features-menu');
-        console.log('selected prompt : ', selectedPrompt.textContent);
-        const optionsPromptRq = getRequestOptions({ prompt: selectedPrompt.textContent }, csrf);
-        const promptData = await getPrompt(optionsPromptRq);
-        console.log('promptData: ', promptData);
         let temp;
         if (paramView) {
-            const isTempUsable = document.querySelector('#isTempUsable');
-            isCustomTemp = isTempUsable.checked;
-            if (isCustomTemp)
-                temp = parseFloat(document.querySelector('#sliderTemp').value);
+            temp = parseFloat(document.querySelector('#sliderTemp').value);
         }
         else
             temp = promptData[0].temperature;
@@ -967,7 +972,7 @@
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');
         if (promptData[0].prompt !== '') {
-            if (isCustomTemp)
+            if (paramView)
                 chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData[0].prompt + ' With a custom temperature of ' + settingsTemp + '.'));
             else
                 chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData[0].prompt));
@@ -995,6 +1000,24 @@
         globalSignal = globalAbortController.signal;
     }
 
+    function initPromptMenu() {
+        require(['jquery', 'xwiki-selectize'], function ($) {
+            const csrf = document.querySelector('#form_token').value;
+            const selectedPrompt = $('#features-menu').selectize();
+            selectedPrompt[0].selectize.on('change', function (value) {
+                const optionsPromptRqChange = getRequestOptions({ prompt: value }, csrf);
+                Promise.all([getPrompt(optionsPromptRqChange)])
+                    .then((res) =&gt; {
+                        promptData = res[0];
+                        document.querySelector('#txt-input').value = promptData[0].userPrompt;
+                        if (paramExist) {
+                            document.querySelector('#sysPromptDisplay').value = promptData[0].prompt;
+                        }
+                    });
+            });
+        });
+    }
+
     function initFormEvent(form) {
         // Add an event listener to the form submit event
         const subBtn = document.querySelector('#subButton');
@@ -1015,6 +1038,8 @@
         stopRqstButton.addEventListener('click', (event) =&gt; {
             abortRequest();
         });
+
+        promptData = [{ prompt: '', temperature: 1 }];
     }
 
     async function changeDropMenuOnRight(isAdmin) {
@@ -1098,7 +1123,7 @@
             console.error("xwiki llm js failed to initialize because it could not find the #userChat form");
             return;
         }
-        initFormEvent(form);
+        Promise.all([initFormEvent(form)]);
         const csrf = document.querySelector('#form_token').value;
         const options = getRequestOptions(null, csrf);
         Promise.all([isUserAdmin(options)])
@@ -1116,7 +1141,7 @@
         handleAutoResizeInput();
     }
 
-    return { init, includeInDoc, handleButtonClick, getCheck };
+    return { init, includeInDoc, handleButtonClick, getCheck, initPromptMenu };
 });</code>
     </property>
     <property>

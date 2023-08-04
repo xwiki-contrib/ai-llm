@@ -32,7 +32,7 @@
     <description>
         Provide LLM Artificial Intelligence for XWiki content creation and editing, boosting user efficiency and productivity.
     </description>
-    <version>0.2</version>
+    <version>0.2-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>LLM AI Application</name>
     <scm>

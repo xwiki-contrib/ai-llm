@@ -41,11 +41,11 @@
 #set ($columnsProperties = {
   'doc.title': {"displayName":"Title","link":"view"},
   'longText1': {"filterable":false,"sortable":false,"html":true},
-  'content1': {"filterable":false,"sortable":false,"html":true},
+  'sysPrompt': {"filterable":false,"sortable":false,"html":true},
+  'userPrompt': {"filterable":false,"sortable":false,"html":true},
+  'shortText1': {},
   'boolean1': {},
   'default': {},
-  'shortText1': {},
-  'databaseList1': {},
   '_actions': {"sortable":false,"filterable":false,"html":true,"actions":["edit","delete"]}
 })
 #set ($options = {
@@ -57,7 +57,7 @@
   'selectedColumn': 'doc.title',
   'defaultOrder': 'asc'
 })
-#set ($columns = ['doc.title', 'longText1', 'content1', 'boolean1', 'default', 'shortText1', 'databaseList1', '_actions'])
+#set ($columns = ['doc.title', 'longText1', 'sysPrompt', 'userPrompt', 'shortText1', 'boolean1', 'default', '_actions'])
 #livetable('promptdb' $columns $columnsProperties $options)
 {{/velocity}}</content>
   <object>
@@ -133,7 +133,7 @@
       <class>AI.PromptDB.Code.PromptDBClass</class>
     </property>
     <property>
-      <columns>title1 longText1 content1 boolean1 default shortText1 databaseList1 _actions</columns>
+      <columns>title1 longText1 sysPrompt userPrompt shortText1 boolean1 default _actions</columns>
     </property>
     <property>
       <dataSpace/>

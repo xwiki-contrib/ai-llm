@@ -26,6 +26,7 @@ import org.apache.ecs.xhtml.s;
 public class GPTAPIPrompt {
     private String name;
     private String prompt;
+    private String userPrompt;
     private String description;
     private Boolean isActive;
     private Boolean isDefault;
@@ -33,7 +34,8 @@ public class GPTAPIPrompt {
 
     public GPTAPIPrompt(Map<String, Object> dbMap) {
         this.name = (String) dbMap.get("title1");
-        this.prompt = (String) dbMap.get("content1");
+        this.prompt = (String) dbMap.get("sysPrompt");
+        this.userPrompt = (String) dbMap.get("userPrompt");
         this.description = (String) dbMap.get("longText1");
         this.isActive = ((Integer) dbMap.get("boolean1")) == 1;
         this.isDefault = ((Integer) dbMap.get("default")) == 1;
@@ -48,6 +50,10 @@ public class GPTAPIPrompt {
 
     public String getPrompt() {
         return prompt;
+    }
+
+    public String getUserPrompt(){
+        return userPrompt;
     }
 
     public String getDescription() {

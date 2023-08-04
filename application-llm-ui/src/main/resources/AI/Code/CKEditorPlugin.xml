@@ -142,19 +142,6 @@
       modal.on('show.bs.modal', async function(event) {
         if (modalBody.is(':empty') &amp;&amp; !modalBody.hasClass('loading')) {
           modalBody.addClass('loading');
-          // Define a module that holds the required translation keys.
-          define('llm-translation', {
-            prefix: 'llm.',
-            keys: [
-              "editor.modal.title",
-              "ui.copy",
-              "ui.include",
-              "ui.copyLabel",
-              "ui.includeLabel",
-              "ui.assistantInfoName",
-            ]
-          });
-
           // Require the translation messages using the dedicated loader.
           const translationPromise = new Promise((resolve, reject) =&gt; {
             require(['xwiki-l10n!llm-translation'], function(l10n) {

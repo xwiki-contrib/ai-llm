@@ -331,6 +331,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     JSONObject jsonEntry = new JSONObject();
                     jsonEntry.put("name", promptObj.getName());
                     jsonEntry.put("prompt", promptObj.getPrompt());
+                    jsonEntry.put("userPrompt", promptObj.getUserPrompt());
                     jsonEntry.put("description", promptObj.getDescription());
                     jsonEntry.put("active", promptObj.getIsActive());
                     jsonEntry.put("default", promptObj.getIsDefault());

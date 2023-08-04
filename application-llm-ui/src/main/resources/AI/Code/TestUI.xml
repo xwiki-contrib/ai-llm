@@ -56,7 +56,7 @@
                         #set ($discard = $xwiki.jsfx.use('uicomponents/suggest/suggestPropertyValues.js',
                         {'forceSkinAction': true, 'language': $xcontext.locale}))
                         #set ($discard = $xwiki.jsx.use('AI.Code.LoadPromptMenuJQuery'))
-                        &lt;select name="manager" value=""&gt;
+                        &lt;select name="manager" value="" id="features-menu"&gt;
                         &lt;/select&gt;
                     &lt;/nav&gt;
                     &lt;div class="form-button-container"&gt;
@@ -103,7 +103,5 @@
 ## HTML of the UI element is returned in the response body.
 #set ($discard = $response.setHeader('X-XWIKI-HTML-HEAD', $requiredSkinExtensions))
 {{/html}}
-{{/velocity}}
-
-</content>
+{{/velocity}}</content>
 </xwikidoc>

@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,49 +80,42 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
             // Iterate over all documents that contain an object of the class
             // 'AI.PromptDB.Code.PromptDBClass'
             for (String documentName : documentNames) {
-                logger.info("documentName:", documentName);
-                logger.info("doc name : ", documentName);
-                System.out.println(documentName);
+                logger.info("doc name : " + documentName);
                 XWikiDocument doc = xwiki.getDocument(documentName, context);
                 // Get the objects of the class 'AI.PromptDB.Code.PromptDBClass' from the
                 // current document
 
                 if (doc != null) {
                     BaseObject object = doc.getObject("AI.PromptDB.Code.PromptDBClass");
-                    // logger.info("obj:");
-                    // System.out.println(object);
 
                     if (object != null) {
                         logger.info("title of the doc : {}", doc.getTitle());
                         logger.info("prompt wanted : {}", promptName);
-                        System.out.println(doc.getTitle());
-                        if (!doc.getTitle().equals(promptName))
+                        if (!documentName.equals(promptName))
                             continue;
-                        Map<String, Object> dbObjMap = new HashMap<>();
-                        Collection<BaseProperty> fields = object.getFieldList();
-                        for (BaseProperty field : fields) {
-                            logger.info(field.toFormString());
-                            dbObjMap.put(field.getName(), field.getValue());
-                        }
-                        dbObjMap.put("title1", doc.getTitle());
-                        dbObjMap.put("content1", doc.getContent());
-
-                        if (!dbObjMap.isEmpty()) {
-                            GPTAPIPrompt res = new GPTAPIPrompt(dbObjMap);
-                            if (res.getName() == null || res.getPrompt() == null || res.getIsActive() == null) {
-                                logger.info("one of the value in the prompt object is null.");
-                            } else
-                                promptDBMap.put(res.getName().toLowerCase(), res);
+                        else {
+                            Map<String, Object> dbObjMap = new HashMap<>();
+                            Collection<BaseProperty> fields = object.getFieldList();
+                            for (BaseProperty field : fields) {
+                                logger.info("Field: " + field.getValue());
+                                dbObjMap.put(field.getName(), field.getValue());
+                            }
+                            dbObjMap.put("title1", doc.getTitle());
+                            for (Map.Entry<String, Object> entry : dbObjMap.entrySet()) {
+                                logger.info(entry.getKey() + ": " + entry.getValue());
+                            }
+                            if (!dbObjMap.isEmpty()) {
+                                GPTAPIPrompt res = new GPTAPIPrompt(dbObjMap);
+                                if (res.getName() == null || res.getPrompt() == null || res.getIsActive() == null) {
+                                    logger.info("one of the value in the prompt object is null.");
+                                } else
+                                    promptDBMap.put(res.getName().toLowerCase(), res);
+                            }
+                            break;
                         }
                     }
 
                 }
-            }
-            // Check if the final map is empty
-            if (promptDBMap.isEmpty())
-                return promptDBMap;
-            else {
-                System.out.println(promptDBMap.toString());
             }
             return promptDBMap;
 

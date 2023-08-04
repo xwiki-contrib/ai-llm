@@ -98,13 +98,28 @@
     #end
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
-        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('content1')))"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('sysPrompt')))"
         data-property-type="object"#end&gt;
-      &lt;label#if ($editing) for="AI.PromptDB.Code.PromptDBClass_0_content1"#end&gt;
-        $escapetool.xml($doc.displayPrettyName('content1', false, false))
+      &lt;label#if ($editing) for="AI.PromptDB.Code.PromptDBClass_0_sysPrompt"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('sysPrompt', false, false))
       &lt;/label&gt;
+      &lt;span class="xHint"&gt;
+        $escapetool.xml($services.localization.render('The system prompt is the initial set of instructions that sets the boundaries for an AI conversation. What rules the assistant should follow, what topics to avoid, how the assistant should format responses, and more.'))
+      &lt;/span&gt;
     &lt;/dt&gt;
-    &lt;dd&gt;$doc.display('content1')&lt;/dd&gt;
+    &lt;dd&gt;$doc.display('sysPrompt')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('userPrompt')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.PromptDB.Code.PromptDBClass_0_userPrompt"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('userPrompt', false, false))
+      &lt;/label&gt;
+      &lt;span class="xHint"&gt;
+        $escapetool.xml($services.localization.render('A text or instruction provided to guide the model''s response generation. It sets the context and provides guidelines for producing relevant output.'))
+      &lt;/span&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('userPrompt')&lt;/dd&gt;
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
         data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('shortText1')))"
@@ -113,7 +128,7 @@
         $escapetool.xml($doc.displayPrettyName('shortText1', false, false))
       &lt;/label&gt;
       &lt;span class="xHint"&gt;
-        $escapetool.xml($services.localization.render('Number between 0 and 2'))
+        $escapetool.xml($services.localization.render('Number between 0 and 2 (0 being less creative and 2 most creative).'))
       &lt;/span&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('shortText1')&lt;/dd&gt;
@@ -142,6 +157,9 @@
       &lt;label#if ($editing) for="AI.PromptDB.Code.PromptDBClass_0_databaseList1"#end&gt;
         $escapetool.xml($doc.displayPrettyName('databaseList1', false, false))
       &lt;/label&gt;
+      &lt;span class="xHint"&gt;
+        $escapetool.xml($services.localization.render('This field is needed for retrieving the data in the extension. You dont need to set it up in any way.'))
+      &lt;/span&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('databaseList1')&lt;/dd&gt;
   &lt;/dl&gt;
