@@ -26,5 +26,5 @@ import java.util.Map;
 @Component
 @Role
 public interface GPTAPIConfigProvider {
-    public Map<String, GPTAPIConfig> getConfigObjects() throws GPTAPIException;
+    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki) throws GPTAPIException;
 }

@@ -449,6 +449,11 @@
     }
 
     function getRequestOptions(params, csrf) {
+        if (params != null)
+            params.currentWiki = XWiki.currentWiki;
+        else {
+            params = { currentWiki: XWiki.currentWiki };
+        }
         const options = {
             method: 'POST',
             body: JSON.stringify(params),
@@ -718,7 +723,7 @@
         sysPromptDisplay.id = 'sysPromptDisplay';
         sysPromptDisplay.style.resize = 'none';
         sysPromptDisplay.style.height = '100px';
-        sysPromptDisplay.textContent = promptData[0].prompt;
+        sysPromptDisplay.textContent = promptData.prompt;
         const sysPromptDisplayLabel = document.createElement('label');
         sysPromptDisplayLabel.htmlFor = 'sysPromptDisplay';
         sysPromptDisplayLabel.innerHTML = sysPrptDisLabel;
@@ -729,8 +734,8 @@
         sysPromptDisplayContainer.appendChild(sysPromptDisplayLabel);
         sysPromptDisplayContainer.appendChild(sysPromptDisplay);
 
-        sysPromptDisplay.onchange = function(){
-            promptData[0].prompt = this.value;
+        sysPromptDisplay.onchange = function () {
+            promptData.prompt = this.value;
         }
 
         const promptDisplayContainer = document.createElement('div');
@@ -813,7 +818,7 @@
         }
         else if (!paramView) {
             const sysPromptDisplay = document.querySelector('#sysPromptDisplay');
-            sysPromptDisplay.textContent = promptData[0].prompt;
+            sysPromptDisplay.textContent = promptData.prompt;
             const settings = document.querySelector('#settings');
             settings.style.display = 'block';
         }
@@ -845,10 +850,10 @@
                     if (json.length === 0) {
                         if (JSON.parse(options.body).prompt !== '') {
                             const msg = 'There is no such prompt as \"' + JSON.parse(options.body).prompt + '\" to load, no prompt are used. You can still use the interface as is, but if you want to add quick actions please add corresponding prompt to the database linked below.';
-                            const dbLink = getRoot() !== '' ? domain + getRoot() + '/bin/view/AI/PromptDB/' : '/bin/view/AI/PromptDB/';
+                            const dbLink = getRoot() !== '' ? domain + getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/' : XWiki.servletpath + 'view/AI/PromptDB/';
                             chatContent.appendChild(addSystemChat(msg, dbLink, 'Application PromptDB'));
                         }
-                        json = [{ prompt: '', temperature: 1 }];
+                        json = { prompt: '', temperature: 1 };
                         resolve(json);
                     }
                     else {
@@ -857,7 +862,7 @@
                 })
                 .catch(e =&gt; {
                     console.error('An error occured trying to get the prompt : ' + e.message);
-                    const dbLink = getRoot() !== '' ? domain + getRoot() + '/bin/view/AI/PromptDB/' : '/bin/view/AI/PromptDB/';
+                    const dbLink = getRoot() !== '' ? domain + getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/' : XWiki.servletpath + 'view/AI/PromptDB/';
                     chatContent.appendChild(addSystemChat('An error occured trying to get the prompt list : ' + e.message +
                         '.' + 'Please look at the prompt database on the link below.', dbLink, 'Application PromptDB'));
                     reject(null);
@@ -913,8 +918,8 @@
                 })
                 .catch(e =&gt; {
                     console.error('An error occured trying to get the model list : ' + e.message);
-                    const baseURL = '/bin/admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application';
-                    const url = getRoot() !== '' ? getRoot() + baseURL : baseURL;
+                    const baseURL = XWiki.servletpath + 'admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application';
+                    const url = getRoot() !== '' ? getRoot() + "/" + baseURL : baseURL;
                     const configPage = domain + url;
                     chatContent.appendChild(addSystemChat('An error occured trying to get the model list : ' + e.message +
                         '. Please make sure to have at least one configuration working. Click on the link below to access configuration panel (administrator only).',
@@ -966,21 +971,21 @@
             temp = parseFloat(document.querySelector('#sliderTemp').value);
         }
         else
-            temp = promptData[0].temperature;
+            temp = promptData.temperature;
         const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");;
         maxToken = chooseMaxToken(modelType);
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');
-        if (promptData[0].prompt !== '') {
+        if (promptData.prompt !== '') {
             if (paramView)
-                chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData[0].prompt + ' With a custom temperature of ' + settingsTemp + '.'));
+                chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData.prompt + ' With a custom temperature of ' + settingsTemp + '.'));
             else
-                chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData[0].prompt));
+                chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData.prompt));
         }
         chatContent.appendChild(addUserChat(userText));
         scrollToBottom();
 
-        const params = getRequestParams(userText, modelType, model, promptData[0].prompt, context, temp);
+        const params = getRequestParams(userText, modelType, model, promptData.prompt, context, temp);
         const options = getRequestOptions(params, csrf);
 
         // Make the POST request with query parameters
@@ -1006,14 +1011,23 @@
             const selectedPrompt = $('#features-menu').selectize();
             selectedPrompt[0].selectize.on('change', function (value) {
                 const optionsPromptRqChange = getRequestOptions({ prompt: value }, csrf);
-                Promise.all([getPrompt(optionsPromptRqChange)])
-                    .then((res) =&gt; {
-                        promptData = res[0];
-                        document.querySelector('#txt-input').value = promptData[0].userPrompt;
-                        if (paramExist) {
-                            document.querySelector('#sysPromptDisplay').value = promptData[0].prompt;
-                        }
-                    });
+                if (value !== '') {
+                    Promise.all([getPrompt(optionsPromptRqChange)])
+                        .then((res) =&gt; {
+                            promptData = res[0];
+                            document.querySelector('#txt-input').value = promptData.userPrompt;
+                            if (paramExist) {
+                                document.querySelector('#sysPromptDisplay').value = promptData.prompt;
+                            }
+                        });
+                }
+                else {
+                    promptData = { prompt: '', temperature: 1 };
+                    document.querySelector('#txt-input').value = '';
+                    if(paramExist){
+                        document.querySelector('#sysPromptDisplay').value = '';
+                    }
+                }
             });
         });
     }
@@ -1039,7 +1053,7 @@
             abortRequest();
         });
 
-        promptData = [{ prompt: '', temperature: 1 }];
+        promptData = { prompt: '', temperature: 1 };
     }
 
     async function changeDropMenuOnRight(isAdmin) {
@@ -1053,6 +1067,8 @@
                 element.style.color = 'black';
                 element.style.pointerEvents = 'auto';
             });
+            document.querySelector('#configRedir').href = getRoot() + "/" + XWiki.servletpath + "admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application";
+            document.querySelector('#promptDBRedir').href = getRoot() + "/" + XWiki.servletpath + "view/AI/PromptDB/";
         }
         else {
             menuTiles.forEach(element =&gt; {

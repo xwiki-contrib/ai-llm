@@ -74,11 +74,10 @@
                                         &lt;a id="newconv" class="dropTile"
                                             data-protected="false"&gt;$services.localization.render('llm.ui.newconv')&lt;/a&gt;
                                         &lt;hr /&gt;
-                                        &lt;a href="/xwiki/bin/admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application"
-                                            id="configRedir" class="dropTile"
-                                            data-protected="true"&gt;$services.localization.render('llm.ui.configRedir')&lt;/a&gt;
-                                        &lt;a href="/xwiki/bin/view/AI/PromptDB/" id="promptDBRedir" class="dropTile"
-                                            data-protected="false"&gt;$services.localization.render('llm.ui.promptDBRedir')&lt;/a&gt;
+                                        &lt;a href="" id="configRedir" class="dropTile" data-protected="true"
+                                            target="_blank"&gt;$services.localization.render('llm.ui.configRedir')&lt;/a&gt;
+                                        &lt;a href="" id="promptDBRedir" class="dropTile" data-protected="false"
+                                            target="_blank"&gt;$services.localization.render('llm.ui.promptDBRedir')&lt;/a&gt;
                                         &lt;hr /&gt;
                                         &lt;a id="settingsTile" class="dropTile"
                                             data-protected="false"&gt;$services.localization.render('llm.ui.param')&lt;/a&gt;

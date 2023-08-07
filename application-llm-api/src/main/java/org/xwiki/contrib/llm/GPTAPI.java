@@ -29,8 +29,8 @@ import java.util.Map;
 public interface GPTAPI {
     public String getLLMChatCompletion(Map<String, Object> data, String openAIKey) throws GPTAPIException;
     public String getModels(String token) throws GPTAPIException;
-    public GPTAPIConfig getConfig(String id) throws GPTAPIException;
-    public Map<String, GPTAPIConfig> getConfigs() throws GPTAPIException;
-    public Map<String, GPTAPIPrompt> getPromptDB(String promptName) throws GPTAPIException;
+    public GPTAPIConfig getConfig(String id, String currentWiki) throws GPTAPIException;
+    public Map<String, GPTAPIConfig> getConfigs(String currentWiki) throws GPTAPIException;
+    public GPTAPIPrompt getPrompt(String promptName, String currentWiki) throws GPTAPIException;
     public Boolean isUserAdmin() throws GPTAPIException;
 }

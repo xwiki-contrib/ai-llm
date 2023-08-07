@@ -32,6 +32,10 @@ public class GPTAPIPrompt {
     private Boolean isDefault;
     private Float temperature;
 
+    public GPTAPIPrompt(){
+        this.name = "default";
+    }
+
     public GPTAPIPrompt(Map<String, Object> dbMap) {
         this.name = (String) dbMap.get("title1");
         this.prompt = (String) dbMap.get("sysPrompt");
@@ -39,7 +43,6 @@ public class GPTAPIPrompt {
         this.description = (String) dbMap.get("longText1");
         this.isActive = ((Integer) dbMap.get("boolean1")) == 1;
         this.isDefault = ((Integer) dbMap.get("default")) == 1;
-        System.out.println((String) dbMap.get("shortText1"));
         if ((String) dbMap.get("shortText1") != "")
             this.temperature = Float.parseFloat((String) dbMap.get("shortText1"));
     }

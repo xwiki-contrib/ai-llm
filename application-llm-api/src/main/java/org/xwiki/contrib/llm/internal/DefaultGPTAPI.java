@@ -228,9 +228,9 @@ public class DefaultGPTAPI implements GPTAPI {
     }
 
     @Override
-    public GPTAPIConfig getConfig(String id) throws GPTAPIException {
+    public GPTAPIConfig getConfig(String id, String currentWiki) throws GPTAPIException {
         try {
-            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects();
+            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki);
             GPTAPIConfig res = configMap.get(id);
             if (res == null) {
                 throw new Exception(
@@ -244,16 +244,16 @@ public class DefaultGPTAPI implements GPTAPI {
     }
 
     @Override
-    public Map<String, GPTAPIConfig> getConfigs() throws GPTAPIException {
-        Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects();
+    public Map<String, GPTAPIConfig> getConfigs(String currentWiki) throws GPTAPIException {
+        Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki);
         return configMap;
     }
 
     @Override
-    public Map<String, GPTAPIPrompt> getPromptDB(String promptName) throws GPTAPIException {
+    public GPTAPIPrompt getPrompt(String promptName, String currentWiki) throws GPTAPIException {
         try {
-            Map<String, GPTAPIPrompt> dbMap = dbProvider.getPromptDB(promptName);
-            return dbMap;
+            GPTAPIPrompt promptObj = dbProvider.getPrompt(promptName, currentWiki);
+            return promptObj;
         } catch (Exception e) {
             logger.error("Error trying to get the prompt database : ", e);
             return null;

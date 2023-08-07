@@ -115,7 +115,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             }
             logger.info("modelType after evaluation :", modelType);
             logger.info("Received text: " + data.get("text"));
-            GPTAPIConfig config = gptApi.getConfig(modelType);
+            GPTAPIConfig config = gptApi.getConfig(modelType, (String) data.get("currentWiki"));
             if (config.getName() == "default") {
                 throw new Exception(
                         "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
@@ -234,7 +234,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
     @POST
     @Path("/models")
-    public Response getModels(@Context HttpHeaders headers) throws XWikiRestException {
+    public Response getModels(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
         List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
         if (csrfTokenList.isEmpty())
             return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
@@ -249,7 +249,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
         Map<String, GPTAPIConfig> configMap;
         try {
-            configMap = gptApi.getConfigs();
+            configMap = gptApi.getConfigs((String) data.get("currentWiki"));
         } catch (GPTAPIException e) {
             logger.error("Error in getModels REST method: ", e);
             configMap = new HashMap<>();
@@ -303,7 +303,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @POST
     @Path("/prompts")
     @Consumes("application/json")
-    public Response getPromptDB(Map<String,Object> data, @Context HttpHeaders headers) throws XWikiRestException {
+    public Response getPromptDB(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
         List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
         if (csrfTokenList.isEmpty())
             return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
@@ -316,31 +316,21 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             return Response.status(Response.Status.FORBIDDEN).build();
         }
 
-        Map<String, GPTAPIPrompt> dbMap;
+        GPTAPIPrompt promptObj = new GPTAPIPrompt();
         try {
-            dbMap = gptApi.getPromptDB(data.get("prompt").toString());
+            promptObj = gptApi.getPrompt(data.get("prompt").toString(), data.get("currentWiki").toString());
         } catch (GPTAPIException e) {
-            logger.error("Exception in the REST getPromptDB method : ", e);
-            dbMap = new HashMap<>();
+            logger.error("Exception in the REST getPrompt method : ", e);
         }
-        JSONArray finalResponse = new JSONArray();
+        JSONObject jsonEntry = new JSONObject();
         try {
-            for (Map.Entry<String, GPTAPIPrompt> entryDB : dbMap.entrySet()) {
-                GPTAPIPrompt promptObj = entryDB.getValue();
-                if (entryDB.getKey().isEmpty() == false) {
-                    JSONObject jsonEntry = new JSONObject();
-                    jsonEntry.put("name", promptObj.getName());
-                    jsonEntry.put("prompt", promptObj.getPrompt());
-                    jsonEntry.put("userPrompt", promptObj.getUserPrompt());
-                    jsonEntry.put("description", promptObj.getDescription());
-                    jsonEntry.put("active", promptObj.getIsActive());
-                    jsonEntry.put("default", promptObj.getIsDefault());
-                    jsonEntry.put("temperature", promptObj.getTemperature());
-                    finalResponse.put(jsonEntry);
-                }
-            }
-            byte[] finalResponseBytes = finalResponse.toString().getBytes(StandardCharsets.UTF_8);
-            return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
+            jsonEntry.put("name", promptObj.getName());
+            jsonEntry.put("prompt", promptObj.getPrompt());
+            jsonEntry.put("userPrompt", promptObj.getUserPrompt());
+            jsonEntry.put("description", promptObj.getDescription());
+            jsonEntry.put("active", promptObj.getIsActive());
+            jsonEntry.put("default", promptObj.getIsDefault());
+            jsonEntry.put("temperature", promptObj.getTemperature());
         } catch (Exception e) {
             logger.error("An error occured trying to get the prompts: ", e);
             JSONObject builder = new JSONObject();
@@ -350,11 +340,15 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                     .type(MediaType.APPLICATION_JSON)
                     .build();
         }
+
+        byte[] finalResponseBytes = jsonEntry.toString().getBytes(StandardCharsets.UTF_8);
+        return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
     }
 
     @POST
     @Path("/check-access")
-    public Response check(@Context HttpHeaders headers) throws XWikiRestException {
+    @Consumes("application/json")
+    public Response check(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
         List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
         if (csrfTokenList.isEmpty())
             return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
@@ -368,7 +362,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
         }
         Map<String, GPTAPIConfig> configMap;
         try {
-            configMap = gptApi.getConfigs();
+            configMap = gptApi.getConfigs((String) data.get("currentWiki"));
             if (configMap.isEmpty())
                 throw new GPTAPIException(
                         "The Configuration Map is empty. That mean the user has no right to access those configuration.");

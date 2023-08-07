@@ -24,13 +24,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.poi.util.SystemOutLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.context.Execution;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
@@ -42,9 +42,6 @@ import com.xpn.xwiki.api.User;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
-import com.xpn.xwiki.objects.BaseStringProperty;
-import com.xpn.xwiki.user.api.XWikiUser;
-import com.xpn.xwiki.web.Utils;
 
 @Component
 @Unstable
@@ -53,38 +50,39 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
 
     protected Logger logger = LoggerFactory.getLogger(DefaultGPTAPIConfigProvider.class);
 
+    @Inject
+    Provider<XWikiContext> contextProvider;
+
     public DefaultGPTAPIConfigProvider() {
         super();
     }
 
     @Override
-    public Map<String, GPTAPIConfig> getConfigObjects() throws GPTAPIException {
+    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki) throws GPTAPIException {
         Map<String, GPTAPIConfig> configProperties = new HashMap<>();
         try {
-            Execution execution = Utils.getComponent(Execution.class);
-            XWikiContext context = (XWikiContext) execution.getContext().getProperty("xwikicontext");
+            XWikiContext context = contextProvider.get();
             com.xpn.xwiki.XWiki xwiki = context.getWiki();
-
             // Get the user using the Extension in the actual context.
             DocumentReference username = context.getUserReference();
             User xwikiUser = xwiki.getUser(username, context);
 
-            // Retrieve the LLM Configuration Objects 
-            XWikiDocument doc = xwiki.getDocument("AI.Code.AIConfig", context);
-            List<BaseObject> configObjects = doc.getObjects("AI.Code.AIConfigClass");
+            // Retrieve the LLM Configuration Objects
+            XWikiDocument doc = xwiki.getDocument(currentWiki + ":AI.Code.AIConfig", context);
+            List<BaseObject> configObjects = doc.getObjects(currentWiki + ":AI.Code.AIConfigClass");
 
             // Build the Java configurationObject with a Map.
-            if(configObjects.isEmpty()){
+            if (configObjects.isEmpty()) {
                 throw new Exception("There is no configuration.");
             }
-            // Iteration count 
+            // Iteration count
             int i = 0;
             // Number of null object.
             int nbNull = 0;
             for (BaseObject configObject : configObjects) {
                 i++;
                 Map<String, Object> configObjMap = new HashMap<>();
-                if (configObject == null){
+                if (configObject == null) {
                     nbNull++;
                     continue;
                 }
@@ -104,7 +102,7 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
                         continue;
                 }
             }
-            if(nbNull == i){
+            if (nbNull == i) {
                 GPTAPIConfig nullConfig = new GPTAPIConfig();
                 configProperties.put("nullConf", nullConfig);
                 throw new Exception("The configurations are empty !");
