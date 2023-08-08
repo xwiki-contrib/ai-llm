@@ -27,4 +27,5 @@ import java.util.Map;
 @Role
 public interface GPTAPIPromptDBProvider {
     public GPTAPIPrompt getPrompt(String promptName, String currentWiki);
+    public Map<String, GPTAPIPrompt> getPrompts(String currentWiki);
 }

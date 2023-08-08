@@ -836,7 +836,7 @@
             changeBtnState();
             document.querySelector('#stopRqst').style.display = "none";
             const root = getRoot();
-            const URI = root !== '' ? root + "/rest/v1/prompts" : "/rest/v1/prompts";
+            const URI = root !== '' ? root + "/rest/v1/prompt" : "/rest/v1/prompt";
             fetch(URI, options)
                 .then(response =&gt; {
                     if (!response.ok) {
@@ -847,10 +847,11 @@
                 .then(json =&gt; {
                     changeBtnState();
                     document.querySelector('#stopRqst').style.display = "none";
-                    if (json.length === 0) {
+                    console.log(json);
+                    if (json.name === 'default') {
                         if (JSON.parse(options.body).prompt !== '') {
                             const msg = 'There is no such prompt as \"' + JSON.parse(options.body).prompt + '\" to load, no prompt are used. You can still use the interface as is, but if you want to add quick actions please add corresponding prompt to the database linked below.';
-                            const dbLink = getRoot() !== '' ? domain + getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/' : XWiki.servletpath + 'view/AI/PromptDB/';
+                            const dbLink = getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/';
                             chatContent.appendChild(addSystemChat(msg, dbLink, 'Application PromptDB'));
                         }
                         json = { prompt: '', temperature: 1 };
@@ -862,13 +863,45 @@
                 })
                 .catch(e =&gt; {
                     console.error('An error occured trying to get the prompt : ' + e.message);
-                    const dbLink = getRoot() !== '' ? domain + getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/' : XWiki.servletpath + 'view/AI/PromptDB/';
+                    const dbLink = getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/';
                     chatContent.appendChild(addSystemChat('An error occured trying to get the prompt list : ' + e.message +
                         '.' + 'Please look at the prompt database on the link below.', dbLink, 'Application PromptDB'));
                     reject(null);
                 })
         });
     }
+
+    function getPrompts() {
+        const csrf = document.querySelector('#form_token').value;
+        const options = getRequestOptions(null, csrf)
+        return new Promise((resolve, reject) =&gt; {
+            const chatContent = document.querySelector('#chatContent');
+            changeBtnState();
+            document.querySelector('#stopRqst').style.display = "none";
+            const root = getRoot();
+            const URI = root !== '' ? root + "/rest/v1/prompts" : "/rest/v1/prompts";
+            fetch(URI, options)
+                .then(response =&gt; {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(json =&gt; {
+                    changeBtnState();
+                    document.querySelector('#stopRqst').style.display = "none";
+                    resolve(json);
+                })
+                .catch(e =&gt; {
+                    console.error('An error occured trying to get the prompt : ' + e.message);
+                    const dbLink = getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/';
+                    chatContent.appendChild(addSystemChat('An error occured trying to get the prompt list : ' + e.message +
+                        '.' + 'Please look at the prompt database on the link below.', dbLink, 'Application PromptDB'));
+                    reject(null);
+                })
+        });
+    }
+
 
     function getCheck(csrf_token) {
         return new Promise((resolve, reject) =&gt; {
@@ -918,9 +951,7 @@
                 })
                 .catch(e =&gt; {
                     console.error('An error occured trying to get the model list : ' + e.message);
-                    const baseURL = XWiki.servletpath + 'admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application';
-                    const url = getRoot() !== '' ? getRoot() + "/" + baseURL : baseURL;
-                    const configPage = domain + url;
+                    const configPage = getRoot() + "/" + XWiki.servletpath + "admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application";
                     chatContent.appendChild(addSystemChat('An error occured trying to get the model list : ' + e.message +
                         '. Please make sure to have at least one configuration working. Click on the link below to access configuration panel (administrator only).',
                         configPage, 'Configuration panel'));
@@ -1005,17 +1036,29 @@
         globalSignal = globalAbortController.signal;
     }
 
-    function initPromptMenu() {
+    function initPromptMenu(promptDB) {
         require(['jquery', 'xwiki-selectize'], function ($) {
             const csrf = document.querySelector('#form_token').value;
             const selectedPrompt = $('#features-menu').selectize();
+            selectedPrompt[0].selectize.settings.maxOptions = 5;
+            const selectOptions = selectedPrompt[0].selectize.options;
+
+            console.log(selectOptions);
+            promptDB.forEach(element =&gt; {
+                if (!element.active) {
+                    selectedPrompt[0].selectize.removeOption(element.pageName);
+                }
+                else if (element.default) {
+                    selectedPrompt[0].selectize.setValue(element.pageName);
+                }
+            });
             selectedPrompt[0].selectize.on('change', function (value) {
                 const optionsPromptRqChange = getRequestOptions({ prompt: value }, csrf);
                 if (value !== '') {
                     Promise.all([getPrompt(optionsPromptRqChange)])
                         .then((res) =&gt; {
                             promptData = res[0];
-                            document.querySelector('#txt-input').value = promptData.userPrompt;
+                            document.querySelector('#txt-input').value = promptData.userPrompt !== undefined ? promptData.userPrompt : '';
                             if (paramExist) {
                                 document.querySelector('#sysPromptDisplay').value = promptData.prompt;
                             }
@@ -1024,7 +1067,7 @@
                 else {
                     promptData = { prompt: '', temperature: 1 };
                     document.querySelector('#txt-input').value = '';
-                    if(paramExist){
+                    if (paramExist) {
                         document.querySelector('#sysPromptDisplay').value = '';
                     }
                 }
@@ -1157,7 +1200,7 @@
         handleAutoResizeInput();
     }
 
-    return { init, includeInDoc, handleButtonClick, getCheck, initPromptMenu };
+    return { init, includeInDoc, handleButtonClick, getCheck, initPromptMenu, getPrompts };
 });</code>
     </property>
     <property>

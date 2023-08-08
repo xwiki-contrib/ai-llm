@@ -170,7 +170,7 @@
       <RightLLM>XWiki.XWikiAdminGroup,XWiki.XWikiAllGroup</RightLLM>
     </property>
     <property>
-      <token/>
+      <token>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</token>
     </property>
     <property>
       <url>https://api.openai.com/v1/</url>

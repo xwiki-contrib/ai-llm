@@ -45,6 +45,7 @@ import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import javax.ws.rs.core.StreamingOutput;
 import java.io.*;
@@ -64,6 +65,9 @@ public class DefaultGPTAPI implements GPTAPI {
 
     @Inject
     protected GPTAPIPromptDBProvider dbProvider;
+
+    @Inject
+    Provider<XWikiContext> contextProvider;
 
     @Override
     public String getLLMChatCompletion(Map<String, Object> data, String openAIKey) throws GPTAPIException {
@@ -261,9 +265,13 @@ public class DefaultGPTAPI implements GPTAPI {
     }
 
     @Override
+    public Map<String, GPTAPIPrompt> getPrompts(String currentWiki){
+        return dbProvider.getPrompts(currentWiki);
+    }
+
+    @Override
     public Boolean isUserAdmin() throws GPTAPIException {
-        Execution execution = Utils.getComponent(Execution.class);
-        XWikiContext context = (XWikiContext) execution.getContext().getProperty("xwikicontext");
+        XWikiContext context = contextProvider.get();
         com.xpn.xwiki.XWiki xwiki = context.getWiki();
 
         // Get the user using the Extension in the actual context.

@@ -61,29 +61,27 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
     Provider<XWikiContext> contextProvider;
 
     @Inject
-    ComponentManager componentManager;
+    Provider<QueryManager> queryManagerProvider;
 
     public DefaultGPTAPIPromptDBProvider() {
         super();
     }
 
     @Override
-    public GPTAPIPrompt getPrompt(String promptName, String currentWiki) {
+    public GPTAPIPrompt getPrompt(String promptPage, String currentWiki) {
         GPTAPIPrompt res = new GPTAPIPrompt();
         try {
-            Execution execution = Utils.getComponent(Execution.class);
             XWikiContext context = contextProvider.get();
             com.xpn.xwiki.XWiki xwiki = context.getWiki();
-            XWikiDocument promptDoc = xwiki.getDocument(currentWiki + ":" + promptName, context);
+            XWikiDocument promptDoc = xwiki.getDocument(currentWiki + ":" + promptPage, context);
             if (promptDoc != null) {
                 BaseObject object = promptDoc.getObject(currentWiki + ":AI.PromptDB.Code.PromptDBClass");
                 if (object != null) {
                     logger.info("title of the doc : {}", promptDoc.getTitle());
-                    logger.info("prompt wanted : {}", promptName);
+                    logger.info("prompt wanted : {}", promptPage);
                     Map<String, Object> dbObjMap = new HashMap<>();
                     Collection<BaseProperty> fields = object.getFieldList();
                     for (BaseProperty field : fields) {
-                        logger.info("Field: " + field.getValue());
                         dbObjMap.put(field.getName(), field.getValue());
                     }
                     dbObjMap.put("title1", promptDoc.getTitle());
@@ -91,6 +89,7 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
                         logger.info(entry.getKey() + ": " + entry.getValue());
                     }
                     if (!dbObjMap.isEmpty()) {
+                        dbObjMap.put("pageName", promptPage);
                         res = new GPTAPIPrompt(dbObjMap);
                         if (res.getName() == null || res.getPrompt() == null || res.getIsActive() == null) {
                             logger.info("one of the value in the prompt object is null.");
@@ -106,6 +105,69 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
             logger.error("Error trying to access the prompt database :", e);
             return null;
         }
+    }
+
+    @Override
+    public Map<String, GPTAPIPrompt> getPrompts(String currentWiki) {
+        Map<String, GPTAPIPrompt> promptDBMap = new HashMap<>();
+        try {
+            XWikiContext context = contextProvider.get();
+            com.xpn.xwiki.XWiki xwiki = context.getWiki();
+            QueryManager queryManager = queryManagerProvider.get();
+            // Changed the HQL query to select the full document name
+            String hql="" ;/* = "select doc.fullName from XWikiDocument as doc, BaseObject as obj where doc.space='"
+                    + currentWiki + ":AI.PromptDB' and obj.className='AI.PromptDB.Code.PromptDBClass'";
+            logger.info("hql query : " + hql);*/
+            Query query = queryManager.createQuery(hql, Query.HQL);
+            // The query will return a list of document names instead of objects
+            List<String> documentNames = query.execute();
+            // get rid of this doc since it is a template, it cause crash.
+            documentNames.remove("AI.PromptDB.Code.PromptDBTemplate");
+            logger.info("documentName: " + documentNames);
+            // Check if the query returned an empty result
+            if (documentNames.isEmpty())
+                throw new Exception("The Query for prompt object returned an empty result.");
+
+            // Iterate over all documents that contain an object of the class
+            // 'AI.PromptDB.Code.PromptDBClass'
+            for (String documentName : documentNames) {
+                logger.info("doc name : " + documentName);
+                XWikiDocument doc = xwiki.getDocument(currentWiki + ":" + documentName, context);
+                // Get the objects of the class 'AI.PromptDB.Code.PromptDBClass' from the
+                // current document
+
+                if (doc != null) {
+                    BaseObject object = doc.getObject("AI.PromptDB.Code.PromptDBClass");
+                    if (object != null) {
+                        Map<String, Object> dbObjMap = new HashMap<>();
+                        Collection<BaseProperty> fields = object.getFieldList();
+                        for (BaseProperty field : fields) {
+                            logger.info("Field: " + field.getValue());
+                            dbObjMap.put(field.getName(), field.getValue());
+                        }
+                        dbObjMap.put("title1", doc.getTitle());
+                        for (Map.Entry<String, Object> entry : dbObjMap.entrySet()) {
+                            logger.info(entry.getKey() + ": " + entry.getValue());
+                        }
+                        if (!dbObjMap.isEmpty()) {
+                            dbObjMap.put("pageName", documentName);
+                            GPTAPIPrompt res = new GPTAPIPrompt(dbObjMap);
+                            if (res.getName() == null || res.getPrompt() == null || res.getIsActive() == null) {
+                                logger.info("one of the value in the prompt object is null.");
+                            } else
+                                promptDBMap.put(res.getName().toLowerCase(), res);
+                        }
+                    }
+
+                }
+            }
+            return promptDBMap;
+
+        } catch (Exception e) {
+            logger.error("Error trying to access the prompt database :", e);
+            return promptDBMap;
+        }
+
     }
 
 }

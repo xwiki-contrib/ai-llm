@@ -32,5 +32,6 @@ public interface GPTAPI {
     public GPTAPIConfig getConfig(String id, String currentWiki) throws GPTAPIException;
     public Map<String, GPTAPIConfig> getConfigs(String currentWiki) throws GPTAPIException;
     public GPTAPIPrompt getPrompt(String promptName, String currentWiki) throws GPTAPIException;
+    public Map<String, GPTAPIPrompt> getPrompts(String currentWiki) throws GPTAPIException;
     public Boolean isUserAdmin() throws GPTAPIException;
 }

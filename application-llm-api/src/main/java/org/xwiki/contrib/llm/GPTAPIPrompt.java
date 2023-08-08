@@ -31,8 +31,9 @@ public class GPTAPIPrompt {
     private Boolean isActive;
     private Boolean isDefault;
     private Float temperature;
+    private String XWikiPageName;
 
-    public GPTAPIPrompt(){
+    public GPTAPIPrompt() {
         this.name = "default";
     }
 
@@ -45,6 +46,7 @@ public class GPTAPIPrompt {
         this.isDefault = ((Integer) dbMap.get("default")) == 1;
         if ((String) dbMap.get("shortText1") != "")
             this.temperature = Float.parseFloat((String) dbMap.get("shortText1"));
+        this.XWikiPageName = (String) dbMap.get("pageName");
     }
 
     public String getName() {
@@ -55,7 +57,7 @@ public class GPTAPIPrompt {
         return prompt;
     }
 
-    public String getUserPrompt(){
+    public String getUserPrompt() {
         return userPrompt;
     }
 
@@ -73,5 +75,9 @@ public class GPTAPIPrompt {
 
     public Float getTemperature() {
         return temperature;
+    }
+
+    public String getXWikiPageName() {
+        return XWikiPageName;
     }
 }

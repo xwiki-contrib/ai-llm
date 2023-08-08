@@ -301,9 +301,9 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     @POST
-    @Path("/prompts")
+    @Path("/prompt")
     @Consumes("application/json")
-    public Response getPromptDB(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
+    public Response getPrompt(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
         List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
         if (csrfTokenList.isEmpty())
             return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
@@ -331,6 +331,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             jsonEntry.put("active", promptObj.getIsActive());
             jsonEntry.put("default", promptObj.getIsDefault());
             jsonEntry.put("temperature", promptObj.getTemperature());
+            jsonEntry.put("pageName",promptObj.getXWikiPageName());
         } catch (Exception e) {
             logger.error("An error occured trying to get the prompts: ", e);
             JSONObject builder = new JSONObject();
@@ -343,6 +344,60 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
         byte[] finalResponseBytes = jsonEntry.toString().getBytes(StandardCharsets.UTF_8);
         return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
+    }
+
+    @POST
+    @Path("/prompts")
+    @Consumes("application/json")
+    public Response getPromptDB(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
+        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
+        if (csrfTokenList.isEmpty())
+            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
+                    .build();
+        String token = csrfToken.getToken();
+        String csrfClient = csrfTokenList.get(0);
+        if (!csrfClient.equals(token)) {
+            logger.info(token);
+            logger.info(csrfClient);
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
+
+        Map<String, GPTAPIPrompt> dbMap;
+        try {
+            dbMap = gptApi.getPrompts(data.get("currentWiki").toString());
+        } catch (GPTAPIException e) {
+            logger.error("Exception in the REST getPromptDB method : ", e);
+            dbMap = new HashMap<>();
+        }
+        JSONArray finalResponse = new JSONArray();
+        try {
+            for (Map.Entry<String, GPTAPIPrompt> entryDB : dbMap.entrySet()) {
+                GPTAPIPrompt promptObj = entryDB.getValue();
+                if (entryDB.getKey().isEmpty() == false) {
+                    JSONObject jsonEntry = new JSONObject();
+                    jsonEntry.put("name", promptObj.getName());
+                    jsonEntry.put("prompt", promptObj.getPrompt());
+                    jsonEntry.put("userPrompt", promptObj.getUserPrompt());
+                    jsonEntry.put("description", promptObj.getDescription());
+                    jsonEntry.put("active", promptObj.getIsActive());
+                    jsonEntry.put("default", promptObj.getIsDefault());
+                    jsonEntry.put("temperature", promptObj.getTemperature());
+                    jsonEntry.put("pageName",promptObj.getXWikiPageName());
+                    finalResponse.put(jsonEntry);
+                }
+            }
+            byte[] finalResponseBytes = finalResponse.toString().getBytes(StandardCharsets.UTF_8);
+            return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
+        } catch (Exception e) {
+            logger.error("An error occured trying to get the prompts: ", e);
+            JSONObject builder = new JSONObject();
+            builder.put("", e.getMessage());
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON)
+                    .build();
+        }
+
     }
 
     @POST

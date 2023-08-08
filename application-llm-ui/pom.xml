@@ -28,7 +28,9 @@
         <version>0.3-SNAPSHOT</version>
     </parent>
     <artifactId>application-llm-ui</artifactId>
-    <description>LLM feature for XWiki</description>
+    <description>
+        Provide LLM Artificial Intelligence for XWiki content creation and editing, boosting user efficiency and productivity.
+    </description>
     <name>LLM - UI</name>
     <packaging>xar</packaging>
     <properties>
