@@ -138,6 +138,7 @@
     let paramView, paramExist = false;
     let settingsTemp = 1;
     let promptData;
+    let userRef;
 
     define('llm-translation', {
         prefix: 'llm.',
@@ -449,10 +450,12 @@
     }
 
     function getRequestOptions(params, csrf) {
-        if (params != null)
+        if (params != null) {
             params.currentWiki = XWiki.currentWiki;
+            params.userName = userRef;
+        }
         else {
-            params = { currentWiki: XWiki.currentWiki };
+            params = { currentWiki: XWiki.currentWiki, userName: userRef };
         }
         const options = {
             method: 'POST',
@@ -847,7 +850,6 @@
                 .then(json =&gt; {
                     changeBtnState();
                     document.querySelector('#stopRqst').style.display = "none";
-                    console.log(json);
                     if (json.name === 'default') {
                         if (JSON.parse(options.body).prompt !== '') {
                             const msg = 'There is no such prompt as \"' + JSON.parse(options.body).prompt + '\" to load, no prompt are used. You can still use the interface as is, but if you want to add quick actions please add corresponding prompt to the database linked below.';
@@ -903,8 +905,10 @@
     }
 
 
-    function getCheck(csrf_token) {
+    function getCheck(csrf_token, currentUserRef) {
         return new Promise((resolve, reject) =&gt; {
+            userRef = currentUserRef;
+            console.log('userRef: ',userRef);
             const options = getRequestOptions(null, csrf_token);
             const root = getRoot();
             const URI = root !== '' ? root + "/rest/v1/check-access" : "/rest/v1/check-access";
@@ -1041,16 +1045,16 @@
             const csrf = document.querySelector('#form_token').value;
             const selectedPrompt = $('#features-menu').selectize();
             selectedPrompt[0].selectize.settings.maxOptions = 5;
-            const selectOptions = selectedPrompt[0].selectize.options;
-
-            console.log(selectOptions);
-            promptDB.forEach(element =&gt; {
-                if (!element.active) {
-                    selectedPrompt[0].selectize.removeOption(element.pageName);
-                }
-                else if (element.default) {
-                    selectedPrompt[0].selectize.setValue(element.pageName);
-                }
+            // when selectize is loaded.
+            selectedPrompt[0].selectize.on('load', function () {
+                promptDB.forEach(element =&gt; {
+                    if (!element.active) {
+                        selectedPrompt[0].selectize.removeOption(element.pageName);
+                    }
+                    else if (element.default) {
+                        selectedPrompt[0].selectize.setValue(element.pageName);
+                    }
+                });
             });
             selectedPrompt[0].selectize.on('change', function (value) {
                 const optionsPromptRqChange = getRequestOptions({ prompt: value }, csrf);
@@ -1172,7 +1176,18 @@
 
     }
 
-    function init() {
+    function getUserName() {
+        return new Promise((resolve, reject) =&gt; {
+            require(['xwiki-meta'], function (xm) {
+                console.log(xm.userReference);
+                console.log(typeof(xm.userReference));
+                resolve(XWiki.Model.serialize(xm.userReference));
+
+            });
+        })
+    }
+
+    async function init() {
         if (initDone)
             return;
         initDone = true;
@@ -1182,16 +1197,15 @@
             console.error("xwiki llm js failed to initialize because it could not find the #userChat form");
             return;
         }
-        Promise.all([initFormEvent(form)]);
+        userRef = await getUserName();
+        console.log(userRef);
         const csrf = document.querySelector('#form_token').value;
         const options = getRequestOptions(null, csrf);
-        Promise.all([isUserAdmin(options)])
+        console.log(options);
+        Promise.all([initFormEvent(form), isUserAdmin(options), getModels(options)])
             .then((res) =&gt; {
-                initDropMenu(res[0]);
-            });
-        Promise.all([getModels(options)])
-            .then((res) =&gt; {
-                if (res[0])
+                initDropMenu(res[1]);
+                if (res[2])
                     setTimeout(() =&gt; {
                         document.querySelector('#chatContent').innerHTML = '';
                         changeBtnState();

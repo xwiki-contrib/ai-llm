@@ -23,18 +23,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.context.Execution;
 import org.xwiki.contrib.llm.GPTAPIPrompt;
 import org.xwiki.contrib.llm.GPTAPIPromptDBProvider;
-import org.xwiki.model.EntityType;
-import org.xwiki.model.reference.EntityReference;
 import org.xwiki.query.QueryManager;
 import org.xwiki.stability.Unstable;
 
@@ -46,8 +39,6 @@ import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
-import com.xpn.xwiki.web.Utils;
-
 import org.xwiki.query.Query;
 
 @Component
@@ -114,12 +105,13 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
             XWikiContext context = contextProvider.get();
             com.xpn.xwiki.XWiki xwiki = context.getWiki();
             QueryManager queryManager = queryManagerProvider.get();
-            // Changed the HQL query to select the full document name
-            String hql="" ;/* = "select doc.fullName from XWikiDocument as doc, BaseObject as obj where doc.space='"
-                    + currentWiki + ":AI.PromptDB' and obj.className='AI.PromptDB.Code.PromptDBClass'";
-            logger.info("hql query : " + hql);*/
+            // HQL query to select the full documents names
+            String hql = "select doc.fullName from XWikiDocument as doc, BaseObject as obj where obj.name=doc.fullName and obj.className='AI.PromptDB.Code.PromptDBClass'";
+            logger.info("hql query : " + hql);
             Query query = queryManager.createQuery(hql, Query.HQL);
-            // The query will return a list of document names instead of objects
+            query.setWiki(currentWiki);
+            query.setLimit(0);
+            // The query will return a list of document names.
             List<String> documentNames = query.execute();
             // get rid of this doc since it is a template, it cause crash.
             documentNames.remove("AI.PromptDB.Code.PromptDBTemplate");
@@ -133,16 +125,14 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
             for (String documentName : documentNames) {
                 logger.info("doc name : " + documentName);
                 XWikiDocument doc = xwiki.getDocument(currentWiki + ":" + documentName, context);
-                // Get the objects of the class 'AI.PromptDB.Code.PromptDBClass' from the
-                // current document
-
                 if (doc != null) {
+                    // Get the objects of the class 'AI.PromptDB.Code.PromptDBClass' from the
+                    // current document
                     BaseObject object = doc.getObject("AI.PromptDB.Code.PromptDBClass");
                     if (object != null) {
                         Map<String, Object> dbObjMap = new HashMap<>();
                         Collection<BaseProperty> fields = object.getFieldList();
                         for (BaseProperty field : fields) {
-                            logger.info("Field: " + field.getValue());
                             dbObjMap.put(field.getName(), field.getValue());
                         }
                         dbObjMap.put("title1", doc.getTitle());
@@ -152,13 +142,9 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider {
                         if (!dbObjMap.isEmpty()) {
                             dbObjMap.put("pageName", documentName);
                             GPTAPIPrompt res = new GPTAPIPrompt(dbObjMap);
-                            if (res.getName() == null || res.getPrompt() == null || res.getIsActive() == null) {
-                                logger.info("one of the value in the prompt object is null.");
-                            } else
-                                promptDBMap.put(res.getName().toLowerCase(), res);
+                            promptDBMap.put(res.getName().toLowerCase(), res);
                         }
                     }
-
                 }
             }
             return promptDBMap;

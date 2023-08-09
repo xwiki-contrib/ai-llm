@@ -23,8 +23,20 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.Role;
 import java.util.Map;
 
+/**
+ * Interface to retrieve Configuration of the LLM AI extension in XWiki instances.
+ */
 @Component
 @Role
 public interface GPTAPIConfigProvider {
-    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki) throws GPTAPIException;
+    /**
+     * @param currentWiki The identifier of the wiki from which the request
+     *                    originated.
+     * @param userName The user making the request.
+     * @return A map containing all the available {@link GPTAPIConfig} objects in
+     *         the specified wiki or an empty map if none exist.
+     * @throws GPTAPIException if something goes wrong. Will return an empty map as
+     *                         well in such case.
+     */
+    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException;
 }

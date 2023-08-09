@@ -45,7 +45,6 @@ public class GPTAPIConfig {
 
     public GPTAPIConfig() {
         this.name = "default";
-        this.url = "test";
     }
 
     public String getName() {

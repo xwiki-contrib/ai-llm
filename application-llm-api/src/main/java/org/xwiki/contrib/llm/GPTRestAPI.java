@@ -115,7 +115,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             }
             logger.info("modelType after evaluation :", modelType);
             logger.info("Received text: " + data.get("text"));
-            GPTAPIConfig config = gptApi.getConfig(modelType, (String) data.get("currentWiki"));
+            GPTAPIConfig config = gptApi.getConfig(modelType, (String) data.get("currentWiki"), (String) data.get("userName"));
             if (config.getName() == "default") {
                 throw new Exception(
                         "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
@@ -249,7 +249,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
         Map<String, GPTAPIConfig> configMap;
         try {
-            configMap = gptApi.getConfigs((String) data.get("currentWiki"));
+            configMap = gptApi.getConfigs((String) data.get("currentWiki"), (String) data.get("userName"));
         } catch (GPTAPIException e) {
             logger.error("Error in getModels REST method: ", e);
             configMap = new HashMap<>();
@@ -417,7 +417,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
         }
         Map<String, GPTAPIConfig> configMap;
         try {
-            configMap = gptApi.getConfigs((String) data.get("currentWiki"));
+            configMap = gptApi.getConfigs((String) data.get("currentWiki"), (String) data.get("userName"));
             if (configMap.isEmpty())
                 throw new GPTAPIException(
                         "The Configuration Map is empty. That mean the user has no right to access those configuration.");
@@ -447,7 +447,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
     @POST
     @Path("/permission")
-    public Response isUserAdmin(@Context HttpHeaders headers) {
+    @Consumes("application/json")
+    public Response isUserAdmin(Map<String, Object> data, @Context HttpHeaders headers) {
         List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
         if (csrfTokenList.isEmpty())
             return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
@@ -460,7 +461,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             return Response.status(Response.Status.FORBIDDEN).build();
         }
         try {
-            Boolean isAdmin = gptApi.isUserAdmin();
+            Boolean isAdmin = gptApi.isUserAdmin((String) data.get("currentWiki"), (String) data.get("userName"));
             logger.info("isAdmin user:" + isAdmin);
             JSONObject res = new JSONObject();
             res.put("isAdmin", isAdmin);

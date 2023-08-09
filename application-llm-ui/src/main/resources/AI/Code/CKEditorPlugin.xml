@@ -220,7 +220,8 @@
       const requirePromise = new Promise((resolve, reject) =&gt; {
         require(['xwiki-meta', 'xwiki-llm'], (xm, llm) =&gt; {
           const csrf_token = xm.form_token;
-          authorizedPromise = llm.getCheck(csrf_token);
+          const userRef = XWiki.Model.serialize(xm.userReference);
+          authorizedPromise = llm.getCheck(csrf_token, userRef);
           resolve();
         }, reject);
       });

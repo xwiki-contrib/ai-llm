@@ -232,9 +232,9 @@ public class DefaultGPTAPI implements GPTAPI {
     }
 
     @Override
-    public GPTAPIConfig getConfig(String id, String currentWiki) throws GPTAPIException {
+    public GPTAPIConfig getConfig(String id, String currentWiki, String userName) throws GPTAPIException {
         try {
-            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki);
+            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki, userName);
             GPTAPIConfig res = configMap.get(id);
             if (res == null) {
                 throw new Exception(
@@ -248,8 +248,8 @@ public class DefaultGPTAPI implements GPTAPI {
     }
 
     @Override
-    public Map<String, GPTAPIConfig> getConfigs(String currentWiki) throws GPTAPIException {
-        Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki);
+    public Map<String, GPTAPIConfig> getConfigs(String currentWiki, String userName) throws GPTAPIException {
+        Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki, userName);
         return configMap;
     }
 
@@ -270,13 +270,18 @@ public class DefaultGPTAPI implements GPTAPI {
     }
 
     @Override
-    public Boolean isUserAdmin() throws GPTAPIException {
+    public Boolean isUserAdmin(String currentWiki, String userName) throws GPTAPIException {
         XWikiContext context = contextProvider.get();
+        String mainWiki = context.getWikiId();
         com.xpn.xwiki.XWiki xwiki = context.getWiki();
+        context.setWikiId(currentWiki);
 
         // Get the user using the Extension in the actual context.
         DocumentReference username = context.getUserReference();
+        logger.info("user in isUserAdmin: " + username.getName());
+        logger.info("user wiki : " + username.getWikiReference().getName());
         User xwikiUser = xwiki.getUser(username, context);
+        context.setWikiId(mainWiki);
         return xwikiUser.hasWikiAdminRights();
     }
 }

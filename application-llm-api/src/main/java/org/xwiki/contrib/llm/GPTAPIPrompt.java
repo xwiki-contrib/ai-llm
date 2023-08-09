@@ -21,8 +21,11 @@ package org.xwiki.contrib.llm;
 
 import java.util.*;
 
-import org.apache.ecs.xhtml.s;
-
+/**
+ * A class representing a prompt and its properties
+ * 
+ * @since 0.2
+ */
 public class GPTAPIPrompt {
     private String name;
     private String prompt;
@@ -33,10 +36,18 @@ public class GPTAPIPrompt {
     private Float temperature;
     private String XWikiPageName;
 
+    /**
+     * Default constructor. every values are null except {@link GPTAPIPrompt#name},
+     * wich is set to "default".
+     */
     public GPTAPIPrompt() {
         this.name = "default";
     }
 
+    /**
+     * Take a map representation of a GPTAPIPrompt object as a parameter and build a
+     * GPTAPIPrompt object from it.
+     */
     public GPTAPIPrompt(Map<String, Object> dbMap) {
         this.name = (String) dbMap.get("title1");
         this.prompt = (String) dbMap.get("sysPrompt");
@@ -49,34 +60,58 @@ public class GPTAPIPrompt {
         this.XWikiPageName = (String) dbMap.get("pageName");
     }
 
+    /**
+     * @return The name of the GPTAPIPrompt object as a String.
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * @return The prompt (systemPrompt) of the GPTAPIPrompt object as a String.
+     */
     public String getPrompt() {
         return prompt;
     }
 
+    /**
+     * @return The user prompt of the GPTAPIPrompt object as a String.
+     */
     public String getUserPrompt() {
         return userPrompt;
     }
 
+    /**
+     * @return The description of the GPTAPIPrompt object as a String.
+     */
     public String getDescription() {
         return description;
     }
 
+    /**
+     * @return true if the prompt is active, else false.
+     */
     public Boolean getIsActive() {
         return isActive;
     }
 
+    /**
+     * @return true if the prompt is the default prompt, else false.
+     */
     public Boolean getIsDefault() {
         return isDefault;
     }
 
+    /**
+     * @return The temperature of the GPTAPIPrompt object as a Float.
+     */
     public Float getTemperature() {
         return temperature;
     }
 
+    /**
+     * @return The XWiki page name the GPTAPIPrompt object is from as a String.
+     */
     public String getXWikiPageName() {
         return XWikiPageName;
     }

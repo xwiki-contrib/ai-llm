@@ -31,17 +31,19 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
-import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.stability.Unstable;
-
 import com.xpn.xwiki.XWikiContext;
-import com.xpn.xwiki.api.User;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
+import com.xpn.xwiki.user.api.XWikiGroupService;
+import com.xpn.xwiki.user.impl.xwiki.XWikiGroupServiceImpl;
+import com.xpn.xwiki.util.Util;
+
 
 @Component
 @Unstable
@@ -58,15 +60,20 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
     }
 
     @Override
-    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki) throws GPTAPIException {
+    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException {
         Map<String, GPTAPIConfig> configProperties = new HashMap<>();
         try {
             XWikiContext context = contextProvider.get();
             com.xpn.xwiki.XWiki xwiki = context.getWiki();
+            XWikiGroupService groupService = xwiki.getGroupService(context);
             // Get the user using the Extension in the actual context.
-            DocumentReference username = context.getUserReference();
-            User xwikiUser = xwiki.getUser(username, context);
-
+            logger.info("user name: " + userName);
+            Collection<String> userGroups = groupService.getAllGroupsNamesForMember(userName, 0, 0, context);
+            if(userGroups.isEmpty())
+                logger.info("no user group found");
+            for(String grp : userGroups){
+                logger.info("user group: " + grp);
+            }
             // Retrieve the LLM Configuration Objects
             XWikiDocument doc = xwiki.getDocument(currentWiki + ":AI.Code.AIConfig", context);
             List<BaseObject> configObjects = doc.getObjects(currentWiki + ":AI.Code.AIConfigClass");
@@ -94,7 +101,8 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
                 String[] allowedGroupTab = res.getAllowedGroup().split(",");
                 // Test for every group allowed if the user is part of these group.
                 for (String group : allowedGroupTab) {
-                    if (xwikiUser.isUserInGroup(group)) {
+                    logger.info("group : " + group);
+                    if (userGroups.contains(group)) {
                         logger.info("User is part of one of the valid group.");
                         configProperties.put(res.getName(), res);
                         break;

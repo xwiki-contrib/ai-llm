@@ -23,9 +23,28 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.Role;
 import java.util.Map;
 
+/**
+ * Interface to retrieve Prompt from the Prompt Database of the LLM AI extension in XWiki
+ * instances.
+ */
 @Component
 @Role
 public interface GPTAPIPromptDBProvider {
+    /**
+     * @param promptName  The prompt page full name (like AI.PromptDB.*).
+     * @param currentWiki The identifier of the wiki from which the request
+     *                    originated.
+     * @return The corresponding {@link GPTAPIPrompt} object or the default
+     *         construction of {@link GPTAPIPrompt} if the object is not found.
+     */
     public GPTAPIPrompt getPrompt(String promptName, String currentWiki);
+
+    /**
+     * @param currentWiki The identifier of the wiki from which the request
+     *                    originated.
+     * @return A map containing all the available {@link GPTAPIPrompt} object in the
+     *         specified wiki or an empty map if nothing is found or an exception
+     *         happen.
+     */
     public Map<String, GPTAPIPrompt> getPrompts(String currentWiki);
 }
