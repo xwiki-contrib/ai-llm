@@ -270,7 +270,7 @@ public class DefaultGPTAPI implements GPTAPI {
     }
 
     @Override
-    public Boolean isUserAdmin(String currentWiki, String userName) throws GPTAPIException {
+    public Boolean isUserAdmin(String currentWiki) throws GPTAPIException {
         XWikiContext context = contextProvider.get();
         String mainWiki = context.getWikiId();
         com.xpn.xwiki.XWiki xwiki = context.getWiki();
@@ -281,7 +281,8 @@ public class DefaultGPTAPI implements GPTAPI {
         logger.info("user in isUserAdmin: " + username.getName());
         logger.info("user wiki : " + username.getWikiReference().getName());
         User xwikiUser = xwiki.getUser(username, context);
+        Boolean res =  xwikiUser.hasWikiAdminRights();
         context.setWikiId(mainWiki);
-        return xwikiUser.hasWikiAdminRights();
+        return res;
     }
 }

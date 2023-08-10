@@ -21,64 +21,96 @@ package org.xwiki.contrib.llm;
 
 import java.util.Map;
 
+/**
+ * A class representing an LLM AI extension confifuration as a java object.
+ * 
+ * @since 0.1
+ */
 public class GPTAPIConfig {
     private String name;
     private String url;
     private String configModels;
     private String token;
-    private String modelsURL;
     private boolean canStream;
     private String allowedGroup;
 
+    /**
+     * Take a map representation of a GPTAPIConfig object as a parameter and build a
+     * GPTAPIConfig object from it.
+     */
     public GPTAPIConfig(Map<String, Object> properties) {
         this.name = (String) properties.get("Name");
         this.url = (String) properties.get("url");
         this.configModels = (String) properties.get("Config");
         this.token = (String) properties.get("token");
-        this.modelsURL = (String) properties.get("modelurl");
-        if((Integer) properties.get("Requestmode") == 1)
+        if ((Integer) properties.get("Requestmode") == 1)
             this.canStream = true;
         else
             this.canStream = false;
         this.allowedGroup = (String) properties.get("RightLLM");
     }
 
+    /**
+     * Default constructor. every values are null except {@link GPTAPIConfig#name},
+     * wich is set to "default".
+     */
     public GPTAPIConfig() {
         this.name = "default";
     }
 
+    /**
+     * @return The name of the GPTAPIConfig as a String.
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * @return The URL of the GPTAPIConfig as a String.
+     */
     public String getURL() {
         return url;
     }
 
+    /**
+     * @return The LLM models of the GPTAPIConfig in one String.
+     */
     public String getConfigModels() {
         return configModels;
     }
 
+    /**
+     * @return The token of the GPTAPIConfig as a String.
+     */
     public String getToken() {
         return token;
     }
 
-    public Boolean getCanStream(){
+    /**
+     * @return true if the configuration can use a streaming API, else false.
+     */
+    public Boolean getCanStream() {
         return canStream;
     }
 
-    public String getAllowedGroup(){
+    /**
+     * @return The XWiki group allowed to use this GPTAPIConfig in a String.
+     */
+    public String getAllowedGroup() {
         return allowedGroup;
     }
 
+    /**
+     * @return A String representation of the GPTAPIConfig object.
+     */
     @Override
     public String toString() {
         String res = "Name : " + name + "\n";
         res += "URL : " + url + "\n";
         res += "Config param : " + configModels + "\n";
         res += "Token : " + token + "\n";
-        res += "modelsURL : " + modelsURL + "\n";
         res += "canStream : " + canStream + "\n";
+        res += "allowedGroup : " + allowedGroup + "\n";
         return res;
     }
 }

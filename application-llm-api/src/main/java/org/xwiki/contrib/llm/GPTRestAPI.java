@@ -461,7 +461,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             return Response.status(Response.Status.FORBIDDEN).build();
         }
         try {
-            Boolean isAdmin = gptApi.isUserAdmin((String) data.get("currentWiki"), (String) data.get("userName"));
+            Boolean isAdmin = gptApi.isUserAdmin((String) data.get("currentWiki"));
             logger.info("isAdmin user:" + isAdmin);
             JSONObject res = new JSONObject();
             res.put("isAdmin", isAdmin);

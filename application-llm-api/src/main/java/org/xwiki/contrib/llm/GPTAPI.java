@@ -106,9 +106,8 @@ public interface GPTAPI {
     /**
      * @param currentWiki The identifier of the wiki from which the request
      *                    originated.
-     * @param userName    The user the request came from.
-     * @return true if the user in the XWikiContext is admin, else return false.
+     * @return true if the user in the XWikiContext is admin in the specified wiki, else return false.
      * @throws GPTAPIException if something goes wrong.
      */
-    public Boolean isUserAdmin(String currentWiki, String userName) throws GPTAPIException;
+    public Boolean isUserAdmin(String currentWiki) throws GPTAPIException;
 }

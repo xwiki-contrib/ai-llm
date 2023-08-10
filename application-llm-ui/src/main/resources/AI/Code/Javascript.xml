@@ -184,6 +184,7 @@
     });
 
 
+
     // controler to stop a request if needed.
     let globalAbortController = new AbortController();
     let globalSignal = globalAbortController.signal;
@@ -203,17 +204,32 @@
     css.forEach(loadCSS);
 
 
+    /**
+     *
+     * @return The XWiki contextPath
+     *
+     */
     function getRoot() {
         return XWiki.contextPath;
     }
 
 
-    // Scroll to the bottom of the chat content
+    /**
+     *
+     * Scroll to the bottom of the chat box when called.
+     *
+     */
     function scrollToBottom() {
         const chatContent = document.querySelector('#chatContent');
         chatContent.scrollTop = chatContent.scrollHeight;
     }
 
+    /**
+     *
+     * @param {HTMLElement} obj A text area.
+     * This is used to resize the user input area.
+     *
+     */
     function autoResizeInput(obj) {
         let scrollHeight = obj.scrollHeight;
         let nbChar = obj.value.length;
@@ -233,6 +249,11 @@
 
     }
 
+    /**
+     *
+     * Attach an event listener to the user text input area to enable auto resizing. 
+     *
+     */
     function handleAutoResizeInput() {
         let textarea = document.querySelector('#txt-input');
         textarea.addEventListener('input', (event) =&gt; {
@@ -241,6 +262,12 @@
         autoResizeInput(textarea);
     }
 
+    /**
+     *
+     * @param {string} str A string representation of a json.
+     * @return true if the string in parameter is valid JSON, else return false.
+     *
+     */
     function isJSON(str) {
         try {
             JSON.parse(str);
@@ -250,6 +277,12 @@
         return true;
     }
 
+    /**
+     *
+     * @param {string} userChat The user input.
+     * @return {HTMLPreElement} An HTML representation of the user chat.
+     *
+     */
     function addUserChat(userChat) {
         const preElement = document.createElement('pre');
         preElement.classList.add('user-message');
@@ -279,7 +312,13 @@
         return preElement;
     }
 
-
+    /**
+     * @param {string} assistantChat The LLM AI answer.
+     * @param {string} model The LLM model responding.
+     * @param {number} elapsedTime The time elapsed between the user chat and this answer in seconde.
+     * @return {HTMLDivElement} An HTML representation of the LLM AI answer.
+     *
+     */
     function addAssistantChat(assistantChat, model, elapsedTime) {
         nbAssistMsg++;
         const div = document.createElement('div');
@@ -329,7 +368,14 @@
         return div;
     }
 
-
+    /**
+     *
+     * @param {string} msg The message to display.
+     * @param {string} link The link to redirect to (can be set to null)
+     * @param {string} linkText The label to display for the link (can be null).
+     * @return {HTMLDivElement} An HTML representation of the system chat.
+     *
+     */
     function addSystemChat(msg, link, linkText) {
         const divElement = document.createElement('div');
         divElement.id = 'system-msg';
@@ -354,7 +400,12 @@
     }
 
 
-    // Add the loading animation to the interface.
+    /**
+     *
+     * @param {HTMLElement} chatContent The current chat window of the interface.
+     * @return {HTMLDivElement} An HTML representation of the loading animation.
+     *
+     */
     function addLoading(chatContent) {
         chatContent.innerHTML += `&lt;div class="waiting-line"&gt;
   &lt;div class="dot dot1"&gt;&lt;/div&gt;
@@ -365,7 +416,12 @@
         scrollToBottom();
     }
 
-    // Remove the loading animation from the interface.
+    /**
+     *
+     * Remove the last Loading animation added from the chat.
+     * @param {HTMLElement} chatContent The current chat window of the interface.
+     *
+     */
     function removeLoading(chatContent) {
         const loadingLine = chatContent.querySelector('.waiting-line');
         if (loadingLine) {
@@ -373,7 +429,15 @@
         }
     }
 
-
+    /**
+     *
+     * For streaming request, update the corresponding assistant chat with the new informations.
+     * @param {number} msgIdNum The assistant chat ID to update.
+     * @param {number} updatedTime The new time to display since the beginning of the interaction in seconde.
+     * @param {string} chunkReply The chunk of the answer to add.
+     * @param {string} model The LLM model answering.
+     *
+     */
     function updateAssistantChat(msgIdNum, updatedTime, chunkReply, model) {
         if (paramView)
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec - T: ${settingsTemp}`;
@@ -382,10 +446,22 @@
         document.querySelector('#msg-content-' + msgIdNum).textContent += chunkReply;
     }
 
+    /**
+     *
+     * @param {string} errorMessage The error message to display.
+     * @return {HTMLDivElement} A div element containing the error message HTML representation.
+     *
+     */
     function errorMessagePrint(errorMessage) {
         return `&lt;div class="errorHandler"&gt;${errorMessage}&lt;/div&gt;`;
     }
 
+    /**
+     * Copy the specified assistant message to clipboard.
+     * @param {string} numMsgToCopy The HTML ID of the message to copy.
+     * @return {Promise&lt;string&gt;} A promise containing the copied text.
+     *
+     */
     function copyTextToClipboard(numMsgToCopy) {
         return new Promise((resolve, reject) =&gt; {
             const numericID = numMsgToCopy.replace("copy-button-", "");
@@ -398,6 +474,12 @@
         });
     }
 
+    /**
+     * 
+     * @param {string} msgID The assistant message HTML ID to include.
+     * @return {Promise&lt;string&gt;} A promise containing the text to include in the edited document. 
+     *
+     */
     function includeInDoc(msgID) {
         return new Promise((resolve, reject) =&gt; {
             const numericID = msgID.replace("include-button-", "");
@@ -407,6 +489,12 @@
         });
     }
 
+    /**
+     *
+     * @param {string} msgID The user chat HTML ID to edit.
+     * @return {Promise&lt;string&gt;} A promise containing the user chat text to edit. 
+     *
+     */
     function editUserMsg(msgID) {
         return new Promise((resolve, reject) =&gt; {
             const numericID = msgID.replace("user-btn-", "");
@@ -418,13 +506,24 @@
         })
     }
 
+    /**
+     * /!\ This method is extremely approximative and need to be change.
+     * @param {string} modelType The model type (OpenAI for example).
+     * @return {number} 2000 if its not an OpenAI model, 4000 if it is.
+     */
     function chooseMaxToken(modelType) {
+        modelType = modelType.toLowerCase();
         if (modelType !== 'openai') {
             return 2000;
         }
         else return 4000;
     }
 
+    /**
+     * /!\ This method is extremely approximative and need to be change with appropriate tokenizer.
+     * @param {JSON} query A json representation of the last context.
+     * @return {number} The number of token from the specified query.
+     */
     function countTokens(query) {
         let strContext;
         strContext += query.user;
@@ -437,6 +536,16 @@
         return Math.floor(tokenCount);
     }
 
+    /**
+     * Build the parameters to send for the request.
+     * @param {string} userText The user chat input.
+     * @param {string} modelType The modelType (it's the name of the configuration the model came from).
+     * @param {string} model The LLM model to send the request.
+     * @param {string} prompt The system prompt to send.
+     * @param {string} context The previous context of the conversation.
+     * @param {number} temp The temperature of the chat.
+     * @return {JSON} A JSON representation of the parameters.
+     */
     function getRequestParams(userText, modelType, model, prompt, context, temp) {
         const params = {
             text: userText,
@@ -449,6 +558,12 @@
         return params;
     }
 
+    /**
+     * Build the options for the fetch request to the API.
+     * @param {JSON} params The body of the request, can be set to null.
+     * @param {string} csrf The CSRF token. Needed for the validity of the request.
+     * @returns {JSON} A JSON representation of the request options. 
+     */
     function getRequestOptions(params, csrf) {
         if (params != null) {
             params.currentWiki = XWiki.currentWiki;
@@ -469,6 +584,10 @@
         return options;
     }
 
+    /**
+     * /!\ This method is extremely approximative and need to be change with appropriate tokenizer.
+     * Manage the context size based on the number of token and the maximum token usable.
+     */
     function tokenManager() {
         nbToken += countTokens(context[contextSize]);
         contextSize++;
@@ -481,6 +600,11 @@
         }
     }
 
+    /**
+     * Handle some of the button click event (copy and edit).
+     * @param {Event} event the catched event.
+     * @return {Promise&lt;string&gt;} A promise containing The HTML ID of the element the click came from.
+     */
     function handleButtonClick(event) {
         return new Promise(function (resolve) {
             const target = event.target;
@@ -495,7 +619,14 @@
         });
     }
 
-    // Update the interface and the context with the new infos (non-streaming request only here).
+    /**
+     * Update the interface and the context with the new infos (non-streaming request only here).
+     * @param {HTMLElement} chatContent The chat box element.
+     * @param {string} generatedContent The full answer from the LLM model.
+     * @param {string} model The LLM model name.
+     * @param {number} elapsedTime The time elapsed since the user chat has been send in seconde.
+     * @param {string} userText The user text sended (used here to fullfill the context).
+     */
     function updateChat(chatContent, generatedContent, model, elapsedTime, userText) {
         removeLoading(chatContent);
         chatContent.appendChild(addAssistantChat(generatedContent, model, elapsedTime));
@@ -506,22 +637,39 @@
         tokenManager();
     }
 
+    /**
+     * Init the new chat that begin to be received.
+     * @param {HTMLElement} chatContent The chat box element.
+     * @param {string} model The LLM model name.
+     */
     function initChatOnStream(chatContent, model) {
         removeLoading(chatContent);
         chatContent.appendChild(addAssistantChat('', model, 0));
         scrollToBottom();
     }
 
-    function updateChatOnStream(chatContent, completedReply) {
+    /**
+     * Update the chat information in the back (number of token and context) at the end of the stream communication.
+     * @param {string} completedReply The full reply at the end of the communication.
+     */
+    function updateChatOnStream(completedReply) {
         context[contextSize].assistant = completedReply;
         tokenManager();
         scrollToBottom();
     }
 
+    /**
+     * Add an error message to the chat box.
+     * @param {HTMLElement} chatContent The chat box element.
+     * @param {JSON} error The JSON object containing error information. 
+     */
     function errorCatcher(chatContent, error) {
         chatContent.innerHTML += errorMessagePrint("An error occured: " + error.message);
     }
 
+    /**
+     * Change the interface button state based on their actual state.
+     */
     function changeBtnState() {
         if (btnEnabled) {
             document.querySelector('#subButton').disabled = true;
@@ -537,7 +685,17 @@
         }
     }
 
-    function handleValidChunk(jsonMessages, completedReply, beginRep, isErr, model, startTime, userText) {
+    /**
+     * Handle a chunk of reply comming from the stream communication with the LLM model.
+     * @param {string} jsonMessages The string representation of the chunk of the reply to treat.
+     * @param {string} completedReply The string containing the full reply until now.
+     * @param {boolean} beginRep State if the answer already started or not. 
+     * @param {boolean} isErr State if the chunk received is an error or not. 
+     * @param {string} model The LLM model name.
+     * @param {number} startTime The Date in ms the assistant started writing.
+     * @return {JSON} A JSON object containing the updated state of isErr, beginRep, and completedReply.
+     */
+    function handleValidChunk(jsonMessages, completedReply, beginRep, isErr, model, startTime) {
         for (const jsonMessage of jsonMessages) {
             if (jsonMessage.trim() !== '') {
                 const message = JSON.parse(jsonMessage);
@@ -554,10 +712,6 @@
                         isErr = true;
                         chatContent.innerHTML += errorMessagePrint(reply);
                     }
-                    else if (completedReply.indexOf('ERROR: ') !== -1) {
-                        isErr = true;
-                        chatContent.innerHTML += errorMessagePrint("An error occured: " + completedReply);
-                    }
                     else {
                         if (beginRep) {
                             initChatOnStream(chatContent, model);
@@ -573,6 +727,19 @@
         return { isErr, beginRep, completedReply };
     }
 
+    /**
+     * Process the stream request and update the interface along.
+     * @param {Object} obj An object with 'done' and 'value'. 'done' is a boolean true if the request has ended, else false. 'value' is the last string value communicated.
+     * @param {HTMLElement} chatContent The chat box element.
+     * @param {string} completedReply The string containing the full reply until now.
+     * @param {string} accumulatedChunks The string containing every json representation of the received chunk.
+     * @param {string} isErr State if the chunk received is an error or not. 
+     * @param {string} beginRep State if the answer already started or not. 
+     * @param {any} reader The reader used to read the stream.
+     * @param {string} model The LLM model name.
+     * @param {number} startTime The Date in ms the assistant started writing.
+     * @param {string} userText The user text corresponding to this request.
+     */
     function processStream({ done, value }, chatContent, completedReply, accumulatedChunks, isErr, beginRep, reader, model, startTime, userText) {
         try {
             if (done) {
@@ -583,7 +750,7 @@
                         context.push({ user: userText });
                         copyBtn.style.display = "block";
                         includeBtn.style.display = "block";
-                        updateChatOnStream(chatContent, completedReply);
+                        updateChatOnStream(completedReply);
                     }
                     else {
                         throw new Error('The model finished without responding. Please make sure the model can be loaded correctly on the server side. The server may have run out of capacity while running the model.');
@@ -614,7 +781,7 @@
                 // Process complete JSON messages
                 if (isValidChunk) {
                     accumulatedChunks = jsonMessages.pop(); // Keep the incomplete message for the next iteration
-                    ({ isErr, beginRep, completedReply } = handleValidChunk(jsonMessages, completedReply, beginRep, isErr, model, startTime, userText));
+                    ({ isErr, beginRep, completedReply } = handleValidChunk(jsonMessages, completedReply, beginRep, isErr, model, startTime));
                     return reader.read().then(value =&gt;
                         processStream(value, chatContent, completedReply, accumulatedChunks, isErr, beginRep, reader, model, startTime, userText));
                 }
@@ -631,6 +798,14 @@
 
     }
 
+    /**
+     * Set up the start of the process for the streaming response of the LLM model.
+     * @param {HTMLElement} chatContent The chat box element.
+     * @param {Object} stream The actual stream object.
+     * @param {string} model The LLM model name.
+     * @param {number} startTime The Date in ms the assistant started writing.
+     * @param {string} userText The user text corresponding to this request.
+     */
     function streamResponse(chatContent, stream, model, startTime, userText) {
         const reader = stream.getReader();
         let accumulatedChunks = '';
@@ -642,6 +817,14 @@
             processStream(value, chatContent, completedReply, accumulatedChunks, isErr, beginRep, reader, model, startTime, userText));
     }
 
+    /**
+     * Initialize the stream request.
+     * @param {HTMLElement} chatContent The chat box element.
+     * @param {string} URI The URI where the request has to be sent. 
+     * @param {JSON} options The JSON representation of the request options. 
+     * @param {number} startTime The Date in ms the assistant started writing.
+     * @param {string} userText The user text corresponding to this request.
+     */
     function streamingRequest(chatContent, URI, options, startTime, model, userText) {
         addLoading(chatContent);
         fetch(URI, options).then((response) =&gt; {
@@ -673,12 +856,21 @@
         });
     }
 
-    function requestModeResponse(URI, options, start, model, chatContent, userText) {
+    /**
+     * Make the request for non-streaming request.
+     * @param {string} URI The URI where the request has to be sent. 
+     * @param {JSON} options The JSON representation of the request options. 
+     * @param {number} startTime The Date in ms the assistant started writing.
+     * @param {string} model The LLM model name.
+     * @param {HTMLElement} chatContent The chat box element.
+     * @param {string} userText The user text corresponding to this request.
+     */
+    function requestModeResponse(URI, options, startTime, model, chatContent, userText) {
         addLoading(chatContent);
         fetch(URI, options)
             .then(response =&gt; response.json())
             .then(data =&gt; {
-                const elapsedTime = (Date.now() - start) / 1000;
+                const elapsedTime = (Date.now() - startTime) / 1000;
                 if (data.code) {
                     console.error(data.code);
                     chatContent.innerHTML += errorMessagePrint("An error occured: " + data.code + " " + data.description);
@@ -687,12 +879,8 @@
                     chatContent.innerHTML += errorMessagePrint("An error occured: " + data.error.message);
                 } else {
                     const content = data.choices[0].message.content;
-                    if (content.indexOf('ERROR: ') != -1) {
-                        chatContent.innerHTML += errorMessagePrint("An error occured: " + content);
-                    }
-                    else {
-                        updateChat(chatContent, content, model, elapsedTime, userText);
-                    }
+                    updateChat(chatContent, content, model, elapsedTime, userText);
+
                 }
                 scrollToBottom();
                 changeBtnState();
@@ -708,6 +896,14 @@
             });
     }
 
+    /**
+     * Method called to make every request to the models.
+     * @param {JSON} options The JSON representation of the request options. 
+     * @param {HTMLElement} chatContent The chat box element.
+     * @param {string} model The LLM model name. 
+     * @param {string} userText The user text corresponding to this request.
+     * @param {boolean} isStreaming true if the request can be streamed, else false.
+     */
     function postRequest(options, chatContent, model, userText, isStreaming) {
         changeBtnState();
         document.querySelector('#txt-input').value = '';
@@ -721,6 +917,10 @@
 
     }
 
+    /**
+     * Build the prompt settings part of the settings in HTML.
+     * @return {HTMLDivElement} The div containing the prompt displayer.
+     */
     function promptSettings() {
         const sysPromptDisplay = document.createElement('textarea');
         sysPromptDisplay.id = 'sysPromptDisplay';
@@ -749,10 +949,14 @@
         return promptDisplayContainer;
     }
 
+    /**
+     * Build the temperature settings part of the settings in HTML.
+     * @return {HTMLDivElement} The div containing the temperature slider + displayer.
+     */
     function tempSettings() {
         const tempSlider = document.createElement('input');
         tempSlider.type = 'range';
-        tempSlider.value = settingsTemp;
+        tempSlider.value = promptData.temperature;
         tempSlider.min = '0';
         tempSlider.max = '2';
         tempSlider.step = '0.1';
@@ -765,7 +969,7 @@
         sliderValueDisplay.max = '2';
         sliderValueDisplay.min = '0';
         sliderValueDisplay.step = '0.1';
-        sliderValueDisplay.value = settingsTemp;
+        sliderValueDisplay.value = promptData.temperature;
         sliderValueDisplay.style.width = '13%';
 
         sliderValueDisplay.oninput = function () {
@@ -798,6 +1002,9 @@
         return slideContainer;
     }
 
+    /**
+     * Build the settings part if it doesnt exist. Else, display/hide the parameter based on their state.
+     */
     function showParam() {
         if (!paramView &amp;&amp; !paramExist) {
             const settingsDiv = document.createElement('div');
@@ -833,6 +1040,10 @@
 
     }
 
+    /**
+     * @param {JSON} options The JSON representation of the request options.
+     * @return {Promise&lt;JSON&gt;} A promise containing a JSON object with the chosen prompt information.
+     */
     function getPrompt(options) {
         return new Promise((resolve, reject) =&gt; {
             const chatContent = document.querySelector('#chatContent');
@@ -873,6 +1084,9 @@
         });
     }
 
+    /**
+     * @return {Promise&lt;JSON&gt;} A promise containing a JSON object with every prompts stocked in the prompt database of the current wiki.
+     */
     function getPrompts() {
         const csrf = document.querySelector('#form_token').value;
         const options = getRequestOptions(null, csrf)
@@ -904,11 +1118,14 @@
         });
     }
 
-
+    /**
+     * @param {string} csrf_token The csrf token needed for the validity of the request.
+     * @param {string} currentUserRef The reference of the user using the extensions (like : wiki:XWiki.UserNickname).  
+     * @return {Promise&lt;Boolean&gt;} A promise containing a boolean value. True if the user is hable to use the extension, else false.
+     */
     function getCheck(csrf_token, currentUserRef) {
         return new Promise((resolve, reject) =&gt; {
             userRef = currentUserRef;
-            console.log('userRef: ',userRef);
             const options = getRequestOptions(null, csrf_token);
             const root = getRoot();
             const URI = root !== '' ? root + "/rest/v1/check-access" : "/rest/v1/check-access";
@@ -928,6 +1145,10 @@
         });
     }
 
+    /**
+     * @param {JSON} options The JSON representation of the request options.
+     * @return {Promise&lt;JSON&gt;} A promise containing a JSON object with the models usable by the current user.
+     */
     function getModels(options) {
         return new Promise((resolve, reject) =&gt; {
             const chatContent = document.querySelector('#chatContent');
@@ -964,6 +1185,10 @@
         });
     }
 
+    /**
+     * @param {JSON} options The JSON representation of the request options.
+     * @return {Promise&lt;Boolean&gt;} A promise containing a boolean. True if the user is an admin else false.
+     */
     function isUserAdmin(options) {
         return new Promise((resolve, reject) =&gt; {
             const root = getRoot();
@@ -985,7 +1210,12 @@
         });
     }
 
-    async function submitChat(event, form) {
+    /**
+     * Send the user chat to the models. Bind parameters to make the request.
+     * @param {Event} event The sending event.
+     * @param {HTMLFormElement} form The form element of the interface.
+     */
+    function submitChat(event, form) {
         event.preventDefault(); // Prevent the form from submitting normally
         // Get the text from the textarea
         const userText = form.elements.input.value;
@@ -1003,7 +1233,10 @@
         const model = selectedMod.substring(selectedMod.indexOf("/") + 1);
         let temp;
         if (paramView) {
-            temp = parseFloat(document.querySelector('#sliderTemp').value);
+            const sliderTempVal = parseFloat(document.querySelector('#sliderTemp').value);
+            const promptTempVal = parseFloat(promptData.temperature);
+            if(sliderTempVal !== promptTempVal)
+                temp = sliderTempVal;
         }
         else
             temp = promptData.temperature;
@@ -1028,6 +1261,9 @@
         document.querySelector('#txt-input').style.height = '100px';
     }
 
+    /**
+     * Method used to abort the ongoing request.
+     */
     function abortRequest() {
         globalAbortController.abort();
         const chatContent = document.querySelector('#chatContent');
@@ -1040,6 +1276,10 @@
         globalSignal = globalAbortController.signal;
     }
 
+    /**
+     * Initialize the prompt menu and set up event listener on it.
+     * @param {JSON} promptDB The JSON Array containing every available prompt from the prompt database of the current wiki.
+     */
     function initPromptMenu(promptDB) {
         require(['jquery', 'xwiki-selectize'], function ($) {
             const csrf = document.querySelector('#form_token').value;
@@ -1065,6 +1305,8 @@
                             document.querySelector('#txt-input').value = promptData.userPrompt !== undefined ? promptData.userPrompt : '';
                             if (paramExist) {
                                 document.querySelector('#sysPromptDisplay').value = promptData.prompt;
+                                document.querySelector('#sliderTemp').value = promptData.temperature;
+                                document.querySelector('#sliderValueDisplay').value = promptData.temperature;
                             }
                         });
                 }
@@ -1079,6 +1321,10 @@
         });
     }
 
+    /**
+     * Initialize form event.
+     * @param {HTMLFormElement} form The form HTML element of the interface.
+     */
     function initFormEvent(form) {
         // Add an event listener to the form submit event
         const subBtn = document.querySelector('#subButton');
@@ -1103,19 +1349,23 @@
         promptData = { prompt: '', temperature: 1 };
     }
 
+    /**
+     * Change the access of the button on the drop down menu based on user right.
+     * @param {boolean} isAdmin boolean indicating if the user is an admin or not.
+     */
     async function changeDropMenuOnRight(isAdmin) {
         const menuTiles = document.querySelectorAll('.dropTile');
         menuTiles.forEach(element =&gt; {
             element.style.color = 'grey';
             element.style.pointerEvents = 'none';
         });
+        document.querySelector('#promptDBRedir').href = getRoot() + "/" + XWiki.servletpath + "view/AI/PromptDB/";
         if (isAdmin) {
             menuTiles.forEach(element =&gt; {
                 element.style.color = 'black';
                 element.style.pointerEvents = 'auto';
             });
             document.querySelector('#configRedir').href = getRoot() + "/" + XWiki.servletpath + "admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI%20LLM%20Application";
-            document.querySelector('#promptDBRedir').href = getRoot() + "/" + XWiki.servletpath + "view/AI/PromptDB/";
         }
         else {
             menuTiles.forEach(element =&gt; {
@@ -1131,6 +1381,10 @@
 
     }
 
+    /**
+     * Initialize the drop menu based on the user right.
+     * @param {boolean} isAdmin boolean indicating if the user is an admin or not.
+     */
     function initDropMenu(isAdmin) {
         const dropMenuBtn = document.querySelector('#dropMenu');
         dropMenuBtn.addEventListener('click', (event) =&gt; {
@@ -1159,6 +1413,10 @@
         })
     }
 
+    /**
+     * Initialize the LLM model menu.
+     * @param {JSON} modelList JSON Array containing every LLM models available for the current user.
+     */
     function initModelMenu(modelList) {
         const modelMenu = document.querySelector('#model-menu');
         modelList.forEach(element =&gt; {
@@ -1176,17 +1434,20 @@
 
     }
 
+    /**
+     * @return {Promise&lt;string&gt;} A promise containing the full user name (like wiki:XWiki.UserNickname).
+     */
     function getUserName() {
         return new Promise((resolve, reject) =&gt; {
             require(['xwiki-meta'], function (xm) {
-                console.log(xm.userReference);
-                console.log(typeof(xm.userReference));
                 resolve(XWiki.Model.serialize(xm.userReference));
-
             });
         })
     }
 
+    /**
+     * Initialize the LLM extension.
+     */
     async function init() {
         if (initDone)
             return;
@@ -1198,10 +1459,8 @@
             return;
         }
         userRef = await getUserName();
-        console.log(userRef);
         const csrf = document.querySelector('#form_token').value;
         const options = getRequestOptions(null, csrf);
-        console.log(options);
         Promise.all([initFormEvent(form), isUserAdmin(options), getModels(options)])
             .then((res) =&gt; {
                 initDropMenu(res[1]);
