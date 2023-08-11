@@ -26,10 +26,12 @@ import java.util.Map;
 /**
  * Interface to retrieve Prompt from the Prompt Database of the LLM AI extension in XWiki
  * instances.
+ * @version $Id.*$
  */
 @Component
 @Role
-public interface GPTAPIPromptDBProvider {
+public interface GPTAPIPromptDBProvider 
+{
     /**
      * @param promptName  The prompt page full name (like AI.PromptDB.*).
      * @param currentWiki The identifier of the wiki from which the request
@@ -37,7 +39,7 @@ public interface GPTAPIPromptDBProvider {
      * @return The corresponding {@link GPTAPIPrompt} object or the default
      *         construction of {@link GPTAPIPrompt} if the object is not found.
      */
-    public GPTAPIPrompt getPrompt(String promptName, String currentWiki);
+    GPTAPIPrompt getPrompt(String promptName, String currentWiki);
 
     /**
      * @param currentWiki The identifier of the wiki from which the request
@@ -46,5 +48,5 @@ public interface GPTAPIPromptDBProvider {
      *         specified wiki or an empty map if nothing is found or an exception
      *         happen.
      */
-    public Map<String, GPTAPIPrompt> getPrompts(String currentWiki);
+    Map<String, GPTAPIPrompt> getPrompts(String currentWiki);
 }

@@ -23,10 +23,10 @@ import java.util.Map;
 
 /**
  * A class representing an LLM AI extension confifuration as a java object.
- * 
- * @since 0.1
+ * @version $Id.*$
  */
-public class GPTAPIConfig {
+public class GPTAPIConfig 
+{
     private String name;
     private String url;
     private String configModels;
@@ -37,16 +37,18 @@ public class GPTAPIConfig {
     /**
      * Take a map representation of a GPTAPIConfig object as a parameter and build a
      * GPTAPIConfig object from it.
+     * @param properties A map representation of a configuration object.
      */
     public GPTAPIConfig(Map<String, Object> properties) {
         this.name = (String) properties.get("Name");
         this.url = (String) properties.get("url");
         this.configModels = (String) properties.get("Config");
         this.token = (String) properties.get("token");
-        if ((Integer) properties.get("Requestmode") == 1)
+        if ((Integer) properties.get("Requestmode") == 1) {
             this.canStream = true;
-        else
+        } else {
             this.canStream = false;
+        }
         this.allowedGroup = (String) properties.get("RightLLM");
     }
 
@@ -105,12 +107,12 @@ public class GPTAPIConfig {
      */
     @Override
     public String toString() {
-        String res = "Name : " + name + "\n";
-        res += "URL : " + url + "\n";
-        res += "Config param : " + configModels + "\n";
-        res += "Token : " + token + "\n";
-        res += "canStream : " + canStream + "\n";
-        res += "allowedGroup : " + allowedGroup + "\n";
+        String res = "Name : " + name;
+        res += " URL : " + url;
+        res += " Config param : " + configModels;
+        res += " Token : " + token;
+        res += " canStream : " + canStream;
+        res += " allowedGroup : " + allowedGroup;
         return res;
     }
 }

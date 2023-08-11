@@ -19,14 +19,14 @@
  */
 package org.xwiki.contrib.llm;
 
-import java.util.*;
+import java.util.Map;
 
 /**
- * A class representing a prompt and its properties
- * 
- * @since 0.2
+ * A class representing a prompt and its properties.
+ * @version $Id.*$
  */
-public class GPTAPIPrompt {
+public class GPTAPIPrompt 
+{
     private String name;
     private String prompt;
     private String userPrompt;
@@ -34,19 +34,21 @@ public class GPTAPIPrompt {
     private Boolean isActive;
     private Boolean isDefault;
     private Float temperature;
-    private String XWikiPageName;
+    private String xWikiPageName;
+    private String def = "default";
 
     /**
      * Default constructor. every values are null except {@link GPTAPIPrompt#name},
      * wich is set to "default".
      */
     public GPTAPIPrompt() {
-        this.name = "default";
+        this.name = def;
     }
 
     /**
      * Take a map representation of a GPTAPIPrompt object as a parameter and build a
      * GPTAPIPrompt object from it.
+     * @param dbMap A map representation of the Prompt object to build.
      */
     public GPTAPIPrompt(Map<String, Object> dbMap) {
         this.name = (String) dbMap.get("title1");
@@ -54,10 +56,12 @@ public class GPTAPIPrompt {
         this.userPrompt = (String) dbMap.get("userPrompt");
         this.description = (String) dbMap.get("longText1");
         this.isActive = ((Integer) dbMap.get("boolean1")) == 1;
-        this.isDefault = ((Integer) dbMap.get("default")) == 1;
-        if ((String) dbMap.get("shortText1") != "")
-            this.temperature = Float.parseFloat((String) dbMap.get("shortText1"));
-        this.XWikiPageName = (String) dbMap.get("pageName");
+        this.isDefault = ((Integer) dbMap.get(def)) == 1;
+        String tempValue = (String) dbMap.get("shortText1");
+        if (!tempValue.equals("")) {
+            this.temperature = Float.parseFloat(tempValue);
+        }
+        this.xWikiPageName = (String) dbMap.get("pageName");
     }
 
     /**
@@ -113,6 +117,6 @@ public class GPTAPIPrompt {
      * @return The XWiki page name the GPTAPIPrompt object is from as a String.
      */
     public String getXWikiPageName() {
-        return XWikiPageName;
+        return xWikiPageName;
     }
 }

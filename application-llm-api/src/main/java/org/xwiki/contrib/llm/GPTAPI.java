@@ -19,47 +19,65 @@
  */
 package org.xwiki.contrib.llm;
 
+import org.apache.commons.httpclient.methods.PostMethod;
 import org.codehaus.janino.Java;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.Role;
+
 import java.util.Map;
+
+import javax.ws.rs.core.StreamingOutput;
 
 /**
  * The GPTAPI interface defines methods for interacting with the XWiki instances
- * for the LLM AI extension needs.
- * Implementations of this interface provide ways to retrieve LLM AI
- * configurations,
- * prompts, and other data from a specific wiki.
+ * for the LLM AI extension needs. Implementations of this interface provide
+ * ways to retrieve LLM AI configurations, prompts, and other data from a
+ * specific wiki.
+ * @version $Id.*$
  */
 @Component
 @Role
-public interface GPTAPI {
+public interface GPTAPI 
+{
     /**
      * This method is used for test purpose only. It is a basic representation of
      * the
      * {@link GPTRestAPI#getContents(Java.util.Map, javax.ws.rs.core.HttpHeaders)}
      * method.
      * 
-     * @param data  Map<String, Object> representing the body parameter of the
-     *              request.
-     * @param token the token needed for the POST request to the server.
+     * @param data Map<String, Object> representing the body parameter of the
+     *             request.
      * @return A string representation of the JSON object resulting from the
      *         request.
      * @throws GPTAPIException if something goes wrong.
      */
-    public String getLLMChatCompletion(Map<String, Object> data, String token) throws GPTAPIException;
+    String getLLMChatCompletion(Map<String, Object> data) throws GPTAPIException;
 
     /**
-     * This method is used for test purpose only. It is a basic representation of
-     * the {@link GPTRestAPI#getModels(Java.util.Map, javax.ws.rs.core.HttpHeaders)}
-     * method.
-     * 
-     * @param token the token needed for the POST request to the server.
-     * @return A string representation of the JSON object resulting from the
-     *         request.
+     * @param data Map<String, Object> representing the body parameter of the
+     *             request.
+     * @return A {@link javax.ws.rs.core.StreamingOutput} to stream the result.
      * @throws GPTAPIException if something goes wrong.
      */
-    public String getModels(String token) throws GPTAPIException;
+    StreamingOutput getLLMChatCompletionAsStream(Map<String, Object> data) throws GPTAPIException;
+
+    /**
+     * @param data Map<String, Object> representing the body parameter of the
+     *             request.
+     * @return The {@link org.apache.commons.httpclient.methods.PostMethod} object
+     *         corresponding to the request.
+     * @throws GPTAPIException if something goes wrong.
+     */
+    PostMethod requestBuilder(Map<String, Object> data) throws GPTAPIException;
+
+    /**
+     * @param data Map<String, Object> representing the body parameter of the
+     *             request.
+     * @return A String representation of a JSON Array containing LLM models
+     *         available.
+     * @throws GPTAPIException if something goes wrong.
+     */
+    String getModels(Map<String, Object> data) throws GPTAPIException;
 
     /**
      * @param id          The key used to retrieve the corresponding configuration.
@@ -70,44 +88,39 @@ public interface GPTAPI {
      * @throws GPTAPIException if something goes wrong. Will return default
      *                         {@link GPTAPIConfig} in such case.
      */
-    public GPTAPIConfig getConfig(String id, String currentWiki, String userName) throws GPTAPIException;
+    GPTAPIConfig getConfig(String id, String currentWiki, String userName) throws GPTAPIException;
 
     /**
-     * @param currentWiki The identifier of the wiki from which the request
-     *                    originated.
-     * @param userName    The user the request came from.
-     * @return A map containing all the available {@link GPTAPIConfig} objects in
-     *         the specified wiki or an empty map if no configuration exist.
-     * @throws GPTAPIException if something goes wrong. Will return an empty map in
-     *                         such case.
-     */
-    public Map<String, GPTAPIConfig> getConfigs(String currentWiki, String userName) throws GPTAPIException;
-
-    /**
-     * @param promptName  The prompt page full name (like AI.PromptDB.*).
-     * @param currentWiki The identifier of the wiki from which the request
-     *                    originated.
+     * @param data Map<String, Object> representing the body parameter of the
+     *             request.
      * @return The corresponding {@link GPTAPIPrompt} object or default
      *         {@link GPTAPIPrompt} object if not found.
      * @throws GPTAPIException if something goes wrong.
      */
-    public GPTAPIPrompt getPrompt(String promptName, String currentWiki) throws GPTAPIException;
+    String getPrompt(Map<String, Object> data) throws GPTAPIException;
 
     /**
-     * @param currentWiki The identifier of the wiki from which the request
-     *                    originated.
-     * @return A map containing all the available {@link GPTAPIPrompt} object in the
-     *         specified wiki or an empty map if no object exist.
-     * @throws GPTAPIException if something goes wrong. Will return an empty map in
-     *                         this case.
-     */
-    public Map<String, GPTAPIPrompt> getPrompts(String currentWiki) throws GPTAPIException;
-
-    /**
-     * @param currentWiki The identifier of the wiki from which the request
-     *                    originated.
-     * @return true if the user in the XWikiContext is admin in the specified wiki, else return false.
+     * @param data Map<String, Object> representing the body parameter of the
+     *             request.
+     * @return A String representation of a JSON Array containing prompts properties.
      * @throws GPTAPIException if something goes wrong.
      */
-    public Boolean isUserAdmin(String currentWiki) throws GPTAPIException;
+    String getPrompts(Map<String, Object> data) throws GPTAPIException;
+
+    /**
+     * @param currentWiki The identifier of the wiki from which the request
+     *                    originated.
+     * @return true if the user in the XWikiContext is admin in the specified wiki,
+     *         else return false.
+     * @throws GPTAPIException if something goes wrong.
+     */
+    Boolean isUserAdmin(String currentWiki) throws GPTAPIException;
+
+    /**
+     * @param data Map<String, Object> representing the body parameter of the
+     *             request.
+     * @return A Boolean, true if the user making the request is allowed to use the extension, else false.
+     * @throws GPTAPIException if something goes wrong.
+     */
+    Boolean checkAllowance(Map<String, Object> data) throws GPTAPIException;
 }

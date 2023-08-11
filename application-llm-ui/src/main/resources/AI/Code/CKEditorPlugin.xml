@@ -156,12 +156,12 @@
             require(['xwiki-llm'], function(llm) {
               llm.init();
               const editorElement = document.querySelector('#xwikicontent');
-              const editor = CKEDITOR.instances[editorElement.getAttribute('id')];
               const chatContent = document.querySelector('#chatContent');
               chatContent.addEventListener('click', async function(event) {
                 const msgID = await llm.handleButtonClick(event);
                 if(msgID.indexOf('include') !== -1){
                   llm.includeInDoc(msgID).then((textToInsert)=&gt;{
+                    const editor = CKEDITOR.instances[editorElement.getAttribute('id')];
                     editor.insertText(textToInsert);
                   });
                 }

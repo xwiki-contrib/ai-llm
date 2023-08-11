@@ -25,10 +25,12 @@ import java.util.Map;
 
 /**
  * Interface to retrieve Configuration of the LLM AI extension in XWiki instances.
+ * @version $Id.*$
  */
 @Component
 @Role
-public interface GPTAPIConfigProvider {
+public interface GPTAPIConfigProvider 
+{
     /**
      * @param currentWiki The identifier of the wiki from which the request
      *                    originated.
@@ -38,5 +40,5 @@ public interface GPTAPIConfigProvider {
      * @throws GPTAPIException if something goes wrong. Will return an empty map as
      *                         well in such case.
      */
-    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException;
+    Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException;
 }

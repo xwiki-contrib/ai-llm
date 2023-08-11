@@ -31,7 +31,6 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
@@ -41,27 +40,27 @@ import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
 import com.xpn.xwiki.user.api.XWikiGroupService;
-import com.xpn.xwiki.user.impl.xwiki.XWikiGroupServiceImpl;
-import com.xpn.xwiki.util.Util;
-
 
 @Component
 @Unstable
 @Singleton
-public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
+public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider 
+{
 
     protected Logger logger = LoggerFactory.getLogger(DefaultGPTAPIConfigProvider.class);
 
     @Inject
-    Provider<XWikiContext> contextProvider;
+    private Provider<XWikiContext> contextProvider;
 
+    /**
+     * Default constructor.
+     */
     public DefaultGPTAPIConfigProvider() {
         super();
     }
 
     @Override
     public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException {
-        Map<String, GPTAPIConfig> configProperties = new HashMap<>();
         try {
             XWikiContext context = contextProvider.get();
             com.xpn.xwiki.XWiki xwiki = context.getWiki();
@@ -69,15 +68,31 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
             // Get the user using the Extension in the actual context.
             logger.info("user name: " + userName);
             Collection<String> userGroups = groupService.getAllGroupsNamesForMember(userName, 0, 0, context);
-            if(userGroups.isEmpty())
-                logger.info("no user group found");
-            for(String grp : userGroups){
-                logger.info("user group: " + grp);
+            if (userGroups.isEmpty()) {
+                throw new Exception("User groups not found");
             }
-            // Retrieve the LLM Configuration Objects
+            return getConfigFromDoc(xwiki, context, currentWiki, userGroups);
+        } catch (Exception e) {
+            logger.error("Error trying to access the config :", e);
+            return new HashMap<>();
+        }
+
+    }
+
+    /**
+     * @param xwiki       The XWiki instance.
+     * @param context     The current XWiki context.
+     * @param currentWiki The current Wiki id.
+     * @param userGroups  The list of groups containing the actual suser.
+     * @return A map object of {@link #GPTAPIConfig}
+     */
+    private Map<String, GPTAPIConfig> getConfigFromDoc(com.xpn.xwiki.XWiki xwiki, XWikiContext context,
+            String currentWiki, Collection<String> userGroups) {
+        // Retrieve the LLM Configuration Objects
+        Map<String, GPTAPIConfig> configProperties = new HashMap<>();
+        try {
             XWikiDocument doc = xwiki.getDocument(currentWiki + ":AI.Code.AIConfig", context);
             List<BaseObject> configObjects = doc.getObjects(currentWiki + ":AI.Code.AIConfigClass");
-
             // Build the Java configurationObject with a Map.
             if (configObjects.isEmpty()) {
                 throw new Exception("There is no configuration.");
@@ -106,8 +121,7 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
                         logger.info("User is part of one of the valid group.");
                         configProperties.put(res.getName(), res);
                         break;
-                    } else
-                        continue;
+                    }
                 }
             }
             if (nbNull == i) {
@@ -117,10 +131,9 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider {
             }
             return configProperties;
         } catch (Exception e) {
-            logger.error("Error trying to access the config :", e);
+            logger.error("An error occured: ", e);
             return configProperties;
         }
-
     }
 
 }

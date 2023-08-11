@@ -547,6 +547,7 @@
      * @return {JSON} A JSON representation of the parameters.
      */
     function getRequestParams(userText, modelType, model, prompt, context, temp) {
+        const modelMenu = document.querySelector('#model-menu');
         const params = {
             text: userText,
             modelType: modelType,
@@ -554,6 +555,7 @@
             context: context,
             prompt: prompt,
             temperature: Number(temp),
+            stream: modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming"),
         };
         return params;
     }
@@ -633,7 +635,7 @@
         let actualMsgID = nbAssistMsg;
         document.querySelector('#copy-button-' + actualMsgID).style.display = "block";
         document.querySelector('#include-button-' + actualMsgID).style.display = "block";
-        context[contextSize].push({ user: userText, assistant: generatedContent });
+        context.push({ user: userText, assistant: generatedContent });
         tokenManager();
     }
 
@@ -708,18 +710,12 @@
                 // Handle the generated reply as desired
                 if (reply) {
                     completedReply += reply;
-                    if (completedReply.indexOf("An error occured") !== -1) {
-                        isErr = true;
-                        chatContent.innerHTML += errorMessagePrint(reply);
+                    if (beginRep) {
+                        initChatOnStream(chatContent, model);
+                        beginRep = false;
                     }
-                    else {
-                        if (beginRep) {
-                            initChatOnStream(chatContent, model);
-                            beginRep = false;
-                        }
-                        const elapsedTime = (Date.now() - startTime) / 1000;
-                        updateAssistantChat(nbAssistMsg, elapsedTime, reply, model);
-                    }
+                    const elapsedTime = (Date.now() - startTime) / 1000;
+                    updateAssistantChat(nbAssistMsg, elapsedTime, reply, model);
                 }
 
             }
@@ -1235,12 +1231,12 @@
         if (paramView) {
             const sliderTempVal = parseFloat(document.querySelector('#sliderTemp').value);
             const promptTempVal = parseFloat(promptData.temperature);
-            if(sliderTempVal !== promptTempVal)
+            if (sliderTempVal !== promptTempVal)
                 temp = sliderTempVal;
         }
         else
             temp = promptData.temperature;
-        const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");;
+        const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");
         maxToken = chooseMaxToken(modelType);
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');

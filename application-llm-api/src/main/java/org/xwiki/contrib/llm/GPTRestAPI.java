@@ -19,14 +19,9 @@
  */
 package org.xwiki.contrib.llm;
 
-import javax.ws.rs.*;
-
-import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
 import org.xwiki.stability.Unstable;
 
-import java.io.*;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
@@ -41,14 +36,14 @@ import org.xwiki.rest.XWikiRestException;
 import org.xwiki.rest.XWikiRestComponent;
 import org.xwiki.rest.internal.resources.pages.ModifiablePageResource;
 
+import javax.ws.rs.Consumes;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.StreamingOutput;
 
-import org.apache.commons.httpclient.*;
-import org.apache.commons.httpclient.methods.*;
-import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.slf4j.Logger;
 
 import java.nio.charset.StandardCharsets;
@@ -59,7 +54,8 @@ import org.xwiki.csrf.CSRFToken;
 @Path("/v1")
 @Unstable
 @Singleton
-public class GPTRestAPI extends ModifiablePageResource implements XWikiRestComponent {
+public class GPTRestAPI extends ModifiablePageResource implements XWikiRestComponent 
+{
 
     @Inject
     @Named("context")
@@ -73,23 +69,43 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @Inject
     private CSRFToken csrfToken;
 
+    private String csrfKey = "X-CSRFToken";
+    private String invalidRequestMsg = "Request is not coming from a valid instance.";
+
+    /**
+     * @param csrfTokenList List containing the client token to verify.
+     * @return true if the csrf token is valid, else false.
+     */
+    private Boolean isCsrfValid(List<String> csrfTokenList) {
+        if (csrfTokenList.isEmpty()) {
+            return false;
+        }
+        String token = csrfToken.getToken();
+        String csrfClient = csrfTokenList.get(0);
+        if (!csrfClient.equals(token)) {
+            logger.info(token);
+            logger.info(csrfClient);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @param data    Map<String, Object> representing the body parameter of the
+     *                request.
+     * @param headers The http headers of the request.
+     * @return {@link javax.ws.rs.core.Response} A Response containing JSON data of
+     *         the LLM model response or a stream connection if streaming request.
+     * @throws XWikiRestException if something goes wrong.
+     */
     @POST
     @Path("/chat/completions")
     @Consumes("application/json")
     public Response getContents(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
         try {
-            List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
-            if (csrfTokenList.isEmpty())
-                return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
-                        .build();
-            String token = csrfToken.getToken();
-            String csrfClient = csrfTokenList.get(0);
-            if (!csrfClient.equals(token)) {
-                logger.info(token);
-                logger.info(csrfClient);
-                return Response.status(Response.Status.FORBIDDEN).build();
+            if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
+                return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
             }
-
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 logger.info("key: " + entry.getKey() + "; value: " + entry.getValue());
             }
@@ -99,366 +115,160 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                 logger.info("Invalid error data");
                 return Response.status(Response.Status.BAD_REQUEST).entity("Invalid input data.").build();
             }
-            String modelInfoString = (String) data.get("modelType") + "/" + data.get("model");
-            logger.info(modelInfoString);
-            String model = "";
-            String modelType = "";
-            if (modelInfoString.indexOf("/") != -1) {
-                String[] modelInfo = modelInfoString.split("/");
-                modelType = modelInfo[0];
-                model = modelInfo[1];
-                logger.info("model : ", model);
-                logger.info("modelType : ", modelType);
-            } else {
-                model = modelInfoString;
-                modelType = "default";
-            }
-            logger.info("modelType after evaluation :", modelType);
-            logger.info("Received text: " + data.get("text"));
-            GPTAPIConfig config = gptApi.getConfig(modelType, (String) data.get("currentWiki"), (String) data.get("userName"));
-            if (config.getName() == "default") {
-                throw new Exception(
-                        "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
-            }
-            boolean isStreaming = config.getCanStream();
-            logger.info("is streaming : " + isStreaming);
-            logger.info("config : " + modelType);
 
-            // Create an instance of HttpClient.
-            HttpClient client = new HttpClient();
-
-            String url = config.getURL() + "chat/completions";
-            // Create a method instance.
-            logger.info("Calling url: " + url);
-            PostMethod post = new PostMethod(url);
-
-            // Set headers
-            post.setRequestHeader("Content-Type", "application/json");
-            post.setRequestHeader("Accept", "application/json");
-
-            if (config.getToken() != "") {
-                post.setRequestHeader("Authorization", "Bearer " + config.getToken());
-            }
-
-            JSONArray messagesArray = new JSONArray();
-            List<Map<String, String>> listObjs = (List<Map<String, String>>) data.get("context");
-            for (Map<String, String> map : listObjs) {
-                for (Map.Entry<String, String> entry : map.entrySet()) {
-                    String key = entry.getKey();
-                    String value = entry.getValue();
-                    logger.info("Key: " + key + ", Value: " + value);
-                    JSONObject contextElement = new JSONObject();
-                    contextElement.put("role", key);
-                    contextElement.put("content", value);
-                    messagesArray.put(contextElement);
+            String resStr;
+            if (!data.get("stream").equals("true")) {
+                try {
+                    logger.info("thread request 1");
+                    resStr = gptApi.getLLMChatCompletion(data);
+                    logger.info("end oof thread request");
+                    JSONObject res = new JSONObject(resStr);
+                    byte[] resByte = res.toString().getBytes(StandardCharsets.UTF_8);
+                    return Response.ok(resByte, MediaType.APPLICATION_JSON).build();
+                } catch (GPTAPIException e) {
+                    logger.error("An error occured" + e);
+                    throw new Exception(e);
                 }
-            }
-            JSONObject systemMessage = new JSONObject();
-            systemMessage.put("role", "system");
-            systemMessage.put("content", data.get("prompt").toString());
-            messagesArray.put(systemMessage);
-
-            JSONObject userMessage = new JSONObject();
-            userMessage.put("role", "user");
-            userMessage.put("content", data.get("text").toString());
-            messagesArray.put(userMessage);
-
-            // Construct the JSON input string
-            JSONObject jsonInput = new JSONObject();
-            jsonInput.put("model", model);
-            if (isStreaming)
-                jsonInput.put("stream", isStreaming);
-            jsonInput.put("temperature", data.get("temperature"));
-            jsonInput.put("messages", messagesArray);
-            String jsonInputString = jsonInput.toString();
-            logger.info("Sending: " + jsonInputString);
-
-            StringRequestEntity requestEntity = new StringRequestEntity(
-                    jsonInputString,
-                    "application/json",
-                    "UTF-8");
-
-            post.setRequestEntity(requestEntity);
-
-            // Execute the method.
-            int statusCode = client.executeMethod(post);
-            if (statusCode != HttpStatus.SC_OK) {
-                logger.error("Method failed: " + post.getStatusLine());
-                // throw new XWikiRestException(post.getStatusLine().toString() +
-                // post.getStatusText(), null);
-            }
-
-            if (!isStreaming) {
-                // Read the response body.
-                byte[] responseBody = post.getResponseBody();
-
-                // Deal with the response.
-                // Use caution: ensure correct character encoding and is not binary data
-                logger.info("response body" + new String(responseBody));
-
-                // Return the response as a JSON string
-                return Response.ok(responseBody, MediaType.APPLICATION_JSON).build();
             } else {
-                // Read the response body.
-                InputStream responseBody = post.getResponseBodyAsStream();
-                StreamingOutput stream = new StreamingOutput() {
-                    final BufferedReader reader = new BufferedReader(
-                            new InputStreamReader(responseBody, StandardCharsets.UTF_8));
-                    String line;
-
-                    @Override
-                    public void write(OutputStream outputStream) throws IOException {
-                        logger.info("Writing in output Stream..");
-                        OutputStreamWriter writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8);
-                        while ((line = reader.readLine()) != null) {
-                            // Write each line to the output
-                            writer.write(line);
-                            writer.flush();
-                        }
-                    }
-                };
+                StreamingOutput stream = gptApi.getLLMChatCompletionAsStream(data);
                 return Response.ok(stream, MediaType.TEXT_PLAIN).build();
             }
         } catch (Exception e) {
-            logger.error("Error processing request: " + e);
+            logger.error("An error occured in REST method", e);
             JSONObject builder = new JSONObject();
             JSONObject root = new JSONObject();
             root.put("error", "An error occured. " + e.getMessage());
             builder.put("", root);
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(builder.toString())
-                    .type(MediaType.APPLICATION_JSON)
-                    .build();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON).build();
         }
     }
 
+    /**
+     * @param data    Map<String, Object> representing the body parameter of the
+     *                request.
+     * @param headers The http headers of the request.
+     * @return A {@link javax.ws.rs.core.Response} A Response containing JSON data
+     *         of every LLM models properties.
+     * @throws XWikiRestException if something goes wrong.
+     */
     @POST
     @Path("/models")
     public Response getModels(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
-        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
-        if (csrfTokenList.isEmpty())
-            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
-                    .build();
-        String token = csrfToken.getToken();
-        String csrfClient = csrfTokenList.get(0);
-        if (!csrfClient.equals(token)) {
-            logger.info(token);
-            logger.info(csrfClient);
-            return Response.status(Response.Status.FORBIDDEN).build();
+        if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
+            return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
-
-        Map<String, GPTAPIConfig> configMap;
         try {
-            configMap = gptApi.getConfigs((String) data.get("currentWiki"), (String) data.get("userName"));
-        } catch (GPTAPIException e) {
-            logger.error("Error in getModels REST method: ", e);
-            configMap = new HashMap<>();
-        }
-        JSONArray finalResponse = new JSONArray();
-        try {
-            if (configMap.isEmpty())
-                throw new Exception("The configurations object is empty.");
-            for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
-                try {
-                    HttpClient client = new HttpClient();
-                    String url = entry.getValue().getURL() + "models";
-                    logger.info("calling url : " + url);
-                    GetMethod get = new GetMethod(url);
-                    get.setRequestHeader("Content-Type", "application/json");
-                    get.setRequestHeader("Accept", "application/json");
-                    get.setRequestHeader("Authorization", "Bearer " + entry.getValue().getToken());
-                    // setting the timeouts
-                    get.getParams().setParameter(HttpMethodParams.SO_TIMEOUT, 10000);
-                    client.getHttpConnectionManager().getParams().setConnectionTimeout(5000);
-                    int statusCode = client.executeMethod(get);
-                    if (statusCode != HttpStatus.SC_OK) {
-                        logger.error("Method failed: " + get.getStatusLine());
-                        throw new XWikiRestException(get.getStatusLine().toString() + get.getStatusText(), null);
-                    }
-                    byte[] responseBody = get.getResponseBody();
-                    get.releaseConnection();
-                    JSONObject responseBodyJson = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
-                    responseBodyJson.put("prefix", entry.getValue().getName());
-                    responseBodyJson.put("filter", entry.getValue().getConfigModels());
-                    responseBodyJson.put("canStream", entry.getValue().getCanStream());
-                    finalResponse.put(responseBodyJson);
-                } catch (Exception e) {
-                    logger.error("An error occured on one of the requested URI: ", e);
-                }
-            }
-            byte[] finalResponseBytes = finalResponse.toString().getBytes(StandardCharsets.UTF_8);
-            return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
-
+            byte[] resByte = gptApi.getModels(data).getBytes(StandardCharsets.UTF_8);
+            return Response.ok(resByte, MediaType.APPLICATION_JSON).build();
         } catch (Exception e) {
             logger.error("Error processing request: " + e);
             JSONObject builder = new JSONObject();
             builder.put("", e.getMessage());
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(builder.toString())
-                    .type(MediaType.APPLICATION_JSON)
-                    .build();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON).build();
         }
     }
 
+    /**
+     * @param data    Map<String, Object> representing the body parameter of the
+     *                request.
+     * @param headers The http headers of the request.
+     * @return {@link javax.ws.rs.core.Response} A Response containing JSON data
+     *         with the wanted prompt properties.
+     * @throws XWikiRestException if something goes wrong.
+     */
     @POST
     @Path("/prompt")
     @Consumes("application/json")
     public Response getPrompt(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
-        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
-        if (csrfTokenList.isEmpty())
-            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
-                    .build();
-        String token = csrfToken.getToken();
-        String csrfClient = csrfTokenList.get(0);
-        if (!csrfClient.equals(token)) {
-            logger.info(token);
-            logger.info(csrfClient);
-            return Response.status(Response.Status.FORBIDDEN).build();
+        if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
+            return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
-
-        GPTAPIPrompt promptObj = new GPTAPIPrompt();
         try {
-            promptObj = gptApi.getPrompt(data.get("prompt").toString(), data.get("currentWiki").toString());
-        } catch (GPTAPIException e) {
-            logger.error("Exception in the REST getPrompt method : ", e);
-        }
-        JSONObject jsonEntry = new JSONObject();
-        try {
-            jsonEntry.put("name", promptObj.getName());
-            jsonEntry.put("prompt", promptObj.getPrompt());
-            jsonEntry.put("userPrompt", promptObj.getUserPrompt());
-            jsonEntry.put("description", promptObj.getDescription());
-            jsonEntry.put("active", promptObj.getIsActive());
-            jsonEntry.put("default", promptObj.getIsDefault());
-            jsonEntry.put("temperature", promptObj.getTemperature());
-            jsonEntry.put("pageName",promptObj.getXWikiPageName());
+            byte[] resByte = gptApi.getPrompt(data).getBytes(StandardCharsets.UTF_8);
+            return Response.ok(resByte, MediaType.APPLICATION_JSON).build();
         } catch (Exception e) {
-            logger.error("An error occured trying to get the prompts: ", e);
+            logger.error("An error occured trying to get the wanted prompt: ", e);
             JSONObject builder = new JSONObject();
             builder.put("", e.getMessage());
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(builder.toString())
-                    .type(MediaType.APPLICATION_JSON)
-                    .build();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON).build();
         }
-
-        byte[] finalResponseBytes = jsonEntry.toString().getBytes(StandardCharsets.UTF_8);
-        return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
     }
 
+    /**
+     * @param data    Map<String, Object> representing the body parameter of the
+     *                request.
+     * @param headers The http headers of the request.
+     * @return {@link javax.ws.rs.core.Response} A Response containing JSON data
+     *         with the properties of every prompt available.
+     * @throws XWikiRestException if something goes wrong.
+     */
     @POST
     @Path("/prompts")
     @Consumes("application/json")
     public Response getPromptDB(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
-        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
-        if (csrfTokenList.isEmpty())
-            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
-                    .build();
-        String token = csrfToken.getToken();
-        String csrfClient = csrfTokenList.get(0);
-        if (!csrfClient.equals(token)) {
-            logger.info(token);
-            logger.info(csrfClient);
-            return Response.status(Response.Status.FORBIDDEN).build();
+        if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
+            return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
-
-        Map<String, GPTAPIPrompt> dbMap;
         try {
-            dbMap = gptApi.getPrompts(data.get("currentWiki").toString());
-        } catch (GPTAPIException e) {
-            logger.error("Exception in the REST getPromptDB method : ", e);
-            dbMap = new HashMap<>();
-        }
-        JSONArray finalResponse = new JSONArray();
-        try {
-            for (Map.Entry<String, GPTAPIPrompt> entryDB : dbMap.entrySet()) {
-                GPTAPIPrompt promptObj = entryDB.getValue();
-                if (entryDB.getKey().isEmpty() == false) {
-                    JSONObject jsonEntry = new JSONObject();
-                    jsonEntry.put("name", promptObj.getName());
-                    jsonEntry.put("prompt", promptObj.getPrompt());
-                    jsonEntry.put("userPrompt", promptObj.getUserPrompt());
-                    jsonEntry.put("description", promptObj.getDescription());
-                    jsonEntry.put("active", promptObj.getIsActive());
-                    jsonEntry.put("default", promptObj.getIsDefault());
-                    jsonEntry.put("temperature", promptObj.getTemperature());
-                    jsonEntry.put("pageName",promptObj.getXWikiPageName());
-                    finalResponse.put(jsonEntry);
-                }
-            }
-            byte[] finalResponseBytes = finalResponse.toString().getBytes(StandardCharsets.UTF_8);
+            byte[] finalResponseBytes = gptApi.getPrompts(data).getBytes(StandardCharsets.UTF_8);
             return Response.ok(finalResponseBytes, MediaType.APPLICATION_JSON).build();
-        } catch (Exception e) {
+        } catch (GPTAPIException e) {
             logger.error("An error occured trying to get the prompts: ", e);
             JSONObject builder = new JSONObject();
             builder.put("", e.getMessage());
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(builder.toString())
-                    .type(MediaType.APPLICATION_JSON)
-                    .build();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON).build();
         }
 
     }
 
+    /**
+     * @param data    Map<String, Object> representing the body parameter of the
+     *                request.
+     * @param headers The http headers of the request.
+     * @return {@link javax.ws.rs.core.Response} A Response containing JSON data
+     *         with the the "check" property. check can be true if the user making
+     *         the request is allowed to use at least one configuration, else false.
+     * @throws XWikiRestException if something goes wrong.
+     */
     @POST
     @Path("/check-access")
     @Consumes("application/json")
     public Response check(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
-        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
-        if (csrfTokenList.isEmpty())
-            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
-                    .build();
-        String token = csrfToken.getToken();
-        String csrfClient = csrfTokenList.get(0);
-        if (!csrfClient.equals(token)) {
-            logger.info(token);
-            logger.info(csrfClient);
-            return Response.status(Response.Status.FORBIDDEN).build();
+        if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
+            return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
-        Map<String, GPTAPIConfig> configMap;
         try {
-            configMap = gptApi.getConfigs((String) data.get("currentWiki"), (String) data.get("userName"));
-            if (configMap.isEmpty())
-                throw new GPTAPIException(
-                        "The Configuration Map is empty. That mean the user has no right to access those configuration.");
+            JSONObject response = new JSONObject();
+            response.put("check", gptApi.checkAllowance(data));
+            byte[] responseByte = response.toString().getBytes(StandardCharsets.UTF_8);
+            return Response.ok(responseByte, MediaType.APPLICATION_JSON).build();
         } catch (GPTAPIException e) {
-            logger.error("An error occured:", e);
-            configMap = new HashMap<>();
-            JSONObject response = new JSONObject();
-            response.put("check", false);
-            byte[] responseByte = response.toString().getBytes(StandardCharsets.UTF_8);
-            return Response.ok(responseByte, MediaType.APPLICATION_JSON).build();
-        }
-        try {
-            JSONObject response = new JSONObject();
-            response.put("check", true);
-            byte[] responseByte = response.toString().getBytes(StandardCharsets.UTF_8);
-            return Response.ok(responseByte, MediaType.APPLICATION_JSON).build();
-        } catch (Exception e) {
             logger.error("An error occured in the access checking: ", e);
             JSONObject builder = new JSONObject();
             builder.put("", e.getMessage());
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(builder.toString())
-                    .type(MediaType.APPLICATION_JSON)
-                    .build();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON).build();
         }
     }
 
+    /**
+     * @param data    Map<String, Object> representing the body parameter of the
+     *                request.
+     * @param headers The http headers of the request.
+     * @return {@link javax.ws.rs.core.Response} A Response containing JSON data
+     *         with "isAdmin" properties. isAdmin is true if the user making the
+     *         request is an admin on the current intsance, else false.
+     */
     @POST
     @Path("/permission")
     @Consumes("application/json")
     public Response isUserAdmin(Map<String, Object> data, @Context HttpHeaders headers) {
-        List<String> csrfTokenList = headers.getRequestHeader("X-CSRFToken");
-        if (csrfTokenList.isEmpty())
-            return Response.status(Response.Status.FORBIDDEN).entity("Request is not coming from a valid instance.")
-                    .build();
-        String token = csrfToken.getToken();
-        String csrfClient = csrfTokenList.get(0);
-        if (!csrfClient.equals(token)) {
-            logger.info(token);
-            logger.info(csrfClient);
-            return Response.status(Response.Status.FORBIDDEN).build();
+        if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
+            return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
         try {
             Boolean isAdmin = gptApi.isUserAdmin((String) data.get("currentWiki"));
@@ -471,10 +281,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             logger.error("An error occured while trying to get user permission.", e);
             JSONObject builder = new JSONObject();
             builder.put("", e.getMessage());
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity(builder.toString())
-                    .type(MediaType.APPLICATION_JSON)
-                    .build();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(builder.toString())
+                    .type(MediaType.APPLICATION_JSON).build();
         }
     }
 }

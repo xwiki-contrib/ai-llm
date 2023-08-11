@@ -19,12 +19,20 @@
  */
 package org.xwiki.contrib.llm;
 
-public class GPTAPIException extends Exception{
-    public GPTAPIException(String message){
+public class GPTAPIException extends Exception 
+{
+    /**
+     * @param message The message to print for the exception.
+     */
+    public GPTAPIException(String message) {
         super(message);
     }
 
-    public GPTAPIException(String message, Throwable e){
+    /**
+     * @param message The message to print for the exception.
+     * @param e {@link java.lang.Throwable} The Throwable object to throw.
+     */
+    public GPTAPIException(String message, Throwable e) {
         super(message, e);
     }
 }
