@@ -91,7 +91,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     /**
-     * @param data    Map<String, Object> representing the body parameter of the
+     * @param data    Map representing the body parameter of the
      *                request.
      * @param headers The http headers of the request.
      * @return {@link javax.ws.rs.core.Response} A Response containing JSON data of
@@ -145,7 +145,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     /**
-     * @param data    Map<String, Object> representing the body parameter of the
+     * @param data    Map representing the body parameter of the
      *                request.
      * @param headers The http headers of the request.
      * @return A {@link javax.ws.rs.core.Response} A Response containing JSON data
@@ -171,7 +171,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     /**
-     * @param data    Map<String, Object> representing the body parameter of the
+     * @param data    Map representing the body parameter of the
      *                request.
      * @param headers The http headers of the request.
      * @return {@link javax.ws.rs.core.Response} A Response containing JSON data
@@ -198,7 +198,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     /**
-     * @param data    Map<String, Object> representing the body parameter of the
+     * @param data    Map representing the body parameter of the
      *                request.
      * @param headers The http headers of the request.
      * @return {@link javax.ws.rs.core.Response} A Response containing JSON data
@@ -226,7 +226,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     /**
-     * @param data    Map<String, Object> representing the body parameter of the
+     * @param data    Map representing the body parameter of the
      *                request.
      * @param headers The http headers of the request.
      * @return {@link javax.ws.rs.core.Response} A Response containing JSON data
@@ -256,7 +256,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     /**
-     * @param data    Map<String, Object> representing the body parameter of the
+     * @param data    Map representing the body parameter of the
      *                request.
      * @param headers The http headers of the request.
      * @return {@link javax.ws.rs.core.Response} A Response containing JSON data

@@ -45,7 +45,7 @@ public interface GPTAPI
      * {@link GPTRestAPI#getContents(Java.util.Map, javax.ws.rs.core.HttpHeaders)}
      * method.
      * 
-     * @param data Map<String, Object> representing the body parameter of the
+     * @param data Map representing the body parameter of the
      *             request.
      * @return A string representation of the JSON object resulting from the
      *         request.
@@ -54,7 +54,7 @@ public interface GPTAPI
     String getLLMChatCompletion(Map<String, Object> data) throws GPTAPIException;
 
     /**
-     * @param data Map<String, Object> representing the body parameter of the
+     * @param data Map representing the body parameter of the
      *             request.
      * @return A {@link javax.ws.rs.core.StreamingOutput} to stream the result.
      * @throws GPTAPIException if something goes wrong.
@@ -62,7 +62,7 @@ public interface GPTAPI
     StreamingOutput getLLMChatCompletionAsStream(Map<String, Object> data) throws GPTAPIException;
 
     /**
-     * @param data Map<String, Object> representing the body parameter of the
+     * @param data Map representing the body parameter of the
      *             request.
      * @return The {@link org.apache.commons.httpclient.methods.PostMethod} object
      *         corresponding to the request.
@@ -71,7 +71,7 @@ public interface GPTAPI
     PostMethod requestBuilder(Map<String, Object> data) throws GPTAPIException;
 
     /**
-     * @param data Map<String, Object> representing the body parameter of the
+     * @param data Map representing the body parameter of the
      *             request.
      * @return A String representation of a JSON Array containing LLM models
      *         available.
@@ -91,7 +91,7 @@ public interface GPTAPI
     GPTAPIConfig getConfig(String id, String currentWiki, String userName) throws GPTAPIException;
 
     /**
-     * @param data Map<String, Object> representing the body parameter of the
+     * @param data Map representing the body parameter of the
      *             request.
      * @return The corresponding {@link GPTAPIPrompt} object or default
      *         {@link GPTAPIPrompt} object if not found.
@@ -100,7 +100,7 @@ public interface GPTAPI
     String getPrompt(Map<String, Object> data) throws GPTAPIException;
 
     /**
-     * @param data Map<String, Object> representing the body parameter of the
+     * @param data Map representing the body parameter of the
      *             request.
      * @return A String representation of a JSON Array containing prompts properties.
      * @throws GPTAPIException if something goes wrong.
@@ -117,7 +117,7 @@ public interface GPTAPI
     Boolean isUserAdmin(String currentWiki) throws GPTAPIException;
 
     /**
-     * @param data Map<String, Object> representing the body parameter of the
+     * @param data Map representing the body parameter of the
      *             request.
      * @return A Boolean, true if the user making the request is allowed to use the extension, else false.
      * @throws GPTAPIException if something goes wrong.
