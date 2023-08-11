@@ -168,7 +168,7 @@
       <RightLLM>XWiki.XWikiAllGroup,XWiki.XWikiAdminGroup</RightLLM>
     </property>
     <property>
-      <token>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</token>
+      <token/>
     </property>
     <property>
       <url>https://api.openai.com/v1/</url>
