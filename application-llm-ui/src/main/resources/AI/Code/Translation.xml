@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -64,12 +64,14 @@ llm.config.token=Token
 llm.config.configfile=Configuration File
 llm.config.delete=Delete
 llm.config.requestmode=Can Stream
-llm.config.groups=Group Allowed</content>
+llm.config.groups=Group Allowed
+llm.quickaction.name=Generative AI
+llm.quickaction.hint=Insert content using Generative AI.</content>
   <object>
     <name>AI.Code.Translation</name>
     <number>0</number>
     <className>XWiki.TranslationDocumentClass</className>
-    <guid>366e44d6-2e8a-46ce-a8c3-fa920e46b252</guid>
+    <guid>64d2fec1-f336-4154-bd01-91eb97ee466f</guid>
     <class>
       <name>XWiki.TranslationDocumentClass</name>
       <customClass/>

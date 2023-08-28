@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>LoadPromptMenuJQuery</title>
@@ -131,25 +131,6 @@
     'xwiki-suggestPropertyValues': "$xwiki.getSkinFile('uicomponents/suggest/suggestPropertyValues.js', true)" +
     "?v=$escapetool.url($xwiki.version)"
   }
-});
-
-define('llm-translation', {
-  prefix: 'llm.',
-  keys: [
-    "ui.copy",
-    "ui.include",
-    "ui.copyLabel",
-    "ui.includeLabel",
-    "ui.assistantInfoName",
-    "ui.editButton",
-    "ui.editLabel",
-    "ui.settingsTitle",
-    "editor.modal.title",
-    "ui.tempSlide",
-    "ui.sysPromptLabel",
-    "ui.userPromptLabel",
-    "ui.featureMenuPlaceholder"
-  ]
 });
 
 require(['xwiki-l10n!llm-translation', 'xwiki-llm'], function(l10n, llm){

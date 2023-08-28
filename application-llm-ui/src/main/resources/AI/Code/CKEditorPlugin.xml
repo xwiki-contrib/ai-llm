@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -206,14 +206,6 @@
         }))
       }, editor.config['llm-action']);
 
-      editor.config.extraQuickActions = [{
-        group: 'Content',
-        id: 'llm-ai',
-        name: 'AI',
-        iconClass: 'fa fa-laptop',
-        description: 'Insert content from AI',
-        command: 'llmaction'
-      }];
 
       var authorizedPromise;
       // Convert require into a Promise
@@ -233,6 +225,19 @@
         if (authorized) {
           const command = editor.getCommand('llmaction');
           command.enable();
+
+          // loading quickaction
+          require(['xwiki-l10n!llm-translation'], function(l10n) {
+              editor.quickActions &amp;&amp; editor.quickActions.addActions([{
+                  group: 'Content',
+                  id: 'llm-ai',
+                  name: l10n.get('quickaction.name'),
+                  iconClass: 'fa fa-laptop',
+                  description: l10n.get('quickaction.hint'),
+                  command: 'llmaction'
+              }]);
+          });
+
         }
       }catch (error) {
         console.error('Error occurred while checking authorization:', error);

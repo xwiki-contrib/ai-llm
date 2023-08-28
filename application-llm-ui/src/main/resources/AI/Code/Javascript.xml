@@ -29,7 +29,7 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.Code.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
+  <originalMetadataAuthor>XWiki.Admin</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
@@ -155,7 +155,9 @@
             "ui.tempSlide",
             "ui.sysPromptLabel",
             "ui.userPromptLabel",
-            "ui.featureMenuPlaceholder"
+            "ui.featureMenuPlaceholder",
+            "quickaction.name",
+            "quickaction.hint",
         ]
     });
     let copyBtnValue;
