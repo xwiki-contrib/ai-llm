@@ -151,12 +151,12 @@ public class DefaultGPTAPI implements GPTAPI
     @Override
     public PostMethod requestBuilder(Map<String, Object> data) throws GPTAPIException {
         try {
-            String modelInfoString = (String) data.get("modelType") + "/" + data.get("model");
+            String modelInfoString = data.get("modelType") + "/" + data.get("model");
             logger.info(modelInfoString);
             String model = "";
             String modelType = "";
-            if (modelInfoString.indexOf("/") != -1) {
-                String[] modelInfo = modelInfoString.split("/");
+            if (modelInfoString.contains("/")) {
+                String[] modelInfo = modelInfoString.split("/", 2);
                 modelType = modelInfo[0];
                 model = modelInfo[1];
                 logger.info("model : ", model);
