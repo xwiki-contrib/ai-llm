@@ -30,6 +30,7 @@ import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.StringRequestEntity;
 import org.apache.commons.httpclient.params.HttpMethodParams;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.GPTAPI;
@@ -49,6 +50,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -244,45 +246,68 @@ public class DefaultGPTAPI implements GPTAPI
                     data.get("userName").toString());
         } catch (GPTAPIException e) {
             logger.error("Error in getModels REST method: ", e);
-            configMap = new HashMap<>();
+            configMap = Collections.emptyMap();
         }
         JSONArray finalResponse = new JSONArray();
-        try {
-            if (configMap.isEmpty())
-                throw new Exception("The configurations object is empty.");
-            for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
-                try {
-                    HttpClient client = new HttpClient();
-                    String url = entry.getValue().getURL() + "models";
-                    logger.info("calling url : " + url);
-                    GetMethod get = new GetMethod(url);
-                    get.setRequestHeader("Content-Type", "application/json");
-                    get.setRequestHeader("Accept", "application/json");
-                    get.setRequestHeader("Authorization", "Bearer " + entry.getValue().getToken());
-                    // setting the timeouts
-                    get.getParams().setParameter(HttpMethodParams.SO_TIMEOUT, 10000);
-                    client.getHttpConnectionManager().getParams().setConnectionTimeout(5000);
-                    int statusCode = client.executeMethod(get);
-                    if (statusCode != HttpStatus.SC_OK) {
-                        logger.error("Method failed: " + get.getStatusLine());
-                        throw new XWikiRestException(get.getStatusLine().toString() + get.getStatusText(), null);
-                    }
-                    byte[] responseBody = get.getResponseBody();
-                    get.releaseConnection();
-                    JSONObject responseBodyJson = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
-                    responseBodyJson.put("prefix", entry.getValue().getName());
-                    responseBodyJson.put("filter", entry.getValue().getConfigModels());
-                    responseBodyJson.put("canStream", entry.getValue().getCanStream());
-                    finalResponse.put(responseBodyJson);
-                } catch (Exception e) {
-                    logger.error("An error occured on one of the requested URI: ", e);
+        for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
+            String models = entry.getValue().getConfigModels();
+            JSONObject responseBodyJson;
+            if (StringUtils.isBlank(models)) {
+                // Make an API request to get the models if the config doesn't have any and thus all models shall be
+                // exposed.
+                responseBodyJson = requestModels(entry.getValue());
+            } else {
+                // Use the configured models without making an API request.
+                // Split models string into an array.
+                String[] modelsArray = StringUtils.split(models, ", ");
+                // Create a list of models where each model is a map with an id property.
+                JSONArray modelsList = new JSONArray();
+                for (String model : modelsArray) {
+                    JSONObject modelObj = new JSONObject();
+                    modelObj.put("id", model);
+                    modelsList.put(modelObj);
                 }
+
+                responseBodyJson = new JSONObject();
+                responseBodyJson.put("data", modelsList);
             }
-            return finalResponse.toString();
-        } catch (Exception e) {
-            logger.error("An error occured: ", e);
-            return null;
+            if (responseBodyJson != null) {
+                responseBodyJson.put("prefix", entry.getValue().getName());
+                responseBodyJson.put("filter", models);
+                responseBodyJson.put("canStream", entry.getValue().getCanStream());
+                finalResponse.put(responseBodyJson);
+            }
         }
+        return finalResponse.toString();
+    }
+
+    private JSONObject requestModels(GPTAPIConfig config)
+    {
+        JSONObject result = null;
+
+        try {
+            HttpClient client = new HttpClient();
+            String url = config.getURL() + "models";
+            logger.info("calling url : " + url);
+            GetMethod get = new GetMethod(url);
+            get.setRequestHeader("Content-Type", "application/json");
+            get.setRequestHeader("Accept", "application/json");
+            get.setRequestHeader("Authorization", "Bearer " + config.getToken());
+            // setting the timeouts
+            get.getParams().setParameter(HttpMethodParams.SO_TIMEOUT, 10000);
+            client.getHttpConnectionManager().getParams().setConnectionTimeout(5000);
+            int statusCode = client.executeMethod(get);
+            if (statusCode != HttpStatus.SC_OK) {
+                logger.error("Method failed: " + get.getStatusLine());
+                throw new XWikiRestException(get.getStatusLine().toString() + get.getStatusText(), null);
+            }
+            byte[] responseBody = get.getResponseBody();
+            get.releaseConnection();
+            result = new JSONObject(new String(responseBody, StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            logger.error("An error occured on one of the requested URI: ", e);
+        }
+        return result;
     }
 
     @Override
