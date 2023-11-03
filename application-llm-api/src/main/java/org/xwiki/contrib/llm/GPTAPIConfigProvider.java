@@ -25,7 +25,7 @@ import java.util.Map;
 
 /**
  * Interface to retrieve Configuration of the LLM AI extension in XWiki instances.
- * @version $Id.*$
+ * @version $Id$
  */
 @Component
 @Role

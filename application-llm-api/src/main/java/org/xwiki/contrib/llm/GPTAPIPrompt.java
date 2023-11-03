@@ -23,7 +23,8 @@ import java.util.Map;
 
 /**
  * A class representing a prompt and its properties.
- * @version $Id.*$
+ *
+ * @version $Id$
  */
 public class GPTAPIPrompt 
 {
@@ -41,7 +42,8 @@ public class GPTAPIPrompt
      * Default constructor. every values are null except {@link GPTAPIPrompt#name},
      * wich is set to "default".
      */
-    public GPTAPIPrompt() {
+    public GPTAPIPrompt()
+    {
         this.name = def;
     }
 
@@ -50,7 +52,8 @@ public class GPTAPIPrompt
      * GPTAPIPrompt object from it.
      * @param dbMap A map representation of the Prompt object to build.
      */
-    public GPTAPIPrompt(Map<String, Object> dbMap) {
+    public GPTAPIPrompt(Map<String, Object> dbMap)
+    {
         this.name = (String) dbMap.get("title1");
         this.prompt = (String) dbMap.get("sysPrompt");
         this.userPrompt = (String) dbMap.get("userPrompt");
@@ -67,56 +70,64 @@ public class GPTAPIPrompt
     /**
      * @return The name of the GPTAPIPrompt object as a String.
      */
-    public String getName() {
+    public String getName()
+    {
         return name;
     }
 
     /**
      * @return The prompt (systemPrompt) of the GPTAPIPrompt object as a String.
      */
-    public String getPrompt() {
+    public String getPrompt()
+    {
         return prompt;
     }
 
     /**
      * @return The user prompt of the GPTAPIPrompt object as a String.
      */
-    public String getUserPrompt() {
+    public String getUserPrompt()
+    {
         return userPrompt;
     }
 
     /**
      * @return The description of the GPTAPIPrompt object as a String.
      */
-    public String getDescription() {
+    public String getDescription()
+    {
         return description;
     }
 
     /**
      * @return true if the prompt is active, else false.
      */
-    public Boolean getIsActive() {
+    public Boolean getIsActive()
+    {
         return isActive;
     }
 
     /**
      * @return true if the prompt is the default prompt, else false.
      */
-    public Boolean getIsDefault() {
+    public Boolean getIsDefault()
+    {
         return isDefault;
     }
 
     /**
      * @return The temperature of the GPTAPIPrompt object as a Float.
      */
-    public Float getTemperature() {
+    public Float getTemperature()
+    {
         return temperature;
     }
 
     /**
      * @return The XWiki page name the GPTAPIPrompt object is from as a String.
      */
-    public String getXWikiPageName() {
+    public String getXWikiPageName()
+    {
         return xWikiPageName;
     }
 }

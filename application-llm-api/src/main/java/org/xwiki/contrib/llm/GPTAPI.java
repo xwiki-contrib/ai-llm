@@ -33,7 +33,7 @@ import javax.ws.rs.core.StreamingOutput;
  * for the LLM AI extension needs. Implementations of this interface provide
  * ways to retrieve LLM AI configurations, prompts, and other data from a
  * specific wiki.
- * @version $Id.*$
+ * @version $Id$
  */
 @Component
 @Role

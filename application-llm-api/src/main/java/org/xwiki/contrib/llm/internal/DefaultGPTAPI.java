@@ -61,26 +61,70 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
+/**
+ * Default implementation of the {@link GPTAPI} interface.
+ *
+ * @version $Id$
+ * @since 0.1
+ */
 @Component
 @Unstable
 @Singleton
 public class DefaultGPTAPI implements GPTAPI 
 {
-    @Inject
-    protected Logger logger;
+    private static final String ERROR_OCCURRED = "An error occurred: ";
+
+    private static final String MODEL = "model";
+
+    private static final String MODEL_TYPE = "modelType";
+
+    private static final String DEFAULT = "default";
+
+    private static final String JSON_CONTENT_TYPE = "application/json";
+
+    private static final String METHOD_FAILED = "Method failed: {}";
+
+    private static final String CURRENT_WIKI = "currentWiki";
+
+    private static final String USER_NAME = "userName";
+
+    private static final String MODEL_CONFIGURATION_NOT_FOUND_ERROR =
+        "There is no configuration available for this model, please be sure that your configuration exist "
+            + "and is valid.";
+
+    private static final String CONTENT_TYPE = "Content-Type";
+
+    private static final String ACCEPT = "Accept";
+
+    private static final String AUTHORIZATION = "Authorization";
+
+    private static final String BEARER = "Bearer ";
+
+    private static final String TEMPERATURE = "temperature";
+
+    private static final String ROLE = "role";
+
+    private static final String CONTENT = "content";
+
+    private static final String PROMPT = "prompt";
 
     @Inject
-    protected GPTAPIConfigProvider configProvider;
+    private Logger logger;
 
     @Inject
-    protected GPTAPIPromptDBProvider dbProvider;
+    private GPTAPIConfigProvider configProvider;
 
     @Inject
-    Provider<XWikiContext> contextProvider;
+    private GPTAPIPromptDBProvider dbProvider;
+
+    @Inject
+    private Provider<XWikiContext> contextProvider;
 
     @Override
-    public String getLLMChatCompletion(Map<String, Object> data) throws GPTAPIException {
+    public String getLLMChatCompletion(Map<String, Object> data) throws GPTAPIException
+    {
         try {
 
             PostMethod post = requestBuilder(data);
@@ -88,7 +132,7 @@ public class DefaultGPTAPI implements GPTAPI
             HttpClient client = new HttpClient();
             int statusCode = client.executeMethod(post);
             if (statusCode != HttpStatus.SC_OK) {
-                logger.error("Method failed: " + post.getStatusLine());
+                logger.error(METHOD_FAILED, post.getStatusLine());
                 // throw new XWikiRestException(post.getStatusLine().toString() +
                 // post.getStatusText(), null);
             }
@@ -103,7 +147,7 @@ public class DefaultGPTAPI implements GPTAPI
             return new String(responseBody);
 
         } catch (Exception e) {
-            logger.error("Error processing request: " + e);
+            logger.error("Error processing request: ", e);
             JSONObject builder = new JSONObject();
             JSONObject root = new JSONObject();
             root.put("error", "An error occured. " + e.getMessage());
@@ -114,27 +158,29 @@ public class DefaultGPTAPI implements GPTAPI
     }
 
     @Override
-    public StreamingOutput getLLMChatCompletionAsStream(Map<String, Object> data) throws GPTAPIException {
+    public StreamingOutput getLLMChatCompletionAsStream(Map<String, Object> data) throws GPTAPIException
+    {
         try {
             PostMethod post = requestBuilder(data);
             // Execute the method.
             HttpClient client = new HttpClient();
             int statusCode = client.executeMethod(post);
             if (statusCode != HttpStatus.SC_OK) {
-                logger.error("Method failed: " + post.getStatusLine());
+                logger.error(METHOD_FAILED, post.getStatusLine());
                 // throw new XWikiRestException(post.getStatusLine().toString() +
                 // post.getStatusText(), null);
             }
             InputStream streamResp = post.getResponseBodyAsStream();
-            StreamingOutput stream = new StreamingOutput() {
-                final BufferedReader reader = new BufferedReader(
+            return new StreamingOutput() {
+                private final BufferedReader reader = new BufferedReader(
                         new InputStreamReader(streamResp, StandardCharsets.UTF_8));
-                String line;
 
                 @Override
-                public void write(OutputStream outputStream) throws IOException {
+                public void write(OutputStream outputStream) throws IOException
+                {
                     logger.info("Writing in output Stream..");
                     OutputStreamWriter writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8);
+                    String line;
                     while ((line = reader.readLine()) != null) {
                         // Write each line to the output
                         writer.write(line);
@@ -142,37 +188,22 @@ public class DefaultGPTAPI implements GPTAPI
                     }
                 }
             };
-            return stream;
         } catch (Exception e) {
-            logger.error("An error occured: ", e);
+            logger.error(ERROR_OCCURRED, e);
             return null;
         }
 
     }
 
     @Override
-    public PostMethod requestBuilder(Map<String, Object> data) throws GPTAPIException {
+    public PostMethod requestBuilder(Map<String, Object> data) throws GPTAPIException
+    {
         try {
-            String modelInfoString = data.get("modelType") + "/" + data.get("model");
-            logger.info(modelInfoString);
-            String model = "";
-            String modelType = "";
-            if (modelInfoString.contains("/")) {
-                String[] modelInfo = modelInfoString.split("/", 2);
-                modelType = modelInfo[0];
-                model = modelInfo[1];
-                logger.info("model : ", model);
-                logger.info("modelType : ", modelType);
-            } else {
-                model = modelInfoString;
-                modelType = "default";
-            }
-            logger.info("modelType after evaluation :", modelType);
-            logger.info("Received text: " + data.get("text"));
-            GPTAPIConfig config = getConfig(modelType, (String) data.get("currentWiki"), (String) data.get("userName"));
-            if (config.getName() == "default") {
-                throw new GPTAPIException(
-                        "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
+            String model = data.get(MODEL) != null ? (String) data.get(MODEL) : "";
+            String modelType = data.get(MODEL_TYPE) != null ? (String) data.get(MODEL_TYPE) : DEFAULT;
+            GPTAPIConfig config = getConfig(modelType, (String) data.get(CURRENT_WIKI), (String) data.get(USER_NAME));
+            if (Objects.equals(config.getName(), DEFAULT)) {
+                throw new GPTAPIException(MODEL_CONFIGURATION_NOT_FOUND_ERROR);
             }
             boolean isStreaming = config.getCanStream();
             logger.info("is streaming : " + isStreaming);
@@ -186,64 +217,66 @@ public class DefaultGPTAPI implements GPTAPI
             PostMethod post = new PostMethod(url);
 
             // Set headers
-            post.setRequestHeader("Content-Type", "application/json");
-            post.setRequestHeader("Accept", "application/json");
+            post.setRequestHeader(CONTENT_TYPE, JSON_CONTENT_TYPE);
+            post.setRequestHeader(ACCEPT, JSON_CONTENT_TYPE);
 
-            if (config.getToken() != "") {
-                post.setRequestHeader("Authorization", "Bearer " + config.getToken());
+            if (StringUtils.isNotBlank(config.getToken())) {
+                post.setRequestHeader(AUTHORIZATION, BEARER + config.getToken());
             }
-
-            JSONArray messagesArray = new JSONArray();
-            List<Map<String, String>> listObjs = (List<Map<String, String>>) data.get("context");
-            for (Map<String, String> map : listObjs) {
-                for (Map.Entry<String, String> entry : map.entrySet()) {
-                    String key = entry.getKey();
-                    String value = entry.getValue();
-                    logger.info("Key: " + key + ", Value: " + value);
-                    JSONObject contextElement = new JSONObject();
-                    contextElement.put("role", key);
-                    contextElement.put("content", value);
-                    messagesArray.put(contextElement);
-                }
-            }
-            JSONObject systemMessage = new JSONObject();
-            systemMessage.put("role", "system");
-            systemMessage.put("content", data.get("prompt").toString());
-            messagesArray.put(systemMessage);
-
-            JSONObject userMessage = new JSONObject();
-            userMessage.put("role", "user");
-            userMessage.put("content", data.get("text").toString());
-            messagesArray.put(userMessage);
 
             // Construct the JSON input string
             JSONObject jsonInput = new JSONObject();
-            jsonInput.put("model", model);
-            if (isStreaming)
+            jsonInput.put(MODEL, model);
+            if (isStreaming) {
                 jsonInput.put("stream", isStreaming);
-            jsonInput.put("temperature", data.get("temperature"));
-            jsonInput.put("messages", messagesArray);
+            }
+            jsonInput.put(TEMPERATURE, data.get(TEMPERATURE));
+            jsonInput.put("messages", buildMessagesJSONArray(data));
             String jsonInputString = jsonInput.toString();
             logger.info("Sending: " + jsonInputString);
 
-            StringRequestEntity requestEntity = new StringRequestEntity(jsonInputString, "application/json", "UTF-8");
+            StringRequestEntity requestEntity = new StringRequestEntity(jsonInputString, JSON_CONTENT_TYPE, "UTF-8");
 
             post.setRequestEntity(requestEntity);
 
             return post;
 
         } catch (Exception e) {
-            logger.error("An error occured: " + e);
+            logger.error(ERROR_OCCURRED, e);
             return null;
         }
     }
 
+    private static JSONArray buildMessagesJSONArray(Map<String, Object> data)
+    {
+        JSONArray messagesArray = new JSONArray();
+        for (Map<String, String> map : (List<Map<String, String>>) data.get("context")) {
+            for (Map.Entry<String, String> entry : map.entrySet()) {
+                JSONObject contextElement = new JSONObject();
+                contextElement.put(ROLE, entry.getKey());
+                contextElement.put(CONTENT, entry.getValue());
+                messagesArray.put(contextElement);
+            }
+        }
+        JSONObject systemMessage = new JSONObject();
+        systemMessage.put(ROLE, "system");
+        systemMessage.put(CONTENT, data.get(PROMPT).toString());
+        messagesArray.put(systemMessage);
+
+        JSONObject userMessage = new JSONObject();
+        userMessage.put(ROLE, "user");
+        userMessage.put(CONTENT, data.get("text").toString());
+        messagesArray.put(userMessage);
+        return messagesArray;
+    }
+
     @Override
-    public String getModels(Map<String, Object> data) throws GPTAPIException {
+    public String getModels(Map<String, Object> data) throws GPTAPIException
+    {
         Map<String, GPTAPIConfig> configMap;
         try {
-            configMap = configProvider.getConfigObjects(data.get("currentWiki").toString(),
-                    data.get("userName").toString());
+            configMap = configProvider.getConfigObjects(data.get(CURRENT_WIKI).toString(),
+                    data.get(USER_NAME).toString());
         } catch (GPTAPIException e) {
             logger.error("Error in getModels REST method: ", e);
             configMap = Collections.emptyMap();
@@ -290,15 +323,15 @@ public class DefaultGPTAPI implements GPTAPI
             String url = config.getURL() + "models";
             logger.info("calling url : " + url);
             GetMethod get = new GetMethod(url);
-            get.setRequestHeader("Content-Type", "application/json");
-            get.setRequestHeader("Accept", "application/json");
-            get.setRequestHeader("Authorization", "Bearer " + config.getToken());
+            get.setRequestHeader(CONTENT_TYPE, JSON_CONTENT_TYPE);
+            get.setRequestHeader(ACCEPT, JSON_CONTENT_TYPE);
+            get.setRequestHeader(AUTHORIZATION, BEARER + config.getToken());
             // setting the timeouts
             get.getParams().setParameter(HttpMethodParams.SO_TIMEOUT, 10000);
             client.getHttpConnectionManager().getParams().setConnectionTimeout(5000);
             int statusCode = client.executeMethod(get);
             if (statusCode != HttpStatus.SC_OK) {
-                logger.error("Method failed: " + get.getStatusLine());
+                logger.error(METHOD_FAILED, get.getStatusLine());
                 throw new XWikiRestException(get.getStatusLine().toString() + get.getStatusText(), null);
             }
             byte[] responseBody = get.getResponseBody();
@@ -311,13 +344,14 @@ public class DefaultGPTAPI implements GPTAPI
     }
 
     @Override
-    public GPTAPIConfig getConfig(String id, String currentWiki, String userName) throws GPTAPIException {
+    public GPTAPIConfig getConfig(String id, String currentWiki, String userName) throws GPTAPIException
+    {
         try {
             Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki, userName);
             GPTAPIConfig res = configMap.get(id);
             if (res == null) {
                 throw new Exception(
-                        "There is no configuration available for this model, please be sure that your configuration exist and is valid.");
+                    MODEL_CONFIGURATION_NOT_FOUND_ERROR);
             }
             return res;
         } catch (Exception e) {
@@ -327,35 +361,28 @@ public class DefaultGPTAPI implements GPTAPI
     }
 
     @Override
-    public String getPrompt(Map<String, Object> data) throws GPTAPIException {
+    public String getPrompt(Map<String, Object> data) throws GPTAPIException
+    {
         GPTAPIPrompt promptObj = new GPTAPIPrompt();
         try {
-            promptObj = dbProvider.getPrompt(data.get("prompt").toString(), data.get("currentWiki").toString());
+            promptObj = dbProvider.getPrompt(data.get(PROMPT).toString(), data.get(CURRENT_WIKI).toString());
         } catch (Exception e) {
             logger.error("Exception in the REST getPrompt method : ", e);
         }
-        JSONObject jsonEntry = new JSONObject();
         try {
-            jsonEntry.put("name", promptObj.getName());
-            jsonEntry.put("prompt", promptObj.getPrompt());
-            jsonEntry.put("userPrompt", promptObj.getUserPrompt());
-            jsonEntry.put("description", promptObj.getDescription());
-            jsonEntry.put("active", promptObj.getIsActive());
-            jsonEntry.put("default", promptObj.getIsDefault());
-            jsonEntry.put("temperature", promptObj.getTemperature());
-            jsonEntry.put("pageName", promptObj.getXWikiPageName());
-            return jsonEntry.toString();
-        } catch (Exception e){
-            logger.error("An error occured: ", e);
+            return convertPromptToJSONObject(promptObj).toString();
+        } catch (Exception e) {
+            logger.error(ERROR_OCCURRED, e);
             return null;
         }
     }
 
     @Override
-    public String getPrompts(Map<String, Object> data) throws GPTAPIException{
+    public String getPrompts(Map<String, Object> data) throws GPTAPIException
+    {
         Map<String, GPTAPIPrompt> dbMap;
         try {
-            dbMap = dbProvider.getPrompts(data.get("currentWiki").toString());
+            dbMap = dbProvider.getPrompts(data.get(CURRENT_WIKI).toString());
         } catch (Exception e) {
             logger.error("Exception in the REST getPromptDB method : ", e);
             dbMap = new HashMap<>();
@@ -364,29 +391,35 @@ public class DefaultGPTAPI implements GPTAPI
         try {
             for (Map.Entry<String, GPTAPIPrompt> entryDB : dbMap.entrySet()) {
                 GPTAPIPrompt promptObj = entryDB.getValue();
-                if (entryDB.getKey().isEmpty() == false) {
-                    JSONObject jsonEntry = new JSONObject();
-                    jsonEntry.put("name", promptObj.getName());
-                    jsonEntry.put("prompt", promptObj.getPrompt());
-                    jsonEntry.put("userPrompt", promptObj.getUserPrompt());
-                    jsonEntry.put("description", promptObj.getDescription());
-                    jsonEntry.put("active", promptObj.getIsActive());
-                    jsonEntry.put("default", promptObj.getIsDefault());
-                    jsonEntry.put("temperature", promptObj.getTemperature());
-                    jsonEntry.put("pageName", promptObj.getXWikiPageName());
-                    finalResponse.put(jsonEntry);
+                if (!entryDB.getKey().isEmpty()) {
+                    finalResponse.put(convertPromptToJSONObject(promptObj));
                 }
             }
             return finalResponse.toString();
-        } catch (Exception e){
-            logger.error("An error occured: ", e);
+        } catch (Exception e) {
+            logger.error(ERROR_OCCURRED, e);
             return null;
         }
         
     }
 
+    private static JSONObject convertPromptToJSONObject(GPTAPIPrompt promptObj)
+    {
+        JSONObject jsonEntry = new JSONObject();
+        jsonEntry.put("name", promptObj.getName());
+        jsonEntry.put(PROMPT, promptObj.getPrompt());
+        jsonEntry.put("userPrompt", promptObj.getUserPrompt());
+        jsonEntry.put("description", promptObj.getDescription());
+        jsonEntry.put("active", promptObj.getIsActive());
+        jsonEntry.put(DEFAULT, promptObj.getIsDefault());
+        jsonEntry.put(TEMPERATURE, promptObj.getTemperature());
+        jsonEntry.put("pageName", promptObj.getXWikiPageName());
+        return jsonEntry;
+    }
+
     @Override
-    public Boolean isUserAdmin(String currentWiki) throws GPTAPIException {
+    public Boolean isUserAdmin(String currentWiki) throws GPTAPIException
+    {
         XWikiContext context = contextProvider.get();
         String mainWiki = context.getWikiId();
         com.xpn.xwiki.XWiki xwiki = context.getWiki();
@@ -403,17 +436,18 @@ public class DefaultGPTAPI implements GPTAPI
     }
 
     @Override
-    public Boolean checkAllowance(Map<String, Object> data) throws GPTAPIException {
+    public Boolean checkAllowance(Map<String, Object> data) throws GPTAPIException
+    {
         Map<String, GPTAPIConfig> configMap;
         try {
-            configMap = configProvider.getConfigObjects((String) data.get("currentWiki"),
-                    (String) data.get("userName"));
-            if (configMap.isEmpty())
+            configMap = configProvider.getConfigObjects((String) data.get(CURRENT_WIKI),
+                    (String) data.get(USER_NAME));
+            if (configMap.isEmpty()) {
                 throw new GPTAPIException(
-                        "The Configuration Map is empty. That mean the user has no right to access those configuration.");
+                    "The Configuration Map is empty. That mean the user has no right to access those configuration.");
+            }
         } catch (GPTAPIException e) {
             logger.error("An error occured:", e);
-            configMap = new HashMap<>();
             return false;
         }
         return true;

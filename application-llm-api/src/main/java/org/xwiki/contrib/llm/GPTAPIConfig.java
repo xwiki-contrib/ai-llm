@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * A class representing an LLM AI extension confifuration as a java object.
- * @version $Id.*$
+ * @version $Id$
  */
 public class GPTAPIConfig 
 {
@@ -39,7 +39,8 @@ public class GPTAPIConfig
      * GPTAPIConfig object from it.
      * @param properties A map representation of a configuration object.
      */
-    public GPTAPIConfig(Map<String, Object> properties) {
+    public GPTAPIConfig(Map<String, Object> properties)
+    {
         this.name = (String) properties.get("Name");
         this.url = (String) properties.get("url");
         this.configModels = (String) properties.get("Config");
@@ -56,49 +57,56 @@ public class GPTAPIConfig
      * Default constructor. every values are null except {@link GPTAPIConfig#name},
      * wich is set to "default".
      */
-    public GPTAPIConfig() {
+    public GPTAPIConfig()
+    {
         this.name = "default";
     }
 
     /**
      * @return The name of the GPTAPIConfig as a String.
      */
-    public String getName() {
+    public String getName()
+    {
         return name;
     }
 
     /**
      * @return The URL of the GPTAPIConfig as a String.
      */
-    public String getURL() {
+    public String getURL()
+    {
         return url;
     }
 
     /**
      * @return The LLM models of the GPTAPIConfig in one String.
      */
-    public String getConfigModels() {
+    public String getConfigModels()
+    {
         return configModels;
     }
 
     /**
      * @return The token of the GPTAPIConfig as a String.
      */
-    public String getToken() {
+    public String getToken()
+    {
         return token;
     }
 
     /**
      * @return true if the configuration can use a streaming API, else false.
      */
-    public Boolean getCanStream() {
+    public Boolean getCanStream()
+    {
         return canStream;
     }
 
     /**
      * @return The XWiki group allowed to use this GPTAPIConfig in a String.
      */
-    public String getAllowedGroup() {
+    public String getAllowedGroup()
+    {
         return allowedGroup;
     }
 
@@ -106,7 +114,8 @@ public class GPTAPIConfig
      * @return A String representation of the GPTAPIConfig object.
      */
     @Override
-    public String toString() {
+    public String toString()
+    {
         String res = "Name : " + name;
         res += " URL : " + url;
         res += " Config param : " + configModels;

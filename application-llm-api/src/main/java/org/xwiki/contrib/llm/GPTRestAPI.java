@@ -29,8 +29,6 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 import javax.ws.rs.core.Response;
 
-import org.xwiki.component.manager.ComponentManager;
-
 import org.xwiki.component.annotation.Component;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.rest.XWikiRestComponent;
@@ -49,6 +47,12 @@ import org.slf4j.Logger;
 import java.nio.charset.StandardCharsets;
 import org.xwiki.csrf.CSRFToken;
 
+/**
+ * REST API for the LLM AI extension.
+ *
+ * @version $Id$
+ * @since 0.1
+ */
 @Component
 @Named("org.xwiki.contrib.llm.GPTRestAPI")
 @Path("/v1")
@@ -56,12 +60,8 @@ import org.xwiki.csrf.CSRFToken;
 @Singleton
 public class GPTRestAPI extends ModifiablePageResource implements XWikiRestComponent 
 {
-
     @Inject
-    @Named("context")
-    protected ComponentManager componentManager;
-    @Inject
-    protected Logger logger;
+    private Logger logger;
 
     @Inject
     private GPTAPI gptApi;
@@ -76,7 +76,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
      * @param csrfTokenList List containing the client token to verify.
      * @return true if the csrf token is valid, else false.
      */
-    private Boolean isCsrfValid(List<String> csrfTokenList) {
+    private boolean isCsrfValid(List<String> csrfTokenList)
+    {
         if (csrfTokenList.isEmpty()) {
             return false;
         }
@@ -101,7 +102,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @POST
     @Path("/chat/completions")
     @Consumes("application/json")
-    public Response getContents(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
+    public Response getContents(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException
+    {
         try {
             if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
                 return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
@@ -154,7 +156,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
      */
     @POST
     @Path("/models")
-    public Response getModels(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
+    public Response getModels(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException
+    {
         if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
             return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
@@ -181,7 +184,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @POST
     @Path("/prompt")
     @Consumes("application/json")
-    public Response getPrompt(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
+    public Response getPrompt(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException
+    {
         if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
             return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
@@ -208,7 +212,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @POST
     @Path("/prompts")
     @Consumes("application/json")
-    public Response getPromptDB(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
+    public Response getPromptDB(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException
+    {
         if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
             return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
@@ -237,7 +242,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @POST
     @Path("/check-access")
     @Consumes("application/json")
-    public Response check(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException {
+    public Response check(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException
+    {
         if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
             return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }
@@ -266,7 +272,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @POST
     @Path("/permission")
     @Consumes("application/json")
-    public Response isUserAdmin(Map<String, Object> data, @Context HttpHeaders headers) {
+    public Response isUserAdmin(Map<String, Object> data, @Context HttpHeaders headers)
+    {
         if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
             return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
         }

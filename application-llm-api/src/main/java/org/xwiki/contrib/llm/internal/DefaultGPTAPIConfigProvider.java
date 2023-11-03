@@ -41,6 +41,12 @@ import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
 import com.xpn.xwiki.user.api.XWikiGroupService;
 
+/**
+ * Default implementation of {@link GPTAPIConfigProvider}.
+ *
+ * @version $Id$
+ * @since 0.1
+ */
 @Component
 @Unstable
 @Singleton
@@ -55,12 +61,14 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider
     /**
      * Default constructor.
      */
-    public DefaultGPTAPIConfigProvider() {
+    public DefaultGPTAPIConfigProvider()
+    {
         super();
     }
 
     @Override
-    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException {
+    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException
+    {
         try {
             XWikiContext context = contextProvider.get();
             com.xpn.xwiki.XWiki xwiki = context.getWiki();
@@ -87,7 +95,8 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider
      * @return A map object of {@link #GPTAPIConfig}
      */
     private Map<String, GPTAPIConfig> getConfigFromDoc(com.xpn.xwiki.XWiki xwiki, XWikiContext context,
-            String currentWiki, Collection<String> userGroups) {
+            String currentWiki, Collection<String> userGroups)
+    {
         // Retrieve the LLM Configuration Objects
         Map<String, GPTAPIConfig> configProperties = new HashMap<>();
         try {
@@ -135,5 +144,4 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider
             return configProperties;
         }
     }
-
 }

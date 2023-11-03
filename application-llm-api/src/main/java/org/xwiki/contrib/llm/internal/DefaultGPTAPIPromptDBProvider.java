@@ -41,6 +41,12 @@ import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
 import org.xwiki.query.Query;
 
+/**
+ * Default implementation of {@link GPTAPIPromptDBProvider}.
+ *
+ * @version $Id$
+ * @since 0.1
+ */
 @Component
 @Unstable
 @Singleton
@@ -62,12 +68,14 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider
     /**
      * Default constructor.
      */
-    public DefaultGPTAPIPromptDBProvider() {
+    public DefaultGPTAPIPromptDBProvider()
+    {
         super();
     }
 
     @Override
-    public GPTAPIPrompt getPrompt(String promptPage, String currentWiki) {
+    public GPTAPIPrompt getPrompt(String promptPage, String currentWiki)
+    {
         GPTAPIPrompt res = new GPTAPIPrompt();
         try {
             XWikiContext context = contextProvider.get();
@@ -102,7 +110,8 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider
     }
 
     @Override
-    public Map<String, GPTAPIPrompt> getPrompts(String currentWiki) {
+    public Map<String, GPTAPIPrompt> getPrompts(String currentWiki)
+    {
         Map<String, GPTAPIPrompt> promptDBMap = new HashMap<>();
         try {
             XWikiContext context = contextProvider.get();
