@@ -21,27 +21,19 @@
 -->
 
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-llm</artifactId>
-        <version>0.3-SNAPSHOT</version>
-    </parent>
-    <artifactId>application-llm-ui</artifactId>
-    <description>
-        Provide LLM Artificial Intelligence for XWiki content creation and editing, boosting user efficiency and productivity.
-    </description>
-    <name>LLM - UI</name>
-    <packaging>xar</packaging>
-    <properties>
-        <xwiki.extension.name>LLM Application (BETA)</xwiki.extension.name>
-        <xwiki.extension.category>application</xwiki.extension.category>
-    </properties>
-    <dependencies>
-        <dependency>
-            <groupId>org.xwiki.contrib.llm</groupId>
-            <artifactId>application-llm-api</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-    </dependencies>
+<modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.xwiki.contrib.llm</groupId>
+    <artifactId>application-ai-llm</artifactId>
+    <version>0.3-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>application-ai-llm-models</artifactId>
+  <description>Modules for defining, extending and accessing different LLMs.</description>
+  <packaging>pom</packaging>
+
+  <modules>
+    <module>application-ai-llm-models-api</module>
+    <module>application-ai-llm-models-ui</module>
+  </modules>
 </project>

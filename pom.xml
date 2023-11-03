@@ -28,7 +28,7 @@
         <version>11.10</version>
     </parent>
     <groupId>org.xwiki.contrib.llm</groupId>
-    <artifactId>application-llm</artifactId>
+    <artifactId>application-ai-llm</artifactId>
     <description>
         Provide LLM Artificial Intelligence for XWiki content creation and editing, boosting user efficiency and productivity.
     </description>
@@ -54,15 +54,14 @@
         <migrator.version>1.1.3</migrator.version>
     </properties>
     <modules>
-        <module>application-llm-api</module>
-        <module>application-llm-ui</module>
+        <module>application-ai-llm-models</module>
     </modules>
     <build>
         <extensions>
             <extension>
                 <groupId>org.xwiki.commons</groupId>
                 <artifactId>xwiki-commons-tool-xar-handlers</artifactId>
-                <version>11.10</version>
+                <version>${commons.version}</version>
             </extension>
         </extensions>
     </build>
