@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AppA - Chat Interface</title>
+<script>
+function authenticate() {
+    var username = document.getElementById('username').value;
+    var password = document.getElementById('password').value;
+    
+    // Simple check for example purposes
+    if (username && password) {
+        fetch(`http://appa.local:5000/generate_jwt/${username}`)
+            .then(response => response.json())
+            .then(data => {
+                sessionStorage.setItem('jwt', data.jwt); // Store JWT in session
+                document.getElementById('auth-status').innerText = 'Authenticated';
+            });
+    } else {
+        alert('Please enter username and password!');
+    }
+}
+
+function sendMessage() {
+    var message = document.getElementById('message').value;
+    var jwt = sessionStorage.getItem('jwt');
+
+    fetch('http://waise.local:5001/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + jwt
+        },
+        body: JSON.stringify({ message: message })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Message sent:', data);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+fetch('http://appa.local:5000/echo_headers', {
+    method: 'GET',
+    headers: {
+        'Content-Type': 'application/json'
+    }
+})
+.then(response => response.json())
+.then(data => console.log(data))
+.catch(error => console.error('Error:', error));
+
+
+</script>
+</head>
+<body>
+<h2>AppA Authentication</h2>
+<input type="text" id="username" placeholder="Username">
+<input type="password" id="password" placeholder="Password">
+<button onclick="authenticate()">Log In</button>
+<div id="auth-status"></div>
+
+<h2>AppA Chat Interface</h2>
+<textarea id="message" placeholder="Write your message here..."></textarea>
+<button onclick="sendMessage()">Send Message</button>
+</body>
+</html>
