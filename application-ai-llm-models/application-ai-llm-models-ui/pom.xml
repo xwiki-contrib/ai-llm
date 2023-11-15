@@ -43,7 +43,7 @@
     <dependencies>
         <dependency>
             <groupId>org.xwiki.contrib.llm</groupId>
-            <artifactId>application-llm-api</artifactId>
+            <artifactId>application-ai-llm-models-api</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
     </dependencies>
