@@ -55,6 +55,7 @@
     </properties>
     <modules>
         <module>application-ai-llm-models</module>
+        <module>application-ai-llm-index</module>
     </modules>
     <build>
         <extensions>

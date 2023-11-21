@@ -24,7 +24,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-ai-llm-models</artifactId>
+        <artifactId>application-ai-llm-index</artifactId>
         <version>0.3-SNAPSHOT</version>
     </parent>
     <artifactId>application-ai-llm-index-api</artifactId>
@@ -33,9 +33,6 @@
     <properties>
         <xwiki.extension.name>LLM Index API (BETA)</xwiki.extension.name>
         <xwiki.jacoco.instructionRatio>0.00</xwiki.jacoco.instructionRatio>
-        <xwiki.extension.features>
-          org.xwiki.contrib.llm:application-llm-index-api
-        </xwiki.extension.features>
     </properties>
     <dependencies>
         <dependency>
