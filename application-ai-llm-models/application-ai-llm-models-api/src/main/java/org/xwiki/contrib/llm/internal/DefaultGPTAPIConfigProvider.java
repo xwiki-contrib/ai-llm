@@ -19,27 +19,36 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.stability.Unstable;
+import org.xwiki.user.UserReference;
+import org.xwiki.user.UserReferenceSerializer;
+import org.xwiki.user.group.GroupException;
+import org.xwiki.user.group.GroupManager;
+
 import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.BaseProperty;
-import com.xpn.xwiki.user.api.XWikiGroupService;
+import com.xpn.xwiki.objects.PropertyInterface;
 
 /**
  * Default implementation of {@link GPTAPIConfigProvider}.
@@ -52,39 +61,36 @@ import com.xpn.xwiki.user.api.XWikiGroupService;
 @Singleton
 public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider 
 {
-
-    protected Logger logger = LoggerFactory.getLogger(DefaultGPTAPIConfigProvider.class);
+    private static final List<String> AI_SPACE_NAMES = List.of("AI", "Code");
 
     @Inject
     private Provider<XWikiContext> contextProvider;
 
-    /**
-     * Default constructor.
-     */
-    public DefaultGPTAPIConfigProvider()
-    {
-        super();
-    }
+    @Inject
+    @Named("document")
+    private UserReferenceSerializer<DocumentReference> userReferenceSerializer;
+
+    @Inject
+    private DocumentReferenceResolver<String> documentReferenceResolver;
+
+    @Inject
+    private GroupManager groupManager;
 
     @Override
-    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException
+    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, UserReference userReference)
+        throws GPTAPIException
     {
+        XWikiContext context = contextProvider.get();
+        com.xpn.xwiki.XWiki xwiki = context.getWiki();
+        // Get the user using the Extension in the actual context.
+        DocumentReference documentUserReference = userReferenceSerializer.serialize(userReference);
         try {
-            XWikiContext context = contextProvider.get();
-            com.xpn.xwiki.XWiki xwiki = context.getWiki();
-            XWikiGroupService groupService = xwiki.getGroupService(context);
-            // Get the user using the Extension in the actual context.
-            logger.info("user name: " + userName);
-            Collection<String> userGroups = groupService.getAllGroupsNamesForMember(userName, 0, 0, context);
-            if (userGroups.isEmpty()) {
-                throw new Exception("User groups not found");
-            }
+            Collection<DocumentReference> userGroups =
+                this.groupManager.getGroups(documentUserReference, currentWiki, true);
             return getConfigFromDoc(xwiki, context, currentWiki, userGroups);
-        } catch (Exception e) {
-            logger.error("Error trying to access the config :", e);
-            return new HashMap<>();
+        } catch (GroupException e) {
+            throw new GPTAPIException("Error while trying to access the user's groups.", e);
         }
-
     }
 
     /**
@@ -95,53 +101,41 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider
      * @return A map object of {@link #GPTAPIConfig}
      */
     private Map<String, GPTAPIConfig> getConfigFromDoc(com.xpn.xwiki.XWiki xwiki, XWikiContext context,
-            String currentWiki, Collection<String> userGroups)
+            String currentWiki, Collection<DocumentReference> userGroups) throws GPTAPIException
     {
         // Retrieve the LLM Configuration Objects
         Map<String, GPTAPIConfig> configProperties = new HashMap<>();
         try {
-            XWikiDocument doc = xwiki.getDocument(currentWiki + ":AI.Code.AIConfig", context);
-            List<BaseObject> configObjects = doc.getObjects(currentWiki + ":AI.Code.AIConfigClass");
+            DocumentReference configDocumentReference = new DocumentReference(currentWiki, AI_SPACE_NAMES, "AIConfig");
+            DocumentReference configClassReference =
+                new DocumentReference(currentWiki, AI_SPACE_NAMES, "AIConfigClass");
+            XWikiDocument doc = xwiki.getDocument(configDocumentReference, context);
+            List<BaseObject> configObjects = doc.getXObjects(configClassReference);
             // Build the Java configurationObject with a Map.
-            if (configObjects.isEmpty()) {
-                throw new Exception("There is no configuration.");
-            }
-            // Iteration count
-            int i = 0;
-            // Number of null object.
-            int nbNull = 0;
             for (BaseObject configObject : configObjects) {
-                i++;
-                Map<String, Object> configObjMap = new HashMap<>();
                 if (configObject == null) {
-                    nbNull++;
                     continue;
                 }
-                Collection<BaseProperty> fields = configObject.getFieldList();
-                for (BaseProperty field : fields) {
-                    configObjMap.put(field.getName(), field.getValue());
-                }
-                GPTAPIConfig res = new GPTAPIConfig(configObjMap);
-                String[] allowedGroupTab = res.getAllowedGroup().split(",");
-                // Test for every group allowed if the user is part of these group.
-                for (String group : allowedGroupTab) {
-                    logger.info("group : " + group);
-                    if (userGroups.contains(group)) {
-                        logger.info("User is part of one of the valid group.");
-                        configProperties.put(res.getName(), res);
-                        break;
+                Map<String, Object> configObjMap = new HashMap<>();
+                for (String fieldName : configObject.getPropertyList()) {
+                    PropertyInterface field = configObject.getField(fieldName);
+                    if (field instanceof BaseProperty) {
+                        configObjMap.put(fieldName, ((BaseProperty<?>) field).getValue());
                     }
                 }
-            }
-            if (nbNull == i) {
-                GPTAPIConfig nullConfig = new GPTAPIConfig();
-                configProperties.put("nullConf", nullConfig);
-                throw new Exception("The configurations are empty !");
+
+                GPTAPIConfig res = new GPTAPIConfig(configObjMap);
+                boolean allowed = Arrays.stream(StringUtils.split(res.getAllowedGroup(), ','))
+                    .map(String::trim)
+                    .map(this.documentReferenceResolver::resolve)
+                    .anyMatch(userGroups::contains);
+                if (allowed) {
+                    configProperties.put(res.getName(), res);
+                }
             }
             return configProperties;
-        } catch (Exception e) {
-            logger.error("An error occured: ", e);
-            return configProperties;
+        } catch (XWikiException e) {
+            throw new GPTAPIException("Error while trying to access the configuration.", e);
         }
     }
 }

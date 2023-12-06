@@ -23,6 +23,7 @@ import org.apache.commons.httpclient.methods.PostMethod;
 import org.codehaus.janino.Java;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.Role;
+import org.xwiki.user.UserReference;
 
 import java.util.Map;
 
@@ -83,12 +84,12 @@ public interface GPTAPI
      * @param id          The key used to retrieve the corresponding configuration.
      * @param currentWiki The identifier of the wiki from which the request
      *                    originated.
-     * @param userName    The user the request came from.
+     * @param userReference The user the request came from.
      * @return The corresponding {@link GPTAPIConfig} object.
      * @throws GPTAPIException if something goes wrong. Will return default
      *                         {@link GPTAPIConfig} in such case.
      */
-    GPTAPIConfig getConfig(String id, String currentWiki, String userName) throws GPTAPIException;
+    GPTAPIConfig getConfig(String id, String currentWiki, UserReference userReference) throws GPTAPIException;
 
     /**
      * @param data Map representing the body parameter of the

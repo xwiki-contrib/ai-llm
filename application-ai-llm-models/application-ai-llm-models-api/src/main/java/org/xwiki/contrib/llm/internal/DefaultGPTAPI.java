@@ -42,6 +42,8 @@ import org.xwiki.contrib.llm.GPTAPIPromptDBProvider;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
+import org.xwiki.user.CurrentUserReference;
+import org.xwiki.user.UserReference;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -87,8 +89,6 @@ public class DefaultGPTAPI implements GPTAPI
     private static final String METHOD_FAILED = "Method failed: {}";
 
     private static final String CURRENT_WIKI = "currentWiki";
-
-    private static final String USER_NAME = "userName";
 
     private static final String MODEL_CONFIGURATION_NOT_FOUND_ERROR =
         "There is no configuration available for this model, please be sure that your configuration exist "
@@ -201,7 +201,7 @@ public class DefaultGPTAPI implements GPTAPI
         try {
             String model = data.get(MODEL) != null ? (String) data.get(MODEL) : "";
             String modelType = data.get(MODEL_TYPE) != null ? (String) data.get(MODEL_TYPE) : DEFAULT;
-            GPTAPIConfig config = getConfig(modelType, (String) data.get(CURRENT_WIKI), (String) data.get(USER_NAME));
+            GPTAPIConfig config = getConfig(modelType, (String) data.get(CURRENT_WIKI), CurrentUserReference.INSTANCE);
             if (Objects.equals(config.getName(), DEFAULT)) {
                 throw new GPTAPIException(MODEL_CONFIGURATION_NOT_FOUND_ERROR);
             }
@@ -276,7 +276,7 @@ public class DefaultGPTAPI implements GPTAPI
         Map<String, GPTAPIConfig> configMap;
         try {
             configMap = configProvider.getConfigObjects(data.get(CURRENT_WIKI).toString(),
-                    data.get(USER_NAME).toString());
+                CurrentUserReference.INSTANCE);
         } catch (GPTAPIException e) {
             logger.error("Error in getModels REST method: ", e);
             configMap = Collections.emptyMap();
@@ -344,10 +344,10 @@ public class DefaultGPTAPI implements GPTAPI
     }
 
     @Override
-    public GPTAPIConfig getConfig(String id, String currentWiki, String userName) throws GPTAPIException
+    public GPTAPIConfig getConfig(String id, String currentWiki, UserReference userReference) throws GPTAPIException
     {
         try {
-            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki, userName);
+            Map<String, GPTAPIConfig> configMap = configProvider.getConfigObjects(currentWiki, userReference);
             GPTAPIConfig res = configMap.get(id);
             if (res == null) {
                 throw new Exception(
@@ -438,18 +438,8 @@ public class DefaultGPTAPI implements GPTAPI
     @Override
     public Boolean checkAllowance(Map<String, Object> data) throws GPTAPIException
     {
-        Map<String, GPTAPIConfig> configMap;
-        try {
-            configMap = configProvider.getConfigObjects((String) data.get(CURRENT_WIKI),
-                    (String) data.get(USER_NAME));
-            if (configMap.isEmpty()) {
-                throw new GPTAPIException(
-                    "The Configuration Map is empty. That mean the user has no right to access those configuration.");
-            }
-        } catch (GPTAPIException e) {
-            logger.error("An error occured:", e);
-            return false;
-        }
-        return true;
+        Map<String, GPTAPIConfig> configMap =
+            configProvider.getConfigObjects((String) data.get(CURRENT_WIKI), CurrentUserReference.INSTANCE);
+        return !configMap.isEmpty();
     }
 }

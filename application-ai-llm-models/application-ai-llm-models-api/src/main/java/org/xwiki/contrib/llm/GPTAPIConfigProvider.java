@@ -21,6 +21,8 @@ package org.xwiki.contrib.llm;
 
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.Role;
+import org.xwiki.user.UserReference;
+
 import java.util.Map;
 
 /**
@@ -34,11 +36,11 @@ public interface GPTAPIConfigProvider
     /**
      * @param currentWiki The identifier of the wiki from which the request
      *                    originated.
-     * @param userName The user making the request.
+     * @param userReference The user making the request.
      * @return A map containing all the available {@link GPTAPIConfig} objects in
      *         the specified wiki or an empty map if none exist.
      * @throws GPTAPIException if something goes wrong. Will return an empty map as
      *                         well in such case.
      */
-    Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, String userName) throws GPTAPIException;
+    Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, UserReference userReference) throws GPTAPIException;
 }
