@@ -70,5 +70,30 @@
             <artifactId>xwiki-platform-search-solr-query</artifactId>
             <version>${platform.version}</version>
         </dependency>
+      <dependency>
+        <groupId>org.xwiki.platform</groupId>
+        <artifactId>xwiki-platform-user-api</artifactId>
+        <version>${platform.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.theokanning.openai-gpt3-java</groupId>
+        <artifactId>api</artifactId>
+        <version>0.18.2</version>
+        <exclusions>
+          <!-- The jackson version differs by a minor version - exclude them for now until we move to 16.0. -->
+          <exclusion>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.httpcomponents.client5</groupId>
+        <artifactId>httpclient5</artifactId>
+      </dependency>
     </dependencies>
 </project>
