@@ -29,14 +29,13 @@
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.PromptDB.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
-  <originalMetadataAuthor>XWiki.MunozMateo</originalMetadataAuthor>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title>Summarize</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
-  <hidden>false</hidden>
+  <hidden>true</hidden>
   <content>Your task is to summarize the user text in the way asked. You have to use the user content information only.</content>
   <object>
     <name>AI.PromptDB.Summarize</name>
