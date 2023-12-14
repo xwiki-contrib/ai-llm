@@ -86,7 +86,7 @@
       <displayType/>
       <hint>Can stream</hint>
       <name>Requestmode</name>
-      <number>4</number>
+      <number>5</number>
       <prettyName>Requestmode</prettyName>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
@@ -104,7 +104,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>RightLLM</name>
-      <number>6</number>
+      <number>7</number>
       <picker>0</picker>
       <prettyName>Group Allowed to use LLM</prettyName>
       <relationalStorage>0</relationalStorage>
@@ -118,13 +118,31 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
     </RightLLM>
+    <embeddingModels>
+      <contenttype>PureText</contenttype>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <editor>PureText</editor>
+      <hint>A comma-separated list of embedding models this API provides. For each model, use the format id:dimensions where "dimensions" is the number of dimensions of the embeddings.</hint>
+      <name>embeddingModels</name>
+      <number>4</number>
+      <picker>1</picker>
+      <prettyName>Embedding Models</prettyName>
+      <restricted>0</restricted>
+      <rows>5</rows>
+      <size>40</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+    </embeddingModels>
     <token>
       <algorithm/>
       <customDisplay/>
       <disabled>0</disabled>
       <hint>Token</hint>
       <name>token</name>
-      <number>5</number>
+      <number>6</number>
       <picker>1</picker>
       <prettyName>AI Code Server Password</prettyName>
       <size>10</size>

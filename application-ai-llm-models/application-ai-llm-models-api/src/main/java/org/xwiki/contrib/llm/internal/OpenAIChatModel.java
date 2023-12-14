@@ -25,13 +25,9 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.ContentType;
+import javax.inject.Inject;
+
 import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
@@ -59,7 +55,8 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class OpenAIChatModel implements ChatModel
 {
-    private static final String BEARER = "Bearer ";
+    @Inject
+    private RequestHelper requestHelper;
 
     private GPTAPIConfig config;
 
@@ -99,37 +96,35 @@ public class OpenAIChatModel implements ChatModel
             .messages(messages)
             .build();
 
-        // Use Apache commons http client until we can use JAX-RS 2.1.
-        try (CloseableHttpClient httpClient = HttpClients.createSystem()) {
-            ObjectMapper objectMapper = new ObjectMapper();
-            HttpPost httpPost = new HttpPost(config.getURL() + "/chat/completions");
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, BEARER + config.getToken());
-            httpPost.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON);
-            httpPost.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON);
-            httpPost.setEntity(new StringEntity(objectMapper.writeValueAsString(chatCompletionRequest)));
-
-            return httpClient.execute(httpPost, response -> {
-                if (response.getCode() == 200) {
-                    HttpEntity entity = response.getEntity();
-                    if (entity != null) {
-                        InputStream inputStream = entity.getContent();
-                        OpenAiResponse<ChatCompletionResult> modelOpenAiResponse =
-                            objectMapper.readValue(inputStream,
-                                new TypeReference<OpenAiResponse<ChatCompletionResult>>() { });
-                        List<ChatCompletionChoice> chatCompletionChoices =
-                            modelOpenAiResponse.getData().get(0).getChoices();
-                        ChatCompletionChoice chatCompletionChoice = chatCompletionChoices.get(0);
-                        com.theokanning.openai.completion.chat.ChatMessage resultMessage =
-                            chatCompletionChoice.getMessage();
-                        return new ChatResponse(chatCompletionChoice.getFinishReason(),
-                            new ChatMessage(resultMessage.getRole(), resultMessage.getContent()));
+        try {
+            return this.requestHelper.post(this.config,
+                "/chat/completions",
+                chatCompletionRequest,
+                response -> {
+                    if (response.getCode() == 200) {
+                        HttpEntity entity = response.getEntity();
+                        if (entity != null) {
+                            InputStream inputStream = entity.getContent();
+                            ObjectMapper objectMapper = new ObjectMapper();
+                            OpenAiResponse<ChatCompletionResult> modelOpenAiResponse =
+                                objectMapper.readValue(inputStream,
+                                    new TypeReference<OpenAiResponse<ChatCompletionResult>>()
+                                    {
+                                    });
+                            List<ChatCompletionChoice> chatCompletionChoices =
+                                modelOpenAiResponse.getData().get(0).getChoices();
+                            ChatCompletionChoice chatCompletionChoice = chatCompletionChoices.get(0);
+                            com.theokanning.openai.completion.chat.ChatMessage resultMessage =
+                                chatCompletionChoice.getMessage();
+                            return new ChatResponse(chatCompletionChoice.getFinishReason(),
+                                new ChatMessage(resultMessage.getRole(), resultMessage.getContent()));
+                        } else {
+                            throw new IOException("Response is empty.");
+                        }
                     } else {
-                        throw new IOException("Response is empty.");
+                        throw new IOException("Response code is " + response.getCode());
                     }
-                } else {
-                    throw new IOException("Response code is " + response.getCode());
-                }
-            });
+                });
         } catch (Exception e) {
             throw new RequestError(500, e.getMessage());
         }

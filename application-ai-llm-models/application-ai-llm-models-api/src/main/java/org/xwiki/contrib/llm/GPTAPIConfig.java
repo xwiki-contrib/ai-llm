@@ -19,7 +19,12 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * A class representing an LLM AI extension confifuration as a java object.
@@ -33,6 +38,8 @@ public class GPTAPIConfig
     private String token;
     private boolean canStream;
     private String allowedGroup;
+
+    private final List<EmbeddingModelDescriptor> embeddingModels;
 
     /**
      * Take a map representation of a GPTAPIConfig object as a parameter and build a
@@ -51,6 +58,9 @@ public class GPTAPIConfig
             this.canStream = false;
         }
         this.allowedGroup = (String) properties.get("RightLLM");
+
+        String embeddingModelConfig = (String) properties.get("embeddingModels");
+        this.embeddingModels = getEmbeddingModelDescriptors(embeddingModelConfig);
     }
 
     /**
@@ -60,6 +70,25 @@ public class GPTAPIConfig
     public GPTAPIConfig()
     {
         this.name = "default";
+        this.embeddingModels = null;
+    }
+
+    private List<EmbeddingModelDescriptor> getEmbeddingModelDescriptors(String embeddingModelConfig)
+    {
+        return Arrays.stream(StringUtils.split(embeddingModelConfig, ","))
+            .map(String::trim)
+            .map(model -> StringUtils.split(model, ":", 2))
+            .map(model -> {
+                String displayName = String.format("%s (%s)", model[0], this.name);
+                int dimensions;
+                if (model.length == 1) {
+                    dimensions = 0;
+                } else {
+                    dimensions = Integer.parseInt(model[1]);
+                }
+                return new EmbeddingModelDescriptor(model[0], displayName, dimensions);
+            })
+            .collect(Collectors.toList());
     }
 
     /**
@@ -108,6 +137,14 @@ public class GPTAPIConfig
     public String getAllowedGroup()
     {
         return allowedGroup;
+    }
+
+    /**
+     * @return The list of embedding models descriptors.
+     */
+    public List<EmbeddingModelDescriptor> getEmbeddingModels()
+    {
+        return this.embeddingModels;
     }
 
     /**
