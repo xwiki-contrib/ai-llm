@@ -34,6 +34,7 @@ import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.RequestError;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.theokanning.openai.OpenAiResponse;
 import com.theokanning.openai.embedding.Embedding;
@@ -45,7 +46,7 @@ import com.theokanning.openai.embedding.EmbeddingRequest;
  * @version $Id$
  * @since 0.3
  */
-@Component(roles = EmbeddingModel.class)
+@Component(roles = OpenAIEmbeddingModel.class)
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class OpenAIEmbeddingModel implements EmbeddingModel
 {
@@ -80,7 +81,7 @@ public class OpenAIEmbeddingModel implements EmbeddingModel
         EmbeddingRequest request = new EmbeddingRequest(this.id, texts, null);
 
         try {
-            return this.requestHelper.post(this.config, "/embeddings", request, response -> {
+            return this.requestHelper.post(this.config, "embeddings", request, response -> {
                 if (response.getCode() != 200) {
                     throw new IOException("Response code is " + response.getCode());
                 }
@@ -91,6 +92,7 @@ public class OpenAIEmbeddingModel implements EmbeddingModel
                 }
 
                 ObjectMapper objectMapper = new ObjectMapper();
+                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
                 OpenAiResponse<Embedding> openAiResponse = objectMapper.readValue(entity.getContent(),
                     new TypeReference<OpenAiResponse<Embedding>>() { });
 

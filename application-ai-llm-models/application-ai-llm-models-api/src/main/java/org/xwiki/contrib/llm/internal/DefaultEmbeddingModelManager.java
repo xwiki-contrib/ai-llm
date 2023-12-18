@@ -88,7 +88,10 @@ public class DefaultEmbeddingModelManager implements EmbeddingModelManager
         throws GPTAPIException
     {
         return this.configProvider.getConfigObjects(wiki.getName(), userReference).values().stream()
-            .flatMap(config -> config.getEmbeddingModels().stream())
+            .flatMap(config -> config.getEmbeddingModels().stream().map(descriptor -> {
+                String id = config.getName() + MODEL_SEPARATOR + descriptor.getId();
+                return new EmbeddingModelDescriptor(id, descriptor.getDisplayName(), descriptor.getDimensions());
+            }))
             .collect(Collectors.toList());
     }
 }
