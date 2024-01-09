@@ -1,0 +1,90 @@
+{
+	"COLLECTION MANAGER": {
+		"description": "This is the main class of the application. It is responsible for managing the collections and the workers.",
+		"collection_management_methods": ["listCollections", "getCollection", "createCollection", "deleteCollection","collectionToXWikiDocument","XWikiDocumentToCollection"],
+		"COLLECTIONS": [
+			{
+				"description": "The collection class is responsible for managing the documents.",
+				"properties": {
+					"name": "Name of the collection",
+					"chunking_method": ["characterLimitBased","AIDriven","manual"],
+					"chunking_max_size": "Integer",
+					"chunking_overlap_offset": "Integer",
+					"embedding_model": "Name of the embedding model",
+					"permissions": ["view", "manage_content", "manage_settings"],
+					"space": "Name of the space where the collection's documents are stored"
+				},
+				"getters": ["getName", "getChunkingMethod", "getPermissions", "getSpace", "getEmbeddingModel"],
+				"setters": ["setName", "setChunkingMethod", "setPermissions", "setSpace", "setEmbeddingModel"],
+				"doc_management_methods": ["listDocuments", "getDocument", "addDocument", "updateDocument", "removeDocument","documentToXWikiDocument/push","XWikiDocumentToDocument/pull"],
+				"indexing_methods": ["indexDocuments", "indexDocument"],
+				"storage": "XWikiDocument + XWikiObject",
+				"DOCUMENTS": [
+					{
+						"description": "The document class represents a unit of information provided by the user through REST API in JSON format or directly thorugh the XWiki platform and are stored in XWikiDocuments + XWiki Objects.",
+						"properties": {
+							"id": "String - XWikiObject property (default: XWikiDocumentReference)",
+							"title": "XWikiDocument title",
+							"language": "String - XWikiObject property",
+							"URL": "String - XWikiObject property",
+							"Collection": "The name of the collection to which the document belongs",
+							"mime_type": "String - XWikiObject property",
+							"content": "String - XWikiDocument content if text || XWikiAttachment content"
+						},
+						"getters": ["getId", "getTitle", "getLanguage", "getURL", "getCollection", "getMimeType", "getContent", "getProperties", "getProperty", "getChunks?", "getEmbeddings?"],
+						"setters": ["setId", "setTitle", "setLanguage", "setURL", "setCollection", "setMimeType", "setContent", "setEmbeddings?"],
+						"functional": ["chunk", "computeEmbeddings", "storeEmbeddings","push","pull"],
+						"storage": "XWikiDocument + XWikiObject",
+						"DOCUMENT_CHUNKS": [
+							{
+								"description": "Chunks are a sub unit of a document. They are created by the chunking method and stored directly in Solr. It contains the document ID, language, chunk index, position of the first and last character of the chunk in the document and the embeddings of the chunked content.",
+								"properties": {
+									"Document_ID": "String",
+									"language": "String",
+									"chunk_index": "Integer",
+									"pos_first_char": "Integer",
+									"pos_last_char": "Integer",
+									"embeddings": "Vector"
+								},
+								"storage": "Solr Document"
+							}
+						]
+					}
+				]
+			}
+		]
+	},
+	"WORKER-storage": {
+		"description": "This class is responsible for handling the document queue, chunking the documents from the queue, computing the embeddings and storing them in solr.",
+		"active_config": {
+			"embedding_model": "collection_embedding_model",
+			"chunking_model": "LLM model",
+			"chunking_method": "collection_chunking_method",
+			"chunking_max_size": "collection_chunking_max_size",
+			"chunking_overlap": "collection_chunking_overlap_offset",
+			"chunking_stopwords": "collection_chunking_stopwords"
+		},
+		"state": {
+			"document_queue": ["document_id_1", "document_id_2", "document_id_3"],
+			"status": ["idle", "running", "stopped", "paused", "error"],
+			"last_chunked_document": "document_id",
+			"last_chunked_document_chunk": "chunk_index",
+			"last_chunked_document_chunk_embedding": "embedding_vector",
+			"last_chunked_document_chunk_embedding_status": ["idle", "in_progress", "done", "error"]
+		},
+		"state_methods": ["start", "stop", "pause", "resume", "getStatus"],
+        "queue_info_methods": ["getQueue", "getQueueSize", "getQueuePosition", "getQueueProgress", "getQueueProgressPercentage"],
+        "queue_manipulation_methods": ["addToQueue" , "removeFromQueue", "clearQueue"],
+        "document_processing_methods": ["chunkDocument", "computeEmbedding", "storeProcessedChunk"]
+	},
+    "WORKER-retriever": {
+        "description": "This class is responsible for retrieving the relevant chunks from solr.",
+        "methods": ["AuthenticateRequest", "retrieveDocumentChunks", "retrieveDocuments"]
+    },
+	"SOLR_connector": {
+		"description": "This class is responsible for the solr setup and connection.",
+		"methods": ["connect", "initialize", "close"]
+	},
+	"Information flow":["User's Document (in JSON or file)","REST API or JAVA API", "XWikiDocument + XWikiObject", "WORKER-storage queue", "Chunks","Solr Document", "WORKER-retriever", "LLM", "User"]
+}
+

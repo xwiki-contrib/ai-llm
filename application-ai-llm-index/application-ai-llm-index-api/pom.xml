@@ -33,8 +33,17 @@
     <properties>
         <xwiki.extension.name>LLM Index API (BETA)</xwiki.extension.name>
         <xwiki.jacoco.instructionRatio>0.00</xwiki.jacoco.instructionRatio>
+        <xwiki.extension.features>
+          org.xwiki.contrib.llm:application-llm-index-api
+        </xwiki.extension.features>
+        <maven.checksum.policy>ignore</maven.checksum.policy> <!-- Ignore checksums for now. -->
     </properties>
     <dependencies>
+        <dependency>
+            <groupId>org.xwiki.commons</groupId>
+            <artifactId>xwiki-commons-script</artifactId>
+            <version>${commons.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.xwiki.platform</groupId>
             <artifactId>xwiki-platform-rest-api</artifactId>
@@ -65,6 +74,16 @@
             <groupId>org.xwiki.platform</groupId>
             <artifactId>xwiki-platform-search-solr-query</artifactId>
             <version>${platform.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-security-authorization-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.xwiki.contrib.llm</groupId>
+            <artifactId>application-ai-llm-models-api</artifactId>
+            <version>0.3-SNAPSHOT</version>
         </dependency>
     </dependencies>
 </project>
