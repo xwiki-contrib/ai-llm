@@ -134,8 +134,8 @@ public class IndexWorker implements EventListener
                     List<Chunk> chunks = memDocument.chunkDocument();
                     for (Chunk chunk : chunks) {
                         logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
-                        //     chunk.computeEmbeddings();
-                        //     chunk.storeInSolr();
+                        chunk.computeEmbeddings(chunk.getContent());
+                        SolrConnector.addDocument(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
                     }
                 } catch (Exception e) {
                     this.logger.error("Failure to process document in indexWorker", e);
@@ -155,4 +155,11 @@ public class IndexWorker implements EventListener
                                 );
         return new EntityReference(XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
     }
+
+    //generate unique id for chunks
+    private String generateChunkID(String docID, int chunkIndex)
+    {
+        return docID + "_" + chunkIndex;
+    }
+
 }

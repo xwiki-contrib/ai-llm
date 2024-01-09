@@ -1,8 +1,6 @@
-org.xwiki.contrib.llm.internal.DefaultHelloWorld
 org.xwiki.contrib.llm.internal.DefaultCollectionManager
 org.xwiki.contrib.llm.internal.DefaultCollection
 org.xwiki.contrib.llm.internal.DefaultDocument
-org.xwiki.contrib.llm.script.HelloWorldScriptService
 org.xwiki.contrib.llm.script.CollectionManagerScriptService
 org.xwiki.contrib.llm.IndexWorker
 org.xwiki.contrib.llm.Chunk

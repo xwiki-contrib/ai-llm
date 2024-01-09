@@ -144,7 +144,7 @@ public class Chunk
     /**
      * Getter for the embeddings.
      *
-     * @return the embeddings
+     * @return the embeddings as double array
      */
     public double[] getEmbeddings()
     {

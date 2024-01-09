@@ -19,10 +19,15 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrInputDocument;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * Connects to the Solr server.
  *
@@ -43,17 +48,29 @@ public final class SolrConnector
     /**
      * Connects to the Solr server and adds a document.
      * 
-     * @param document the document to add
+     * @param chunk the chunk to be storred
+     * @param id the id of the chunk
      */
-    public static void addDocument(Document document)
+    public static void addDocument(Chunk chunk, String id)
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             SolrInputDocument solrDocument = new SolrInputDocument();
-            solrDocument.addField("id", document.getID());
-            solrDocument.addField("title", document.getTitle());
-            solrDocument.addField("language", document.getLanguage());
-            solrDocument.addField("url", document.getURL());
-            solrDocument.addField("mimetype", document.getMimetype());
+            solrDocument.addField("id", id);
+            solrDocument.addField("docId", chunk.getDocumentID());
+            solrDocument.addField("language", chunk.getLanguage());
+            solrDocument.addField("index", chunk.getChunkIndex());
+            solrDocument.addField("posFirstChar", chunk.getPosFirstChar());
+            solrDocument.addField("posLastChar", chunk.getPosLastChar());
+            ObjectMapper mapper = new ObjectMapper();
+            String content = mapper.writeValueAsString(chunk.getContent());
+
+
+            solrDocument.addField("content", content);
+            double[] embeddings = chunk.getEmbeddings();
+            List<Float> embeddingsList = Arrays.stream(embeddings)
+                                            .mapToObj(d -> (float) d)
+                                            .collect(Collectors.toList());
+            solrDocument.setField("vector", Arrays.asList(embeddingsList));
             client.add(solrDocument);
             client.commit();
         } catch (Exception e) {
