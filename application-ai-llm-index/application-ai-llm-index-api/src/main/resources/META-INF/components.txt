@@ -1,3 +1,5 @@
+org.xwiki.contrib.llm.internal.rest.DefaultCollectionsResource
+org.xwiki.contrib.llm.internal.rest.DefaultCollectionResource
 org.xwiki.contrib.llm.internal.DefaultCollectionManager
 org.xwiki.contrib.llm.internal.DefaultCollection
 org.xwiki.contrib.llm.internal.DefaultDocument
