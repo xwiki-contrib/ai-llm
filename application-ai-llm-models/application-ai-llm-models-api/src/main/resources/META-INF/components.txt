@@ -3,6 +3,7 @@ org.xwiki.contrib.llm.internal.DefaultEmbeddingModelManager
 org.xwiki.contrib.llm.internal.DefaultGPTAPI
 org.xwiki.contrib.llm.internal.DefaultGPTAPIConfigProvider
 org.xwiki.contrib.llm.internal.DefaultGPTAPIPromptDBProvider
+org.xwiki.contrib.llm.internal.HttpClientFactory
 org.xwiki.contrib.llm.internal.OpenAIChatModel
 org.xwiki.contrib.llm.internal.OpenAIEmbeddingModel
 org.xwiki.contrib.llm.internal.RequestHelper

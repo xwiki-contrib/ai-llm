@@ -21,11 +21,11 @@ package org.xwiki.contrib.llm.internal;
 
 import java.io.IOException;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.io.HttpClientResponseHandler;
@@ -33,6 +33,7 @@ import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -46,6 +47,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class RequestHelper
 {
     private static final String BEARER = "Bearer ";
+
+    @Inject
+    private HttpClientFactory httpClientFactory;
 
     /**
      * Perform a POST request.
@@ -62,8 +66,9 @@ public class RequestHelper
     public <T, R> R post(GPTAPIConfig config, String path, T body,
         HttpClientResponseHandler<? extends R> responseHandler) throws IOException
     {
-        try (CloseableHttpClient httpClient = HttpClients.createSystem()) {
+        try (CloseableHttpClient httpClient = this.httpClientFactory.createHttpClient()) {
             ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
             HttpPost httpPost = new HttpPost(config.getURL() + path);
             httpPost.setHeader(HttpHeaders.AUTHORIZATION, BEARER + config.getToken());
             httpPost.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON);
