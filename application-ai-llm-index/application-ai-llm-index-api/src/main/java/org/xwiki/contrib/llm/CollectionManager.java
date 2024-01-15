@@ -31,13 +31,13 @@ import org.xwiki.component.annotation.Role;
 @Role
 public interface CollectionManager
 {
-    // /**
-    //  * Creates a new collection.
-    //  *
-    //  * @param name the name of the collection
-    //  * @return the created collection
-    //  */
-    // Collection createCollection(String name);
+    /**
+     * Creates a new collection.
+     *
+     * @param fullName the name of the collection
+     * @return the created collection
+     */
+    Collection createCollection(String fullName);
     
     /**
      * Lists all collections.
@@ -54,12 +54,12 @@ public interface CollectionManager
      */
     Collection getCollection(String name) throws IndexException;
     
-    // /**
-    //  * Deletes a collection.
-    //  * @param name
-    //  * @return boolean indicating success or failure
-    //  */
-    // boolean deleteCollection(String name);
+    /**
+     * Deletes a collection.
+     * @param name
+     * @return boolean indicating success or failure
+     */
+    boolean deleteCollection(String name);
 
     /**
      * Clears the solr core of all data.

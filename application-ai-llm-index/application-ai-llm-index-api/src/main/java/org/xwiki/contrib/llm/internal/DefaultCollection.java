@@ -48,7 +48,7 @@ import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import javax.inject.Provider;
-
+import org.slf4j.Logger;
 /**
  * Implementation of a {@code Collection} component.
  *
@@ -81,8 +81,8 @@ public class DefaultCollection implements Collection
     @Inject 
     private Provider<XWikiContext> contextProvider;
 
-    // @Inject
-    // private Logger logger;
+    @Inject
+    private Logger logger;
     
     @Inject
     @Named("current")
@@ -97,6 +97,15 @@ public class DefaultCollection implements Collection
     {
         this.xwikidocument = xwikidocument;
         this.object = xwikidocument.getXObject(getObjectReference());
+        if (this.object == null)
+        {
+            XWikiContext context = contextProvider.get();
+            try {
+                this.object = xwikidocument.newXObject(getObjectReference(), context);
+            } catch (XWikiException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
@@ -239,6 +248,27 @@ public class DefaultCollection implements Collection
         return this.object.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME);
     }
     
+    @Override
+    public boolean setName(String name)
+    {
+        this.xwikidocument.setTitle(name);
+        return true;
+    }
+
+    @Override
+    public boolean save()
+    {
+        try {
+            XWikiContext context = this.contextProvider.get();
+            context.getWiki().saveDocument(this.xwikidocument, context);
+            return true;
+        } catch (XWikiException e) {
+            logger.error("Error saving collection: {}", e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     //get XObject reference for the collection XClass
     private EntityReference getObjectReference()
     {

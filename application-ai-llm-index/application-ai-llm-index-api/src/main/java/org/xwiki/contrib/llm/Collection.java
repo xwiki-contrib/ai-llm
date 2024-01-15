@@ -30,14 +30,32 @@ import org.xwiki.component.annotation.Role;
 @Role
 public interface Collection
 {
+
+    
     /**
      * The name of the XClass that represents a collection.
      */
     String XCLASS_NAME = "CollectionsClass";
+    
     /**
      * The space of the XClass that represents a collection.
      */
     String XCLASS_SPACE_STRING = "AI.Collections.Code";
+    
+    /**
+     * The fullName of the XClass that represents a collection.
+     */
+    String XCLASS_FULLNAME = XCLASS_SPACE_STRING + "." + XCLASS_NAME;
+
+    /**
+     * The default space for collections.
+     */
+    String DEFAULT_COLLECTION_SPACE = "AI.Collections";
+
+    /**
+     * The default suffix for collection fullNames.
+     */
+    String DEFAULT_COLLECTION_SUFFIX = ".WebHome";
 
     /**
      * Gets the name of the collection.
@@ -146,4 +164,18 @@ public interface Collection
      */
     String rightsCheckMethodParam();
 
+    /**
+     * Sets the name of the collection.
+     * 
+     * @param name The name of the collection.
+     * @return True if the operation was successful, false otherwise.
+     */
+    boolean setName(String name);
+
+    /**
+     * Saves the collection.
+     *
+     * @return true if the collection was saved successfully, false otherwise
+     */
+    boolean save();
 }
