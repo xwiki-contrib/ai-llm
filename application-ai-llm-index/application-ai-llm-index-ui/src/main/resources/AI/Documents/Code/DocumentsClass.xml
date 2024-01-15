@@ -69,7 +69,7 @@
       <displayType>input</displayType>
       <freeText/>
       <hint/>
-      <idField>doc.fullName</idField>
+      <idField>doc.title</idField>
       <largeStorage>0</largeStorage>
       <multiSelect>0</multiSelect>
       <name>collection</name>
