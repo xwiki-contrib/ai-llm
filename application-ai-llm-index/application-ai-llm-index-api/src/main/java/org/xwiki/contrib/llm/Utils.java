@@ -27,8 +27,8 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.contrib.llm.internal.DefaultDocument;
 import org.xwiki.model.reference.SpaceReferenceResolver;
 
 /**
@@ -48,28 +48,60 @@ public class Utils
     @Inject 
     private Provider<Chunk> chunkProvider;
 
+    @Inject
+    private CollectionManager collectionManager;
+ 
+    @Inject
+    private Logger logger;
     /**
      * This method is responsible for splitting the document into chunks.
      * 
      * @param document
      * @return a Map of chunks
      */
-    public Map<Integer, Chunk> chunkDocument(DefaultDocument document)
-    {      
+    public Map<Integer, Chunk> chunkDocument(Document document) 
+    {
+        Map<Integer, Chunk> chunkMap;
+        Collection collection;
+        try {
+            collection = collectionManager.getCollection(document.getCollection());
+            logger.info("Chosen collection: " + collection.getName());
+            if (collection.getChunkingMethod().equals("sectionChunking")) {
+                logger.info("Chunking method not supported");
+                chunkMap = chunkDocumentBasedOnSections();
+            } else {
+                logger.info("Chose the correct chunking method");
+                chunkMap = chunkDocumentBasedOnCharacters(document, collection.getChunkingMaxSize(),
+                            collection.getChunkingOverlapOffset());
+            }
+            return chunkMap;
+        } catch (IndexException e) {
+            e.printStackTrace();
+        }
+        return new HashMap<>();
+    }
+
+    private Map<Integer, Chunk> chunkDocumentBasedOnSections()
+    {
+        // TODO Auto-generated method stub
+        return new HashMap<>();
+    }
+
+    private Map<Integer, Chunk> chunkDocumentBasedOnCharacters(Document document, int maxChunkSize, int offset)
+    {
         // get the document content
         String content = document.getContent();
-    
+
         // Initialize the chunks map
         Map<Integer, Chunk> chunks = new HashMap<>();
     
         int start = 0;
         int end;
         int chunkIndex = 0;
-        int maxChunkSize = 1000;
     
-        while (start < content.length()) {
+        while (start + offset < content.length()) {
             // Find the next index to end the chunk
-            end = findNextChunkEnd(content, start, maxChunkSize);
+            end = Math.min(start + maxChunkSize, content.length());
     
             // Extract the chunk content
             String chunkContent = content.substring(start, end);
@@ -80,68 +112,12 @@ public class Utils
             chunks.put(chunkIndex, chunk);
     
             // Prepare for the next iteration
-            start = end;
+            start = end - offset;
             chunkIndex++;
         }
     
         return chunks;
     }
     
-    private int findNextChunkEnd(String content, int start, int maxChunkSize)
-    {
-        int end = Math.min(start + maxChunkSize, content.length());
-        int lastSuitableEnd = findEmptyLineOrPunctuation(content, start, end);
-        return lastSuitableEnd > start ? lastSuitableEnd : end;
-    }
-    
-    private int findEmptyLineOrPunctuation(String content, int start, int end)
-    {
-        boolean emptyLineFound = false;
-        int lastSuitableEnd = start;
-        
-        for (int i = start; i < end; i++) {
-            if (!emptyLineFound) {
-                lastSuitableEnd = checkForEmptyLine(content, i, lastSuitableEnd);
-                emptyLineFound = lastSuitableEnd != i;
-            }
-            if (!emptyLineFound) {
-                lastSuitableEnd = checkForPunctuation(content, i, lastSuitableEnd);
-            }
-        }
-        return lastSuitableEnd;
-    }
-    
-    private int checkForEmptyLine(String content, int index, int lastSuitableEnd)
-    {
-        if (index + 1 < content.length() && isLineBreak(content.charAt(index))
-                && isLineBreakOrSpace(content.charAt(index + 1))) {
-            int j = index + 2;
-            while (j < content.length() && isLineBreakOrSpace(content.charAt(j))) {
-                j++;
-            }
-            return j;
-        }
-        return lastSuitableEnd;
-    }
-    
-    private int checkForPunctuation(String content, int index, int lastSuitableEnd)
-    {
-        if (content.charAt(index) == '.'
-            || content.charAt(index) == '?'
-            || content.charAt(index) == '!') {
-            return index + 1;
-        }
-        return lastSuitableEnd;
-    }
-    
-    private boolean isLineBreak(char ch)
-    {
-        return ch == '\n' || ch == '\r';
-    }
-    
-    private boolean isLineBreakOrSpace(char ch)
-    {
-        return isLineBreak(ch) || ch == ' ';
-    }
     
 }

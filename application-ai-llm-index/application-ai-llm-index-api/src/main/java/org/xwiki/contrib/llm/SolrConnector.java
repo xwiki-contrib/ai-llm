@@ -35,7 +35,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public final class SolrConnector
 {
-    private static final String SOLR_CORE_URL = "http://localhost:8983/solr/gettingstarted";
+    private static final String SOLR_CORE_URL = "http://my_solr:8983/solr/gettingstarted";
 
     /**
      * Private constructor to hide the implicit public one.
@@ -72,6 +72,35 @@ public final class SolrConnector
                                             .collect(Collectors.toList());
             solrDocument.setField("vector", Arrays.asList(embeddingsList));
             client.add(solrDocument);
+            client.commit();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * Connects to the Solr server and deletes a document.
+     * 
+     * @param id the id of the chunk
+     */
+    public static void deleteDocument(String id)
+    {
+        try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
+            client.deleteById(id);
+            client.commit();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Connects to the Solr server and deletes all documents.
+     */
+    public static void clearIndexCore()
+    {
+        try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
+            client.deleteByQuery("*:*");
             client.commit();
         } catch (Exception e) {
             e.printStackTrace();

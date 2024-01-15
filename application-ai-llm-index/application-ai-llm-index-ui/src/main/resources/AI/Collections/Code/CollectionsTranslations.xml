@@ -1,0 +1,134 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Collections.Code.CollectionsTranslations" locale="">
+  <web>AI.Collections.Code</web>
+  <name>CollectionsTranslations</name>
+  <language/>
+  <defaultLanguage>en</defaultLanguage>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>CollectionsClass</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title/>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>plain/1.0</syntaxId>
+  <hidden>true</hidden>
+  <content># Class fields
+AI.Collections.Code.CollectionsClass_name=Name
+AI.Collections.Code.CollectionsClass_embeddingModel=Embedding Model
+AI.Collections.Code.CollectionsClass_chunkingMethod=Chunking method
+AI.Collections.Code.CollectionsClass_chunkingMethod_sectionChunking=Section-based chunking
+AI.Collections.Code.CollectionsClass_chunkingMethod_maxChars=Max characters chunking
+AI.Collections.Code.CollectionsClass_chunkingMaxSize=Chunking max size
+AI.Collections.Code.CollectionsClass_chunkingOverlapOffset=Chunking overlap offset
+AI.Collections.Code.CollectionsClass_documentSpaces=Document spaces
+AI.Collections.Code.CollectionsClass_queryGroups=groups that can query
+AI.Collections.Code.CollectionsClass_editGroups=Groups that can manage content
+AI.Collections.Code.CollectionsClass_adminGroups=Groups that can Manage Settings
+AI.Collections.Code.CollectionsClass_rightsCheckMethod=Rights check method
+AI.Collections.Code.CollectionsClass_rightsCheckMethod_rightsCheckJWT=JSON Web Token
+AI.Collections.Code.CollectionsClass_rightsCheckMethodParam=Rights check method parameter (URL)
+
+# Sheet keys
+collections.sheet.description=This page controls how Collections pages are displayed in both view and edit modes.
+collections.sheet.noObject=The current page doesn't have the expected Collections object.
+collections.sheet.noFields=The Collections application doesn't have any fields to display.
+
+# Live table generic keys
+collections.livetable.doc.title=Page Title
+collections.livetable.doc.name=Page Name
+collections.livetable.doc.space=Space
+collections.livetable.doc.fullname=Page full name
+collections.livetable.doc.location=Location
+collections.livetable.doc.author=Last Author
+collections.livetable.doc.creator=Creator
+collections.livetable.doc.date=Date
+collections.livetable.doc.creationDate=Creation Date
+collections.livetable._avatar=Avatar
+collections.livetable._images=Images
+collections.livetable._attachments=Attachments
+collections.livetable._actions=Actions
+collections.livetable._actions.edit=Edit
+collections.livetable._actions.delete=Delete
+collections.livetable.emptyvalue=-
+
+# Live table specific keys
+collections.livetable.name=Name
+collections.livetable.embeddingModel=Embedding Model
+collections.livetable.chunkingMethod=Chunking method
+collections.livetable.chunkingMaxSize=Chunking max size
+collections.livetable.chunkingOverlapOffset=Chunking overlap offset
+collections.livetable.documentSpaces=Document spaces
+collections.livetable.queryGroups=groups that can query
+collections.livetable.editGroups=Groups that can manage content
+collections.livetable.adminGroups=Groups that can Manage Settings
+collections.livetable.rightsCheckMethod=Rights check method
+collections.livetable.rightsCheckMethodParam=Rights check method parameter (URL)
+
+# Other keys
+collections.entry.name=Collections
+
+# Deprecated keys
+collections.dataSpace.title=Data
+</content>
+  <object>
+    <name>AI.Collections.Code.CollectionsTranslations</name>
+    <number>0</number>
+    <className>XWiki.TranslationDocumentClass</className>
+    <guid>2e8c12bd-81fb-4b81-96b9-621f110b0499</guid>
+    <class>
+      <name>XWiki.TranslationDocumentClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <scope>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>scope</name>
+        <number>1</number>
+        <prettyName>Scope</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>GLOBAL|WIKI|USER|ON_DEMAND</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </scope>
+    </class>
+    <property>
+      <scope>WIKI</scope>
+    </property>
+  </object>
+</xwikidoc>

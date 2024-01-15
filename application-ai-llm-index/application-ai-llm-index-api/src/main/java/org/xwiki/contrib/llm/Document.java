@@ -20,11 +20,8 @@
 package org.xwiki.contrib.llm;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.xwiki.component.annotation.Role;
-
-import com.xpn.xwiki.doc.XWikiDocument;
 
 /**
  * Represents a document within the WAISE collection in the AI-LLM indexing system.
@@ -34,6 +31,16 @@ import com.xpn.xwiki.doc.XWikiDocument;
 @Role
 public interface Document 
 {
+
+    /**
+     * The name of the XClass that represents a document.
+     */
+    String XCLASS_NAME = "DocumentsClass";
+    /**
+     * The space of the XClass that represents a document.
+     */
+    String XCLASS_SPACE_STRING = "AI.Documents.Code";
+
     /**
      * Retrieves the unique identifier of the document.
      *
@@ -133,41 +140,17 @@ public interface Document
     void setContent(String content);
 
     /**
+     * Saves the document.
+     *
+     * @return true if the document was saved successfully, false otherwise
+     */
+    boolean save();
+
+    /**
      * Process the document and chunk it into smaller pieces.
      * 
      * @return a list of chunks of the document
      */
     List<Chunk> chunkDocument();
-    
-    /**
-     * Retrieves the properties of the document.
-     *
-     * @return the document's properties
-     */
-    java.util.Map<String, String> getProperties();
-
-    /**
-     * Retrieves a specific property of the document.
-     * 
-     * @param key The property key
-     * @return The property value if present
-     */
-    Optional<String> getProperty(String key);
-
-    /**
-     * Sets the properteis of a document based on the properties of the specified XWiki document's object.
-     * 
-     * @param xwikiDocument
-     * @return The updated document.
-     */
-    Document toDocument(XWikiDocument xwikiDocument);
-
-    /**
-     * Sets the properties of a XWiki document's object based on the properties of the document.
-     * 
-     * @param xwikiDocument The XWiki document to update.
-     * @return The updated XWiki document.
-     */
-    XWikiDocument toXWikiDocument(XWikiDocument xwikiDocument);
 
 }

@@ -39,10 +39,6 @@ import org.xwiki.model.reference.SpaceReferenceResolver;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 
-import com.xpn.xwiki.internal.event.XObjectAddedEvent;
-import com.xpn.xwiki.internal.event.XObjectUpdatedEvent;
-import com.xpn.xwiki.internal.event.XObjectPropertyUpdatedEvent;
-
 import org.slf4j.Logger;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
@@ -59,8 +55,6 @@ import org.xwiki.component.annotation.Component;
 @Singleton
 public class IndexWorker implements EventListener
 {
-    private static final String XCLASS_NAME = "KiDocumentsClass";
-    private static final String XCLASS_SPACE_STRING = "AILLMApp.KiDocuments.Code";
  
     @Inject
     private Logger logger;
@@ -83,8 +77,7 @@ public class IndexWorker implements EventListener
     
     @Override public List<Event> getEvents()
     {
-        return Arrays.<Event>asList(new XObjectAddedEvent(), new XObjectUpdatedEvent(),
-            new XObjectPropertyUpdatedEvent(), new DocumentCreatedEvent(), new DocumentUpdatedEvent());
+        return Arrays.<Event>asList(new DocumentCreatedEvent(), new DocumentUpdatedEvent());
     }
 
     @Override public void onEvent(Event event, Object source, Object data)
@@ -93,7 +86,7 @@ public class IndexWorker implements EventListener
         this.logger.info("Event: {}", event);
         XWikiDocument xdocument = (XWikiDocument) source;
         BaseObject documentObject = xdocument.getXObject(documentClassReference);
-        this.logger.info("Document: {}", xdocument.getDocumentReference());
+        this.logger.info("Document ref on event: {}", xdocument.getDocumentReference());
         if (documentObject != null) {
             try {
                 //Add document to the queue
@@ -105,7 +98,6 @@ public class IndexWorker implements EventListener
                 //if the queue is not empty and the worker is not processing, process the queue
                 if (!keyValueQueue.isEmpty() && !isProcessing) {
                     isProcessing = true;
-                    collectionManager.pullCollections();
                     processDocumentQueue(xdocument);
                     isProcessing = false;
                 }
@@ -118,23 +110,25 @@ public class IndexWorker implements EventListener
 
     private void processDocumentQueue(XWikiDocument xdocument)
     {
-        logger.info("document {}", xdocument.getDocumentReference());
+        logger.info("document ref {}", xdocument.getDocumentReference());
         //while queue is not empty, get first document, log it's ID and remove it from the queue
         while (!this.keyValueQueue.isEmpty()) {
-            logger.info("collectionManager pull {}", collectionManager.listCollections());
+            logger.info("collectionManager pull {}", collectionManager.getCollections());
             logger.info("for document {}", xdocument.getDocumentReference());
             AbstractMap.SimpleEntry<String, String> nextInLine = this.keyValueQueue.poll();
+            logger.info("nextInLine {}", nextInLine);
             if (nextInLine != null) {
                 String key = nextInLine.getKey();
                 String value = nextInLine.getValue();
                 this.logger.info("Processing document: {}", key);
                 try {
-                    Document memDocument = collectionManager.getCollection(value).createDocument(key);
-                    memDocument = memDocument.toDocument(xdocument);
-                    List<Chunk> chunks = memDocument.chunkDocument();
+                    Document document = collectionManager.getCollection(value).getDocument(key);
+                    logger.info("Document: {}", document);
+                    List<Chunk> chunks = document.chunkDocument();
+                    logger.info("Chunks: {}", chunks);
                     for (Chunk chunk : chunks) {
                         logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
-                        chunk.computeEmbeddings(chunk.getContent());
+                        chunk.computeEmbeddings();
                         SolrConnector.addDocument(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
                     }
                 } catch (Exception e) {
@@ -147,13 +141,13 @@ public class IndexWorker implements EventListener
     //get XObject reference for the collection XClass
     private EntityReference getObjectReference()
     {
-        SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(XCLASS_SPACE_STRING);
+        SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(Document.XCLASS_SPACE_STRING);
 
-        EntityReference collectionClassRef = new EntityReference(XCLASS_NAME,
+        EntityReference collectionClassRef = new EntityReference(Document.XCLASS_NAME,
                                     EntityType.DOCUMENT,
                                     spaceRef
                                 );
-        return new EntityReference(XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
+        return new EntityReference(Document.XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
     }
 
     //generate unique id for chunks

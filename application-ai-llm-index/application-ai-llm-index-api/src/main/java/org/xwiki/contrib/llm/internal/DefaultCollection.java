@@ -19,31 +19,35 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import org.slf4j.Logger;
+
+import org.apache.commons.codec.digest.DigestUtils;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Provider;
 
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.model.EntityType;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.model.reference.SpaceReferenceResolver;
+import org.xwiki.query.Query;
+import org.xwiki.query.QueryException;
+import org.xwiki.query.QueryManager;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+import javax.inject.Provider;
 
 /**
  * Implementation of a {@code Collection} component.
@@ -54,232 +58,187 @@ import com.xpn.xwiki.objects.BaseObject;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class DefaultCollection implements Collection
 {
-    private static final String NAME_FIELDNAME = "name";
     private static final String EMBEDDINGMODEL_FIELDNAME = "embeddingModel";
     private static final String CHUNKING_METHOD_FIELDNAME = "chunkingMethod";
     private static final String CHUNKING_MAX_SIZE_FIELDNAME = "chunkingMaxSize";
     private static final String CHUNKING_OVERLAP_OFFSET_FIELDNAME = "chunkingOverlapOffset";
-    private static final String PERMISSIONS_FIELDNAME = "permissions";
+    private static final String QUERY_GROUPS_FIELDNAME = "queryGroups";
+    private static final String EDIT_GROUPS_FIELDNAME = "editGroups";
+    private static final String ADMIN_GROUPS_FIELDNAME = "adminGroups";
     private static final String RIGHTS_CHECK_METHOD_FIELDNAME = "rightsCheckMethod";
     private static final String RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME = "rightsCheckMethodParam";
-    private static final String DOCUMENT_SPACE_FIELDNAME = "documentSpace";
-    private static final String XCLASS_NAME = "CollectionsClass";
-    private static final String XCLASS_SPACE_STRING = "AILLMApp.Collections.Code";
+    private static final String DOCUMENT_SPACE_FIELDNAME = "documentSpaces";
 
-    private String name;
-    private String embeddingModel;
-    private String chunkingMethod;
-    private String chunkingMaxSize;
-    private String chunkingOverlapOffset;
-    private String permissions;
-    private String rightsCheckMethod;
-    private String rightsCheckMethodParameter;
-    private String documentSpace;
-    private Map<String, Document> documents;
     private XWikiDocument xwikidocument;
+    private BaseObject object;
+
+    @Inject
+    private QueryManager queryManager;
 
     @Inject
     private Provider<DefaultDocument> documentProvider;
 
     @Inject 
     private Provider<XWikiContext> contextProvider;
-    
-    @Inject
-    private Logger logger;
+
+    // @Inject
+    // private Logger logger;
     
     @Inject
     @Named("current")
     private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
 
     /**
-     * Default constructor for DefaultCollection.
-     * Initializes the collection name, permissions, embedding model, 
-     * and empty document map.
-     *
-     * @param name The name of the collection.
+     * Initialize the collection.
+     *  
+     * @param xwikidocument the XWiki document
      */
-    public void initialize(String name)
+    public void initialize(XWikiDocument xwikidocument)
     {
-        this.name = name;
-        this.permissions = "view";
-        this.embeddingModel = "bert";
-        this.chunkingMethod = "maxTokens";
-        this.chunkingMaxSize = "1000";
-        this.chunkingOverlapOffset = "0";
-        this.rightsCheckMethod = "jwt";
-        this.rightsCheckMethodParameter = "";
-        this.documentSpace = "AILLMApp.Collections." + this.name + ".Documents";
-        this.documents = new HashMap<>();
+        this.xwikidocument = xwikidocument;
+        this.object = xwikidocument.getXObject(getObjectReference());
     }
 
     @Override
     public String getName()
     {
-        return name;
+        return this.xwikidocument.getTitle();
     }
 
     @Override
-    public List<Document> getDocumentList()
+    public String getFullName()
     {
-        return new ArrayList<>(documents.values());
+        return this.xwikidocument.getDocumentReference().toString().split(":")[1];
     }
 
     @Override
-    public Document getDocument(String id)
+    public List<String> getDocuments()
     {
-        return documents.get(id);
+        List<String> documents = null;
+        String documentClass = Document.XCLASS_SPACE_STRING + "." + Document.XCLASS_NAME;
+        String templateDoc = Document.XCLASS_SPACE_STRING + ".CollectionsTemplate";
+        String hql = "select prop.value from XWikiDocument doc, BaseObject obj, StringProperty prop "
+                    + "where doc.fullName=obj.name and obj.className='" + documentClass
+                    + "' and doc.fullName <> '" + templateDoc
+                    + "' and obj.id = prop.id.id and prop.id.name = 'id'";
+        try {
+            Query query = queryManager.createQuery(hql, Query.HQL);
+            documents = query.execute();
+            return documents;
+        } catch (QueryException e) {
+            e.printStackTrace();
+        }
+        return documents;
     }
 
     @Override
-    public String getPermissions()
+    public Document newDocument(String documentId) throws IndexException
     {
-        return permissions;
+        if (documentId == null) {
+            throw new IndexException("Document ID cannot be null");
+        }
+        XWikiContext context = contextProvider.get();
+        DocumentReference documentReference = getDocumentReference(documentId);
+        try {
+            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
+            DefaultDocument document = this.documentProvider.get();
+            document.initialize(xwikiDoc);
+            document.setID(documentId);
+            document.setTitle(documentId);
+            document.setCollection(this.getFullName());
+            return document;
+        } catch (XWikiException e) {
+            throw new IndexException("Failed to create document " + documentId, e);
+        }
+    }
+    
+    @Override
+    public Document getDocument(String documentId) throws IndexException
+    {
+        XWikiContext context = contextProvider.get();
+        DocumentReference documentReference = getDocumentReference(documentId);
+        try {
+            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
+            if (!xwikiDoc.isNew()) {
+                DefaultDocument document = this.documentProvider.get();
+                document.initialize(xwikiDoc);
+                return document;
+            } else {
+                return null;
+            }
+        } catch (XWikiException e) {
+            throw new IndexException("Failed to get document " + documentId, e);
+        }
     }
 
+    private DocumentReference getDocumentReference(String id)
+    {
+        SpaceReference lastSpaceReference = this.xwikidocument.getDocumentReference().getLastSpaceReference();
+        SpaceReference documentReference = new SpaceReference("Documents", lastSpaceReference);
+        return new DocumentReference(DigestUtils.sha256Hex(id), documentReference);
+    }
+    
     @Override
     public String getEmbeddingModel()
     {
-        return embeddingModel;
-    }
-
-    @Override
-    public boolean setName(String name)
-    {
-        if (name != null) {
-            this.name = name;
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean setPermissions(String permissions)
-    {
-        if (permissions != null) {
-            this.permissions = permissions;
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean setEmbeddingModel(String embeddingModel)
-    {
-        if (embeddingModel != null) {
-            this.embeddingModel = embeddingModel;
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean removeDocument(String id, boolean deleteDocument)
-    {
-        if (documents.containsKey(id)) {
-            if (deleteDocument) {
-                // Implement document deletion logic here if needed
-            }
-            documents.remove(id);
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public void assignIdToDocument(Document document, String id)
-    {
-        // check if the document already exists
-        documents.put(id, document);
-    }
-
-    @Override
-    public Document createDocument() throws XWikiException
-    {
-        String uniqueId = generateUniqueId();
-        DefaultDocument newDocument = documentProvider.get();
-        newDocument.initialize(uniqueId);
-        documents.put(uniqueId, newDocument);
-        return newDocument;
-    }
-
-    @Override
-    public Document createDocument(String id) throws XWikiException
-    {
-        DefaultDocument newDocument = documentProvider.get();
-        newDocument.initialize(id);
-        documents.put(id, newDocument);
-        return newDocument;
-    }
-
-    private String generateUniqueId()
-    {
-        return "document" + (documents.size() + 1);
+        return this.object.getStringValue(EMBEDDINGMODEL_FIELDNAME);
     }
     
     @Override
-    public Collection fromXWikiDocument(XWikiDocument document)
+    public String getChunkingMethod()
     {
-        this.xwikidocument = document;
-        EntityReference documentReference = this.xwikidocument.getDocumentReference();
-        EntityReference objectEntityReference = new EntityReference(
-            XCLASS_SPACE_STRING + "." + XCLASS_NAME,
-            EntityType.OBJECT,
-            documentReference
-        );
-        BaseObject object = this.xwikidocument.getXObject(objectEntityReference);
-        pullXObjectValues(object);
-        
-        return this;
+        return this.object.getStringValue(CHUNKING_METHOD_FIELDNAME);
     }
     
-    // Pull collection properties from the XObject
-    private void pullXObjectValues(BaseObject object)
+    @Override
+    public int getChunkingMaxSize()
     {
-        this.name = object.getStringValue(NAME_FIELDNAME);
-        this.embeddingModel = object.getStringValue(EMBEDDINGMODEL_FIELDNAME);
-        this.chunkingMethod = object.getStringValue(CHUNKING_METHOD_FIELDNAME);
-        this.chunkingMaxSize = object.getStringValue(CHUNKING_MAX_SIZE_FIELDNAME);
-        this.chunkingOverlapOffset = object.getStringValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME);
-        this.permissions = object.getStringValue(PERMISSIONS_FIELDNAME);
-        this.rightsCheckMethod = object.getStringValue(RIGHTS_CHECK_METHOD_FIELDNAME);
-        this.rightsCheckMethodParameter = object.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME);
-        this.documentSpace = object.getStringValue(DOCUMENT_SPACE_FIELDNAME);
+        return this.object.getIntValue(CHUNKING_MAX_SIZE_FIELDNAME);
+    }
     
+    @Override
+    public int getChunkingOverlapOffset()
+    {
+        return this.object.getIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME);
+    }
+    
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<String> getDocumentSpaces()
+    {
+        return this.object.getListValue(DOCUMENT_SPACE_FIELDNAME);
     }
 
     @Override
-    public XWikiDocument toXWikiDocument(XWikiDocument inputdocument)
+    public String getQueryGroups()
     {
-        this.xwikidocument = inputdocument;
-        XWikiContext context = this.contextProvider.get();
-
-        //update an existing or new XWikiDocument with the collection properties
-        try {
-            EntityReference objectEntityReference = getObjectReference();
-            BaseObject object = this.xwikidocument.getXObject(objectEntityReference);
-            if (object == null) {
-                //create new xobject
-                object = this.xwikidocument.newXObject(objectEntityReference, context);
-                setXObjectValues(object);
-            }
-        } catch (Exception e) {
-            logger.error("Error setting the object: {}", e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
-
-        //save the XWikiDocument
-        try {
-            context.getWiki().saveDocument(this.xwikidocument, context);
-            return this.xwikidocument;
-        } catch (XWikiException e) {
-            logger.error("Error saving document: {}", e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
-
+        return this.object.getLargeStringValue(QUERY_GROUPS_FIELDNAME);
+    }
+    
+    @Override
+    public String getEditGroups()
+    {
+        return this.object.getLargeStringValue(EDIT_GROUPS_FIELDNAME);
     }
 
+    @Override
+    public String getAdminGroups()
+    {
+        return this.object.getLargeStringValue(ADMIN_GROUPS_FIELDNAME);
+    }   
+
+    @Override
+    public String getRightsCheckMethod()
+    {
+        return this.object.getStringValue(RIGHTS_CHECK_METHOD_FIELDNAME);
+    }
+    
+    @Override
+    public String rightsCheckMethodParam()
+    {
+        return this.object.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME);
+    }
+    
     //get XObject reference for the collection XClass
     private EntityReference getObjectReference()
     {
@@ -292,20 +251,4 @@ public class DefaultCollection implements Collection
         return new EntityReference(XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
     }
 
-    //update the XObject with the collection properties
-    private BaseObject setXObjectValues(BaseObject object)
-    {
-        object.setStringValue(NAME_FIELDNAME, this.name);
-        object.setStringValue(EMBEDDINGMODEL_FIELDNAME, this.embeddingModel);
-        object.setStringValue(CHUNKING_METHOD_FIELDNAME, this.chunkingMethod);
-        object.setStringValue(CHUNKING_MAX_SIZE_FIELDNAME, this.chunkingMaxSize);
-        object.setStringValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME, this.chunkingOverlapOffset);
-        object.setStringValue(PERMISSIONS_FIELDNAME, this.permissions);
-        object.setStringValue(RIGHTS_CHECK_METHOD_FIELDNAME, this.rightsCheckMethod);
-        object.setStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME, this.rightsCheckMethodParameter);
-        object.setStringValue(DOCUMENT_SPACE_FIELDNAME, this.documentSpace);
-        return object;
-    }
-
 }
-

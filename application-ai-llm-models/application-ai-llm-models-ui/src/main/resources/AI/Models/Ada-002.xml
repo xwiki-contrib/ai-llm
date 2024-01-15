@@ -20,52 +20,30 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.PromptDB.WebHome" locale="">
-  <web>AI.PromptDB</web>
-  <name>WebHome</name>
+<xwikidoc version="1.5" reference="AI.Models.Ada-002" locale="">
+  <web>AI.Models</web>
+  <name>Ada-002</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>AI.WebHome</parent>
+  <parent>AI.Models.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>AI Prompt Database</title>
+  <title>Ada-002</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
-  <content>{{velocity}}
-#set ($columnsProperties = {
-  'doc.title': {"displayName":"Title","link":"view"},
-  'longText1': {"filterable":false,"sortable":false,"html":true},
-  'sysPrompt': {"filterable":false,"sortable":false,"html":true},
-  'userPrompt': {"filterable":false,"sortable":false,"html":true},
-  'shortText1': {},
-  'boolean1': {},
-  'default': {},
-  '_actions': {"sortable":false,"filterable":false,"html":true,"actions":["edit","delete"]}
-})
-#set ($options = {
-  'className': 'AI.PromptDB.Code.PromptDBClass',
-  'translationPrefix': 'promptdb.livetable.',
-  'tagCloud': true,
-  'rowCount': 15,
-  'maxPages': 10,
-  'selectedColumn': 'doc.title',
-  'defaultOrder': 'asc'
-})
-#set ($columns = ['doc.title', 'longText1', 'sysPrompt', 'userPrompt', 'shortText1', 'boolean1', 'default', '_actions'])
-#livetable('promptdb' $columns $columnsProperties $options)
-{{/velocity}}</content>
+  <content/>
   <object>
-    <name>AI.PromptDB.WebHome</name>
+    <name>AI.Models.Ada-002</name>
     <number>0</number>
-    <className>AppWithinMinutes.LiveTableClass</className>
-    <guid>7f6420d9-578f-4f82-8690-77173bf02dba</guid>
+    <className>AI.Models.Code.ModelsClass</className>
+    <guid>9baf70bb-85f1-4746-8c46-260c1d193bbb</guid>
     <class>
-      <name>AppWithinMinutes.LiveTableClass</name>
+      <name>AI.Models.Code.ModelsClass</name>
       <customClass/>
       <customMapping/>
       <defaultViewSheet/>
@@ -73,72 +51,85 @@
       <defaultWeb/>
       <nameField/>
       <validationScript/>
-      <class>
+      <dimensions>
         <customDisplay/>
         <disabled>0</disabled>
-        <name>class</name>
-        <number>1</number>
-        <picker>0</picker>
-        <prettyName>Class</prettyName>
+        <hint/>
+        <name>dimensions</name>
+        <number>4</number>
+        <numberType>integer</numberType>
+        <prettyName>Number of Dimensions</prettyName>
         <size>30</size>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
         <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </class>
-      <columns>
+        <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+      </dimensions>
+      <model>
         <customDisplay/>
         <disabled>0</disabled>
-        <name>columns</name>
+        <hint/>
+        <name>model</name>
         <number>3</number>
         <picker>0</picker>
-        <prettyName>Live Table Columns</prettyName>
+        <prettyName>Model id</prettyName>
         <size>30</size>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </columns>
-      <dataSpace>
+      </model>
+      <provider>
         <customDisplay/>
         <disabled>0</disabled>
-        <name>dataSpace</name>
-        <number>4</number>
+        <hint/>
+        <name>provider</name>
+        <number>1</number>
         <picker>0</picker>
-        <prettyName>Data Location</prettyName>
+        <prettyName>Provider</prettyName>
         <size>30</size>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </dataSpace>
-      <description>
+      </provider>
+      <type>
+        <cache>0</cache>
         <customDisplay/>
+        <defaultValue/>
         <disabled>0</disabled>
-        <editor>---</editor>
-        <name>description</name>
+        <displayType>select</displayType>
+        <freeText/>
+        <hint/>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>type</name>
         <number>2</number>
         <picker>0</picker>
-        <prettyName>Description</prettyName>
-        <rows>5</rows>
-        <size>40</size>
+        <prettyName>Type</prettyName>
+        <relationalStorage>1</relationalStorage>
+        <separator> </separator>
+        <separators> ,|</separators>
+        <size>1</size>
+        <sort>value</sort>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
         <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
-      </description>
+        <values>llm=Large language model|emb=Embeddings model</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </type>
     </class>
     <property>
-      <class>AI.PromptDB.Code.PromptDBClass</class>
+      <dimensions/>
     </property>
     <property>
-      <columns>title1 longText1 sysPrompt userPrompt shortText1 boolean1 default _actions</columns>
+      <model>text-embedding-ada-002</model>
     </property>
     <property>
-      <dataSpace/>
+      <provider>OpenAI</provider>
     </property>
     <property>
-      <description>This is a database of AI prompt for XWiki's AI feature. </description>
+      <type>emb</type>
     </property>
   </object>
 </xwikidoc>

@@ -1,0 +1,129 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Documents.Code.DocumentsSheet" locale="">
+  <web>AI.Documents.Code</web>
+  <name>DocumentsSheet</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>DocumentsClass</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title/>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content>{{velocity}}
+#set ($object = $doc.getObject('AI.Documents.Code.DocumentsClass'))
+#if (!$object)
+  #set ($messageKey = 'documents.sheet.description')
+  #set ($messageType = 'info')
+  #if ($doc.documentReference.name != 'DocumentsSheet')
+    #set ($messageKey = 'documents.sheet.noObject')
+    #set ($messageType = 'warning')
+  #end
+  {{$messageType}}
+  $services.localization.render($messageKey)
+  {{/$messageType}}
+  #stop
+#end
+#set ($discard = $xwiki.jsfx.use('uicomponents/edit/editableProperty.js', {
+  'forceSkinAction': true,
+  'language': $xcontext.locale
+}))
+#set ($discard = $doc.use($object))
+#set ($editing = $xcontext.action == 'edit')
+{{html wiki="true" clean="false"}}
+&lt;div class="xform"&gt;
+  &lt;dl&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('id')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Documents.Code.DocumentsClass_0_id"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('id', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('id')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('title')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Documents.Code.DocumentsClass_0_title"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('title', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('title')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('collection')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Documents.Code.DocumentsClass_0_collection"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('collection', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('collection')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('language')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Documents.Code.DocumentsClass_0_language"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('language', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('language')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('URL')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Documents.Code.DocumentsClass_0_URL"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('URL', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('URL')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('mimetype')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Documents.Code.DocumentsClass_0_mimetype"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('mimetype', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('mimetype')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('content')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Documents.Code.DocumentsClass_0_content"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('content', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('content')&lt;/dd&gt;
+  &lt;/dl&gt;
+&lt;/div&gt;
+{{/html}}
+{{/velocity}}</content>
+</xwikidoc>

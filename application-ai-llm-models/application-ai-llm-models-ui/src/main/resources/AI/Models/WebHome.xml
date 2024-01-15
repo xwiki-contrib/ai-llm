@@ -20,50 +20,48 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.PromptDB.WebHome" locale="">
-  <web>AI.PromptDB</web>
+<xwikidoc version="1.5" reference="AI.Models.WebHome" locale="">
+  <web>AI.Models</web>
   <name>WebHome</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>AI.WebHome</parent>
+  <parent>Main.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>AI Prompt Database</title>
+  <title>Models</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
   <content>{{velocity}}
 #set ($columnsProperties = {
-  'doc.title': {"displayName":"Title","link":"view"},
-  'longText1': {"filterable":false,"sortable":false,"html":true},
-  'sysPrompt': {"filterable":false,"sortable":false,"html":true},
-  'userPrompt': {"filterable":false,"sortable":false,"html":true},
-  'shortText1': {},
-  'boolean1': {},
-  'default': {},
+  'doc.title': {"link":"view"},
+  'provider': {},
+  'model': {},
+  'type': {},
+  'doc.author': {"link":"author"},
   '_actions': {"sortable":false,"filterable":false,"html":true,"actions":["edit","delete"]}
 })
 #set ($options = {
-  'className': 'AI.PromptDB.Code.PromptDBClass',
-  'translationPrefix': 'promptdb.livetable.',
+  'className': 'AI.Models.Code.ModelsClass',
+  'translationPrefix': 'models.livetable.',
   'tagCloud': true,
   'rowCount': 15,
   'maxPages': 10,
   'selectedColumn': 'doc.title',
   'defaultOrder': 'asc'
 })
-#set ($columns = ['doc.title', 'longText1', 'sysPrompt', 'userPrompt', 'shortText1', 'boolean1', 'default', '_actions'])
-#livetable('promptdb' $columns $columnsProperties $options)
+#set ($columns = ['doc.title', 'provider', 'model', 'type', 'doc.author', '_actions'])
+#livetable('models' $columns $columnsProperties $options)
 {{/velocity}}</content>
   <object>
-    <name>AI.PromptDB.WebHome</name>
+    <name>AI.Models.WebHome</name>
     <number>0</number>
     <className>AppWithinMinutes.LiveTableClass</className>
-    <guid>7f6420d9-578f-4f82-8690-77173bf02dba</guid>
+    <guid>e8c91954-dbc0-42a6-bc8b-8563eb63a612</guid>
     <class>
       <name>AppWithinMinutes.LiveTableClass</name>
       <customClass/>
@@ -129,16 +127,16 @@
       </description>
     </class>
     <property>
-      <class>AI.PromptDB.Code.PromptDBClass</class>
+      <class>AI.Models.Code.ModelsClass</class>
     </property>
     <property>
-      <columns>title1 longText1 sysPrompt userPrompt shortText1 boolean1 default _actions</columns>
+      <columns>doc.title provider model type doc.author _actions</columns>
     </property>
     <property>
       <dataSpace/>
     </property>
     <property>
-      <description>This is a database of AI prompt for XWiki's AI feature. </description>
+      <description/>
     </property>
   </object>
 </xwikidoc>

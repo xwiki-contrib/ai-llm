@@ -21,9 +21,6 @@ package org.xwiki.contrib.llm;
 
 import java.util.List;
 
-import com.xpn.xwiki.XWikiException;
-import com.xpn.xwiki.doc.XWikiDocument;
-
 import org.xwiki.component.annotation.Role;
 /**
  * Represents a collection of documents within the AI-LLM indexing system.
@@ -34,6 +31,15 @@ import org.xwiki.component.annotation.Role;
 public interface Collection
 {
     /**
+     * The name of the XClass that represents a collection.
+     */
+    String XCLASS_NAME = "CollectionsClass";
+    /**
+     * The space of the XClass that represents a collection.
+     */
+    String XCLASS_SPACE_STRING = "AI.Collections.Code";
+
+    /**
      * Gets the name of the collection.
      * 
      * @return The name of the collection.
@@ -41,26 +47,34 @@ public interface Collection
     String getName();
 
     /**
+     * Gets the name of the collection.
+     * 
+     * @return The name of the collection.
+     */
+    String getFullName();
+
+    /**
      * Retrieves a list of all documents in the collection.
      * 
      * @return A list of documents.
      */
-    List<Document> getDocumentList();
+    List<String> getDocuments();
 
     /**
      * Retrieves a specific document by its ID from the collection.
      * 
-     * @param id The unique identifier of the document.
+     * @param documentId The unique identifier of the document.
      * @return The document with the specified ID, or null if not found.
      */
-    Document getDocument(String id);
+    Document newDocument(String documentId) throws IndexException;
 
     /**
-     * Gets the permissions associated with the collection.
+     * Retrieves a specific document by its ID from the collection.
      * 
-     * @return A string representing the permissions of the collection.
+     * @param documentId The unique identifier of the document.
+     * @return The document with the specified ID, or null if not found.
      */
-    String getPermissions();
+    Document getDocument(String documentId) throws IndexException;
 
     /**
      * Gets the embedding model used by the collection.
@@ -68,78 +82,68 @@ public interface Collection
      * @return A string representing the embedding model.
      */
     String getEmbeddingModel();
+    
+    /**
+     * Gets the chunking method used by the collection.
+     * 
+     * @return A string representing the chunking method.
+     */
+    String getChunkingMethod();
+    
+    /**
+     * Gets the maximum size of a chunk.
+     * 
+     * @return The maximum size of a chunk.
+     */
+    int getChunkingMaxSize();
+    
+    /**
+     * Gets the overlap offset of a chunk.
+     * 
+     * @return The overlap offset of a chunk.
+     */
+    int getChunkingOverlapOffset();
+    
+    /**
+     * Gets the list of spaces for the documents in the collection.
+     * 
+     * @return A list of spaces.
+     */
+    List<String> getDocumentSpaces();
 
     /**
-     * Removes a document from the collection. Optionally, it can also delete the document.
+     * Gets the list of groups that can query the collection.
      * 
-     * @param id The unique identifier of the document to be removed.
-     * @param deleteDocument If true, the document is also deleted; otherwise, it is only removed from the collection.
-     * @return True if the operation was successful, false otherwise.
+     * @return A list of groups.
      */
-    boolean removeDocument(String id, boolean deleteDocument);
+    String getQueryGroups();
 
     /**
-     * Assigns a unique ID to a document within the collection.
+     * Gets the list of groups that can edit the collection.
      * 
-     * @param document The document to which the ID will be assigned.
-     * @param id The unique identifier to be assigned to the document.
+     * @return A list of groups.
      */
-    void assignIdToDocument(Document document, String id);
+    String getEditGroups();
 
     /**
-     * Creates a new document in the collection with a unique ID. The properties of the document can be set afterwards.
+     * Gets the list of groups that can administer the collection.
      * 
-     * @return The newly created document.
-     * @throws XWikiException
+     * @return A list of groups.
      */
-    Document createDocument() throws XWikiException;
+    String getAdminGroups();
 
     /**
-     * Creates a new document in the collection with a unique ID. The properties of the document can be set afterwards.
+     * Gets the rights check method associated with the collection.
      * 
-     * @param id The unique identifier to be assigned to the document.
-     * @return The newly created document.
-     * @throws XWikiException
+     * @return A string representing the rights check method of the collection.
      */
-    Document createDocument(String id) throws XWikiException;
+    String getRightsCheckMethod();
 
     /**
-     * Sets the name of the collection.
+     * Gets the rights check method parameter associated with the collection.
      * 
-     * @param name The name of the collection.
-     * @return True if the operation was successful, false otherwise.
+     * @return A string representing the rights check method parameter of the collection.
      */
-    boolean setName(String name);
+    String rightsCheckMethodParam();
 
-    /**
-     * Sets the permissions of the collection.
-     * 
-     * @param permissions The permissions of the collection.
-     * @return True if the operation was successful, false otherwise.
-     */
-    boolean setPermissions(String permissions);
-
-    /**
-     * Sets the embedding model of the collection.
-     * 
-     * @param embeddingModel The embedding model of the collection.
-     * @return True if the operation was successful, false otherwise.
-     */
-    boolean setEmbeddingModel(String embeddingModel);
-
-    /**
-     * Sets the properteis of a collection based on the properties of the specified XWiki document's object.
-     * 
-     * @param xwikiDocument
-     * @return The updated collection.
-     */
-    Collection fromXWikiDocument(XWikiDocument xwikiDocument);
-
-    /**
-     * Sets the properties of a XWiki document's object based on the properties of the collection.
-     * 
-     * @param xwikiDocument The XWiki document to update.
-     * @return The updated XWiki document.
-     */
-    XWikiDocument toXWikiDocument(XWikiDocument xwikiDocument);
 }

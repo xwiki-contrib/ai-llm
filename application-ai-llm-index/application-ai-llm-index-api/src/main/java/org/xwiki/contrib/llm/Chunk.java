@@ -212,11 +212,10 @@ public class Chunk
     }
 
     /**
-     * Setter for the embeddings.
+     * Compute embeddings for current chunk.
      *
-     * @param text the text to be embedded
      */
-    public void computeEmbeddings(String text)
+    public void computeEmbeddings()
     {
         try {
             XWikiContext context = this.contextProvider.get();
@@ -226,7 +225,7 @@ public class Chunk
                     .getModelDescriptors(wikiReference, userReference);
             EmbeddingModel embeddingModel = embeddingModelManager
                     .getModel(wikiReference, embeddingModelDescriptors.get(0).getId(), userReference);
-            this.embeddings = embeddingModel.embed(text);
+            this.embeddings = embeddingModel.embed(this.content);
         } catch (Exception e) {
             logger.error("Failure to compute embeddings.", e);
             this.embeddings = null;

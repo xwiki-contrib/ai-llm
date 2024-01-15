@@ -22,7 +22,6 @@ package org.xwiki.contrib.llm;
 import java.util.List;
 
 import org.xwiki.component.annotation.Role;
-import org.xwiki.contrib.llm.internal.DefaultCollection;
 
 /**
  * This interface manages collections.
@@ -32,27 +31,20 @@ import org.xwiki.contrib.llm.internal.DefaultCollection;
 @Role
 public interface CollectionManager
 {
-    /**
-     * Creates a new collection.
-     *
-     * @param name the name of the collection
-     * @return the created collection
-     */
-    DefaultCollection createCollection(String name);
+    // /**
+    //  * Creates a new collection.
+    //  *
+    //  * @param name the name of the collection
+    //  * @return the created collection
+    //  */
+    // Collection createCollection(String name);
     
-    /**
-     * Pulls all collections from XWiki.
-     *
-     * @return boolean indicating success or failure
-     */
-    boolean pullCollections();   
-
     /**
      * Lists all collections.
      *
      * @return a list of all collections
      */
-    List<DefaultCollection> listCollections();
+    List<String> getCollections();
     
     /**
      * Gets a collection by name.
@@ -60,12 +52,20 @@ public interface CollectionManager
      * @param name the name of the collection
      * @return the collection with the given name
      */
-    DefaultCollection getCollection(String name);
+    Collection getCollection(String name) throws IndexException;
     
+    // /**
+    //  * Deletes a collection.
+    //  * @param name
+    //  * @return boolean indicating success or failure
+    //  */
+    // boolean deleteCollection(String name);
+
     /**
-     * Deletes a collection.
-     * @param name
+     * Clears the solr core of all data.
+     * 
      * @return boolean indicating success or failure
      */
-    boolean deleteCollection(String name);
+    boolean clearIndexCore();
+
 }

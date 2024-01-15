@@ -1,0 +1,123 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Documents.Code.DocumentsTranslations" locale="">
+  <web>AI.Documents.Code</web>
+  <name>DocumentsTranslations</name>
+  <language/>
+  <defaultLanguage>en</defaultLanguage>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>DocumentsClass</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title/>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>plain/1.0</syntaxId>
+  <hidden>true</hidden>
+  <content># Class fields
+AI.Documents.Code.DocumentsClass_id=ID
+AI.Documents.Code.DocumentsClass_title=Title
+AI.Documents.Code.DocumentsClass_collection=Collection
+AI.Documents.Code.DocumentsClass_language=Language
+AI.Documents.Code.DocumentsClass_URL=URL
+AI.Documents.Code.DocumentsClass_mimetype=Mimetype
+AI.Documents.Code.DocumentsClass_content=Content
+
+# Sheet keys
+documents.sheet.description=This page controls how Documents pages are displayed in both view and edit modes.
+documents.sheet.noObject=The current page doesn't have the expected Documents object.
+documents.sheet.noFields=The Documents application doesn't have any fields to display.
+
+# Live table generic keys
+documents.livetable.doc.title=Page Title
+documents.livetable.doc.name=Page Name
+documents.livetable.doc.space=Space
+documents.livetable.doc.fullname=Page full name
+documents.livetable.doc.location=Location
+documents.livetable.doc.author=Last Author
+documents.livetable.doc.creator=Creator
+documents.livetable.doc.date=Date
+documents.livetable.doc.creationDate=Creation Date
+documents.livetable._avatar=Avatar
+documents.livetable._images=Images
+documents.livetable._attachments=Attachments
+documents.livetable._actions=Actions
+documents.livetable._actions.edit=Edit
+documents.livetable._actions.delete=Delete
+documents.livetable.emptyvalue=-
+
+# Live table specific keys
+documents.livetable.id=ID
+documents.livetable.title=Title
+documents.livetable.collection=Collection
+documents.livetable.language=Language
+documents.livetable.URL=URL
+documents.livetable.mimetype=Mimetype
+documents.livetable.content=Content
+
+# Other keys
+documents.entry.name=Documents
+
+# Deprecated keys
+documents.dataSpace.title=Data
+</content>
+  <object>
+    <name>AI.Documents.Code.DocumentsTranslations</name>
+    <number>0</number>
+    <className>XWiki.TranslationDocumentClass</className>
+    <guid>6053e221-bcd6-4d3e-9aac-67ffcee7aa5a</guid>
+    <class>
+      <name>XWiki.TranslationDocumentClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <scope>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>scope</name>
+        <number>1</number>
+        <prettyName>Scope</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>GLOBAL|WIKI|USER|ON_DEMAND</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </scope>
+    </class>
+    <property>
+      <scope>WIKI</scope>
+    </property>
+  </object>
+</xwikidoc>
