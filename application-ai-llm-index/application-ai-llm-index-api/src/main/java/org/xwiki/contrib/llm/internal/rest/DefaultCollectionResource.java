@@ -32,7 +32,7 @@ import javax.ws.rs.core.Response;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
-import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.rest.CollectionResource;
 import org.xwiki.contrib.llm.rest.JSONCollection;
 import org.xwiki.rest.XWikiResource;
@@ -80,6 +80,9 @@ public class DefaultCollectionResource extends XWikiResource implements Collecti
             }
 
             return collection;
+        } catch (IndexException e) {
+            e.printStackTrace();
+            return null;
         } finally {
             context.setWikiId(currentWiki);
         }
@@ -106,6 +109,9 @@ public class DefaultCollectionResource extends XWikiResource implements Collecti
             // TODO: how to save the collection, while respecting rights?
 
             return new JSONCollection(existingCollection);
+        } catch (IndexException e) {
+            e.printStackTrace();
+            return null;
         } finally {
             context.setWikiId(currentWiki);
         }
@@ -136,11 +142,10 @@ public class DefaultCollectionResource extends XWikiResource implements Collecti
     {
         Collection collection = getInternalCollection(wikiName, collectionName);
         // TODO: How to handle rights?
-        return collection.getDocumentList().stream()
+        return collection.getDocuments().stream()
             // TODO: Use real pagination and do not load all documents in memory
             .skip(start)
             .limit(number > -1 ? number : Integer.MAX_VALUE)
-            .map(Document::getID)
             .collect(Collectors.toList());
     }
 }

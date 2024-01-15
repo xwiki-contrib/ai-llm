@@ -173,6 +173,14 @@ public interface Collection
     boolean setName(String name);
 
     /**
+     * Sets the embedding model of the collection.
+     * 
+     * @param embeddingModel The embedding model of the collection.
+     * @return True if the operation was successful, false otherwise.
+     */
+    boolean setEmbeddingModel(String embeddingModel);
+
+    /**
      * Saves the collection.
      *
      * @return true if the collection was saved successfully, false otherwise

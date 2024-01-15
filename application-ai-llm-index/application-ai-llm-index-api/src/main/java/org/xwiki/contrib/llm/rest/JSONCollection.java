@@ -34,7 +34,6 @@ public class JSONCollection
 {
     private String name;
 
-    private String permissions;
 
     @JsonProperty("embedding_model")
     private String embeddingModel;
@@ -43,13 +42,11 @@ public class JSONCollection
      * Constructor.
      *
      * @param name the name of the collection
-     * @param permissions the permissions of the collection
      * @param embeddingModel the embedding model that should be used to embed chunks of the documents in this collection
      */
-    public JSONCollection(String name, String permissions, String embeddingModel)
+    public JSONCollection(String name, String embeddingModel)
     {
         this.name = name;
-        this.permissions = permissions;
         this.embeddingModel = embeddingModel;
     }
 
@@ -61,7 +58,6 @@ public class JSONCollection
     public JSONCollection(org.xwiki.contrib.llm.Collection collection)
     {
         this.name = collection.getName();
-        this.permissions = collection.getPermissions();
         this.embeddingModel = collection.getEmbeddingModel();
     }
 
@@ -72,9 +68,6 @@ public class JSONCollection
      */
     public void applyTo(org.xwiki.contrib.llm.Collection collection)
     {
-        if (this.permissions != null) {
-            collection.setPermissions(this.permissions);
-        }
         if (this.embeddingModel != null) {
             collection.setEmbeddingModel(this.embeddingModel);
         }
@@ -86,14 +79,6 @@ public class JSONCollection
     public String getName()
     {
         return this.name;
-    }
-
-    /**
-     * @return the permissions of the collection
-     */
-    public String getPermissions()
-    {
-        return this.permissions;
     }
 
     /**
@@ -112,13 +97,6 @@ public class JSONCollection
         this.name = name;
     }
 
-    /**
-     * @param permissions the permissions of the collection
-     */
-    public void setPermissions(String permissions)
-    {
-        this.permissions = permissions;
-    }
 
     /**
      * @param embeddingModel the embedding model that should be used to embed chunks of the documents in this collection

@@ -256,6 +256,16 @@ public class DefaultCollection implements Collection
     }
 
     @Override
+    public boolean setEmbeddingModel(String embeddingModel)
+    {
+        if (embeddingModel != null) {
+            this.object.setStringValue(EMBEDDINGMODEL_FIELDNAME, embeddingModel);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public boolean save()
     {
         try {
