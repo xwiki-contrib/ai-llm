@@ -36,6 +36,7 @@ import org.xwiki.contrib.llm.RequestError;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.theokanning.openai.OpenAiError;
 import com.theokanning.openai.OpenAiResponse;
 import com.theokanning.openai.embedding.Embedding;
 import com.theokanning.openai.embedding.EmbeddingRequest;
@@ -82,8 +83,18 @@ public class OpenAIEmbeddingModel implements EmbeddingModel
 
         try {
             return this.requestHelper.post(this.config, "embeddings", request, response -> {
+                ObjectMapper objectMapper = new ObjectMapper();
+                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
                 if (response.getCode() != 200) {
-                    throw new IOException("Response code is " + response.getCode());
+                    if (response.getEntity() != null) {
+                        OpenAiError error =
+                            objectMapper.readValue(response.getEntity().getContent(), OpenAiError.class);
+                        throw new IOException(error.getError().getMessage());
+                    } else {
+                        throw new IOException("Error embedding content with code " + response.getCode() + " with "
+                            + "no response body.");
+                    }
                 }
 
                 HttpEntity entity = response.getEntity();
@@ -91,8 +102,6 @@ public class OpenAIEmbeddingModel implements EmbeddingModel
                     throw new IOException("No response body");
                 }
 
-                ObjectMapper objectMapper = new ObjectMapper();
-                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
                 OpenAiResponse<Embedding> openAiResponse = objectMapper.readValue(entity.getContent(),
                     new TypeReference<OpenAiResponse<Embedding>>() { });
 
