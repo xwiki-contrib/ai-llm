@@ -77,25 +77,22 @@ public class DefaultCollectionManager implements CollectionManager
     public Collection createCollection(String name)
     {
         if (this.getCollections().contains(name)) {
-            // Handle existing collection case
-            return null;
-        } else {
-            XWikiContext context = this.contextProvider.get();
-            String fullName = buildCollectionFullname(name);
-            DocumentReference documentReference = getDocumentReference(fullName);
-            try {
-                XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
-                DefaultCollection newCollection = collectionProvider.get();
-                newCollection.initialize(xdocument);
-                newCollection.setName(name);
-                return newCollection;
-            } catch (XWikiException e) {
-                this.logger.error("Error while creating collection", e);
-                e.printStackTrace();
-            }
             return null;
         }
-
+        
+        XWikiContext context = this.contextProvider.get();
+        String fullName = buildCollectionFullname(name);
+        DocumentReference documentReference = getDocumentReference(fullName);
+        try {
+            XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
+            DefaultCollection newCollection = collectionProvider.get();
+            newCollection.initialize(xdocument);
+            newCollection.setName(name);
+            return newCollection;
+        } catch (XWikiException e) {
+            this.logger.error("Failed to create collection with name [{}]: [{}]", name, e.getMessage());
+        }
+        return null;
     }
 
     private DocumentReference getDocumentReference(String fullName)
@@ -118,7 +115,7 @@ public class DefaultCollectionManager implements CollectionManager
             collections = query.execute();
             return collections;
         } catch (QueryException e) {
-            e.printStackTrace();
+            this.logger.error("Failed to get the list of collections: [{}]", e.getMessage());
         }
         return collections;
     }
@@ -140,7 +137,7 @@ public class DefaultCollectionManager implements CollectionManager
                     return null;
                 }
             } catch (XWikiException e) {
-                throw new IndexException("Failed to get collection " + name, e);
+                throw new IndexException("Failed to get collection [" + name + "] ", e);
             }
         } else {
             return null;
@@ -159,11 +156,11 @@ public class DefaultCollectionManager implements CollectionManager
                 context.getWiki().deleteDocument(xdocument, context);
                 return true;
             } catch (XWikiException e) {
-                this.logger.error("Error while deleting collection", e);
-                e.printStackTrace();
+                this.logger.error("Failed while deleting collection [{}]: [{}]", name, e);
                 return false;
             }
         } else {
+            this.logger.warn("Problem deleting collection [{}]. Reason: Collection not found.", name);
             return false;
         }
     }
@@ -180,7 +177,7 @@ public class DefaultCollectionManager implements CollectionManager
             SolrConnector.clearIndexCore();
             return true;
         } catch (Exception e) {
-            logger.error("Failed to clear index core", e);
+            this.logger.error("Failed to clear index core: [{}]", e.getMessage());
             return false;
         } 
     }

@@ -99,7 +99,7 @@ public class DefaultDocument implements Document
             try {
                 this.object = xwikidocument.newXObject(getObjectReference(), context);
             } catch (XWikiException e) {
-                e.printStackTrace();
+                this.logger.error("Error creating new XObject: [{}]", e.getMessage());
             }
         }
     }
@@ -197,7 +197,6 @@ public class DefaultDocument implements Document
             return true;
         } catch (XWikiException e) {
             logger.error("Error saving document: {}", e.getMessage());
-            e.printStackTrace();
             return false;
         }
     }

@@ -103,7 +103,8 @@ public class DefaultCollection implements Collection
             try {
                 this.object = xwikidocument.newXObject(getObjectReference(), context);
             } catch (XWikiException e) {
-                e.printStackTrace();
+                this.logger.error("Error initializing collection for document [{}] with exception [{}]",
+                                 xwikidocument.getDocumentReference(), e.getMessage());
             }
         }
     }
@@ -135,7 +136,7 @@ public class DefaultCollection implements Collection
             documents = query.execute();
             return documents;
         } catch (QueryException e) {
-            e.printStackTrace();
+            this.logger.error("Failed retrieving document list, [{}]", e.getMessage());
         }
         return documents;
     }
@@ -157,7 +158,7 @@ public class DefaultCollection implements Collection
             document.setCollection(this.getFullName());
             return document;
         } catch (XWikiException e) {
-            throw new IndexException("Failed to create document " + documentId, e);
+            throw new IndexException("Failed to create document [" + documentId + "]", e);
         }
     }
     
@@ -176,7 +177,7 @@ public class DefaultCollection implements Collection
                 return null;
             }
         } catch (XWikiException e) {
-            throw new IndexException("Failed to get document " + documentId, e);
+            throw new IndexException("Failed to get document [" + documentId + "]", e);
         }
     }
 
@@ -273,8 +274,7 @@ public class DefaultCollection implements Collection
             context.getWiki().saveDocument(this.xwikidocument, context);
             return true;
         } catch (XWikiException e) {
-            logger.error("Error saving collection: {}", e.getMessage());
-            e.printStackTrace();
+            this.logger.error("Error saving collection: [{}]", e.getMessage());
             return false;
         }
     }

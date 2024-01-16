@@ -52,7 +52,7 @@ public class CollectionManagerScriptService implements ScriptService
      */
     public Collection createCollection(String name)
     {
-        return collectionManager.createCollection(name);
+        return this.collectionManager.createCollection(name);
     }
     
     /**
@@ -62,7 +62,7 @@ public class CollectionManagerScriptService implements ScriptService
      */
     public List<String> getCollections()
     {
-        return collectionManager.getCollections();
+        return this.collectionManager.getCollections();
     }
 
     /**
@@ -73,7 +73,7 @@ public class CollectionManagerScriptService implements ScriptService
      */
     public Collection getCollection(String name) throws IndexException
     {
-        return collectionManager.getCollection(name);
+        return this.collectionManager.getCollection(name);
     }
 
     /**
@@ -83,7 +83,7 @@ public class CollectionManagerScriptService implements ScriptService
      */
     public boolean deleteCollection(String name)
     {
-        return collectionManager.deleteCollection(name);
+        return this.collectionManager.deleteCollection(name);
     }
 
     /**
@@ -93,6 +93,6 @@ public class CollectionManagerScriptService implements ScriptService
      */
     public boolean clearIndexCore()
     {
-        return collectionManager.clearIndexCore();
+        return this.collectionManager.clearIndexCore();
     }
 }

@@ -29,6 +29,7 @@ import javax.inject.Singleton;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
+import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
@@ -57,6 +58,9 @@ public class DefaultCollectionResource extends XWikiResource implements Collecti
     @Inject
     private Provider<XWikiContext> contextProvider;
 
+    @Inject
+    private Logger logger;
+
     @Override
     public JSONCollection getCollection(String wikiName, String collectionName)
         throws XWikiRestException
@@ -81,7 +85,8 @@ public class DefaultCollectionResource extends XWikiResource implements Collecti
 
             return collection;
         } catch (IndexException e) {
-            e.printStackTrace();
+            this.logger.error("Error retriving internal collection with name [{}]: [{}]",
+                             collectionName, e.getMessage());
             return null;
         } finally {
             context.setWikiId(currentWiki);
@@ -110,7 +115,7 @@ public class DefaultCollectionResource extends XWikiResource implements Collecti
 
             return new JSONCollection(existingCollection);
         } catch (IndexException e) {
-            e.printStackTrace();
+            this.logger.error("Error updating collection [{}]: [{}]", collectionName, e.getMessage());
             return null;
         } finally {
             context.setWikiId(currentWiki);
