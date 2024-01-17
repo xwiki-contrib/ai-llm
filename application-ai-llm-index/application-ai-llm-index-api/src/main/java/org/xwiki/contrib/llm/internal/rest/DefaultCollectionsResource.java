@@ -20,7 +20,6 @@
 package org.xwiki.contrib.llm.internal.rest;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -63,8 +62,7 @@ public class DefaultCollectionsResource extends XWikiResource implements Collect
             context.setWikiId(wikiName);
 
             // TODO: How do we filter collections that the current user doesn't have access to?
-            return this.collectionManager.getCollections().stream()
-                .collect(Collectors.toList());
+            return this.collectionManager.getCollections();
         } finally {
             context.setWikiId(currentWiki);
         }

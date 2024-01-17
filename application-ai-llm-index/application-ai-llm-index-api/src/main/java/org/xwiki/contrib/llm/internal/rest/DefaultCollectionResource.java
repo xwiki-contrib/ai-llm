@@ -87,7 +87,7 @@ public class DefaultCollectionResource extends XWikiResource implements Collecti
         } catch (IndexException e) {
             this.logger.error("Error retriving internal collection with name [{}]: [{}]",
                              collectionName, e.getMessage());
-            return null;
+            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         } finally {
             context.setWikiId(currentWiki);
         }
@@ -116,7 +116,7 @@ public class DefaultCollectionResource extends XWikiResource implements Collecti
             return new JSONCollection(existingCollection);
         } catch (IndexException e) {
             this.logger.error("Error updating collection [{}]: [{}]", collectionName, e.getMessage());
-            return null;
+            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         } finally {
             context.setWikiId(currentWiki);
         }
