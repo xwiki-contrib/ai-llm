@@ -155,7 +155,7 @@ public class DefaultCollection implements Collection
             document.initialize(xwikiDoc);
             document.setID(documentId);
             document.setTitle(documentId);
-            document.setCollection(this.getFullName());
+            document.setCollection(this.getName());
             return document;
         } catch (XWikiException e) {
             throw new IndexException("Failed to create document [" + documentId + "]", e);

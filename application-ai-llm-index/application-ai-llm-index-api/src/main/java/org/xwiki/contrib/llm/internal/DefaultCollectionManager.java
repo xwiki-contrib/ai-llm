@@ -79,7 +79,6 @@ public class DefaultCollectionManager implements CollectionManager
         if (this.getCollections().contains(name)) {
             return null;
         }
-        
         XWikiContext context = this.contextProvider.get();
         String fullName = buildCollectionFullname(name);
         DocumentReference documentReference = getDocumentReference(fullName);
@@ -125,9 +124,8 @@ public class DefaultCollectionManager implements CollectionManager
     {
         if (getCollections().contains(name)) {
             XWikiContext context = contextProvider.get();
-            
             try {
-                String fullName = buildCollectionFullname(name);
+                String fullName = buildCollectionFullname(name) + Collection.DEFAULT_COLLECTION_SUFFIX;
                 XWikiDocument xwikiDoc = context.getWiki().getDocument(fullName, EntityType.DOCUMENT, context);
                 if (!xwikiDoc.isNew()) {
                     DefaultCollection collection = this.collectionProvider.get();
@@ -167,7 +165,7 @@ public class DefaultCollectionManager implements CollectionManager
 
     private String buildCollectionFullname(String name)
     {
-        return Collection.DEFAULT_COLLECTION_SPACE + "." + name + Collection.DEFAULT_COLLECTION_SUFFIX;
+        return Collection.DEFAULT_COLLECTION_SPACE + "." + name;
     }
 
     @Override
