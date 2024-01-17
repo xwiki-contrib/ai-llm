@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm.rest;
 
+import org.xwiki.contrib.llm.Collection;
 import org.xwiki.stability.Unstable;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -39,34 +40,22 @@ public class JSONCollection
     private String embeddingModel;
 
     /**
-     * Constructor.
-     *
-     * @param name the name of the collection
-     * @param embeddingModel the embedding model that should be used to embed chunks of the documents in this collection
-     */
-    public JSONCollection(String name, String embeddingModel)
-    {
-        this.name = name;
-        this.embeddingModel = embeddingModel;
-    }
-
-    /**
-     * Construct a collection from a {@link org.xwiki.contrib.llm.Collection}.
+     * Construct a collection from a {@link Collection}.
      *
      * @param collection the collection to construct from
      */
-    public JSONCollection(org.xwiki.contrib.llm.Collection collection)
+    public JSONCollection(Collection collection)
     {
         this.name = collection.getName();
         this.embeddingModel = collection.getEmbeddingModel();
     }
 
     /**
-     * Applies the non-null properties of this collection to a {@link org.xwiki.contrib.llm.Collection}.
+     * Applies the non-null properties of this collection to a {@link Collection}.
      *
      * @param collection the collection to apply to
      */
-    public void applyTo(org.xwiki.contrib.llm.Collection collection)
+    public void applyTo(Collection collection)
     {
         if (this.embeddingModel != null) {
             collection.setEmbeddingModel(this.embeddingModel);
