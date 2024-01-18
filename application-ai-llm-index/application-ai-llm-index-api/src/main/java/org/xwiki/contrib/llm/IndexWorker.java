@@ -129,7 +129,7 @@ public class IndexWorker implements EventListener
                     for (Chunk chunk : chunks) {
                         logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
                         chunk.computeEmbeddings();
-                        SolrConnector.addChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
+                        SolrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
                     }
                 } catch (Exception e) {
                     this.logger.error("Failure to process document in indexWorker", e);

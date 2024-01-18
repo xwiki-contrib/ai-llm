@@ -35,7 +35,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public final class SolrConnector
 {
-    private static final String SOLR_CORE_URL = "http://my_solr:8983/solr/gettingstarted";
+    //Connection method will be modifed after Solr integration in XWiki
+    private static final String SOLR_INSTANCE_URL = "http://my_solr:8983/solr/";
+    private static final String SOLR_CORE_NAME = "knowledgeIndex";
+    private static final String SOLR_CORE_URL = SOLR_INSTANCE_URL + SOLR_CORE_NAME;
 
     /**
      * Private constructor to hide the implicit public one.
@@ -46,12 +49,13 @@ public final class SolrConnector
     }
 
     /**
-     * Connects to the Solr server and adds a document.
+     * Connects to the Solr server and stores a chunk.
+     * If a chunk with the same id exists, it will be updated.
      * 
      * @param chunk the chunk to be storred
      * @param id the id of the chunk
      */
-    public static void addDocument(Chunk chunk, String id)
+    public static void storeChunk(Chunk chunk, String id)
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             SolrInputDocument solrDocument = new SolrInputDocument();
@@ -78,16 +82,30 @@ public final class SolrConnector
         }
     }
 
-
     /**
      * Connects to the Solr server and deletes a document.
      * 
      * @param id the id of the chunk
      */
-    public static void deleteDocument(String id)
+    public static void deleteChunk(String id)
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             client.deleteById(id);
+            client.commit();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Connects to the Solr server and deletes all chunks of a document.
+     * 
+     * @param docId the id of the document
+     */
+    public static void deleteChunksByDocId(String docId)
+    {
+        try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
+            client.deleteByQuery("docId:" + docId);
             client.commit();
         } catch (Exception e) {
             e.printStackTrace();

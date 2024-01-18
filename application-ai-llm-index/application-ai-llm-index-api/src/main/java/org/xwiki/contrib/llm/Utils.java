@@ -19,7 +19,9 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -30,6 +32,11 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.SpaceReferenceResolver;
+import org.xwiki.model.reference.WikiReference;
+import org.xwiki.user.CurrentUserReference;
+import org.xwiki.user.UserReference;
+
+import com.xpn.xwiki.XWikiContext;
 
 /**
  * Utility class used in chunking the documents.
@@ -51,8 +58,15 @@ public class Utils
     @Inject
     private CollectionManager collectionManager;
  
+    @Inject 
+    private Provider<XWikiContext> contextProvider;
+
+    @Inject 
+    private EmbeddingModelManager embeddingModelManager;
+
     @Inject
     private Logger logger;
+    
     /**
      * This method is responsible for splitting the document into chunks.
      * 
@@ -65,12 +79,9 @@ public class Utils
         Collection collection;
         try {
             collection = collectionManager.getCollection(document.getCollection());
-            logger.info("Chosen collection: " + collection.getName());
             if (collection.getChunkingMethod().equals("sectionChunking")) {
-                logger.info("Chunking method not supported");
                 chunkMap = chunkDocumentBasedOnSections();
             } else {
-                logger.info("Chose the correct chunking method");
                 chunkMap = chunkDocumentBasedOnCharacters(document, collection.getChunkingMaxSize(),
                             collection.getChunkingOverlapOffset());
             }
@@ -119,5 +130,34 @@ public class Utils
         return chunks;
     }
     
+    /**
+     * Compute embeddings for given text.
+     *
+     * @param text the text to compute embeddings for
+     * @return the embeddings as double array
+     */
+    public double[] computeEmbeddings(String text)
+    {
+        try {
+            XWikiContext context = this.contextProvider.get();
+            WikiReference wikiReference = context.getWikiReference();
+            UserReference userReference = CurrentUserReference.INSTANCE;
+            List<EmbeddingModelDescriptor> embeddingModelDescriptors = embeddingModelManager
+                    .getModelDescriptors(wikiReference, userReference);
+            EmbeddingModel embeddingModel = embeddingModelManager
+                    .getModel(wikiReference, embeddingModelDescriptors.get(0).getId(), userReference);
+            
+            double[] embeddingsFull = embeddingModel.embed(text);
     
+            // Truncate the embeddings array to 1024 dimensions if necessary
+            if (embeddingsFull.length > 1024) {
+                return Arrays.copyOf(embeddingsFull, 1024);
+            } else {
+                return embeddingsFull;
+            }
+        } catch (Exception e) {
+            logger.error("Failure to compute embeddings for the given text: [{}]", e.getMessage());
+            return new double[0];
+        }
+    }
 }
