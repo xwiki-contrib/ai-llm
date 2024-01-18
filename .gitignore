@@ -36,6 +36,7 @@ bin
 nbproject
 
 # Other
+*.vscode
 *.log.*
 *.log
 .sonar-ide.properties
