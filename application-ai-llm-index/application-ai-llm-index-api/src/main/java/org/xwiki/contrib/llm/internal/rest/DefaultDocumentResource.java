@@ -40,7 +40,6 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
     public JSONDocument getDocument(String wikiName, String collectionName, String documentID) throws XWikiRestException
     {
         try {
-            // TODO: How to handle rights?
             Document document = getInternalCollection(wikiName, collectionName).getDocument(documentID);
             if (document == null) {
                 throw new WebApplicationException(Response.Status.NOT_FOUND);
@@ -57,7 +56,6 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
     public void deleteDocument(String wikiName, String collectionName, String documentID) throws XWikiRestException
     {
         try {
-            // TODO: how to handle rights?
             Collection collection = getInternalCollection(wikiName, collectionName);
             Document document = collection.getDocument(documentID);
             if (document == null) {

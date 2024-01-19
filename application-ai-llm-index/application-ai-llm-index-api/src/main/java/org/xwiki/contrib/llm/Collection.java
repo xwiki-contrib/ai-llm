@@ -22,6 +22,8 @@ package org.xwiki.contrib.llm;
 import java.util.List;
 
 import org.xwiki.component.annotation.Role;
+import org.xwiki.model.reference.LocalDocumentReference;
+
 /**
  * Represents a collection of documents within the AI-LLM indexing system.
  *
@@ -36,21 +38,50 @@ public interface Collection
      * The name of the XClass that represents a collection.
      */
     String XCLASS_NAME = "CollectionsClass";
-    
+
+    /**
+     * The name of the application space.
+     */
+    String APP_SPACE_NAME = "AI";
+
+    /**
+     * The name of the collections space.
+     */
+    String COLLECTIONS_SPACE_NAME = "Collections";
+
+    /**
+     * The name of the code space.
+     */
+    String CODE_SPACE_NAME = "Code";
+
     /**
      * The space of the XClass that represents a collection.
      */
-    String XCLASS_SPACE_STRING = "AI.Collections.Code";
-    
+    List<String> CODE_SPACE_NAMES = List.of(APP_SPACE_NAME, COLLECTIONS_SPACE_NAME, CODE_SPACE_NAME);
+
+    /**
+     * The delimiter used to separate spaces in a reference.
+     */
+    String SPACE_DELIMITER = ".";
+    /**
+     * The space of the XClass that represents a collection.
+     */
+    String XCLASS_SPACE_STRING =  String.join(SPACE_DELIMITER, CODE_SPACE_NAMES);
+
+    /**
+     * The reference of the XClass that represents a collection.
+     */
+    LocalDocumentReference XCLASS_REFERENCE = new LocalDocumentReference(CODE_SPACE_NAMES, XCLASS_NAME);
+
     /**
      * The fullName of the XClass that represents a collection.
      */
-    String XCLASS_FULLNAME = XCLASS_SPACE_STRING + "." + XCLASS_NAME;
+    String XCLASS_FULLNAME = XCLASS_SPACE_STRING + SPACE_DELIMITER + XCLASS_NAME;
 
     /**
      * The default space for collections.
      */
-    String DEFAULT_COLLECTION_SPACE = "AI.Collections";
+    List<String> DEFAULT_COLLECTION_SPACE = List.of(APP_SPACE_NAME, COLLECTIONS_SPACE_NAME);
 
     /**
      * The default suffix for collection fullNames.
@@ -64,13 +95,6 @@ public interface Collection
      */
     String getName();
 
-    /**
-     * Gets the name of the collection.
-     * 
-     * @return The name of the collection.
-     */
-    String getFullName();
-    
     /**
      * Gets the embedding model used by the collection.
      * 
@@ -153,70 +177,70 @@ public interface Collection
      * 
      * @param embeddingModel The embedding model of the collection.
      */
-    void setEmbeddingModel(String embeddingModel);
+    void setEmbeddingModel(String embeddingModel) throws IndexException;
     
     /**
      * Sets the chunking method of the collection.
      * 
      * @param chunkingMethod The chunking method of the collection.
      */
-    void setChunkingMethod(String chunkingMethod);
+    void setChunkingMethod(String chunkingMethod) throws IndexException;
     
     /**
      * Sets the maximum size of a chunk.
      * 
      * @param chunkingMaxSize The maximum size of a chunk.
      */
-    void setChunkingMaxSize(int chunkingMaxSize);
+    void setChunkingMaxSize(int chunkingMaxSize) throws IndexException;
     
     /**
      * Sets the overlap offset of a chunk.
      * 
      * @param chunkingOverlapOffset The overlap offset of a chunk.
      */
-    void setChunkingOverlapOffset(int chunkingOverlapOffset);
+    void setChunkingOverlapOffset(int chunkingOverlapOffset) throws IndexException;
     
     /**
      * Sets the list of spaces for the documents in the collection.
      * 
      * @param documentSpaces A list of spaces.
      */
-    void setDocumentSpaces(List<String> documentSpaces);
+    void setDocumentSpaces(List<String> documentSpaces) throws IndexException;
     
     /**
      * Sets the list of groups that can query the collection.
      * 
      * @param queryGroups A list of groups.
      */
-    void setQueryGroups(String queryGroups);
+    void setQueryGroups(String queryGroups) throws IndexException;
     
     /**
      * Sets the list of groups that can edit the collection.
      * 
      * @param editGroups A list of groups.
      */
-    void setEditGroups(String editGroups);
+    void setEditGroups(String editGroups) throws IndexException;
     
     /**
      * Sets the list of groups that can administer the collection.
      * 
      * @param adminGroups A list of groups.
      */
-    void setAdminGroups(String adminGroups);
+    void setAdminGroups(String adminGroups) throws IndexException;
     
     /**
      * Sets the rights check method associated with the collection.
      * 
      * @param rightsCheckMethod A string representing the rights check method of the collection.
      */
-    void setRightsCheckMethod(String rightsCheckMethod);
+    void setRightsCheckMethod(String rightsCheckMethod) throws IndexException;
     
     /**
      * Sets the rights check method parameter associated with the collection.
      * 
      * @param rightsCheckMethodParam A string representing the rights check method parameter of the collection.
      */
-    void setRightsCheckMethodParam(String rightsCheckMethodParam);
+    void setRightsCheckMethodParam(String rightsCheckMethodParam) throws IndexException;
     
     /**
      * Retrieves a list of all documents in the collection.
@@ -250,11 +274,11 @@ public interface Collection
      */
     void removeDocument(String documentId,
                          boolean removeFromVectorDB, 
-                         boolean removeFromStorage);
+                         boolean removeFromStorage) throws IndexException;
     
     /**
      * Saves the collection.
      *
      */
-    void save();
+    void save() throws IndexException;
 }

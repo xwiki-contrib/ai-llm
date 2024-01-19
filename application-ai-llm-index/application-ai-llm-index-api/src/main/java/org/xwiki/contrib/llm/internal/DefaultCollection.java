@@ -29,17 +29,13 @@ import java.util.List;
 
 
 import javax.inject.Inject;
-import javax.inject.Named;
 
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
-import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.SpaceReference;
-import org.xwiki.model.reference.SpaceReferenceResolver;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
@@ -70,7 +66,10 @@ public class DefaultCollection implements Collection
     private static final String RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME = "rightsCheckMethodParam";
     private static final String DOCUMENT_SPACE_FIELDNAME = "documentSpaces";
 
+    private XWikiDocument initialDocument;
+
     private XWikiDocument xwikidocument;
+
     private BaseObject object;
 
     @Inject
@@ -84,10 +83,6 @@ public class DefaultCollection implements Collection
 
     @Inject
     private Logger logger;
-    
-    @Inject
-    @Named("current")
-    private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
 
     /**
      * Initialize the collection.
@@ -97,176 +92,189 @@ public class DefaultCollection implements Collection
     public void initialize(XWikiDocument xwikidocument)
     {
         this.xwikidocument = xwikidocument;
-        this.object = xwikidocument.getXObject(getObjectReference());
+        this.initialDocument = xwikidocument;
+        this.object = xwikidocument.getXObject(XCLASS_REFERENCE);
+    }
+
+    private BaseObject getEditableObject() throws IndexException
+    {
+        ensureDocumentIsClone();
+
         if (this.object == null)
         {
-            XWikiContext context = contextProvider.get();
+            XWikiContext context = this.contextProvider.get();
             try {
-                this.object = xwikidocument.newXObject(getObjectReference(), context);
+                this.object = this.xwikidocument.newXObject(XCLASS_REFERENCE, context);
             } catch (XWikiException e) {
-                this.logger.error("Error initializing collection for document [{}] with exception [{}]",
-                                xwikidocument.getDocumentReference(), e.getMessage());
+                throw new IndexException(String.format("Error initializing collection for document [%s].",
+                    this.xwikidocument.getDocumentReference()), e);
             }
         }
+
+        return this.object;
     }
-    
+
+    private void ensureDocumentIsClone()
+    {
+        if (this.initialDocument == this.xwikidocument) {
+            this.xwikidocument = this.initialDocument.clone();
+            this.object = this.xwikidocument.getXObject(XCLASS_REFERENCE);
+        }
+    }
+
     @Override
     public String getName()
     {
         return this.xwikidocument.getTitle();
     }
-    
-    @Override
-    public String getFullName()
-    {
-        return this.xwikidocument.getDocumentReference().toString().split(":")[1];
-    }
-    
+
     @Override
     public String getEmbeddingModel()
     {
-        return this.object.getStringValue(EMBEDDINGMODEL_FIELDNAME);
+        return this.object != null ? this.object.getStringValue(EMBEDDINGMODEL_FIELDNAME) : "";
     }
     
     @Override
     public String getChunkingMethod()
     {
-        return this.object.getStringValue(CHUNKING_METHOD_FIELDNAME);
+        return this.object != null ? this.object.getStringValue(CHUNKING_METHOD_FIELDNAME) : "";
     }
     
     @Override
     public int getChunkingMaxSize()
     {
-        return this.object.getIntValue(CHUNKING_MAX_SIZE_FIELDNAME);
+        return this.object != null ? this.object.getIntValue(CHUNKING_MAX_SIZE_FIELDNAME) : 0;
     }
     
     @Override
     public int getChunkingOverlapOffset()
     {
-        return this.object.getIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME);
+        return this.object != null ? this.object.getIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME) : 0;
     }
     
     @Override
     @SuppressWarnings("unchecked")
     public List<String> getDocumentSpaces()
     {
-        return this.object.getListValue(DOCUMENT_SPACE_FIELDNAME);
+        return this.object != null ? this.object.getListValue(DOCUMENT_SPACE_FIELDNAME) : List.of();
     }
     
     @Override
     public String getQueryGroups()
     {
-        return this.object.getLargeStringValue(QUERY_GROUPS_FIELDNAME);
+        return this.object != null ? this.object.getLargeStringValue(QUERY_GROUPS_FIELDNAME) : "";
     }
     
     @Override
     public String getEditGroups()
     {
-        return this.object.getLargeStringValue(EDIT_GROUPS_FIELDNAME);
+        return this.object != null ? this.object.getLargeStringValue(EDIT_GROUPS_FIELDNAME) : "";
     }
     
     @Override
     public String getAdminGroups()
     {
-        return this.object.getLargeStringValue(ADMIN_GROUPS_FIELDNAME);
+        return this.object != null ? this.object.getLargeStringValue(ADMIN_GROUPS_FIELDNAME) : "";
     }   
     
     @Override
     public String getRightsCheckMethod()
     {
-        return this.object.getStringValue(RIGHTS_CHECK_METHOD_FIELDNAME);
+        return this.object != null ? this.object.getStringValue(RIGHTS_CHECK_METHOD_FIELDNAME) : "";
     }
     
     @Override
     public String getRightsCheckMethodParam()
     {
-        return this.object.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME);
+        return this.object != null ? this.object.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME) : "";
     }
     
     @Override
     public void setName(String name)
     {
+        ensureDocumentIsClone();
+
         this.xwikidocument.setTitle(name);
     }
     
     @Override
-    public void setEmbeddingModel(String embeddingModel)
+    public void setEmbeddingModel(String embeddingModel) throws IndexException
     {
         if (embeddingModel != null) {
-            this.object.setStringValue(EMBEDDINGMODEL_FIELDNAME, embeddingModel);
+            getEditableObject().setStringValue(EMBEDDINGMODEL_FIELDNAME, embeddingModel);
         }
     }
     
     @Override
-    public void setChunkingMethod(String chunkingMethod)
+    public void setChunkingMethod(String chunkingMethod) throws IndexException
     {
         if (chunkingMethod != null) {
-            this.object.setStringValue(CHUNKING_METHOD_FIELDNAME, chunkingMethod);
+            getEditableObject().setStringValue(CHUNKING_METHOD_FIELDNAME, chunkingMethod);
         }
     }
     
     @Override
-    public void setChunkingMaxSize(int chunkingMaxSize)
+    public void setChunkingMaxSize(int chunkingMaxSize) throws IndexException
     {
-        this.object.setIntValue(CHUNKING_MAX_SIZE_FIELDNAME, chunkingMaxSize);
+        getEditableObject().setIntValue(CHUNKING_MAX_SIZE_FIELDNAME, chunkingMaxSize);
     }
     
     @Override
-    public void setChunkingOverlapOffset(int chunkingOverlapOffset)
+    public void setChunkingOverlapOffset(int chunkingOverlapOffset) throws IndexException
     {
-        this.object.setIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME, chunkingOverlapOffset);
+        getEditableObject().setIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME, chunkingOverlapOffset);
     }
     
     @Override
-    public void setDocumentSpaces(List<String> documentSpaces)
+    public void setDocumentSpaces(List<String> documentSpaces) throws IndexException
     {
         if (documentSpaces != null) {
-            this.object.setStringListValue(DOCUMENT_SPACE_FIELDNAME, documentSpaces);
+            getEditableObject().setStringListValue(DOCUMENT_SPACE_FIELDNAME, documentSpaces);
         }
     }
     
     @Override
-    public void setQueryGroups(String queryGroups)
+    public void setQueryGroups(String queryGroups) throws IndexException
     {
         if (queryGroups != null) {
-            this.object.setLargeStringValue(QUERY_GROUPS_FIELDNAME, queryGroups);
+            getEditableObject().setLargeStringValue(QUERY_GROUPS_FIELDNAME, queryGroups);
         }
     }
     
     @Override
-    public void setEditGroups(String editGroups)
+    public void setEditGroups(String editGroups) throws IndexException
     {
         if (editGroups != null) {
-            this.object.setLargeStringValue(EDIT_GROUPS_FIELDNAME, editGroups);
+            getEditableObject().setLargeStringValue(EDIT_GROUPS_FIELDNAME, editGroups);
         }
     }
     
     @Override
-    public void setAdminGroups(String adminGroups)
+    public void setAdminGroups(String adminGroups) throws IndexException
     {
         if (adminGroups != null) {
-            this.object.setLargeStringValue(ADMIN_GROUPS_FIELDNAME, adminGroups);
+            getEditableObject().setLargeStringValue(ADMIN_GROUPS_FIELDNAME, adminGroups);
         }
     }
     
     @Override
-    public void setRightsCheckMethod(String rightsCheckMethod)
+    public void setRightsCheckMethod(String rightsCheckMethod) throws IndexException
     {
         if (rightsCheckMethod != null) {
-            this.object.setStringValue(RIGHTS_CHECK_METHOD_FIELDNAME, rightsCheckMethod);
+            getEditableObject().setStringValue(RIGHTS_CHECK_METHOD_FIELDNAME, rightsCheckMethod);
         }
     }
     
     @Override
-    public void setRightsCheckMethodParam(String rightsCheckMethodParam)
+    public void setRightsCheckMethodParam(String rightsCheckMethodParam) throws IndexException
     {
         if (rightsCheckMethodParam != null) {
-            this.object.setStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME, rightsCheckMethodParam);
+            getEditableObject().setStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME, rightsCheckMethodParam);
         }
     }
     
     @Override
-    public void save()
+    public void save() throws IndexException
     {
         try {
             XWikiContext context = this.contextProvider.get();
@@ -339,7 +347,7 @@ public class DefaultCollection implements Collection
     @Override
     public void removeDocument(String documentId,
                                  boolean removeFromVectorDB,
-                                 boolean removeFromStorage)
+                                 boolean removeFromStorage) throws IndexException
     {
         try {
             Document document = this.getDocument(documentId);
@@ -375,23 +383,16 @@ public class DefaultCollection implements Collection
         }
     }
     
-    private DocumentReference getDocumentReference(String id)
+    DocumentReference getDocumentReference(String id)
     {
         SpaceReference lastSpaceReference = this.xwikidocument.getDocumentReference().getLastSpaceReference();
         SpaceReference documentReference = new SpaceReference("Documents", lastSpaceReference);
         return new DocumentReference(DigestUtils.sha256Hex(id), documentReference);
     }
-    
-    //get XObject reference for the collection XClass
-    private EntityReference getObjectReference()
-    {
-        SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(XCLASS_SPACE_STRING);
-        EntityReference collectionClassRef = new EntityReference(XCLASS_NAME,
-                                                                EntityType.DOCUMENT,
-                                                                spaceRef);
 
-        return new EntityReference(XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
+    XWikiDocument getCollectionDocument()
+    {
+        return this.xwikidocument;
     }
-    
 }
 

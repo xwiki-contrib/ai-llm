@@ -27,8 +27,6 @@ import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.EntityReference;
-import org.xwiki.model.reference.SpaceReferenceResolver;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
@@ -40,9 +38,6 @@ import com.xpn.xwiki.doc.XWikiDocument;
 import org.xwiki.component.annotation.Component;
 
 import javax.inject.Inject;
-import javax.inject.Named;
-
-
 import javax.inject.Singleton;
 import javax.inject.Provider;
 
@@ -58,6 +53,9 @@ import org.slf4j.Logger;
 public class DefaultCollectionManager implements CollectionManager
 {
     @Inject
+    protected Provider<XWikiContext> contextProvider;
+
+    @Inject
     private Logger logger;
 
     @Inject
@@ -66,22 +64,14 @@ public class DefaultCollectionManager implements CollectionManager
     @Inject
     private Provider<DefaultCollection> collectionProvider;
 
-    @Inject 
-    private Provider<XWikiContext> contextProvider;
-
-    @Inject
-    @Named("current")
-    private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
-   
     @Override
-    public Collection createCollection(String name)
+    public DefaultCollection createCollection(String name) throws IndexException
     {
         if (this.getCollections().contains(name)) {
             return null;
         }
         XWikiContext context = this.contextProvider.get();
-        String fullName = buildCollectionFullName(name);
-        DocumentReference documentReference = getDocumentReference(fullName);
+        DocumentReference documentReference = getDocumentReference(name);
         try {
             XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
             DefaultCollection newCollection = collectionProvider.get();
@@ -94,15 +84,8 @@ public class DefaultCollectionManager implements CollectionManager
         return null;
     }
 
-    private DocumentReference getDocumentReference(String fullName)
-    {
-        XWikiContext context = this.contextProvider.get();
-        EntityReference entityReference = this.explicitStringSpaceRefResolver.resolve(fullName, context);
-        return context.getWiki().getDocumentReference(entityReference, context);
-    }
-
     @Override
-    public List<String> getCollections()
+    public List<String> getCollections() throws IndexException
     {
         List<String> collections = null;
         String templateDoc = Collection.XCLASS_SPACE_STRING + ".CollectionsTemplate";
@@ -120,12 +103,12 @@ public class DefaultCollectionManager implements CollectionManager
     }
     
     @Override
-    public Collection getCollection(String name) throws IndexException
+    public DefaultCollection getCollection(String name) throws IndexException
     {
         if (getCollections().contains(name)) {
             XWikiContext context = contextProvider.get();
             try {
-                String fullName = buildCollectionFullName(name) + Collection.DEFAULT_COLLECTION_SUFFIX;
+                String fullName = getDocumentReference(name) + Collection.DEFAULT_COLLECTION_SUFFIX;
                 XWikiDocument xwikiDoc = context.getWiki().getDocument(fullName, EntityType.DOCUMENT, context);
                 if (!xwikiDoc.isNew()) {
                     DefaultCollection collection = this.collectionProvider.get();
@@ -143,12 +126,11 @@ public class DefaultCollectionManager implements CollectionManager
     }
 
     @Override
-    public void deleteCollection(String name, boolean deleteDocuments)
+    public void deleteCollection(String name, boolean deleteDocuments) throws IndexException
     {
         if (getCollections().contains(name)) {
             XWikiContext context = contextProvider.get();
-            String fullName = buildCollectionFullName(name);
-            DocumentReference documentReference = getDocumentReference(fullName);
+            DocumentReference documentReference = getDocumentReference(name);
             try {
                 Collection collection = getCollection(name);
                 if (deleteDocuments) {
@@ -168,13 +150,15 @@ public class DefaultCollectionManager implements CollectionManager
         }
     }
 
-    private String buildCollectionFullName(String name)
+    @Override
+    public DocumentReference getDocumentReference(String name)
     {
-        return Collection.DEFAULT_COLLECTION_SPACE + "." + name;
+        String wikiId = this.contextProvider.get().getWikiId();
+        return new DocumentReference(wikiId, Collection.DEFAULT_COLLECTION_SPACE, name);
     }
 
     @Override
-    public void clearIndexCore()
+    public void clearIndexCore() throws IndexException
     {
         try {
             SolrConnector.clearIndexCore();

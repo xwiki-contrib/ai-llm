@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm;
 import java.util.List;
 
 import org.xwiki.component.annotation.Role;
+import org.xwiki.model.reference.DocumentReference;
 
 /**
  * This interface manages collections.
@@ -37,14 +38,14 @@ public interface CollectionManager
      * @param fullName the name of the collection
      * @return the created collection
      */
-    Collection createCollection(String fullName);
+    Collection createCollection(String fullName) throws IndexException;
     
     /**
      * Lists all collections.
      *
      * @return a list of all collections
      */
-    List<String> getCollections();
+    List<String> getCollections() throws IndexException;
     
     /**
      * Gets a collection by name.
@@ -59,12 +60,18 @@ public interface CollectionManager
      * @param name the name of the collection
      * @param deleteDocuments if true, deletes all documents in the collection
      */
-    void deleteCollection(String name, boolean deleteDocuments);
+    void deleteCollection(String name, boolean deleteDocuments) throws IndexException;
+
+    /**
+     * @param name the name of the collection
+     * @return the document reference of the collection
+     */
+    DocumentReference getDocumentReference(String name);
 
     /**
      * Clears the solr core of all data.
      * 
      */
-    void clearIndexCore();
+    void clearIndexCore() throws IndexException;
 
 }

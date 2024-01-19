@@ -24,8 +24,6 @@ import java.util.stream.Collectors;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Response;
 
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.Collection;
@@ -72,12 +70,10 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
 
             // Assign the new collection to the existing one
             collection.applyTo(existingCollection);
-            // TODO: how to save the collection, while respecting rights?
 
             return new JSONCollection(existingCollection);
         } catch (IndexException e) {
-            this.logger.error("Error updating collection [{}]: [{}]", collectionName, e.getMessage());
-            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+            throw convertException(collectionName, e, "updating");
         } finally {
             context.setWikiId(currentWiki);
         }
@@ -93,9 +89,9 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
         try {
             context.setWikiId(wikiName);
 
-            // TODO: How to handle rights?
-            
             this.collectionManager.deleteCollection(collectionName, true);
+        } catch (IndexException e) {
+            throw convertException(collectionName, e, "deleting");
         } finally {
             context.setWikiId(currentWiki);
         }
@@ -106,7 +102,6 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
         throws XWikiRestException
     {
         Collection collection = getInternalCollection(wikiName, collectionName);
-        // TODO: How to handle rights?
         return collection.getDocuments().stream()
             // TODO: Use real pagination and do not load all documents in memory
             .skip(start)

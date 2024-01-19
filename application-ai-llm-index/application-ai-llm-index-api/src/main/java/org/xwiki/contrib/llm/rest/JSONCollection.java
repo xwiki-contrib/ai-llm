@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm.rest;
 import java.util.List;
 
 import org.xwiki.contrib.llm.Collection;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.stability.Unstable;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -84,7 +85,7 @@ public class JSONCollection
      *
      * @param collection the collection to apply to
      */
-    public void applyTo(Collection collection)
+    public void applyTo(Collection collection) throws IndexException
     {
         applyEmbeddingModel(collection);
         applyChunkingMethod(collection);
@@ -99,70 +100,70 @@ public class JSONCollection
         collection.save();
     }
 
-    private void applyEmbeddingModel(Collection collection)
+    private void applyEmbeddingModel(Collection collection) throws IndexException
     {
         if (this.embeddingModel != null) {
             collection.setEmbeddingModel(this.embeddingModel);
         }
     }
     
-    private void applyChunkingMethod(Collection collection)
+    private void applyChunkingMethod(Collection collection) throws IndexException
     {
         if (this.chunkingMethod != null) {
             collection.setChunkingMethod(this.chunkingMethod);
         }
     }
 
-    private void applyChunkingMaxSize(Collection collection)
+    private void applyChunkingMaxSize(Collection collection) throws IndexException
     {
         if (this.chunkingMaxSize != 0) {
             collection.setChunkingMaxSize(this.chunkingMaxSize);
         }
     }
 
-    private void applyChunkingOverlapOffset(Collection collection)
+    private void applyChunkingOverlapOffset(Collection collection) throws IndexException
     {
         if (this.chunkingOverlapOffset != 0) {
             collection.setChunkingOverlapOffset(this.chunkingOverlapOffset);
         }
     }
 
-    private void applyDocumentSpaces(Collection collection)
+    private void applyDocumentSpaces(Collection collection) throws IndexException
     {
         if (this.documentSpaces != null) {
             collection.setDocumentSpaces(this.documentSpaces);
         }
     }
 
-    private void applyQueryGroups(Collection collection)
+    private void applyQueryGroups(Collection collection) throws IndexException
     {
         if (this.queryGroups != null) {
             collection.setQueryGroups(this.queryGroups);
         }
     }
 
-    private void applyEditGroups(Collection collection)
+    private void applyEditGroups(Collection collection) throws IndexException
     {
         if (this.editGroups != null) {
             collection.setEditGroups(this.editGroups);
         }
     }
 
-    private void applyAdminGroups(Collection collection)
+    private void applyAdminGroups(Collection collection) throws IndexException
     {
         if (this.adminGroups != null) {
             collection.setAdminGroups(this.adminGroups);
         }
     }
 
-    private void applyRightsCheckMethod(Collection collection)
+    private void applyRightsCheckMethod(Collection collection) throws IndexException
     {
         if (this.rightsCheckMethod != null) {
             collection.setRightsCheckMethod(this.rightsCheckMethod);
         }
     }
 
-    private void applyRightsCheckMethodParam(Collection collection)
+    private void applyRightsCheckMethodParam(Collection collection) throws IndexException
     {
         if (this.rightsCheckMethodParam != null) {
             collection.setRightsCheckMethodParam(this.rightsCheckMethodParam);

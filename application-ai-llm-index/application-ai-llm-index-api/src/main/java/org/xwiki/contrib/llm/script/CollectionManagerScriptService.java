@@ -50,7 +50,7 @@ public class CollectionManagerScriptService implements ScriptService
      * @param name the name of the collection
      * @return the created collection
      */
-    public Collection createCollection(String name)
+    public Collection createCollection(String name) throws IndexException
     {
         return this.collectionManager.createCollection(name);
     }
@@ -60,7 +60,7 @@ public class CollectionManagerScriptService implements ScriptService
      *
      * @return a list of all collections
      */
-    public List<String> getCollections()
+    public List<String> getCollections() throws IndexException
     {
         return this.collectionManager.getCollections();
     }
@@ -90,7 +90,7 @@ public class CollectionManagerScriptService implements ScriptService
      * Clears the solr core of all data.
      * 
      */
-    public void clearIndexCore()
+    public void clearIndexCore() throws IndexException
     {
         this.collectionManager.clearIndexCore();
     }

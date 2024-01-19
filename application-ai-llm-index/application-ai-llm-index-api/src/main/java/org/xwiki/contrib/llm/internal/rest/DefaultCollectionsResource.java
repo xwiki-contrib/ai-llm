@@ -28,6 +28,7 @@ import javax.inject.Singleton;
 
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.CollectionManager;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.rest.CollectionsResource;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.rest.XWikiRestException;
@@ -46,6 +47,7 @@ import com.xpn.xwiki.XWikiContext;
 public class DefaultCollectionsResource extends XWikiResource implements CollectionsResource
 {
     @Inject
+    @Named("currentUser")
     private CollectionManager collectionManager;
 
     @Inject
@@ -63,6 +65,8 @@ public class DefaultCollectionsResource extends XWikiResource implements Collect
 
             // TODO: How do we filter collections that the current user doesn't have access to?
             return this.collectionManager.getCollections();
+        } catch (IndexException e) {
+            throw new XWikiRestException("Failed to get collections", e);
         } finally {
             context.setWikiId(currentWiki);
         }

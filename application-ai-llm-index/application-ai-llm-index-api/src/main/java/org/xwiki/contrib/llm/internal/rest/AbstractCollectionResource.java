@@ -20,15 +20,18 @@
 package org.xwiki.contrib.llm.internal.rest;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Provider;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.rest.XWikiResource;
+import org.xwiki.security.authorization.AccessDeniedException;
 
 import com.xpn.xwiki.XWikiContext;
 
@@ -40,6 +43,7 @@ import com.xpn.xwiki.XWikiContext;
 public abstract class AbstractCollectionResource extends XWikiResource
 {
     @Inject
+    @Named("currentUser")
     protected CollectionManager collectionManager;
 
     @Inject
@@ -57,7 +61,6 @@ public abstract class AbstractCollectionResource extends XWikiResource
         try {
             context.setWikiId(wikiName);
 
-            // TODO: How to handle rights?
             Collection collection = this.collectionManager.getCollection(collectionName);
             if (collection == null) {
                 throw new WebApplicationException(Response.Status.NOT_FOUND);
@@ -65,11 +68,20 @@ public abstract class AbstractCollectionResource extends XWikiResource
 
             return collection;
         } catch (IndexException e) {
-            this.logger.error("Error retriving internal collection with name [{}]: [{}]",
-                collectionName, e.getMessage());
-            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+            throw convertException(collectionName, e, "retrieving");
         } finally {
             context.setWikiId(currentWiki);
+        }
+    }
+
+    protected WebApplicationException convertException(String collectionName, IndexException e, String verb)
+    {
+        Throwable rootCause = ExceptionUtils.getRootCause(e);
+        if (rootCause instanceof AccessDeniedException) {
+            return new WebApplicationException(Response.Status.FORBIDDEN);
+        } else {
+            this.logger.error("Error {} collection [{}]: [{}]", verb, collectionName, e.getMessage());
+            return new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         }
     }
 }

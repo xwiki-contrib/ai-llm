@@ -113,15 +113,15 @@ public class IndexWorker implements EventListener
         logger.info("document ref {}", xdocument.getDocumentReference());
         //while queue is not empty, get first document, log it's ID and remove it from the queue
         while (!this.keyValueQueue.isEmpty()) {
-            logger.info("collectionManager pull {}", collectionManager.getCollections());
-            logger.info("for document {}", xdocument.getDocumentReference());
-            AbstractMap.SimpleEntry<String, String> nextInLine = this.keyValueQueue.poll();
-            logger.info("nextInLine {}", nextInLine);
-            if (nextInLine != null) {
-                String key = nextInLine.getKey();
-                String value = nextInLine.getValue();
-                this.logger.info("Processing document: {}", key);
-                try {
+            try {
+                logger.info("collectionManager pull {}", collectionManager.getCollections());
+                logger.info("for document {}", xdocument.getDocumentReference());
+                AbstractMap.SimpleEntry<String, String> nextInLine = this.keyValueQueue.poll();
+                logger.info("nextInLine {}", nextInLine);
+                if (nextInLine != null) {
+                    String key = nextInLine.getKey();
+                    String value = nextInLine.getValue();
+                    this.logger.info("Processing document: {}", key);
                     Document document = collectionManager.getCollection(value).getDocument(key);
                     logger.info("Document: {}", document);
                     List<Chunk> chunks = document.chunkDocument();
@@ -131,10 +131,10 @@ public class IndexWorker implements EventListener
                         chunk.computeEmbeddings();
                         SolrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
                     }
-                } catch (Exception e) {
-                    this.logger.error("Failure to process document in indexWorker", e);
                 }
-            }          
+            } catch (Exception e) {
+                this.logger.error("Failure to process document in indexWorker", e);
+            }
         }
     }
 
