@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrInputDocument;
 
@@ -55,7 +56,7 @@ public final class SolrConnector
      * @param chunk the chunk to be storred
      * @param id the id of the chunk
      */
-    public static void storeChunk(Chunk chunk, String id)
+    public static void storeChunk(Chunk chunk, String id) throws SolrServerException
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             SolrInputDocument solrDocument = new SolrInputDocument();
@@ -115,7 +116,7 @@ public final class SolrConnector
     /**
      * Connects to the Solr server and deletes all documents.
      */
-    public static void clearIndexCore()
+    public static void clearIndexCore() throws SolrServerException
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             client.deleteByQuery("*:*");

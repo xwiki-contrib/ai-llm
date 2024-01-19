@@ -34,6 +34,7 @@ import javax.inject.Named;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReference;
@@ -104,88 +105,21 @@ public class DefaultCollection implements Collection
                 this.object = xwikidocument.newXObject(getObjectReference(), context);
             } catch (XWikiException e) {
                 this.logger.error("Error initializing collection for document [{}] with exception [{}]",
-                                 xwikidocument.getDocumentReference(), e.getMessage());
+                                xwikidocument.getDocumentReference(), e.getMessage());
             }
         }
     }
-
+    
     @Override
     public String getName()
     {
         return this.xwikidocument.getTitle();
     }
-
+    
     @Override
     public String getFullName()
     {
         return this.xwikidocument.getDocumentReference().toString().split(":")[1];
-    }
-
-    @Override
-    public List<String> getDocuments()
-    {
-        List<String> documents = null;
-        String documentClass = Document.XCLASS_SPACE_STRING + "." + Document.XCLASS_NAME;
-        String templateDoc = Document.XCLASS_SPACE_STRING + ".CollectionsTemplate";
-        String hql = "select prop.value from XWikiDocument doc, BaseObject obj, StringProperty prop "
-                    + "where doc.fullName=obj.name and obj.className='" + documentClass
-                    + "' and doc.fullName <> '" + templateDoc
-                    + "' and obj.id = prop.id.id and prop.id.name = 'id'";
-        try {
-            Query query = queryManager.createQuery(hql, Query.HQL);
-            documents = query.execute();
-            return documents;
-        } catch (QueryException e) {
-            this.logger.error("Failed retrieving document list, [{}]", e.getMessage());
-        }
-        return documents;
-    }
-
-    @Override
-    public Document newDocument(String documentId) throws IndexException
-    {
-        if (documentId == null) {
-            throw new IndexException("Document ID cannot be null");
-        }
-        XWikiContext context = contextProvider.get();
-        DocumentReference documentReference = getDocumentReference(documentId);
-        try {
-            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
-            DefaultDocument document = this.documentProvider.get();
-            document.initialize(xwikiDoc);
-            document.setID(documentId);
-            document.setTitle(documentId);
-            document.setCollection(this.getName());
-            return document;
-        } catch (XWikiException e) {
-            throw new IndexException("Failed to create document [" + documentId + "]", e);
-        }
-    }
-    
-    @Override
-    public Document getDocument(String documentId) throws IndexException
-    {
-        XWikiContext context = contextProvider.get();
-        DocumentReference documentReference = getDocumentReference(documentId);
-        try {
-            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
-            if (!xwikiDoc.isNew()) {
-                DefaultDocument document = this.documentProvider.get();
-                document.initialize(xwikiDoc);
-                return document;
-            } else {
-                return null;
-            }
-        } catch (XWikiException e) {
-            throw new IndexException("Failed to get document [" + documentId + "]", e);
-        }
-    }
-
-    private DocumentReference getDocumentReference(String id)
-    {
-        SpaceReference lastSpaceReference = this.xwikidocument.getDocumentReference().getLastSpaceReference();
-        SpaceReference documentReference = new SpaceReference("Documents", lastSpaceReference);
-        return new DocumentReference(DigestUtils.sha256Hex(id), documentReference);
     }
     
     @Override
@@ -218,7 +152,7 @@ public class DefaultCollection implements Collection
     {
         return this.object.getListValue(DOCUMENT_SPACE_FIELDNAME);
     }
-
+    
     @Override
     public String getQueryGroups()
     {
@@ -230,13 +164,13 @@ public class DefaultCollection implements Collection
     {
         return this.object.getLargeStringValue(EDIT_GROUPS_FIELDNAME);
     }
-
+    
     @Override
     public String getAdminGroups()
     {
         return this.object.getLargeStringValue(ADMIN_GROUPS_FIELDNAME);
     }   
-
+    
     @Override
     public String getRightsCheckMethod()
     {
@@ -244,51 +178,220 @@ public class DefaultCollection implements Collection
     }
     
     @Override
-    public String rightsCheckMethodParam()
+    public String getRightsCheckMethodParam()
     {
         return this.object.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME);
     }
     
     @Override
-    public boolean setName(String name)
+    public void setName(String name)
     {
         this.xwikidocument.setTitle(name);
-        return true;
     }
-
+    
     @Override
-    public boolean setEmbeddingModel(String embeddingModel)
+    public void setEmbeddingModel(String embeddingModel)
     {
         if (embeddingModel != null) {
             this.object.setStringValue(EMBEDDINGMODEL_FIELDNAME, embeddingModel);
-            return true;
         }
-        return false;
     }
-
+    
     @Override
-    public boolean save()
+    public void setChunkingMethod(String chunkingMethod)
+    {
+        if (chunkingMethod != null) {
+            this.object.setStringValue(CHUNKING_METHOD_FIELDNAME, chunkingMethod);
+        }
+    }
+    
+    @Override
+    public void setChunkingMaxSize(int chunkingMaxSize)
+    {
+        this.object.setIntValue(CHUNKING_MAX_SIZE_FIELDNAME, chunkingMaxSize);
+    }
+    
+    @Override
+    public void setChunkingOverlapOffset(int chunkingOverlapOffset)
+    {
+        this.object.setIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME, chunkingOverlapOffset);
+    }
+    
+    @Override
+    public void setDocumentSpaces(List<String> documentSpaces)
+    {
+        if (documentSpaces != null) {
+            this.object.setStringListValue(DOCUMENT_SPACE_FIELDNAME, documentSpaces);
+        }
+    }
+    
+    @Override
+    public void setQueryGroups(String queryGroups)
+    {
+        if (queryGroups != null) {
+            this.object.setLargeStringValue(QUERY_GROUPS_FIELDNAME, queryGroups);
+        }
+    }
+    
+    @Override
+    public void setEditGroups(String editGroups)
+    {
+        if (editGroups != null) {
+            this.object.setLargeStringValue(EDIT_GROUPS_FIELDNAME, editGroups);
+        }
+    }
+    
+    @Override
+    public void setAdminGroups(String adminGroups)
+    {
+        if (adminGroups != null) {
+            this.object.setLargeStringValue(ADMIN_GROUPS_FIELDNAME, adminGroups);
+        }
+    }
+    
+    @Override
+    public void setRightsCheckMethod(String rightsCheckMethod)
+    {
+        if (rightsCheckMethod != null) {
+            this.object.setStringValue(RIGHTS_CHECK_METHOD_FIELDNAME, rightsCheckMethod);
+        }
+    }
+    
+    @Override
+    public void setRightsCheckMethodParam(String rightsCheckMethodParam)
+    {
+        if (rightsCheckMethodParam != null) {
+            this.object.setStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME, rightsCheckMethodParam);
+        }
+    }
+    
+    @Override
+    public void save()
     {
         try {
             XWikiContext context = this.contextProvider.get();
             context.getWiki().saveDocument(this.xwikidocument, context);
-            return true;
         } catch (XWikiException e) {
             this.logger.error("Error saving collection: [{}]", e.getMessage());
-            return false;
+        }
+    }
+    
+    @Override
+    public List<String> getDocuments()
+    {
+        List<String> documents = null;
+        String documentClass = Document.XCLASS_SPACE_STRING + "." + Document.XCLASS_NAME;
+        String templateDoc = Document.XCLASS_SPACE_STRING + ".CollectionsTemplate";
+        String hql = "select prop.value from XWikiDocument doc, BaseObject obj, StringProperty prop "
+                    + "where doc.fullName=obj.name and obj.className='" + documentClass
+                    + "' and doc.fullName <> '" + templateDoc
+                    + "' and obj.id = prop.id.id and prop.id.name = 'id'";
+        try {
+            Query query = queryManager.createQuery(hql, Query.HQL);
+            documents = query.execute();
+            return documents;
+        } catch (QueryException e) {
+            this.logger.error("Failed retrieving document list, [{}]", e.getMessage());
+        }
+        return documents;
+    }
+    
+    @Override
+    public Document getDocument(String documentId) throws IndexException
+    {
+        XWikiContext context = contextProvider.get();
+        DocumentReference documentReference = getDocumentReference(documentId);
+        try {
+            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
+            if (!xwikiDoc.isNew()) {
+                DefaultDocument document = this.documentProvider.get();
+                document.initialize(xwikiDoc);
+                return document;
+            } else {
+                return null;
+            }
+        } catch (XWikiException e) {
+            throw new IndexException("Failed to get document [" + documentId + "]", e);
+        }
+    }
+    
+    @Override
+    public Document newDocument(String documentId) throws IndexException
+    {
+        if (documentId == null) {
+            throw new IndexException("Document ID cannot be null");
+        }
+        XWikiContext context = contextProvider.get();
+        DocumentReference documentReference = getDocumentReference(documentId);
+        try {
+            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
+            DefaultDocument document = this.documentProvider.get();
+            document.initialize(xwikiDoc);
+            document.setID(documentId);
+            document.setTitle(documentId);
+            document.setCollection(this.getName());
+            return document;
+        } catch (XWikiException e) {
+            throw new IndexException("Failed to create document [" + documentId + "]", e);
+        }
+    }
+    
+    @Override
+    public void removeDocument(String documentId,
+                                 boolean removeFromVectorDB,
+                                 boolean removeFromStorage)
+    {
+        try {
+            Document document = this.getDocument(documentId);
+            if (removeFromVectorDB) {
+                removeDocumentFromVectorDB(document);
+            }
+            if (removeFromStorage) {
+                removeDocumentFromStorage(document);
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to remove document with id [{}]: [{}]", documentId, e.getMessage());
         }
     }
 
+    private void removeDocumentFromVectorDB(Document document)
+    {
+        try {
+            SolrConnector.deleteChunksByDocId(document.getID());
+        } catch (Exception e) {
+            logger.warn("Failed to remove document [{}] from vector database: [{}]",
+                                 document, e.getMessage());
+        }
+    }
+
+    private void removeDocumentFromStorage(Document document)
+    {
+        try {
+            XWikiContext context = this.contextProvider.get();
+            context.getWiki().deleteDocument(document.getXWikiDocument(), context);
+        } catch (XWikiException e) {
+            logger.warn("Failed to remove document [{}] from storage: [{}]",
+                                 document, e.getMessage());
+        }
+    }
+    
+    private DocumentReference getDocumentReference(String id)
+    {
+        SpaceReference lastSpaceReference = this.xwikidocument.getDocumentReference().getLastSpaceReference();
+        SpaceReference documentReference = new SpaceReference("Documents", lastSpaceReference);
+        return new DocumentReference(DigestUtils.sha256Hex(id), documentReference);
+    }
+    
     //get XObject reference for the collection XClass
     private EntityReference getObjectReference()
     {
         SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(XCLASS_SPACE_STRING);
-
         EntityReference collectionClassRef = new EntityReference(XCLASS_NAME,
-                                    EntityType.DOCUMENT,
-                                    spaceRef
-                                );
+                                                                EntityType.DOCUMENT,
+                                                                spaceRef);
+
         return new EntityReference(XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
     }
-
+    
 }
+

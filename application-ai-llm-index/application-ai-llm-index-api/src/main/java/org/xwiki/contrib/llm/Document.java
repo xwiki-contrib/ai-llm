@@ -23,6 +23,8 @@ import java.util.List;
 
 import org.xwiki.component.annotation.Role;
 
+import com.xpn.xwiki.doc.XWikiDocument;
+
 /**
  * Represents a document within the WAISE collection in the AI-LLM indexing system.
  *
@@ -40,6 +42,13 @@ public interface Document
      * The space of the XClass that represents a document.
      */
     String XCLASS_SPACE_STRING = "AI.Documents.Code";
+
+    /**
+     * The get the XWikiDocument that represents the document.
+     * 
+     * @return the document's XWikiDocument
+     */
+    XWikiDocument getXWikiDocument();
 
     /**
      * Retrieves the unique identifier of the document.

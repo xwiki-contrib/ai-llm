@@ -94,9 +94,8 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
             context.setWikiId(wikiName);
 
             // TODO: How to handle rights?
-            if (!this.collectionManager.deleteCollection(collectionName)) {
-                throw new WebApplicationException(Response.Status.NOT_FOUND);
-            }
+            
+            this.collectionManager.deleteCollection(collectionName, true);
         } finally {
             context.setWikiId(currentWiki);
         }

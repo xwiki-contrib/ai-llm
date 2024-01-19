@@ -70,30 +70,7 @@ public interface Collection
      * @return The name of the collection.
      */
     String getFullName();
-
-    /**
-     * Retrieves a list of all documents in the collection.
-     * 
-     * @return A list of documents.
-     */
-    List<String> getDocuments();
-
-    /**
-     * Retrieves a specific document by its ID from the collection.
-     * 
-     * @param documentId The unique identifier of the document.
-     * @return The document with the specified ID, or null if not found.
-     */
-    Document newDocument(String documentId) throws IndexException;
-
-    /**
-     * Retrieves a specific document by its ID from the collection.
-     * 
-     * @param documentId The unique identifier of the document.
-     * @return The document with the specified ID, or null if not found.
-     */
-    Document getDocument(String documentId) throws IndexException;
-
+    
     /**
      * Gets the embedding model used by the collection.
      * 
@@ -128,62 +105,156 @@ public interface Collection
      * @return A list of spaces.
      */
     List<String> getDocumentSpaces();
-
+    
     /**
      * Gets the list of groups that can query the collection.
      * 
      * @return A list of groups.
      */
     String getQueryGroups();
-
+    
     /**
      * Gets the list of groups that can edit the collection.
      * 
      * @return A list of groups.
      */
     String getEditGroups();
-
+    
     /**
      * Gets the list of groups that can administer the collection.
      * 
      * @return A list of groups.
      */
     String getAdminGroups();
-
+    
     /**
      * Gets the rights check method associated with the collection.
      * 
      * @return A string representing the rights check method of the collection.
      */
     String getRightsCheckMethod();
-
+    
     /**
      * Gets the rights check method parameter associated with the collection.
      * 
      * @return A string representing the rights check method parameter of the collection.
      */
-    String rightsCheckMethodParam();
-
+    String getRightsCheckMethodParam();
+    
     /**
      * Sets the name of the collection.
      * 
      * @param name The name of the collection.
-     * @return True if the operation was successful, false otherwise.
      */
-    boolean setName(String name);
-
+    void setName(String name);
+    
     /**
      * Sets the embedding model of the collection.
      * 
      * @param embeddingModel The embedding model of the collection.
-     * @return True if the operation was successful, false otherwise.
      */
-    boolean setEmbeddingModel(String embeddingModel);
-
+    void setEmbeddingModel(String embeddingModel);
+    
+    /**
+     * Sets the chunking method of the collection.
+     * 
+     * @param chunkingMethod The chunking method of the collection.
+     */
+    void setChunkingMethod(String chunkingMethod);
+    
+    /**
+     * Sets the maximum size of a chunk.
+     * 
+     * @param chunkingMaxSize The maximum size of a chunk.
+     */
+    void setChunkingMaxSize(int chunkingMaxSize);
+    
+    /**
+     * Sets the overlap offset of a chunk.
+     * 
+     * @param chunkingOverlapOffset The overlap offset of a chunk.
+     */
+    void setChunkingOverlapOffset(int chunkingOverlapOffset);
+    
+    /**
+     * Sets the list of spaces for the documents in the collection.
+     * 
+     * @param documentSpaces A list of spaces.
+     */
+    void setDocumentSpaces(List<String> documentSpaces);
+    
+    /**
+     * Sets the list of groups that can query the collection.
+     * 
+     * @param queryGroups A list of groups.
+     */
+    void setQueryGroups(String queryGroups);
+    
+    /**
+     * Sets the list of groups that can edit the collection.
+     * 
+     * @param editGroups A list of groups.
+     */
+    void setEditGroups(String editGroups);
+    
+    /**
+     * Sets the list of groups that can administer the collection.
+     * 
+     * @param adminGroups A list of groups.
+     */
+    void setAdminGroups(String adminGroups);
+    
+    /**
+     * Sets the rights check method associated with the collection.
+     * 
+     * @param rightsCheckMethod A string representing the rights check method of the collection.
+     */
+    void setRightsCheckMethod(String rightsCheckMethod);
+    
+    /**
+     * Sets the rights check method parameter associated with the collection.
+     * 
+     * @param rightsCheckMethodParam A string representing the rights check method parameter of the collection.
+     */
+    void setRightsCheckMethodParam(String rightsCheckMethodParam);
+    
+    /**
+     * Retrieves a list of all documents in the collection.
+     * 
+     * @return A list of documents.
+     */
+    List<String> getDocuments();
+    
+    /**
+     * Retrieves a specific document by its ID from the collection.
+     * 
+     * @param documentId The unique identifier of the document.
+     * @return The document with the specified ID, or null if not found.
+     */
+    Document newDocument(String documentId) throws IndexException;
+    
+    /**
+     * Retrieves a specific document by its ID from the collection.
+     * 
+     * @param documentId The unique identifier of the document.
+     * @return The document with the specified ID, or null if not found.
+     */
+    Document getDocument(String documentId) throws IndexException;
+    
+    /**
+     * Removes a document from the collection.
+     * 
+     * @param documentId The document to remove.
+     * @param removeFromVectorDB Whether to remove the document from the vector database.
+     * @param removeFromStorage Whether to remove the document from the storage.
+     */
+    void removeDocument(String documentId,
+                         boolean removeFromVectorDB, 
+                         boolean removeFromStorage);
+    
     /**
      * Saves the collection.
      *
-     * @return true if the collection was saved successfully, false otherwise
      */
-    boolean save();
+    void save();
 }

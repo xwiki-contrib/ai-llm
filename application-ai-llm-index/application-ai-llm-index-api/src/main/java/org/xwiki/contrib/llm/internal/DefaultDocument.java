@@ -105,6 +105,12 @@ public class DefaultDocument implements Document
     }
     
     @Override
+    public XWikiDocument getXWikiDocument()
+    {
+        return this.xwikidocument;
+    }
+
+    @Override
     public String getID()
     {
         return this.object.getStringValue(ID_KEY);
@@ -185,7 +191,7 @@ public class DefaultDocument implements Document
     @Override
     public void setContent(String content)
     {
-        this.object.setLargeStringValue(CONTENT_KEY, content);
+        this.xwikidocument.setContent(content);
     }
 
     @Override

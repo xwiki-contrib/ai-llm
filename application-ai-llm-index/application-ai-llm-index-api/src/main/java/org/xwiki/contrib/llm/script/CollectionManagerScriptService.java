@@ -79,20 +79,19 @@ public class CollectionManagerScriptService implements ScriptService
     /**
      * Deletes a collection.
      * @param name
-     * @return boolean indicating success or failure
+     * @param deleteDocuments if true, deletes all documents in the collection
      */
-    public boolean deleteCollection(String name)
+    public void deleteCollection(String name, boolean deleteDocuments) throws IndexException
     {
-        return this.collectionManager.deleteCollection(name);
+        this.collectionManager.deleteCollection(name, deleteDocuments);
     }
 
     /**
      * Clears the solr core of all data.
      * 
-     * @return boolean indicating success or failure
      */
-    public boolean clearIndexCore()
+    public void clearIndexCore()
     {
-        return this.collectionManager.clearIndexCore();
+        this.collectionManager.clearIndexCore();
     }
 }

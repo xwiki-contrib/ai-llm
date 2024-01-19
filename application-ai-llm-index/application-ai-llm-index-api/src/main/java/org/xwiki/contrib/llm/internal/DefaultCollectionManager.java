@@ -80,7 +80,7 @@ public class DefaultCollectionManager implements CollectionManager
             return null;
         }
         XWikiContext context = this.contextProvider.get();
-        String fullName = buildCollectionFullname(name);
+        String fullName = buildCollectionFullName(name);
         DocumentReference documentReference = getDocumentReference(fullName);
         try {
             XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
@@ -125,7 +125,7 @@ public class DefaultCollectionManager implements CollectionManager
         if (getCollections().contains(name)) {
             XWikiContext context = contextProvider.get();
             try {
-                String fullName = buildCollectionFullname(name) + Collection.DEFAULT_COLLECTION_SUFFIX;
+                String fullName = buildCollectionFullName(name) + Collection.DEFAULT_COLLECTION_SUFFIX;
                 XWikiDocument xwikiDoc = context.getWiki().getDocument(fullName, EntityType.DOCUMENT, context);
                 if (!xwikiDoc.isNew()) {
                     DefaultCollection collection = this.collectionProvider.get();
@@ -143,40 +143,43 @@ public class DefaultCollectionManager implements CollectionManager
     }
 
     @Override
-    public boolean deleteCollection(String name)
+    public void deleteCollection(String name, boolean deleteDocuments)
     {
         if (getCollections().contains(name)) {
             XWikiContext context = contextProvider.get();
-            String fullName = buildCollectionFullname(name);
+            String fullName = buildCollectionFullName(name);
             DocumentReference documentReference = getDocumentReference(fullName);
             try {
+                Collection collection = getCollection(name);
+                if (deleteDocuments) {
+                    for (String docID : collection.getDocuments()) {
+                        collection.removeDocument(docID, 
+                                                true,
+                                                true);
+                    }
+                }
                 XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
                 context.getWiki().deleteDocument(xdocument, context);
-                return true;
-            } catch (XWikiException e) {
+            } catch (Exception e) {
                 this.logger.error("Failed while deleting collection [{}]: [{}]", name, e);
-                return false;
             }
         } else {
             this.logger.warn("Problem deleting collection [{}]. Reason: Collection not found.", name);
-            return false;
         }
     }
 
-    private String buildCollectionFullname(String name)
+    private String buildCollectionFullName(String name)
     {
         return Collection.DEFAULT_COLLECTION_SPACE + "." + name;
     }
 
     @Override
-    public boolean clearIndexCore()
+    public void clearIndexCore()
     {
         try {
             SolrConnector.clearIndexCore();
-            return true;
         } catch (Exception e) {
             this.logger.error("Failed to clear index core: [{}]", e.getMessage());
-            return false;
         } 
     }
 

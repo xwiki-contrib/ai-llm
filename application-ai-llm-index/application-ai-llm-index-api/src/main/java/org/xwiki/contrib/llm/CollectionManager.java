@@ -56,16 +56,15 @@ public interface CollectionManager
     
     /**
      * Deletes a collection.
-     * @param name
-     * @return boolean indicating success or failure
+     * @param name the name of the collection
+     * @param deleteDocuments if true, deletes all documents in the collection
      */
-    boolean deleteCollection(String name);
+    void deleteCollection(String name, boolean deleteDocuments);
 
     /**
      * Clears the solr core of all data.
      * 
-     * @return boolean indicating success or failure
      */
-    boolean clearIndexCore();
+    void clearIndexCore();
 
 }
