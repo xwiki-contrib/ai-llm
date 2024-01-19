@@ -149,20 +149,20 @@ class OpenAIEmbeddingModelTest
         }
     }
 
-    // @Test
-    // void embedWithError() throws IOException
-    // {
-    //     when(this.httpResponse.getCode()).thenReturn(400);
-    //     try (HttpEntity entity = mock(HttpEntity.class)) {
-    //         when(this.httpResponse.getEntity()).thenReturn(entity);
-    //         when(entity.getContent()).thenReturn(new ByteArrayInputStream("".getBytes(StandardCharsets.UTF_8)));
-
-    //         this.openAIEmbeddingModel.initialize(MODEL, this.config);
-    //         RequestError exception = assertThrows(
-    //             RequestError.class,
-    //             () -> this.openAIEmbeddingModel.embed(INPUT)
-    //         );
-    //         assertEquals("500: Response code is 400", exception.getMessage());
-    //     }
-    // }
+    @Test
+    void embedWithError() throws IOException
+    {
+        when(this.httpResponse.getCode()).thenReturn(400);
+        try (HttpEntity entity = mock(HttpEntity.class)) {
+            when(this.httpResponse.getEntity()).thenReturn(entity);
+            when(entity.getContent()).thenReturn(new ByteArrayInputStream("".getBytes(StandardCharsets.UTF_8)));
+            this.openAIEmbeddingModel.initialize(MODEL, this.config);
+            RequestError exception = assertThrows(
+                RequestError.class,
+                () -> this.openAIEmbeddingModel.embed(INPUT)
+            );
+            assertEquals("500: No content to map due to end-of-input\n"
+                + " at [Source: (ByteArrayInputStream); line: 1, column: 0]", exception.getMessage());
+        }
+    }
 }
