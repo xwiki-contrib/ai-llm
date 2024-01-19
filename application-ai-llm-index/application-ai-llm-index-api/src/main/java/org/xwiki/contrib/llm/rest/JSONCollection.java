@@ -40,14 +40,23 @@ public class JSONCollection
 
     @JsonProperty("embedding_model")
     private String embeddingModel;
+    @JsonProperty("chunking_method")
     private String chunkingMethod;
+    @JsonProperty("chunking_max_size")
     private int chunkingMaxSize;
+    @JsonProperty("chunking_overlap_offset")
     private int chunkingOverlapOffset;
+    @JsonProperty("document_spaces")
     private List<String> documentSpaces;
+    @JsonProperty("query_groups")
     private String queryGroups;
+    @JsonProperty("edit_groups")
     private String editGroups;
+    @JsonProperty("admin_groups")
     private String adminGroups;
+    @JsonProperty("rights_check_method")
     private String rightsCheckMethod;
+    @JsonProperty("rights_check_method_param")
     private String rightsCheckMethodParam;
 
     /**
@@ -318,5 +327,22 @@ public class JSONCollection
     public void setAdminGroups(String adminGroups)
     {
         this.adminGroups = adminGroups;
+    }
+
+    /**
+     * @param rightsCheckMethod the rights check method that should be used to check if a user has the right to query
+     *                          the collection
+     */
+    public void setRightsCheckMethod(String rightsCheckMethod)
+    {
+        this.rightsCheckMethod = rightsCheckMethod;
+    }
+
+    /**
+     * @param rightsCheckMethodParam optional parameter used by the rights check method
+     */
+    public void setRightsCheckMethodParam(String rightsCheckMethodParam)
+    {
+        this.rightsCheckMethodParam = rightsCheckMethodParam;
     }
 }
