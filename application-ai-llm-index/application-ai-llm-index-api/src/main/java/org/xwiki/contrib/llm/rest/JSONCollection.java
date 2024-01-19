@@ -77,37 +77,87 @@ public class JSONCollection
      */
     public void applyTo(Collection collection)
     {
+        applyEmbeddingModel(collection);
+        applyChunkingMethod(collection);
+        applyChunkingMaxSize(collection);
+        applyChunkingOverlapOffset(collection);
+        applyDocumentSpaces(collection);
+        applyQueryGroups(collection);
+        applyEditGroups(collection);
+        applyAdminGroups(collection);
+        applyRightsCheckMethod(collection);
+        applyRightsCheckMethodParam(collection);
+        collection.save();
+    }
+
+    private void applyEmbeddingModel(Collection collection)
+    {
         if (this.embeddingModel != null) {
             collection.setEmbeddingModel(this.embeddingModel);
         }
+    }
+    
+    private void applyChunkingMethod(Collection collection)
+    {
         if (this.chunkingMethod != null) {
             collection.setChunkingMethod(this.chunkingMethod);
         }
+    }
+
+    private void applyChunkingMaxSize(Collection collection)
+    {
         if (this.chunkingMaxSize != 0) {
             collection.setChunkingMaxSize(this.chunkingMaxSize);
         }
+    }
+
+    private void applyChunkingOverlapOffset(Collection collection)
+    {
         if (this.chunkingOverlapOffset != 0) {
             collection.setChunkingOverlapOffset(this.chunkingOverlapOffset);
         }
+    }
+
+    private void applyDocumentSpaces(Collection collection)
+    {
         if (this.documentSpaces != null) {
             collection.setDocumentSpaces(this.documentSpaces);
         }
+    }
+
+    private void applyQueryGroups(Collection collection)
+    {
         if (this.queryGroups != null) {
             collection.setQueryGroups(this.queryGroups);
         }
-        if (this.editGroups   != null) {
+    }
+
+    private void applyEditGroups(Collection collection)
+    {
+        if (this.editGroups != null) {
             collection.setEditGroups(this.editGroups);
         }
-        if (this.adminGroups  != null) {
+    }
+
+    private void applyAdminGroups(Collection collection)
+    {
+        if (this.adminGroups != null) {
             collection.setAdminGroups(this.adminGroups);
         }
+    }
+
+    private void applyRightsCheckMethod(Collection collection)
+    {
         if (this.rightsCheckMethod != null) {
             collection.setRightsCheckMethod(this.rightsCheckMethod);
         }
+    }
+
+    private void applyRightsCheckMethodParam(Collection collection)
+    {
         if (this.rightsCheckMethodParam != null) {
             collection.setRightsCheckMethodParam(this.rightsCheckMethodParam);
         }
-        collection.save();
     }
 
     /**
