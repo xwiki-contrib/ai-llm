@@ -56,7 +56,19 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
     @Override
     public void deleteDocument(String wikiName, String collectionName, String documentID) throws XWikiRestException
     {
-        // TODO: The delete method seems to be missing.
+        try {
+            // TODO: how to handle rights?
+            Collection collection = getInternalCollection(wikiName, collectionName);
+            Document document = collection.getDocument(documentID);
+            if (document == null) {
+                throw new WebApplicationException(Response.Status.NOT_FOUND);
+            }
+            collection.removeDocument(documentID, true, true);
+        } catch (IndexException e) {
+            this.logger.error("Failed to delete document [{}] from collection [{}] in wiki [{}].", documentID,
+                collectionName, wikiName, e);
+            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+        }
         throw new WebApplicationException(Response.Status.SERVICE_UNAVAILABLE);
     }
 
