@@ -118,7 +118,7 @@ public interface Document
      *
      * @param title The new title
      */
-    void setTitle(String title);
+    void setTitle(String title) throws IndexException;
 
     /**
      * Sets the language of the document.
@@ -153,7 +153,7 @@ public interface Document
      * 
      * @param content The new content
      */
-    void setContent(String content);
+    void setContent(String content) throws IndexException;
 
     /**
      * Saves the document.

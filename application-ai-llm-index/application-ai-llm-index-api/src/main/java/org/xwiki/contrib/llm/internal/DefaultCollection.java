@@ -153,7 +153,7 @@ public class DefaultCollection implements Collection
     }
     
     @Override
-    public void setName(String name)
+    public void setName(String name) throws IndexException
     {
         this.xWikiDocumentWrapper.setTitle(name);
     }
@@ -239,7 +239,7 @@ public class DefaultCollection implements Collection
     {
         try {
             XWikiContext context = this.contextProvider.get();
-            context.getWiki().saveDocument(this.xWikiDocumentWrapper.getXWikiDocument(true), context);
+            context.getWiki().saveDocument(this.xWikiDocumentWrapper.getClonedXWikiDocument(), context);
         } catch (XWikiException e) {
             this.logger.error("Error saving collection: [{}]", e.getMessage());
         }
@@ -353,7 +353,7 @@ public class DefaultCollection implements Collection
 
     XWikiDocument getCollectionDocument()
     {
-        return this.xWikiDocumentWrapper.getXWikiDocument(false);
+        return this.xWikiDocumentWrapper.getXWikiDocument();
     }
 }
 

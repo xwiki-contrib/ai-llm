@@ -87,7 +87,7 @@ public class DefaultDocument implements Document
     @Override
     public XWikiDocument getXWikiDocument()
     {
-        return this.xwikiDocumentWrapper.getXWikiDocument(false);
+        return this.xwikiDocumentWrapper.getXWikiDocument();
     }
 
     @Override
@@ -139,7 +139,7 @@ public class DefaultDocument implements Document
     }
 
     @Override
-    public void setTitle(String title)
+    public void setTitle(String title) throws IndexException
     {
         this.xwikiDocumentWrapper.setTitle(title);
     }
@@ -169,7 +169,7 @@ public class DefaultDocument implements Document
     }
 
     @Override
-    public void setContent(String content)
+    public void setContent(String content) throws IndexException
     {
         this.xwikiDocumentWrapper.setContent(content);
     }
@@ -179,7 +179,7 @@ public class DefaultDocument implements Document
     {
         try {
             XWikiContext context = this.contextProvider.get();
-            XWikiDocument document = this.xwikiDocumentWrapper.getXWikiDocument(true);
+            XWikiDocument document = this.xwikiDocumentWrapper.getClonedXWikiDocument();
             context.getWiki().saveDocument(document, context);
             return true;
         } catch (XWikiException e) {

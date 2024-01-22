@@ -25,8 +25,8 @@ import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
-import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
@@ -105,23 +105,19 @@ public class DefaultCollectionManager implements CollectionManager
     @Override
     public DefaultCollection getCollection(String name) throws IndexException
     {
-        if (getCollections().contains(name)) {
-            XWikiContext context = contextProvider.get();
-            try {
-                String fullName = getDocumentReference(name) + Collection.DEFAULT_COLLECTION_SUFFIX;
-                XWikiDocument xwikiDoc = context.getWiki().getDocument(fullName, EntityType.DOCUMENT, context);
-                if (!xwikiDoc.isNew()) {
-                    DefaultCollection collection = this.collectionProvider.get();
-                    collection.initialize(xwikiDoc);
-                    return collection;
-                } else {
-                    return null;
-                }
-            } catch (XWikiException e) {
-                throw new IndexException("Failed to get collection [" + name + "] ", e);
+        XWikiContext context = contextProvider.get();
+        try {
+            DocumentReference documentReference = getDocumentReference(name);
+            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
+            if (!xwikiDoc.isNew()) {
+                DefaultCollection collection = this.collectionProvider.get();
+                collection.initialize(xwikiDoc);
+                return collection;
+            } else {
+                return null;
             }
-        } else {
-            return null;
+        } catch (XWikiException e) {
+            throw new IndexException("Failed to get collection [" + name + "] ", e);
         }
     }
 
@@ -154,7 +150,8 @@ public class DefaultCollectionManager implements CollectionManager
     public DocumentReference getDocumentReference(String name)
     {
         String wikiId = this.contextProvider.get().getWikiId();
-        return new DocumentReference(wikiId, Collection.DEFAULT_COLLECTION_SPACE, name);
+        return new DocumentReference("WebHome",
+            new SpaceReference(name, new SpaceReference(wikiId, Collection.DEFAULT_COLLECTION_SPACE)));
     }
 
     @Override

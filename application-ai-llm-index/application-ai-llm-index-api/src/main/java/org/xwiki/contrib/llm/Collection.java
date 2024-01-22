@@ -170,7 +170,7 @@ public interface Collection
      * 
      * @param name The name of the collection.
      */
-    void setName(String name);
+    void setName(String name) throws IndexException;
     
     /**
      * Sets the embedding model of the collection.

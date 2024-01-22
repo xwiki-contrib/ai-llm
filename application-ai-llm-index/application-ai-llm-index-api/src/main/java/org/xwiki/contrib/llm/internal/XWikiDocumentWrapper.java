@@ -80,9 +80,9 @@ public class XWikiDocumentWrapper
     /**
      * @param title the title of the document
      */
-    public void setTitle(String title)
+    public void setTitle(String title) throws IndexException
     {
-        ensureDocumentIsClone();
+        ensureDocumentIsCloneAndHasObject();
 
         this.currentDocument.setTitle(title);
     }
@@ -98,9 +98,9 @@ public class XWikiDocumentWrapper
     /**
      * @param content the content of the document
      */
-    public void setContent(String content)
+    public void setContent(String content) throws IndexException
     {
-        ensureDocumentIsClone();
+        ensureDocumentIsCloneAndHasObject();
 
         this.currentDocument.setContent(content);
     }
@@ -192,41 +192,46 @@ public class XWikiDocumentWrapper
     }
 
     /**
-     * @param clone whether to ensure that the document is a clone of the initial document
      * @return the wrapped document
      */
-    public XWikiDocument getXWikiDocument(boolean clone)
+    public XWikiDocument getXWikiDocument()
     {
-        if (clone) {
-            ensureDocumentIsClone();
-        }
+        return this.currentDocument;
+    }
+
+    /**
+     * @return the wrapped document
+     */
+    public XWikiDocument getClonedXWikiDocument() throws IndexException
+    {
+        ensureDocumentIsCloneAndHasObject();
 
         return this.currentDocument;
     }
 
     private BaseObject getEditableObject() throws IndexException
     {
-        ensureDocumentIsClone();
-
-        if (this.object == null)
-        {
-            XWikiContext context = this.contextProvider.get();
-            try {
-                this.object = this.currentDocument.newXObject(this.classReference, context);
-            } catch (XWikiException e) {
-                throw new IndexException(String.format("Error initializing collection for document [%s].",
-                    this.currentDocument.getDocumentReference()), e);
-            }
-        }
+        ensureDocumentIsCloneAndHasObject();
 
         return this.object;
     }
 
-    private void ensureDocumentIsClone()
+    private void ensureDocumentIsCloneAndHasObject() throws IndexException
     {
         if (this.initialDocument == this.currentDocument) {
             this.currentDocument = this.initialDocument.clone();
             this.object = this.currentDocument.getXObject(this.classReference);
+
+            if (this.object == null)
+            {
+                XWikiContext context = this.contextProvider.get();
+                try {
+                    this.object = this.currentDocument.newXObject(this.classReference, context);
+                } catch (XWikiException e) {
+                    throw new IndexException(String.format("Error initializing collection for document [%s].",
+                        this.currentDocument.getDocumentReference()), e);
+                }
+            }
         }
     }
 }

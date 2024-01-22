@@ -72,6 +72,13 @@
         </dependency>
         <dependency>
             <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-oldcore</artifactId>
+            <version>${platform.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
             <artifactId>xwiki-platform-search-solr-query</artifactId>
             <version>${platform.version}</version>
         </dependency>
