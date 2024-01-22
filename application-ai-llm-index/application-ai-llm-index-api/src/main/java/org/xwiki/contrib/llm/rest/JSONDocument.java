@@ -19,6 +19,9 @@
  */
 package org.xwiki.contrib.llm.rest;
 
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.stability.Unstable;
@@ -45,6 +48,13 @@ public class JSONDocument
     private String mimetype;
 
     private String content;
+
+    /**
+     * Default constructor.
+     */
+    public JSONDocument()
+    {
+    }
 
     /**
      * Construct a document from a {@link Document}.
@@ -196,5 +206,57 @@ public class JSONDocument
     public void setContent(String content)
     {
         this.content = content;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        JSONDocument that = (JSONDocument) o;
+
+        return new EqualsBuilder()
+            .append(getId(), that.getId())
+            .append(getTitle(), that.getTitle())
+            .append(getLanguage(), that.getLanguage())
+            .append(getUrl(), that.getUrl())
+            .append(getCollection(), that.getCollection())
+            .append(getMimetype(), that.getMimetype())
+            .append(getContent(), that.getContent())
+            .isEquals();
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return new HashCodeBuilder(17, 37)
+            .append(getId())
+            .append(getTitle())
+            .append(getLanguage())
+            .append(getUrl())
+            .append(getCollection())
+            .append(getMimetype())
+            .append(getContent())
+            .toHashCode();
+    }
+
+    @Override
+    public String toString()
+    {
+        return new ToStringBuilder(this)
+            .append("id", this.id)
+            .append("title", this.title)
+            .append("language", this.language)
+            .append("url", this.url)
+            .append("collection", this.collection)
+            .append("mimetype", this.mimetype)
+            .append("content", this.content)
+            .toString();
     }
 }

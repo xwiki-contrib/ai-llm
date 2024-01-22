@@ -21,9 +21,12 @@ package org.xwiki.contrib.llm.rest;
 
 import java.util.List;
 
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.stability.Unstable;
+import org.xwiki.text.XWikiToStringBuilder;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -59,6 +62,13 @@ public class JSONCollection
     private String rightsCheckMethod;
     @JsonProperty("rights_check_method_param")
     private String rightsCheckMethodParam;
+
+    /**
+     * Default constructor.
+     */
+    public JSONCollection()
+    {
+    }
 
     /**
      * Construct a collection from a {@link Collection}.
@@ -345,5 +355,69 @@ public class JSONCollection
     public void setRightsCheckMethodParam(String rightsCheckMethodParam)
     {
         this.rightsCheckMethodParam = rightsCheckMethodParam;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        JSONCollection that = (JSONCollection) o;
+
+        return new EqualsBuilder()
+            .append(getChunkingMaxSize(), that.getChunkingMaxSize())
+            .append(getChunkingOverlapOffset(), that.getChunkingOverlapOffset())
+            .append(getName(), that.getName())
+            .append(getEmbeddingModel(), that.getEmbeddingModel())
+            .append(getChunkingMethod(), that.getChunkingMethod())
+            .append(getDocumentSpaces(), that.getDocumentSpaces())
+            .append(getQueryGroups(), that.getQueryGroups())
+            .append(getEditGroups(), that.getEditGroups())
+            .append(getAdminGroups(), that.getAdminGroups())
+            .append(getRightsCheckMethod(), that.getRightsCheckMethod())
+            .append(getRightsCheckMethodParam(), that.getRightsCheckMethodParam())
+            .isEquals();
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return new HashCodeBuilder(17, 37)
+            .append(getName())
+            .append(getEmbeddingModel())
+            .append(getChunkingMethod())
+            .append(getChunkingMaxSize())
+            .append(getChunkingOverlapOffset())
+            .append(getDocumentSpaces())
+            .append(getQueryGroups())
+            .append(getEditGroups())
+            .append(getAdminGroups())
+            .append(getRightsCheckMethod())
+            .append(getRightsCheckMethodParam())
+            .toHashCode();
+    }
+
+    @Override
+    public String toString()
+    {
+        return new XWikiToStringBuilder(this)
+            .append("name", this.name)
+            .append("embeddingModel", this.embeddingModel)
+            .append("chunkingMethod", this.chunkingMethod)
+            .append("chunkingMaxSize", this.chunkingMaxSize)
+            .append("chunkingOverlapOffset", this.chunkingOverlapOffset)
+            .append("documentSpaces", this.documentSpaces)
+            .append("queryGroups", this.queryGroups)
+            .append("editGroups", this.editGroups)
+            .append("adminGroups", this.adminGroups)
+            .append("rightsCheckMethod", this.rightsCheckMethod)
+            .append("rightsCheckMethodParam", this.rightsCheckMethodParam)
+            .toString();
     }
 }
