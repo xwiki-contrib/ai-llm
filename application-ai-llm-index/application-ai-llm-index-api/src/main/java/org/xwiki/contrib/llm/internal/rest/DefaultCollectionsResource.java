@@ -63,7 +63,6 @@ public class DefaultCollectionsResource extends XWikiResource implements Collect
         try {
             context.setWikiId(wikiName);
 
-            // TODO: How do we filter collections that the current user doesn't have access to?
             return this.collectionManager.getCollections();
         } catch (IndexException e) {
             throw new XWikiRestException("Failed to get collections", e);

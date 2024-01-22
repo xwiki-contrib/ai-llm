@@ -80,7 +80,7 @@ public abstract class AbstractCollectionResource extends XWikiResource
         if (rootCause instanceof AccessDeniedException) {
             return new WebApplicationException(Response.Status.FORBIDDEN);
         } else {
-            this.logger.error("Error {} collection [{}]: [{}]", verb, collectionName, e.getMessage());
+            this.logger.error("Error {} collection [{}].", verb, collectionName, e);
             return new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         }
     }
