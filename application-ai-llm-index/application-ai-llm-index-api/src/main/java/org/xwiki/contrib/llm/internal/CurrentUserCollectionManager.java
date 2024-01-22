@@ -88,9 +88,13 @@ public class CurrentUserCollectionManager extends DefaultCollectionManager
         try {
             this.contextualAuthorizationManager.checkAccess(Right.VIEW, getDocumentReference(name));
             DefaultCollection collection = super.getCollection(name);
-            CurrentUserCollection currentUserCollection = this.currentUserCollectionProvider.get();
-            currentUserCollection.initialize(collection.getCollectionDocument());
-            return currentUserCollection;
+            if (collection != null) {
+                CurrentUserCollection currentUserCollection = this.currentUserCollectionProvider.get();
+                currentUserCollection.initialize(collection.getCollectionDocument());
+                return currentUserCollection;
+            } else {
+                return null;
+            }
         } catch (AuthorizationException e) {
             throw new IndexException("You do not have the right to view this collection", e);
         }
@@ -105,8 +109,10 @@ public class CurrentUserCollectionManager extends DefaultCollectionManager
         try {
             this.contextualAuthorizationManager.checkAccess(Right.DELETE, documentReference);
             XWikiDocument document = context.getWiki().getDocument(documentReference, context);
-            context.getWiki().checkDeletingDocument(context.getUserReference(), document, context);
-            super.deleteCollection(name, deleteDocuments);
+            if (!document.isNew()) {
+                context.getWiki().checkDeletingDocument(context.getUserReference(), document, context);
+                super.deleteCollection(name, deleteDocuments);
+            }
         } catch (XWikiException | AuthorizationException e) {
             throw new IndexException("You do not have the right to delete this collection", e);
         }

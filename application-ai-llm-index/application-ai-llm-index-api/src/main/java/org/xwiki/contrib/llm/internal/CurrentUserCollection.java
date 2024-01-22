@@ -89,8 +89,12 @@ public class CurrentUserCollection extends DefaultCollection
 
         try {
             this.contextualAuthorizationManager.checkAccess(Right.VIEW, documentReference);
+            Document document = super.getDocument(documentId);
+            if (document == null) {
+                return null;
+            }
             CurrentUserDocument result = this.currentUserDocumentProvider.get();
-            result.initialize(super.getDocument(documentId).getXWikiDocument());
+            result.initialize(document.getXWikiDocument());
             return result;
         } catch (AccessDeniedException e) {
             throw new IndexException(String.format("Access denied to document [%s]", documentId), e);
@@ -124,6 +128,7 @@ public class CurrentUserCollection extends DefaultCollection
             this.contextualAuthorizationManager.checkAccess(Right.EDIT, collectionDocument.getDocumentReference());
             // Ensure we're not modifying the potentially shared document instance.
             context.getWiki().checkSavingDocument(context.getUserReference(), collectionDocument.clone(), context);
+            super.save();
         } catch (XWikiException | AuthorizationException e) {
             throw new IndexException(
                 String.format("Access denied for saving collection [%s]", super.getName()), e);

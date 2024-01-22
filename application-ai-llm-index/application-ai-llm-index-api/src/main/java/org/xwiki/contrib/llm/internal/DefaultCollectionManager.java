@@ -67,13 +67,14 @@ public class DefaultCollectionManager implements CollectionManager
     @Override
     public DefaultCollection createCollection(String name) throws IndexException
     {
-        if (this.getCollections().contains(name)) {
-            return null;
-        }
         XWikiContext context = this.contextProvider.get();
         DocumentReference documentReference = getDocumentReference(name);
         try {
             XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
+            if (!xdocument.isNew()) {
+                return null;
+            }
+
             DefaultCollection newCollection = collectionProvider.get();
             newCollection.initialize(xdocument);
             newCollection.setName(name);
