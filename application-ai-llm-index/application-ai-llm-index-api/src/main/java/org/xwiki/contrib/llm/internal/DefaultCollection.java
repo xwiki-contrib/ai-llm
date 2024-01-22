@@ -19,17 +19,16 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.util.List;
+
+import javax.inject.Inject;
+import javax.inject.Provider;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
-
-import java.util.List;
-
-
-import javax.inject.Inject;
-
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
@@ -43,9 +42,6 @@ import org.xwiki.query.QueryManager;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
-import com.xpn.xwiki.objects.BaseObject;
-import javax.inject.Provider;
-import org.slf4j.Logger;
 /**
  * Implementation of a {@code Collection} component.
  *
@@ -66,20 +62,16 @@ public class DefaultCollection implements Collection
     private static final String RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME = "rightsCheckMethodParam";
     private static final String DOCUMENT_SPACE_FIELDNAME = "documentSpaces";
 
-    private XWikiDocument initialDocument;
+    @Inject
+    protected Provider<XWikiContext> contextProvider;
 
-    private XWikiDocument xwikidocument;
-
-    private BaseObject object;
+    private XWikiDocumentWrapper xWikiDocumentWrapper;
 
     @Inject
     private QueryManager queryManager;
 
     @Inject
     private Provider<DefaultDocument> documentProvider;
-
-    @Inject 
-    private Provider<XWikiContext> contextProvider;
 
     @Inject
     private Logger logger;
@@ -91,117 +83,86 @@ public class DefaultCollection implements Collection
      */
     public void initialize(XWikiDocument xwikidocument)
     {
-        this.xwikidocument = xwikidocument;
-        this.initialDocument = xwikidocument;
-        this.object = xwikidocument.getXObject(XCLASS_REFERENCE);
-    }
-
-    private BaseObject getEditableObject() throws IndexException
-    {
-        ensureDocumentIsClone();
-
-        if (this.object == null)
-        {
-            XWikiContext context = this.contextProvider.get();
-            try {
-                this.object = this.xwikidocument.newXObject(XCLASS_REFERENCE, context);
-            } catch (XWikiException e) {
-                throw new IndexException(String.format("Error initializing collection for document [%s].",
-                    this.xwikidocument.getDocumentReference()), e);
-            }
-        }
-
-        return this.object;
-    }
-
-    private void ensureDocumentIsClone()
-    {
-        if (this.initialDocument == this.xwikidocument) {
-            this.xwikidocument = this.initialDocument.clone();
-            this.object = this.xwikidocument.getXObject(XCLASS_REFERENCE);
-        }
+        this.xWikiDocumentWrapper = new XWikiDocumentWrapper(xwikidocument, XCLASS_REFERENCE, this.contextProvider);
     }
 
     @Override
     public String getName()
     {
-        return this.xwikidocument.getTitle();
+        return this.xWikiDocumentWrapper.getTitle();
     }
 
     @Override
     public String getEmbeddingModel()
     {
-        return this.object != null ? this.object.getStringValue(EMBEDDINGMODEL_FIELDNAME) : "";
+        return this.xWikiDocumentWrapper.getStringValue(EMBEDDINGMODEL_FIELDNAME);
     }
     
     @Override
     public String getChunkingMethod()
     {
-        return this.object != null ? this.object.getStringValue(CHUNKING_METHOD_FIELDNAME) : "";
+        return this.xWikiDocumentWrapper.getStringValue(CHUNKING_METHOD_FIELDNAME);
     }
     
     @Override
     public int getChunkingMaxSize()
     {
-        return this.object != null ? this.object.getIntValue(CHUNKING_MAX_SIZE_FIELDNAME) : 0;
+        return this.xWikiDocumentWrapper.getIntValue(CHUNKING_MAX_SIZE_FIELDNAME);
     }
     
     @Override
     public int getChunkingOverlapOffset()
     {
-        return this.object != null ? this.object.getIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME) : 0;
+        return this.xWikiDocumentWrapper.getIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME);
     }
     
     @Override
-    @SuppressWarnings("unchecked")
     public List<String> getDocumentSpaces()
     {
-        return this.object != null ? this.object.getListValue(DOCUMENT_SPACE_FIELDNAME) : List.of();
+        return this.xWikiDocumentWrapper.getListValue(DOCUMENT_SPACE_FIELDNAME);
     }
     
     @Override
     public String getQueryGroups()
     {
-        return this.object != null ? this.object.getLargeStringValue(QUERY_GROUPS_FIELDNAME) : "";
+        return this.xWikiDocumentWrapper.getLargeStringValue(QUERY_GROUPS_FIELDNAME);
     }
     
     @Override
     public String getEditGroups()
     {
-        return this.object != null ? this.object.getLargeStringValue(EDIT_GROUPS_FIELDNAME) : "";
+        return this.xWikiDocumentWrapper.getLargeStringValue(EDIT_GROUPS_FIELDNAME);
     }
     
     @Override
     public String getAdminGroups()
     {
-        return this.object != null ? this.object.getLargeStringValue(ADMIN_GROUPS_FIELDNAME) : "";
+        return this.xWikiDocumentWrapper.getLargeStringValue(ADMIN_GROUPS_FIELDNAME);
     }   
     
     @Override
     public String getRightsCheckMethod()
     {
-        return this.object != null ? this.object.getStringValue(RIGHTS_CHECK_METHOD_FIELDNAME) : "";
+        return this.xWikiDocumentWrapper.getStringValue(RIGHTS_CHECK_METHOD_FIELDNAME);
     }
     
     @Override
     public String getRightsCheckMethodParam()
     {
-        return this.object != null ? this.object.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME) : "";
+        return this.xWikiDocumentWrapper.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME);
     }
     
     @Override
     public void setName(String name)
     {
-        ensureDocumentIsClone();
-
-        this.xwikidocument.setTitle(name);
+        this.xWikiDocumentWrapper.setTitle(name);
     }
     
     @Override
     public void setEmbeddingModel(String embeddingModel) throws IndexException
     {
         if (embeddingModel != null) {
-            getEditableObject().setStringValue(EMBEDDINGMODEL_FIELDNAME, embeddingModel);
+            this.xWikiDocumentWrapper.setStringValue(EMBEDDINGMODEL_FIELDNAME, embeddingModel);
         }
     }
     
@@ -209,27 +170,27 @@ public class DefaultCollection implements Collection
     public void setChunkingMethod(String chunkingMethod) throws IndexException
     {
         if (chunkingMethod != null) {
-            getEditableObject().setStringValue(CHUNKING_METHOD_FIELDNAME, chunkingMethod);
+            this.xWikiDocumentWrapper.setStringValue(CHUNKING_METHOD_FIELDNAME, chunkingMethod);
         }
     }
     
     @Override
     public void setChunkingMaxSize(int chunkingMaxSize) throws IndexException
     {
-        getEditableObject().setIntValue(CHUNKING_MAX_SIZE_FIELDNAME, chunkingMaxSize);
+        this.xWikiDocumentWrapper.setIntValue(CHUNKING_MAX_SIZE_FIELDNAME, chunkingMaxSize);
     }
     
     @Override
     public void setChunkingOverlapOffset(int chunkingOverlapOffset) throws IndexException
     {
-        getEditableObject().setIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME, chunkingOverlapOffset);
+        this.xWikiDocumentWrapper.setIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME, chunkingOverlapOffset);
     }
     
     @Override
     public void setDocumentSpaces(List<String> documentSpaces) throws IndexException
     {
         if (documentSpaces != null) {
-            getEditableObject().setStringListValue(DOCUMENT_SPACE_FIELDNAME, documentSpaces);
+            this.xWikiDocumentWrapper.setStringListValue(DOCUMENT_SPACE_FIELDNAME, documentSpaces);
         }
     }
     
@@ -237,7 +198,7 @@ public class DefaultCollection implements Collection
     public void setQueryGroups(String queryGroups) throws IndexException
     {
         if (queryGroups != null) {
-            getEditableObject().setLargeStringValue(QUERY_GROUPS_FIELDNAME, queryGroups);
+            this.xWikiDocumentWrapper.setLargeStringValue(QUERY_GROUPS_FIELDNAME, queryGroups);
         }
     }
     
@@ -245,7 +206,7 @@ public class DefaultCollection implements Collection
     public void setEditGroups(String editGroups) throws IndexException
     {
         if (editGroups != null) {
-            getEditableObject().setLargeStringValue(EDIT_GROUPS_FIELDNAME, editGroups);
+            this.xWikiDocumentWrapper.setLargeStringValue(EDIT_GROUPS_FIELDNAME, editGroups);
         }
     }
     
@@ -253,7 +214,7 @@ public class DefaultCollection implements Collection
     public void setAdminGroups(String adminGroups) throws IndexException
     {
         if (adminGroups != null) {
-            getEditableObject().setLargeStringValue(ADMIN_GROUPS_FIELDNAME, adminGroups);
+            this.xWikiDocumentWrapper.setLargeStringValue(ADMIN_GROUPS_FIELDNAME, adminGroups);
         }
     }
     
@@ -261,7 +222,7 @@ public class DefaultCollection implements Collection
     public void setRightsCheckMethod(String rightsCheckMethod) throws IndexException
     {
         if (rightsCheckMethod != null) {
-            getEditableObject().setStringValue(RIGHTS_CHECK_METHOD_FIELDNAME, rightsCheckMethod);
+            this.xWikiDocumentWrapper.setStringValue(RIGHTS_CHECK_METHOD_FIELDNAME, rightsCheckMethod);
         }
     }
     
@@ -269,7 +230,7 @@ public class DefaultCollection implements Collection
     public void setRightsCheckMethodParam(String rightsCheckMethodParam) throws IndexException
     {
         if (rightsCheckMethodParam != null) {
-            getEditableObject().setStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME, rightsCheckMethodParam);
+            this.xWikiDocumentWrapper.setStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME, rightsCheckMethodParam);
         }
     }
     
@@ -278,7 +239,7 @@ public class DefaultCollection implements Collection
     {
         try {
             XWikiContext context = this.contextProvider.get();
-            context.getWiki().saveDocument(this.xwikidocument, context);
+            context.getWiki().saveDocument(this.xWikiDocumentWrapper.getXWikiDocument(true), context);
         } catch (XWikiException e) {
             this.logger.error("Error saving collection: [{}]", e.getMessage());
         }
@@ -385,14 +346,14 @@ public class DefaultCollection implements Collection
     
     DocumentReference getDocumentReference(String id)
     {
-        SpaceReference lastSpaceReference = this.xwikidocument.getDocumentReference().getLastSpaceReference();
+        SpaceReference lastSpaceReference = this.xWikiDocumentWrapper.getDocumentReference().getLastSpaceReference();
         SpaceReference documentReference = new SpaceReference("Documents", lastSpaceReference);
         return new DocumentReference(DigestUtils.sha256Hex(id), documentReference);
     }
 
     XWikiDocument getCollectionDocument()
     {
-        return this.xwikidocument;
+        return this.xWikiDocumentWrapper.getXWikiDocument(false);
     }
 }
 

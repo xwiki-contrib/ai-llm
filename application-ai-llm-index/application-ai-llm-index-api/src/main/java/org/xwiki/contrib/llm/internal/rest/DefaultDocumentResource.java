@@ -75,7 +75,6 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
         throws XWikiRestException
     {
         try {
-            // TODO: how to handle rights?
             Collection collection = getInternalCollection(wikiName, collectionName);
             Document existingDocument = collection.getDocument(documentID);
             if (existingDocument == null) {

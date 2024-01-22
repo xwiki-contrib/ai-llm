@@ -54,7 +54,7 @@ public class CurrentUserCollection extends DefaultCollection
     private ContextualAuthorizationManager contextualAuthorizationManager;
 
     @Inject
-    private Provider<XWikiContext> contextProvider;
+    private Provider<CurrentUserDocument> currentUserDocumentProvider;
 
     @Override
     public List<String> getDocuments()
@@ -74,8 +74,9 @@ public class CurrentUserCollection extends DefaultCollection
 
         try {
             this.contextualAuthorizationManager.checkAccess(Right.EDIT, documentReference);
-            // TODO: Wrap in a CurrentUserDocument
-            return super.newDocument(documentId);
+            CurrentUserDocument result = this.currentUserDocumentProvider.get();
+            result.initialize(super.newDocument(documentId).getXWikiDocument());
+            return result;
         } catch (AccessDeniedException e) {
             throw new IndexException(String.format("Access denied for creating document [%s]", documentId), e);
         }
@@ -88,8 +89,9 @@ public class CurrentUserCollection extends DefaultCollection
 
         try {
             this.contextualAuthorizationManager.checkAccess(Right.VIEW, documentReference);
-            // TODO: Wrap in a CurrentUserDocument
-            return super.getDocument(documentId);
+            CurrentUserDocument result = this.currentUserDocumentProvider.get();
+            result.initialize(super.getDocument(documentId).getXWikiDocument());
+            return result;
         } catch (AccessDeniedException e) {
             throw new IndexException(String.format("Access denied to document [%s]", documentId), e);
         }

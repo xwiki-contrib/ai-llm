@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm;
 import java.util.List;
 
 import org.xwiki.component.annotation.Role;
+import org.xwiki.model.reference.LocalDocumentReference;
 
 import com.xpn.xwiki.doc.XWikiDocument;
 
@@ -42,6 +43,12 @@ public interface Document
      * The space of the XClass that represents a document.
      */
     String XCLASS_SPACE_STRING = "AI.Documents.Code";
+
+    /**
+     * Document reference of the XClass that represents a document.
+     */
+    LocalDocumentReference XCLASS_REFERENCE = new LocalDocumentReference(List.of("AI", "Documents", "Code"),
+        XCLASS_NAME);
 
     /**
      * The get the XWikiDocument that represents the document.
@@ -104,7 +111,7 @@ public interface Document
      *
      * @param id The new id
      */
-    void setID(String id);
+    void setID(String id) throws IndexException;
 
     /**
      * Sets the title of the document.
@@ -118,28 +125,28 @@ public interface Document
      *
      * @param lang The new language
      */
-    void setLanguage(String lang);
+    void setLanguage(String lang) throws IndexException;
 
     /**
      * Sets the URL of the document.
      *
      * @param url The new URL
      */
-    void setURL(String url);
+    void setURL(String url) throws IndexException;
 
     /**
      * Sets the collection of the document.
      *
      * @param collection The new collection
      */
-    void setCollection(String collection);
+    void setCollection(String collection) throws IndexException;
 
     /**
      * Sets the mimetype of the document.
      *
      * @param mimetype The new mimetype
      */
-    void setMimetype(String mimetype);
+    void setMimetype(String mimetype) throws IndexException;
 
     /**
      * Sets the content of the document.
@@ -153,7 +160,7 @@ public interface Document
      *
      * @return true if the document was saved successfully, false otherwise
      */
-    boolean save();
+    boolean save() throws IndexException;
 
     /**
      * Process the document and chunk it into smaller pieces.

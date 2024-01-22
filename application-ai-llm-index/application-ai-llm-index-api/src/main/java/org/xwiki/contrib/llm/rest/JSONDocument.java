@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.rest;
 
 import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.stability.Unstable;
 
 /**
@@ -66,7 +67,7 @@ public class JSONDocument
      *
      * @param document the document to apply to
      */
-    public void applyTo(Document document)
+    public void applyTo(Document document) throws IndexException
     {
         if (this.title != null) {
             document.setTitle(this.title);

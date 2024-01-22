@@ -25,24 +25,19 @@ import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 import org.xwiki.contrib.llm.Chunk;
 import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.Utils;
-import org.xwiki.model.EntityType;
-import org.xwiki.model.reference.EntityReference;
-import org.xwiki.model.reference.SpaceReference;
-import org.xwiki.model.reference.SpaceReferenceResolver;
 import org.slf4j.Logger;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
-import com.xpn.xwiki.objects.BaseObject;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.inject.Provider;
 
 /**
@@ -70,7 +65,7 @@ public class DefaultDocument implements Document
 
 
     @Inject 
-    private Provider<XWikiContext> contextProvider;
+    protected Provider<XWikiContext> contextProvider;
 
     @Inject
     private Logger logger;
@@ -78,128 +73,114 @@ public class DefaultDocument implements Document
     @Inject
     private Utils utils;
 
-    @Inject
-    @Named("current")
-    private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
+    private XWikiDocumentWrapper xwikiDocumentWrapper;
 
-    private XWikiDocument xwikidocument;
-    private BaseObject object;
-    
     /**
      * Initializes the Document with empty fields.
      * @param xwikidocument the id of the document.
      */
     public void initialize(XWikiDocument xwikidocument)
     {
-        this.xwikidocument = xwikidocument;
-        this.object = xwikidocument.getXObject(getObjectReference());
-        if (this.object == null)
-        {
-            XWikiContext context = contextProvider.get();
-            try {
-                this.object = xwikidocument.newXObject(getObjectReference(), context);
-            } catch (XWikiException e) {
-                this.logger.error("Error creating new XObject: [{}]", e.getMessage());
-            }
-        }
+        this.xwikiDocumentWrapper = new XWikiDocumentWrapper(xwikidocument, XCLASS_REFERENCE, this.contextProvider);
     }
-    
+
     @Override
     public XWikiDocument getXWikiDocument()
     {
-        return this.xwikidocument;
+        return this.xwikiDocumentWrapper.getXWikiDocument(false);
     }
 
     @Override
     public String getID()
     {
-        return this.object.getStringValue(ID_KEY);
+        return this.xwikiDocumentWrapper.getStringValue(ID_KEY);
     }
 
     @Override
     public String getTitle()
     {
-        return this.xwikidocument.getTitle();
+        return this.xwikiDocumentWrapper.getTitle();
     }
     
     @Override
     public String getCollection()
     {
-        return object.getStringValue(PARENT_COLLECTION);
+        return this.xwikiDocumentWrapper.getStringValue(PARENT_COLLECTION);
     }
 
     @Override
     public String getLanguage()
     {
-        return object.getStringValue(LANG_KEY);
+        return this.xwikiDocumentWrapper.getStringValue(LANG_KEY);
     }
 
     @Override
     public String getURL()
     {
-        return this.object.getStringValue(URL_KEY);
+        return this.xwikiDocumentWrapper.getStringValue(URL_KEY);
     }
 
     @Override
     public String getMimetype()
     {
-        return this.object.getStringValue(MIMETYPE_KEY);
+        return this.xwikiDocumentWrapper.getStringValue(MIMETYPE_KEY);
     }
 
     @Override
     public String getContent()
     {
-        return this.xwikidocument.getContent();
+        return this.xwikiDocumentWrapper.getContent();
     }
 
     @Override
-    public void setID(String id)
+    public void setID(String id) throws IndexException
     {
-        this.object.setStringValue(ID_KEY, id);
+        this.xwikiDocumentWrapper.setStringValue(ID_KEY, id);
     }
 
     @Override
     public void setTitle(String title)
     {
-        this.xwikidocument.setTitle(title);
+        this.xwikiDocumentWrapper.setTitle(title);
     }
     
     @Override
-    public void setCollection(String collection)
+    public void setCollection(String collection) throws IndexException
     {
-        this.object.setStringValue(PARENT_COLLECTION, collection);
+        this.xwikiDocumentWrapper.setStringValue(PARENT_COLLECTION, collection);
     }
 
     @Override
-    public void setLanguage(String language)
+    public void setLanguage(String language) throws IndexException
     {
-        this.object.setStringValue(LANG_KEY, language);
+        this.xwikiDocumentWrapper.setStringValue(LANG_KEY, language);
     }
 
     @Override
-    public void setURL(String url)
+    public void setURL(String url) throws IndexException
     {
-        this.object.setStringValue(URL_KEY, url);
+        this.xwikiDocumentWrapper.setStringValue(URL_KEY, url);
     }
 
     @Override
-    public void setMimetype(String mimetype)
+    public void setMimetype(String mimetype) throws IndexException
     {
-        this.object.setStringValue(MIMETYPE_KEY, mimetype);
+        this.xwikiDocumentWrapper.setStringValue(MIMETYPE_KEY, mimetype);
     }
 
     @Override
     public void setContent(String content)
     {
-        this.xwikidocument.setContent(content);
+        this.xwikiDocumentWrapper.setContent(content);
     }
 
     @Override
-    public boolean save()
+    public boolean save() throws IndexException
     {
         try {
             XWikiContext context = this.contextProvider.get();
-            context.getWiki().saveDocument(this.xwikidocument, context);
+            XWikiDocument document = this.xwikiDocumentWrapper.getXWikiDocument(true);
+            context.getWiki().saveDocument(document, context);
             return true;
         } catch (XWikiException e) {
             logger.error("Error saving document: {}", e.getMessage());
@@ -212,21 +193,9 @@ public class DefaultDocument implements Document
     {
         Map<Integer, Chunk> chunks = utils.chunkDocument(this);
         if (chunks == null) {
-            return new ArrayList<>();
+            return List.of();
         } else {
             return new ArrayList<>(chunks.values());
         }
-    }
-
-    //get XObject reference for the collection XClass
-    private EntityReference getObjectReference()
-    {
-        SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(XCLASS_SPACE_STRING);
-
-        EntityReference collectionClassRef = new EntityReference(XCLASS_NAME,
-                                    EntityType.DOCUMENT,
-                                    spaceRef
-                                );
-        return new EntityReference(XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
     }
 }
