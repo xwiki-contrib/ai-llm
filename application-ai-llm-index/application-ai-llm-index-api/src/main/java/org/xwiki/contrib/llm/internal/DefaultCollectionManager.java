@@ -72,7 +72,7 @@ public class DefaultCollectionManager implements CollectionManager
             XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
             if (!xdocument.isNew()) {
                 throw new IndexException(String.format("Failed to create collection [%s], "
-                                                        + "an xwiki document with the same reference [%s] already exists.",
+                                                     + "an xwiki document with the same reference [%s] already exists.",
                                                         name, documentReference));
             }
 

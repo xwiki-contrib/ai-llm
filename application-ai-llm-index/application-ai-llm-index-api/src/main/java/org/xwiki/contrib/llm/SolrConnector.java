@@ -23,12 +23,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrInputDocument;
+import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,6 +47,9 @@ public class SolrConnector
     private static final String SOLR_INSTANCE_URL = "http://my_solr:8983/solr/";
     private static final String SOLR_CORE_NAME = "knowledgeIndex";
     private static final String SOLR_CORE_URL = SOLR_INSTANCE_URL + SOLR_CORE_NAME;
+
+    @Inject
+    private Logger logger;
 
     /**
      * Connects to the Solr server and stores a chunk.
@@ -76,7 +81,7 @@ public class SolrConnector
             client.add(solrDocument);
             client.commit();
         } catch (Exception e) {
-            e.printStackTrace();
+            this.logger.error("Failed to store chunk with id [{}]", id, e);
         }
     }
 
@@ -91,7 +96,7 @@ public class SolrConnector
             client.deleteById(id);
             client.commit();
         } catch (Exception e) {
-            e.printStackTrace();
+            this.logger.error("Failed to delete chunk with id [{}]", id, e);
         }
     }
 
@@ -106,7 +111,7 @@ public class SolrConnector
             client.deleteByQuery("docId:" + docId);
             client.commit();
         } catch (Exception e) {
-            e.printStackTrace();
+            this.logger.error("Failed to delete chunks of document with id [{}]", docId, e);
         }
     }
 
@@ -119,7 +124,7 @@ public class SolrConnector
             client.deleteByQuery("*:*");
             client.commit();
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new SolrServerException("Failed to clear index core", e);
         }
     }
 }
