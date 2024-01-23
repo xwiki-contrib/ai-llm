@@ -32,7 +32,7 @@ public class EmbeddingModelDescriptor
 {
     private final String id;
 
-    private final String displayName;
+    private final String name;
 
     private final int dimensions;
 
@@ -40,13 +40,13 @@ public class EmbeddingModelDescriptor
      * Constructor.
      *
      * @param id the id of the model
-     * @param displayName the name of the model that should be displayed to the user
+     * @param name the name of the model that should be displayed to the user
      * @param dimensions the number of dimensions the embedding has
      */
-    public EmbeddingModelDescriptor(String id, String displayName, int dimensions)
+    public EmbeddingModelDescriptor(String id, String name, int dimensions)
     {
         this.id = id;
-        this.displayName = displayName;
+        this.name = name;
         this.dimensions = dimensions;
     }
 
@@ -55,15 +55,15 @@ public class EmbeddingModelDescriptor
      */
     public String getId()
     {
-        return id;
+        return this.id;
     }
 
     /**
      * @return the name of the model that should be displayed to the user
      */
-    public String getDisplayName()
+    public String getName()
     {
-        return displayName;
+        return this.name;
     }
 
     /**
@@ -71,6 +71,6 @@ public class EmbeddingModelDescriptor
      */
     public int getDimensions()
     {
-        return dimensions;
+        return this.dimensions;
     }
 }
