@@ -19,19 +19,26 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.inject.Inject;
 import javax.inject.Provider;
 
+import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.LocalDocumentReference;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiAttachment;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+
+import org.slf4j.Logger;
 
 /**
  * Wrapper around a {@link XWikiDocument} that exposes a single object of a given class. The document is
@@ -51,6 +58,9 @@ public class XWikiDocumentWrapper
     private XWikiDocument currentDocument;
 
     private BaseObject object;
+
+    @Inject
+    private Logger logger;
 
     /**
      * Constructor.
@@ -92,6 +102,23 @@ public class XWikiDocumentWrapper
      */
     public String getContent()
     {
+        List<XWikiAttachment> attachmentList = this.currentDocument.getAttachmentList();
+        if (!attachmentList.isEmpty()) {
+            try {
+                StringBuilder totalContent = new StringBuilder();
+                totalContent.append(this.currentDocument.getContent());
+                for (XWikiAttachment xWikiAttachment : attachmentList) {
+                    Tika tika = new Tika();
+                    XWikiContext context = this.contextProvider.get();
+                    String attachmentContent = tika.parseToString(xWikiAttachment.getContentInputStream(context));
+                    totalContent.append("\n");
+                    totalContent.append(attachmentContent);
+                }
+                return totalContent.toString();
+            } catch (IOException | TikaException | XWikiException e) {
+                logger.error("Failed to parse attachment content: {}", e.getMessage());
+            }
+        }
         return this.currentDocument.getContent();
     }
 

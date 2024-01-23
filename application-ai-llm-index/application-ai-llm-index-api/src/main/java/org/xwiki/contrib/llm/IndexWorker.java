@@ -127,6 +127,7 @@ public class IndexWorker implements EventListener
                     this.logger.info("Processing document: {}", key);
                     Document document = collectionManager.getCollection(value).getDocument(key);
                     logger.info("Document: {}", document);
+                    solrConnector.deleteChunksByDocId(key);
                     List<Chunk> chunks = document.chunkDocument();
                     logger.info("Chunks: {}", chunks);
                     for (Chunk chunk : chunks) {
