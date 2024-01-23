@@ -97,7 +97,7 @@ public interface CollectionResource
      */
     @Path("/documents")
     @GET
-    List<String> getDocumentsResource(
+    List<String> getDocuments(
         @PathParam("wikiName") String wikiName,
         @PathParam("collectionName") String collectionName,
         @QueryParam("start") @DefaultValue("0") Integer start,

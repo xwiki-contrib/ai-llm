@@ -98,7 +98,7 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
     }
 
     @Override
-    public List<String> getDocumentsResource(String wikiName, String collectionName, Integer start, Integer number)
+    public List<String> getDocuments(String wikiName, String collectionName, Integer start, Integer number)
         throws XWikiRestException
     {
         Collection collection = getInternalCollection(wikiName, collectionName);
