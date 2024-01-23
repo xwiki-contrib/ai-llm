@@ -31,6 +31,7 @@ import org.mockito.Mock;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.internal.CurrentUserCollection;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
 import org.xwiki.contrib.llm.internal.DefaultCollection;
@@ -46,6 +47,7 @@ import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
+import org.xwiki.test.junit5.mockito.MockComponent;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -80,6 +82,7 @@ import static org.mockito.Mockito.when;
     DefaultDocument.class,
     CurrentUserCollection.class
 })
+
 @ReferenceComponentList
 class DefaultCollectionResourceTest
 {
@@ -107,6 +110,9 @@ class DefaultCollectionResourceTest
 
     @InjectMockComponents
     private DefaultCollectionResource collectionResource;
+
+    @MockComponent
+    private SolrConnector solrConnector;
 
     @Mock
     private Query collectionsQuery;

@@ -23,10 +23,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.inject.Singleton;
+
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.common.SolrInputDocument;
+import org.xwiki.component.annotation.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 /**
@@ -34,20 +37,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  * @version $Id$
  */
-public final class SolrConnector
+@Component(roles = SolrConnector.class)
+@Singleton
+public class SolrConnector
 {
     //Connection method will be modifed after Solr integration in XWiki
     private static final String SOLR_INSTANCE_URL = "http://my_solr:8983/solr/";
     private static final String SOLR_CORE_NAME = "knowledgeIndex";
     private static final String SOLR_CORE_URL = SOLR_INSTANCE_URL + SOLR_CORE_NAME;
-
-    /**
-     * Private constructor to hide the implicit public one.
-     */
-    private SolrConnector()
-    {
-        // private constructor to prevent instantiation
-    }
 
     /**
      * Connects to the Solr server and stores a chunk.
@@ -56,7 +53,7 @@ public final class SolrConnector
      * @param chunk the chunk to be storred
      * @param id the id of the chunk
      */
-    public static void storeChunk(Chunk chunk, String id) throws SolrServerException
+    public void storeChunk(Chunk chunk, String id) throws SolrServerException
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             SolrInputDocument solrDocument = new SolrInputDocument();
@@ -88,7 +85,7 @@ public final class SolrConnector
      * 
      * @param id the id of the chunk
      */
-    public static void deleteChunk(String id)
+    public void deleteChunk(String id)
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             client.deleteById(id);
@@ -103,7 +100,7 @@ public final class SolrConnector
      * 
      * @param docId the id of the document
      */
-    public static void deleteChunksByDocId(String docId)
+    public void deleteChunksByDocId(String docId)
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             client.deleteByQuery("docId:" + docId);
@@ -116,7 +113,7 @@ public final class SolrConnector
     /**
      * Connects to the Solr server and deletes all documents.
      */
-    public static void clearIndexCore() throws SolrServerException
+    public void clearIndexCore() throws SolrServerException
     {
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             client.deleteByQuery("*:*");

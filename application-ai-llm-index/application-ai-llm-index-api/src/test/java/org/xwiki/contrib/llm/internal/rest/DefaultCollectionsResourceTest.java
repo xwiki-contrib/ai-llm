@@ -22,12 +22,14 @@ package org.xwiki.contrib.llm.internal.rest;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.query.Query;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
+import org.xwiki.test.junit5.mockito.MockComponent;
 
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.InjectMockitoOldcore;
@@ -60,6 +62,9 @@ class DefaultCollectionsResourceTest
 
     @InjectMockComponents
     private DefaultCollectionsResource collectionsResource;
+
+    @MockComponent
+    private SolrConnector solrConnector;
 
     @Test
     void getCollections() throws Exception

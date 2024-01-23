@@ -74,6 +74,9 @@ public class DefaultCollection implements Collection
     private Provider<DefaultDocument> documentProvider;
 
     @Inject
+    private SolrConnector solrConnector;
+
+    @Inject
     private Logger logger;
 
     /**
@@ -326,7 +329,7 @@ public class DefaultCollection implements Collection
     private void removeDocumentFromVectorDB(Document document)
     {
         try {
-            SolrConnector.deleteChunksByDocId(document.getID());
+            solrConnector.deleteChunksByDocId(document.getID());
         } catch (Exception e) {
             logger.warn("Failed to remove document [{}] from vector database: [{}]",
                                  document, e.getMessage());

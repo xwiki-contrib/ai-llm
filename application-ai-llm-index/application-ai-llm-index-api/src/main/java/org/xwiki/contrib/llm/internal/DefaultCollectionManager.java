@@ -64,6 +64,9 @@ public class DefaultCollectionManager implements CollectionManager
     @Inject
     private Provider<DefaultCollection> collectionProvider;
 
+    @Inject
+    private SolrConnector solrConnector;
+
     @Override
     public DefaultCollection createCollection(String name) throws IndexException
     {
@@ -159,7 +162,7 @@ public class DefaultCollectionManager implements CollectionManager
     public void clearIndexCore() throws IndexException
     {
         try {
-            SolrConnector.clearIndexCore();
+            solrConnector.clearIndexCore();
         } catch (Exception e) {
             this.logger.error("Failed to clear index core: [{}]", e.getMessage());
         } 

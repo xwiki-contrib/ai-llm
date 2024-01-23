@@ -63,6 +63,9 @@ public class IndexWorker implements EventListener
     private CollectionManager collectionManager;
 
     @Inject
+    private SolrConnector solrConnector;
+
+    @Inject
     @Named("current")
     private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
 
@@ -129,7 +132,7 @@ public class IndexWorker implements EventListener
                     for (Chunk chunk : chunks) {
                         logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
                         chunk.computeEmbeddings();
-                        SolrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
+                        solrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
                     }
                 }
             } catch (Exception e) {
