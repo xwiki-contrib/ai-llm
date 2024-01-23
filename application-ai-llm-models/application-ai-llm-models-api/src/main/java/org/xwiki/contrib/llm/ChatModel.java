@@ -19,8 +19,9 @@
  */
 package org.xwiki.contrib.llm;
 
-import java.util.function.Consumer;
+import java.io.IOException;
 
+import org.apache.commons.lang3.function.FailableConsumer;
 import org.xwiki.stability.Unstable;
 
 /**
@@ -38,9 +39,11 @@ public interface ChatModel
 {
     /**
      * @param request the request to process
-     * @param consumer the consumer that will be called for every chunk that is received
+     * @param consumer the consumer that will be called for every line that is received. This will be improved in the
+     * future to pass a {@link ChatResponse} instead.
      */
-    void processStreaming(ChatRequest request, Consumer<ChatResponse> consumer) throws RequestError;
+    void processStreaming(ChatRequest request, FailableConsumer<String, IOException> consumer)
+        throws IOException;
 
     /**
      * @param request the request to process

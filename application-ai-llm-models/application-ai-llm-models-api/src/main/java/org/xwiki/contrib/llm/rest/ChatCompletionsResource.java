@@ -17,36 +17,34 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm;
+package org.xwiki.contrib.llm.rest;
 
-import java.util.List;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.core.Response;
 
-import org.xwiki.component.annotation.Role;
 import org.xwiki.stability.Unstable;
-import org.xwiki.user.UserReference;
+
+import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 
 /**
- * Provides access to the chat models that are configured for the current wiki.
+ * REST resource for listing models.
  *
  * @version $Id$
  * @since 0.3
  */
 @Unstable
-@Role
-public interface ChatModelManager
+@Path("/wikis/{wikiName}/aiLLM/v1/chat/completions")
+public interface ChatCompletionsResource
 {
     /**
-     * @param name the name of the model to retrieve
-     * @param userReference the user for whom to retrieve the model, used to check rights
-     * @param wikiId the wiki from which to retrieve the model
-     * @return the model with the given name
+     * Completes a list of chat messages.
+     *
+     * @param wikiName the wiki in which the model is located
+     * @param request the request containing the messages to complete
+     * @return the generated completions
      */
-    ChatModel getModel(String name, UserReference userReference, String wikiId) throws GPTAPIException;
-
-    /**
-     * @param userReference the user for whom to retrieve the models, used to check rights
-     * @param wikiId the wiki from which to retrieve the models
-     * @return a list of all configured models
-     */
-    List<ChatModelDescriptor> getModels(UserReference userReference, String wikiId) throws GPTAPIException;
+    @POST
+    Response getCompletions(@PathParam("wikiName") String wikiName, ChatCompletionRequest request);
 }

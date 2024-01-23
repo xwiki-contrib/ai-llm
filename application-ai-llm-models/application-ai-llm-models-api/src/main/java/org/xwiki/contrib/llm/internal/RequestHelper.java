@@ -24,7 +24,9 @@ import java.io.IOException;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -67,15 +69,42 @@ public class RequestHelper
         HttpClientResponseHandler<? extends R> responseHandler) throws IOException
     {
         try (CloseableHttpClient httpClient = this.httpClientFactory.createHttpClient()) {
-            ObjectMapper objectMapper = new ObjectMapper();
-            objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
             HttpPost httpPost = new HttpPost(config.getURL() + path);
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, BEARER + config.getToken());
-            httpPost.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON);
-            httpPost.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON);
-            httpPost.setEntity(new StringEntity(objectMapper.writeValueAsString(body)));
-
+            prepareRequest(httpPost, config, body);
             return httpClient.execute(httpPost, responseHandler);
         }
     }
+
+    /**
+     * Perform a GET request.
+     *
+     * @param config the configuration that provides the URL and the authentication token
+     * @param path the path of the API endpoint
+     * @param responseHandler the callback that handles the response
+     * @return the value returned by the response handler
+     * @param <R> the return type
+     * @throws IOException if the request fails
+     */
+    public <R> R get(GPTAPIConfig config, String path,
+        HttpClientResponseHandler<? extends R> responseHandler) throws IOException
+    {
+        try (CloseableHttpClient httpClient = this.httpClientFactory.createHttpClient()) {
+            HttpGet httpGet = new HttpGet(config.getURL() + path);
+            prepareRequest(httpGet, config, null);
+            return httpClient.execute(httpGet, responseHandler);
+        }
+    }
+
+    private <T> void prepareRequest(HttpUriRequestBase request, GPTAPIConfig config, T body) throws IOException
+    {
+        request.setHeader(HttpHeaders.AUTHORIZATION, BEARER + config.getToken());
+        request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON);
+        request.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON);
+        if (body != null) {
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+            request.setEntity(new StringEntity(objectMapper.writeValueAsString(body)));
+        }
+    }
+
 }

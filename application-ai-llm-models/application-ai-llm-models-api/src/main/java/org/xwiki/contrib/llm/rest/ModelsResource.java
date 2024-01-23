@@ -17,36 +17,35 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm;
+package org.xwiki.contrib.llm.rest;
 
-import java.util.List;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 
-import org.xwiki.component.annotation.Role;
+import org.xwiki.contrib.llm.ChatModelDescriptor;
+import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
-import org.xwiki.user.UserReference;
+
+import com.theokanning.openai.OpenAiResponse;
 
 /**
- * Provides access to the chat models that are configured for the current wiki.
+ * REST resource for listing models.
  *
  * @version $Id$
  * @since 0.3
  */
 @Unstable
-@Role
-public interface ChatModelManager
+@Path("/wikis/{wikiName}/aiLLM/v1/models")
+public interface ModelsResource
 {
     /**
-     * @param name the name of the model to retrieve
-     * @param userReference the user for whom to retrieve the model, used to check rights
-     * @param wikiId the wiki from which to retrieve the model
-     * @return the model with the given name
+     * Gets a list of all available (chat) models.
+     *
+     * @param wikiName the wiki in which the models are located
+     * @return the list of models
+     * @throws XWikiRestException when there is an error retrieving the models
      */
-    ChatModel getModel(String name, UserReference userReference, String wikiId) throws GPTAPIException;
-
-    /**
-     * @param userReference the user for whom to retrieve the models, used to check rights
-     * @param wikiId the wiki from which to retrieve the models
-     * @return a list of all configured models
-     */
-    List<ChatModelDescriptor> getModels(UserReference userReference, String wikiId) throws GPTAPIException;
+    @GET
+    OpenAiResponse<ChatModelDescriptor> getModels(@PathParam("wikiName") String wikiName) throws XWikiRestException;
 }

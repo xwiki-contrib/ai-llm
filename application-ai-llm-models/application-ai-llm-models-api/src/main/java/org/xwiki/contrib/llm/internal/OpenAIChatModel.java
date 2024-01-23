@@ -19,14 +19,16 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
+import org.apache.commons.lang3.function.FailableConsumer;
 import org.apache.hc.core5.http.HttpEntity;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
@@ -39,6 +41,7 @@ import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.RequestError;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.theokanning.openai.OpenAiResponse;
 import com.theokanning.openai.completion.chat.ChatCompletionChoice;
@@ -55,6 +58,13 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class OpenAIChatModel implements ChatModel
 {
+
+    private static final String PATH = "/chat/completions";
+
+    private static final String EMPTY = "Response is empty.";
+
+    private static final String RESPONSE_CODE_ERROR = "Response code is %d";
+
     @Inject
     private RequestHelper requestHelper;
 
@@ -75,30 +85,47 @@ public class OpenAIChatModel implements ChatModel
     }
 
     @Override
-    public void processStreaming(ChatRequest request, Consumer<ChatResponse> consumer) throws RequestError
+    public void processStreaming(ChatRequest request, FailableConsumer<String, IOException> consumer)
+        throws IOException
     {
 
         // TODO: Implement this once JAX-RS 2.1 with real streaming is available. For now, fall back to non-streaming.
         // With JAX-RS 2.1, use real streaming if the model supports it, otherwise fall back to non-streaming.
-        consumer.accept(process(request));
+        ChatCompletionRequest chatCompletionRequest = buildChatCompletionRequest(request);
+        chatCompletionRequest.setStream(true);
+
+        this.requestHelper.post(this.config,
+            PATH,
+            chatCompletionRequest,
+            response -> {
+                if (response.getCode() == 200) {
+                    HttpEntity entity = response.getEntity();
+                    if (entity != null) {
+                        InputStream inputStream = entity.getContent();
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            consumer.accept(line);
+                        }
+
+                        return null;
+                    } else {
+                        throw new IOException(EMPTY);
+                    }
+                } else {
+                    throw new IOException(String.format(RESPONSE_CODE_ERROR, response.getCode()));
+                }
+            });
     }
 
     @Override
     public ChatResponse process(ChatRequest request) throws RequestError
     {
-        List<com.theokanning.openai.completion.chat.ChatMessage> messages = request.getMessages().stream()
-            .map(message ->
-                new com.theokanning.openai.completion.chat.ChatMessage(message.getRole(), message.getContent()))
-            .collect(Collectors.toList());
-        ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest.builder()
-            .model(this.model)
-            .temperature(request.getParameters().getTemperature())
-            .messages(messages)
-            .build();
+        ChatCompletionRequest chatCompletionRequest = buildChatCompletionRequest(request);
 
         try {
             return this.requestHelper.post(this.config,
-                "/chat/completions",
+                PATH,
                 chatCompletionRequest,
                 response -> {
                     if (response.getCode() == 200) {
@@ -106,6 +133,7 @@ public class OpenAIChatModel implements ChatModel
                         if (entity != null) {
                             InputStream inputStream = entity.getContent();
                             ObjectMapper objectMapper = new ObjectMapper();
+                            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
                             OpenAiResponse<ChatCompletionResult> modelOpenAiResponse =
                                 objectMapper.readValue(inputStream,
                                     new TypeReference<OpenAiResponse<ChatCompletionResult>>()
@@ -119,10 +147,10 @@ public class OpenAIChatModel implements ChatModel
                             return new ChatResponse(chatCompletionChoice.getFinishReason(),
                                 new ChatMessage(resultMessage.getRole(), resultMessage.getContent()));
                         } else {
-                            throw new IOException("Response is empty.");
+                            throw new IOException(EMPTY);
                         }
                     } else {
-                        throw new IOException("Response code is " + response.getCode());
+                        throw new IOException(String.format(RESPONSE_CODE_ERROR, response.getCode()));
                     }
                 });
         } catch (Exception e) {
@@ -160,6 +188,19 @@ public class OpenAIChatModel implements ChatModel
             throw new RequestError(e.getResponse().getStatus(), e.getMessage());
         }
         */
+    }
+
+    private ChatCompletionRequest buildChatCompletionRequest(ChatRequest request)
+    {
+        List<com.theokanning.openai.completion.chat.ChatMessage> messages = request.getMessages().stream()
+            .map(message ->
+                new com.theokanning.openai.completion.chat.ChatMessage(message.getRole(), message.getContent()))
+            .collect(Collectors.toList());
+        return ChatCompletionRequest.builder()
+            .model(this.model)
+            .temperature(request.getParameters().getTemperature())
+            .messages(messages)
+            .build();
     }
 
     @Override
