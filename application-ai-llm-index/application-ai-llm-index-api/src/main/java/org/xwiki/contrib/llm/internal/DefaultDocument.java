@@ -61,8 +61,6 @@ public class DefaultDocument implements Document
     private static final String LANG_KEY = "language";
     private static final String URL_KEY = "URL";
     private static final String MIMETYPE_KEY = "mimetype";
-    private static final String CONTENT_KEY = "content";
-
 
     @Inject 
     protected Provider<XWikiContext> contextProvider;

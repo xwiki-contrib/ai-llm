@@ -253,11 +253,18 @@ public class DefaultCollection implements Collection
     {
         List<String> documents = null;
         String documentClass = Document.XCLASS_SPACE_STRING + "." + Document.XCLASS_NAME;
-        String templateDoc = Document.XCLASS_SPACE_STRING + ".CollectionsTemplate";
-        String hql = "select prop.value from XWikiDocument doc, BaseObject obj, StringProperty prop "
-                    + "where doc.fullName=obj.name and obj.className='" + documentClass
+        String templateDoc = Document.XCLASS_SPACE_STRING + ".DocumentsTemplate";
+        String hql = "select prop.value from XWikiDocument doc, BaseObject obj,"
+                    + "StringProperty prop, StringProperty collectionProp "
+                    + "where doc.fullName=obj.name "
+                    + "and obj.className='" + documentClass
                     + "' and doc.fullName <> '" + templateDoc
-                    + "' and obj.id = prop.id.id and prop.id.name = 'id'";
+                    + "' and obj.id = prop.id.id "
+                    + "and prop.id.name = 'id' "
+                    + "and obj.id = collectionProp.id.id "
+                    + "and collectionProp.id.name = 'collection' "
+                    + "and collectionProp.value = '" + this.getName() + "'";
+         
         try {
             Query query = queryManager.createQuery(hql, Query.HQL);
             documents = query.execute();
