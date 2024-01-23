@@ -34,6 +34,7 @@ import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.internal.CurrentUserCollection;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
+import org.xwiki.contrib.llm.internal.CurrentUserDocument;
 import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.DefaultCollectionManager;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
@@ -80,7 +81,7 @@ import static org.mockito.Mockito.when;
     DefaultCollection.class,
     CurrentUserCollection.class,
     DefaultDocument.class,
-    CurrentUserCollection.class
+    CurrentUserDocument.class
 })
 
 @ReferenceComponentList

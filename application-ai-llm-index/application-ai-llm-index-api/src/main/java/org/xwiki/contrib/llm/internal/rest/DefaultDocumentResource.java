@@ -46,9 +46,7 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
             }
             return new JSONDocument(document);
         } catch (IndexException e) {
-            this.logger.error("Failed to get document [{}] from collection [{}] in wiki [{}].", documentID,
-                collectionName, wikiName, e);
-            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+            throw convertDocumentException(collectionName, documentID, "retrieving", e);
         }
     }
 
@@ -63,11 +61,8 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
             }
             collection.removeDocument(documentID, true, true);
         } catch (IndexException e) {
-            this.logger.error("Failed to delete document [{}] from collection [{}] in wiki [{}].", documentID,
-                collectionName, wikiName, e);
-            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+            throw convertDocumentException(collectionName, documentID, "deleting", e);
         }
-        throw new WebApplicationException(Response.Status.SERVICE_UNAVAILABLE);
     }
 
     @Override
@@ -86,9 +81,7 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
             existingDocument.save();
             return new JSONDocument(existingDocument);
         } catch (IndexException e) {
-            this.logger.error("Failed to update document [{}] from collection [{}] in wiki [{}].", documentID,
-                collectionName, wikiName, e);
-            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+            throw convertDocumentException(collectionName, documentID, "updating", e);
         }
     }
 }

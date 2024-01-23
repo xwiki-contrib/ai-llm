@@ -84,4 +84,16 @@ public abstract class AbstractCollectionResource extends XWikiResource
             return new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         }
     }
+
+    protected WebApplicationException convertDocumentException(String collectionName, String documentID,
+        String verb, IndexException e)
+    {
+        Throwable rootCause = ExceptionUtils.getRootCause(e);
+        if (rootCause instanceof AccessDeniedException) {
+            return new WebApplicationException(Response.Status.FORBIDDEN);
+        } else {
+            this.logger.error("Error {} document [{}] in collection [{}].", verb, documentID, collectionName, e);
+            return new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
