@@ -47,7 +47,7 @@ public class CurrentUserDocument extends DefaultDocument
     private ContextualAuthorizationManager authorizationManager;
 
     @Override
-    public boolean save() throws IndexException
+    public void save() throws IndexException
     {
         XWikiDocument document = getXWikiDocument();
         XWikiContext context = this.contextProvider.get();
@@ -58,7 +58,5 @@ public class CurrentUserDocument extends DefaultDocument
         } catch (XWikiException | AccessDeniedException e) {
             throw new IndexException(String.format("Failed to save document [%s]", document), e);
         }
-
-        return super.save();
     }
 }

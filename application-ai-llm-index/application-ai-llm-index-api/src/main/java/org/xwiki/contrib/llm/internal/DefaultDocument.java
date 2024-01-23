@@ -27,7 +27,6 @@ import org.xwiki.contrib.llm.Chunk;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.Utils;
-import org.slf4j.Logger;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -64,9 +63,6 @@ public class DefaultDocument implements Document
 
     @Inject 
     protected Provider<XWikiContext> contextProvider;
-
-    @Inject
-    private Logger logger;
 
     @Inject
     private Utils utils;
@@ -173,16 +169,14 @@ public class DefaultDocument implements Document
     }
 
     @Override
-    public boolean save() throws IndexException
+    public void save() throws IndexException
     {
         try {
             XWikiContext context = this.contextProvider.get();
             XWikiDocument document = this.xwikiDocumentWrapper.getClonedXWikiDocument();
             context.getWiki().saveDocument(document, context);
-            return true;
         } catch (XWikiException e) {
-            logger.error("Error saving document: {}", e.getMessage());
-            return false;
+            throw new IndexException(String.format("Failed to save document with id [%s]: ", this.getID()), e);
         }
     }
     

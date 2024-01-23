@@ -41,8 +41,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.inject.Provider;
 
-import org.slf4j.Logger;
-
+import org.apache.solr.client.solrj.SolrServerException;
 /**
  * Implementation of a {@code CollectionManager} component.
  *
@@ -54,9 +53,6 @@ public class DefaultCollectionManager implements CollectionManager
 {
     @Inject
     protected Provider<XWikiContext> contextProvider;
-
-    @Inject
-    private Logger logger;
 
     @Inject
     private QueryManager queryManager;
@@ -75,7 +71,9 @@ public class DefaultCollectionManager implements CollectionManager
         try {
             XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
             if (!xdocument.isNew()) {
-                return null;
+                throw new IndexException(String.format("Failed to create collection [%s], "
+                                                        + "an xwiki document with the same reference [%s] already exists.",
+                                                        name, documentReference));
             }
 
             DefaultCollection newCollection = collectionProvider.get();
@@ -83,9 +81,8 @@ public class DefaultCollectionManager implements CollectionManager
             newCollection.setName(name);
             return newCollection;
         } catch (XWikiException e) {
-            this.logger.error("Failed to create collection with name [{}]: [{}]", name, e.getMessage());
+            throw new IndexException(String.format("Failed to create collection [%s]", name), e);
         }
-        return null;
     }
 
     @Override
@@ -101,9 +98,8 @@ public class DefaultCollectionManager implements CollectionManager
             collections = query.execute();
             return collections;
         } catch (QueryException e) {
-            this.logger.error("Failed to get the list of collections: [{}]", e.getMessage());
+            throw new IndexException("Failed retrieving collection list:", e);
         }
-        return collections;
     }
     
     @Override
@@ -121,32 +117,28 @@ public class DefaultCollectionManager implements CollectionManager
                 return null;
             }
         } catch (XWikiException e) {
-            throw new IndexException("Failed to get collection [" + name + "] ", e);
+            throw new IndexException(String.format("Failed to get collection with name [%s]:", name), e);
         }
     }
 
     @Override
     public void deleteCollection(String name, boolean deleteDocuments) throws IndexException
     {
-        if (getCollections().contains(name)) {
+        try {
+            Collection collection = getCollection(name);
+            if (deleteDocuments) {
+                for (String docID : collection.getDocuments()) {
+                    collection.removeDocument(docID, 
+                        true,
+                        true);
+                }
+            }
             XWikiContext context = contextProvider.get();
             DocumentReference documentReference = getDocumentReference(name);
-            try {
-                Collection collection = getCollection(name);
-                if (deleteDocuments) {
-                    for (String docID : collection.getDocuments()) {
-                        collection.removeDocument(docID, 
-                                                true,
-                                                true);
-                    }
-                }
-                XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
-                context.getWiki().deleteDocument(xdocument, context);
-            } catch (Exception e) {
-                this.logger.error("Failed while deleting collection [{}]: [{}]", name, e);
-            }
-        } else {
-            this.logger.warn("Problem deleting collection [{}]. Reason: Collection not found.", name);
+            XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
+            context.getWiki().deleteDocument(xdocument, context);
+        } catch (Exception e) {
+            throw new IndexException(String.format("Failed to delete collection [%s]", name), e);
         }
     }
 
@@ -163,8 +155,8 @@ public class DefaultCollectionManager implements CollectionManager
     {
         try {
             solrConnector.clearIndexCore();
-        } catch (Exception e) {
-            this.logger.error("Failed to clear index core: [{}]", e.getMessage());
+        } catch (SolrServerException e) {
+            throw new IndexException("Failed to clear the index core", e);
         } 
     }
 

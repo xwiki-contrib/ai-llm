@@ -157,10 +157,8 @@ public interface Document
 
     /**
      * Saves the document.
-     *
-     * @return true if the document was saved successfully, false otherwise
      */
-    boolean save() throws IndexException;
+    void save() throws IndexException;
 
     /**
      * Process the document and chunk it into smaller pieces.

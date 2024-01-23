@@ -244,7 +244,7 @@ public class DefaultCollection implements Collection
             XWikiContext context = this.contextProvider.get();
             context.getWiki().saveDocument(this.xWikiDocumentWrapper.getClonedXWikiDocument(), context);
         } catch (XWikiException e) {
-            this.logger.error("Error saving collection: [{}]", e.getMessage());
+            throw new IndexException(String.format("Error saving collection [%s].", this.getName()), e);
         }
     }
     
@@ -329,7 +329,7 @@ public class DefaultCollection implements Collection
                 removeDocumentFromStorage(document);
             }
         } catch (Exception e) {
-            logger.warn("Failed to remove document with id [{}]: [{}]", documentId, e.getMessage());
+            logger.error("Failed to remove document with id [{}]: [{}]", documentId, e.getMessage());
         }
     }
 
@@ -338,7 +338,7 @@ public class DefaultCollection implements Collection
         try {
             solrConnector.deleteChunksByDocId(document.getID());
         } catch (Exception e) {
-            logger.warn("Failed to remove document [{}] from vector database: [{}]",
+            logger.error("Failed to remove document [{}] from vector database: [{}]",
                                  document, e.getMessage());
         }
     }
@@ -349,7 +349,7 @@ public class DefaultCollection implements Collection
             XWikiContext context = this.contextProvider.get();
             context.getWiki().deleteDocument(document.getXWikiDocument(), context);
         } catch (XWikiException e) {
-            logger.warn("Failed to remove document [{}] from storage: [{}]",
+            logger.error("Failed to remove document [{}] from storage: [{}]",
                                  document, e.getMessage());
         }
     }
