@@ -51,6 +51,20 @@
       <defaultWeb/>
       <nameField/>
       <validationScript/>
+      <contextSize>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint/>
+        <name>contextSize</name>
+        <number>5</number>
+        <numberType>integer</numberType>
+        <prettyName>Context size</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+      </contextSize>
       <dimensions>
         <customDisplay/>
         <disabled>0</disabled>
@@ -119,6 +133,9 @@
         <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
       </type>
     </class>
+    <property>
+      <contextSize>4000</contextSize>
+    </property>
     <property>
       <dimensions/>
     </property>

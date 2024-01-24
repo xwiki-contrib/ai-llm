@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -32,15 +33,16 @@ import org.apache.commons.lang3.StringUtils;
  */
 public class GPTAPIConfig 
 {
+    private static final String MODEL_SEPARATOR = ",";
+    
     private String name;
     private String url;
-    private String configModels;
+    private List<String> languageModels;
     private String token;
     private boolean canStream;
     private String allowedGroup;
-
+    
     private final List<EmbeddingModelDescriptor> embeddingModels;
-
     /**
      * Take a map representation of a GPTAPIConfig object as a parameter and build a
      * GPTAPIConfig object from it.
@@ -50,7 +52,6 @@ public class GPTAPIConfig
     {
         this.name = (String) properties.get("Name");
         this.url = (String) properties.get("url");
-        this.configModels = (String) properties.get("Config");
         this.token = (String) properties.get("token");
         if ((Integer) properties.get("Requestmode") == 1) {
             this.canStream = true;
@@ -59,6 +60,16 @@ public class GPTAPIConfig
         }
         this.allowedGroup = (String) properties.get("RightLLM");
 
+        Object languageModelsProp = properties.get("languageModels");
+        if (languageModelsProp instanceof List) {
+            this.languageModels = ((List<?>) languageModelsProp)
+                                    .stream()
+                                    .filter(String.class::isInstance)
+                                    .map(String.class::cast)
+                                    .collect(Collectors.toList());
+        } else {
+            this.languageModels = new ArrayList<>();
+        }
         String embeddingModelConfig = (String) properties.get("embeddingModels");
         this.embeddingModels = getEmbeddingModelDescriptors(embeddingModelConfig);
     }
@@ -75,7 +86,7 @@ public class GPTAPIConfig
 
     private List<EmbeddingModelDescriptor> getEmbeddingModelDescriptors(String embeddingModelConfig)
     {
-        return Arrays.stream(StringUtils.split(embeddingModelConfig, ","))
+        return Arrays.stream(StringUtils.split(embeddingModelConfig, MODEL_SEPARATOR))
             .map(String::trim)
             .map(model -> StringUtils.split(model, ":", 2))
             .map(model -> {
@@ -108,11 +119,11 @@ public class GPTAPIConfig
     }
 
     /**
-     * @return The LLM models of the GPTAPIConfig in one String.
+     * @return The LLM models of the GPTAPIConfig as a List of Strings.
      */
-    public String getConfigModels()
+    public List<String> getLanguageModels()
     {
-        return configModels;
+        return languageModels;
     }
 
     /**
@@ -155,7 +166,7 @@ public class GPTAPIConfig
     {
         String res = "Name : " + name;
         res += " URL : " + url;
-        res += " Config param : " + configModels;
+        res += ", Language Models: " + String.join(MODEL_SEPARATOR, languageModels);
         res += " Token : " + token;
         res += " canStream : " + canStream;
         res += " allowedGroup : " + allowedGroup;

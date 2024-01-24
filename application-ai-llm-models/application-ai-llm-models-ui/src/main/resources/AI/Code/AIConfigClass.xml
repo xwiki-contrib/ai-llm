@@ -46,24 +46,6 @@
     <defaultWeb/>
     <nameField/>
     <validationScript/>
-    <Config>
-      <contenttype>FullyRenderedText</contenttype>
-      <customDisplay/>
-      <disabled>0</disabled>
-      <editor>PureText</editor>
-      <hint/>
-      <name>Config</name>
-      <number>3</number>
-      <picker>1</picker>
-      <prettyName>Config</prettyName>
-      <restricted>0</restricted>
-      <rows>5</rows>
-      <size>40</size>
-      <unmodifiable>0</unmodifiable>
-      <validationMessage/>
-      <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
-    </Config>
     <Name>
       <customDisplay/>
       <disabled>0</disabled>
@@ -110,7 +92,7 @@
       <relationalStorage>0</relationalStorage>
       <separator> </separator>
       <separators/>
-      <size>20</size>
+      <size>10</size>
       <sort/>
       <unmodifiable>0</unmodifiable>
       <usesList>0</usesList>
@@ -119,23 +101,61 @@
       <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
     </RightLLM>
     <embeddingModels>
-      <contenttype>PureText</contenttype>
+      <cache>0</cache>
+      <classname/>
       <customDisplay/>
+      <defaultValue/>
       <disabled>0</disabled>
-      <editor>PureText</editor>
-      <hint>A comma-separated list of embedding models this API provides. For each model, use the format id:dimensions where "dimensions" is the number of dimensions of the embeddings.</hint>
+      <displayType>select</displayType>
+      <freeText/>
+      <hint/>
+      <idField/>
+      <largeStorage>0</largeStorage>
+      <multiSelect>0</multiSelect>
       <name>embeddingModels</name>
-      <number>4</number>
+      <number>7</number>
       <picker>1</picker>
       <prettyName>Embedding Models</prettyName>
-      <restricted>0</restricted>
-      <rows>5</rows>
-      <size>40</size>
+      <relationalStorage>0</relationalStorage>
+      <separator> </separator>
+      <separators/>
+      <size>1</size>
+      <sort/>
+      <sql>select modelProp.value from XWikiDocument as doc, BaseObject as obj, StringProperty as modelProp, StringProperty as typeProp where doc.fullName = obj.name and obj.className = 'AI.Models.Code.ModelsClass' and obj.id = modelProp.id.id and modelProp.id.name = 'model' and obj.id = typeProp.id.id and typeProp.id.name = 'type' and typeProp.value = 'emb' order by modelProp.value asc</sql>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      <valueField/>
+      <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
     </embeddingModels>
+    <languageModels>
+      <cache>0</cache>
+      <classname/>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayType>input</displayType>
+      <freeText/>
+      <hint/>
+      <idField/>
+      <largeStorage>0</largeStorage>
+      <multiSelect>1</multiSelect>
+      <name>languageModels</name>
+      <number>8</number>
+      <picker>1</picker>
+      <prettyName>Language Models</prettyName>
+      <relationalStorage>0</relationalStorage>
+      <separator> </separator>
+      <separators/>
+      <size>1</size>
+      <sort/>
+      <sql>select modelProp.value from XWikiDocument as doc, BaseObject as obj, StringProperty as modelProp, StringProperty as typeProp where doc.fullName = obj.name and obj.className = 'AI.Models.Code.ModelsClass' and obj.id = modelProp.id.id and modelProp.id.name = 'model' and obj.id = typeProp.id.id and typeProp.id.name = 'type' and typeProp.value = 'llm' order by modelProp.value asc</sql>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <valueField/>
+      <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
+    </languageModels>
     <token>
       <algorithm/>
       <customDisplay/>

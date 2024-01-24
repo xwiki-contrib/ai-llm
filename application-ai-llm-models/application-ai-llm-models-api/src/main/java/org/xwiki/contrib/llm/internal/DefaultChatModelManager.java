@@ -22,7 +22,6 @@ package org.xwiki.contrib.llm.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -59,8 +58,6 @@ public class DefaultChatModelManager implements ChatModelManager
 {
     private static final String MODEL_SEPARATOR = "/";
 
-    private static final String MODEL_CONFIG_SEPARATOR = ", ";
-
     @Inject
     private GPTAPIConfigProvider configProvider;
 
@@ -78,21 +75,17 @@ public class DefaultChatModelManager implements ChatModelManager
         if (parts.length != 2 || StringUtils.isBlank(parts[0])) {
             throw new GPTAPIException("Invalid model name [" + name + "]");
         }
-
+    
         GPTAPIConfig config = configMap.get(parts[0]);
         if (config == null) {
             throw new GPTAPIException("No config found for [" + parts[0] + "]");
         }
-
-        // Only check if the model is configured if the config has models configured, otherwise assume it is valid.
-        if (StringUtils.isNotBlank(config.getConfigModels())) {
-            // If the config has models configured, check if the requested model is configured.
-            List<String> models = Arrays.asList(StringUtils.split(config.getConfigModels(), MODEL_CONFIG_SEPARATOR));
-            if (!models.contains(parts[1])) {
-                throw new GPTAPIException("Model [" + parts[1] + "] is not configured for [" + parts[0] + "]");
-            }
+    
+        List<String> models = config.getLanguageModels();
+        if (models != null && !models.contains(parts[1])) {
+            throw new GPTAPIException("Model [" + parts[1] + "] is not configured for [" + parts[0] + "]");
         }
-
+    
         OpenAIChatModel chatModel = chatModelProvider.get();
         chatModel.initialize(config, parts[1]);
         return chatModel;
@@ -103,26 +96,25 @@ public class DefaultChatModelManager implements ChatModelManager
     {
         Map<String, GPTAPIConfig> configMap = this.configProvider.getConfigObjects(wikiId, userReference);
         List<ChatModelDescriptor> result = new ArrayList<>();
-
+    
         for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
-            String models = entry.getValue().getConfigModels();
-            if (StringUtils.isBlank(models)) {
-                // Make an API request to get the models if the config doesn't have any and thus all models shall be
-                // exposed.
+            List<String> models = entry.getValue().getLanguageModels();
+            if (models == null || models.isEmpty()) {
+                // Make an API request to get the models if the config doesn't have any
+                // and thus all models shall be exposed.
                 for (ChatModelDescriptor chatModelDescriptor : requestModels(entry.getValue())) {
                     chatModelDescriptor.setId(entry.getKey() + MODEL_SEPARATOR + chatModelDescriptor.getId());
                     result.add(chatModelDescriptor);
                 }
             } else {
                 // Use the configured models without making an API request.
-                // Split model string into an array.
-                result.addAll(Arrays.stream(StringUtils.split(models, MODEL_CONFIG_SEPARATOR))
+                result.addAll(models.stream()
                     .map(name -> new ChatModelDescriptor(entry.getKey() + MODEL_SEPARATOR + name,
                         String.format("%s (%s)", name, entry.getKey()), 0))
                     .collect(Collectors.toList()));
             }
         }
-
+    
         return result;
     }
 

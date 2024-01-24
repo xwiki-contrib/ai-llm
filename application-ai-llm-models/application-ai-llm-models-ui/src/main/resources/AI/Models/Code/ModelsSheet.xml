@@ -95,6 +95,15 @@
       &lt;/label&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('dimensions')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('contextSize')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Models.Code.ModelsClass_0_contextSize"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('contextSize', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('contextSize')&lt;/dd&gt;
   &lt;/dl&gt;
 &lt;/div&gt;
 {{/html}}

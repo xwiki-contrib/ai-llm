@@ -43,6 +43,7 @@ AI.Models.Code.ModelsClass_type_llm=Large language model
 AI.Models.Code.ModelsClass_type_emb=Embeddings model
 AI.Models.Code.ModelsClass_model=Model id
 AI.Models.Code.ModelsClass_dimensions=Number of Dimensions
+AI.Models.Code.ModelsClass_contextSize=Context size
 
 # Sheet keys
 models.sheet.description=This page controls how Models pages are displayed in both view and edit modes.
@@ -72,6 +73,7 @@ models.livetable.provider=Provider
 models.livetable.type=Type
 models.livetable.model=Model id
 models.livetable.dimensions=Number of Dimensions
+models.livetable.contextSize=Context size
 
 # Other keys
 models.entry.name=Models

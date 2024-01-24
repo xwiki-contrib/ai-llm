@@ -42,6 +42,8 @@
   'provider': {},
   'model': {},
   'type': {},
+  'contextSize': {},
+  'dimensions': {},
   'doc.author': {"link":"author"},
   '_actions': {"sortable":false,"filterable":false,"html":true,"actions":["edit","delete"]}
 })
@@ -54,7 +56,7 @@
   'selectedColumn': 'doc.title',
   'defaultOrder': 'asc'
 })
-#set ($columns = ['doc.title', 'provider', 'model', 'type', 'doc.author', '_actions'])
+#set ($columns = ['doc.title', 'provider', 'model', 'type', 'contextSize', 'dimensions', 'doc.author', '_actions'])
 #livetable('models' $columns $columnsProperties $options)
 {{/velocity}}</content>
   <object>
@@ -130,7 +132,7 @@
       <class>AI.Models.Code.ModelsClass</class>
     </property>
     <property>
-      <columns>doc.title provider model type doc.author _actions</columns>
+      <columns>doc.title provider model type contextSize dimensions doc.author _actions</columns>
     </property>
     <property>
       <dataSpace/>

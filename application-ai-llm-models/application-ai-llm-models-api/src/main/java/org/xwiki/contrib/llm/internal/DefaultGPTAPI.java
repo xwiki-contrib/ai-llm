@@ -283,36 +283,35 @@ public class DefaultGPTAPI implements GPTAPI
         }
         JSONArray finalResponse = new JSONArray();
         for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
-            String models = entry.getValue().getConfigModels();
+            List<String> models = entry.getValue().getLanguageModels();
             JSONObject responseBodyJson;
-            if (StringUtils.isBlank(models)) {
+            if (models == null || models.isEmpty()) {
                 // Make an API request to get the models if the config doesn't have any and thus all models shall be
                 // exposed.
                 responseBodyJson = requestModels(entry.getValue());
             } else {
                 // Use the configured models without making an API request.
-                // Split models string into an array.
-                String[] modelsArray = StringUtils.split(models, ", ");
                 // Create a list of models where each model is a map with an id property.
                 JSONArray modelsList = new JSONArray();
-                for (String model : modelsArray) {
+                for (String model : models) {
                     JSONObject modelObj = new JSONObject();
                     modelObj.put("id", model);
                     modelsList.put(modelObj);
                 }
-
+    
                 responseBodyJson = new JSONObject();
                 responseBodyJson.put("data", modelsList);
             }
             if (responseBodyJson != null) {
                 responseBodyJson.put("prefix", entry.getValue().getName());
-                responseBodyJson.put("filter", models);
+                responseBodyJson.put("filter", String.join(",", models));
                 responseBodyJson.put("canStream", entry.getValue().getCanStream());
                 finalResponse.put(responseBodyJson);
             }
         }
         return finalResponse.toString();
     }
+    
 
     private JSONObject requestModels(GPTAPIConfig config)
     {

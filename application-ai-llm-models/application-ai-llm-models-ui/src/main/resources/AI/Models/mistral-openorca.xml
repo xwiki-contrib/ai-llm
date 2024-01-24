@@ -20,28 +20,28 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.Models.Code.ModelsTemplate" locale="">
-  <web>AI.Models.Code</web>
-  <name>ModelsTemplate</name>
+<xwikidoc version="1.5" reference="AI.Models.mistral-openorca" locale="">
+  <web>AI.Models</web>
+  <name>mistral-openorca</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>ModelsClass</parent>
+  <parent>AI.Models.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title/>
+  <title>mistral-openorca</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
   <content/>
   <object>
-    <name>AI.Models.Code.ModelsTemplate</name>
+    <name>AI.Models.mistral-openorca</name>
     <number>0</number>
     <className>AI.Models.Code.ModelsClass</className>
-    <guid>94f3f320-b697-4e69-8760-1e7381ad2ba8</guid>
+    <guid>95fc61db-ef40-406b-a4b9-7eb839f0b58b</guid>
     <class>
       <name>AI.Models.Code.ModelsClass</name>
       <customClass/>
@@ -134,19 +134,19 @@
       </type>
     </class>
     <property>
-      <contextSize/>
+      <contextSize>4000</contextSize>
     </property>
     <property>
       <dimensions/>
     </property>
     <property>
-      <model/>
+      <model>mistral-openorca</model>
     </property>
     <property>
-      <provider/>
+      <provider>Open-Orca</provider>
     </property>
     <property>
-      <type/>
+      <type>llm</type>
     </property>
   </object>
 </xwikidoc>

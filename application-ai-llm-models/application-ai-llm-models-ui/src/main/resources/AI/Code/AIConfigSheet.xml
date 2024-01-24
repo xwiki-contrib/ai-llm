@@ -65,12 +65,20 @@
   $response.sendRedirect($xwiki.relativeRequestURL.replaceAll("&amp;add=1", ""))
 #end
 
-|=$services.localization.render('llm.config.name')|=$services.localization.render('llm.config.url')|=$services.localization.render('llm.config.token')|=$services.localization.render('llm.config.requestmode')|=$services.localization.render('llm.config.groups')|=$services.localization.render('llm.config.delete')
-|=(% colspan="3" %) $services.localization.render('llm.config.configfile')|=(% colspan="3" %)$services.localization.render('llm.config.embeddingModels')
 #foreach($serverObject in $configDoc.getObjects($configClassName))
   #set ($deleteURL = $configDoc.getURL('objectremove', "form_token=$!{services.csrf.getToken()}&amp;classname=${escapetool.url($configClassName)}&amp;classid=${serverObject.number}&amp;xredirect=${escapetool.url($redirect)}"))
-  |$serverObject.display('Name', 'edit')|$serverObject.display('url', 'edit')|$serverObject.display('token', 'edit')|$serverObject.display('Requestmode', 'edit')|$serverObject.display('RightLLM', 'edit')|=[[image:icon:cross&gt;&gt;path:$deleteURL]]
-  |(% colspan="3" %)$serverObject.display('Config', 'edit')|(% colspan="3" %)$serverObject.display('embeddingModels', 'edit')
+
+{{box}}
+|=$services.localization.render('llm.config.name') |$serverObject.display('Name', 'edit')
+|=$services.localization.render('llm.config.url') |$serverObject.display('url', 'edit')
+|=$services.localization.render('llm.config.token') |$serverObject.display('token', 'edit')
+|=$services.localization.render('llm.config.requestmode') |$serverObject.display('Requestmode', 'edit')
+|=$services.localization.render('llm.config.groups') |$serverObject.display('RightLLM', 'edit')
+|= $services.localization.render('llm.config.configfile') |$serverObject.display('languageModels', 'edit')
+|=$services.localization.render('llm.config.embeddingModels') |$serverObject.display('embeddingModels', 'edit')
+|=$services.localization.render('llm.config.delete') |=[[image:icon:cross&gt;&gt;path:$deleteURL]]
+{{/box}}
+
 #end
 
 {{html clean="false"}}
