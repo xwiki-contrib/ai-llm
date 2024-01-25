@@ -62,14 +62,14 @@
     </URL>
     <collection>
       <cache>0</cache>
-      <classname>AI.Collections.Code.CollectionsClass</classname>
+      <classname/>
       <customDisplay/>
       <defaultValue/>
       <disabled>0</disabled>
       <displayType>input</displayType>
       <freeText/>
       <hint/>
-      <idField>doc.title</idField>
+      <idField/>
       <largeStorage>0</largeStorage>
       <multiSelect>0</multiSelect>
       <name>collection</name>
@@ -81,11 +81,17 @@
       <separators/>
       <size>1</size>
       <sort>none</sort>
-      <sql/>
+      <sql>select stringprop.value
+from XWikiDocument doc, BaseObject obj, StringProperty stringprop
+where doc.fullName=obj.name
+and obj.className='AI.Collections.Code.CollectionsClass'
+and doc.fullName &lt;&gt; 'AI.Collections.Code.CollectionsTemplate'
+and obj.id=stringprop.id.id
+and stringprop.id.name='id'</sql>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
-      <valueField>doc.title</valueField>
+      <valueField/>
       <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
     </collection>
     <content>
@@ -103,7 +109,7 @@
     </content>
     <id>
       <customDisplay/>
-      <disabled>0</disabled>
+      <disabled>1</disabled>
       <hint/>
       <name>id</name>
       <number>1</number>

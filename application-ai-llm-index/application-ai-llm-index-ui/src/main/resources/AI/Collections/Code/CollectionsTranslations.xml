@@ -37,7 +37,8 @@
   <syntaxId>plain/1.0</syntaxId>
   <hidden>true</hidden>
   <content># Class fields
-AI.Collections.Code.CollectionsClass_name=Name
+AI.Collections.Code.CollectionsClass_id=id
+AI.Collections.Code.CollectionsClass_title=Title
 AI.Collections.Code.CollectionsClass_embeddingModel=Embedding Model
 AI.Collections.Code.CollectionsClass_chunkingMethod=Chunking method
 AI.Collections.Code.CollectionsClass_chunkingMethod_sectionChunking=Section-based chunking
@@ -45,7 +46,7 @@ AI.Collections.Code.CollectionsClass_chunkingMethod_maxChars=Max characters chun
 AI.Collections.Code.CollectionsClass_chunkingMaxSize=Chunking max size
 AI.Collections.Code.CollectionsClass_chunkingOverlapOffset=Chunking overlap offset
 AI.Collections.Code.CollectionsClass_documentSpaces=Document spaces
-AI.Collections.Code.CollectionsClass_queryGroups=groups that can query
+AI.Collections.Code.CollectionsClass_queryGroups=Groups that can query
 AI.Collections.Code.CollectionsClass_editGroups=Groups that can manage content
 AI.Collections.Code.CollectionsClass_adminGroups=Groups that can Manage Settings
 AI.Collections.Code.CollectionsClass_rightsCheckMethod=Rights check method
@@ -76,13 +77,14 @@ collections.livetable._actions.delete=Delete
 collections.livetable.emptyvalue=-
 
 # Live table specific keys
-collections.livetable.name=Name
+collections.livetable.id=id
+collections.livetable.title=Title
 collections.livetable.embeddingModel=Embedding Model
 collections.livetable.chunkingMethod=Chunking method
 collections.livetable.chunkingMaxSize=Chunking max size
 collections.livetable.chunkingOverlapOffset=Chunking overlap offset
 collections.livetable.documentSpaces=Document spaces
-collections.livetable.queryGroups=groups that can query
+collections.livetable.queryGroups=Groups that can query
 collections.livetable.editGroups=Groups that can manage content
 collections.livetable.adminGroups=Groups that can Manage Settings
 collections.livetable.rightsCheckMethod=Rights check method

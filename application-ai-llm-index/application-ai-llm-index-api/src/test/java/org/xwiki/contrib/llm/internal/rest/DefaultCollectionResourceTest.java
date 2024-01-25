@@ -156,7 +156,7 @@ class DefaultCollectionResourceTest
     {
         JSONCollection collection = this.collectionResource.getCollection(WIKI_NAME, COLLECTION_1);
 
-        assertEquals(COLLECTION_1, collection.getName());
+        assertEquals(COLLECTION_1, collection.getID());
     }
 
     @Test
@@ -184,26 +184,26 @@ class DefaultCollectionResourceTest
     @Test
     void putCollection() throws XWikiRestException, IndexException, XWikiException
     {
-        String name = "newcollection";
+        String id = "newcollection";
         String chunkingMethod = "none";
         int chunkingMaxSize = 200;
 
         // Prepare a collection with some values.
         JSONCollection jsonCollection = new JSONCollection();
-        jsonCollection.setName(name);
+        jsonCollection.setID(id);
         jsonCollection.setChunkingMethod(chunkingMethod);
         jsonCollection.setEmbeddingModel("embedding");
         jsonCollection.setChunkingOverlapOffset(10);
         jsonCollection.setChunkingMaxSize(chunkingMaxSize);
 
         // Test creating the collection and verify the response.
-        JSONCollection createdCollection = this.collectionResource.putCollection(WIKI_NAME, name, jsonCollection);
-        assertEquals(name, createdCollection.getName());
+        JSONCollection createdCollection = this.collectionResource.putCollection(WIKI_NAME, id, jsonCollection);
+        assertEquals(id, createdCollection.getID());
         assertEquals(chunkingMethod, createdCollection.getChunkingMethod());
         assertEquals(chunkingMaxSize, createdCollection.getChunkingMaxSize());
 
         // Verify that the collection got actually created on the "server" side.
-        Collection savedCollection = getCollectionFromWiki(name);
+        Collection savedCollection = getCollectionFromWiki(id);
         assertEquals(chunkingMaxSize, savedCollection.getChunkingMaxSize());
         assertEquals(chunkingMethod, savedCollection.getChunkingMethod());
         // Update a property directly in the collection.
@@ -215,7 +215,7 @@ class DefaultCollectionResourceTest
         String updatedEmbeddingModel = "embedding2";
         jsonCollection = new JSONCollection();
         jsonCollection.setEmbeddingModel(updatedEmbeddingModel);
-        JSONCollection updatedCollection = this.collectionResource.putCollection(WIKI_NAME, name, jsonCollection);
+        JSONCollection updatedCollection = this.collectionResource.putCollection(WIKI_NAME, id, jsonCollection);
         // Verify that the update succeeded but other properties remain unchanged.
         assertEquals(updatedEmbeddingModel, updatedCollection.getEmbeddingModel());
         assertEquals(rightsCheckMethod, updatedCollection.getRightsCheckMethod());

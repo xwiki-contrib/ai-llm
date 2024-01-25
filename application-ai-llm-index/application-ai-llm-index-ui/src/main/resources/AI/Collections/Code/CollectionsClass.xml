@@ -57,7 +57,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>adminGroups</name>
-      <number>9</number>
+      <number>10</number>
       <picker>0</picker>
       <prettyName>Groups that can Manage Settings</prettyName>
       <relationalStorage>0</relationalStorage>
@@ -76,7 +76,7 @@
       <disabled>0</disabled>
       <hint/>
       <name>chunkingMaxSize</name>
-      <number>4</number>
+      <number>5</number>
       <numberType>integer</numberType>
       <prettyName>Chunking max size</prettyName>
       <size>30</size>
@@ -96,7 +96,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>0</multiSelect>
       <name>chunkingMethod</name>
-      <number>3</number>
+      <number>4</number>
       <picker>0</picker>
       <prettyName>Chunking method</prettyName>
       <relationalStorage>1</relationalStorage>
@@ -115,7 +115,7 @@
       <disabled>0</disabled>
       <hint/>
       <name>chunkingOverlapOffset</name>
-      <number>5</number>
+      <number>6</number>
       <numberType>long</numberType>
       <prettyName>Chunking overlap offset</prettyName>
       <size>30</size>
@@ -137,7 +137,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>documentSpaces</name>
-      <number>6</number>
+      <number>7</number>
       <picker>1</picker>
       <prettyName>Document spaces</prettyName>
       <relationalStorage>1</relationalStorage>
@@ -163,7 +163,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>editGroups</name>
-      <number>8</number>
+      <number>9</number>
       <picker>0</picker>
       <prettyName>Groups that can manage content</prettyName>
       <relationalStorage>0</relationalStorage>
@@ -190,7 +190,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>0</multiSelect>
       <name>embeddingModel</name>
-      <number>2</number>
+      <number>3</number>
       <picker>0</picker>
       <prettyName>Embedding Model</prettyName>
       <relationalStorage>1</relationalStorage>
@@ -211,19 +211,20 @@ AND prop.id.name = 'embeddingModels'</sql>
       <valueField>prop.name</valueField>
       <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
     </embeddingModel>
-    <name>
-      <customDisplay>{{include reference="AppWithinMinutes.Title"/}}</customDisplay>
-      <disabled>0</disabled>
+    <id>
+      <customDisplay/>
+      <disabled>1</disabled>
       <hint/>
-      <name>name</name>
+      <name>id</name>
       <number>1</number>
-      <prettyName>Name</prettyName>
-      <script/>
+      <picker>0</picker>
+      <prettyName>id</prettyName>
+      <size>30</size>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.ComputedFieldClass</classType>
-    </name>
+      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+    </id>
     <queryGroups>
       <cache>0</cache>
       <customDisplay/>
@@ -235,7 +236,7 @@ AND prop.id.name = 'embeddingModels'</sql>
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>queryGroups</name>
-      <number>7</number>
+      <number>8</number>
       <picker>0</picker>
       <prettyName>Groups that can query</prettyName>
       <relationalStorage>0</relationalStorage>
@@ -260,7 +261,7 @@ AND prop.id.name = 'embeddingModels'</sql>
       <largeStorage>0</largeStorage>
       <multiSelect>0</multiSelect>
       <name>rightsCheckMethod</name>
-      <number>10</number>
+      <number>11</number>
       <picker>0</picker>
       <prettyName>Rights check method</prettyName>
       <relationalStorage>1</relationalStorage>
@@ -279,7 +280,7 @@ AND prop.id.name = 'embeddingModels'</sql>
       <disabled>0</disabled>
       <hint/>
       <name>rightsCheckMethodParam</name>
-      <number>11</number>
+      <number>12</number>
       <picker>0</picker>
       <prettyName>Rights check method parameter (URL)</prettyName>
       <size>30</size>
@@ -288,6 +289,19 @@ AND prop.id.name = 'embeddingModels'</sql>
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
     </rightsCheckMethodParam>
+    <title>
+      <customDisplay>{{include reference="AppWithinMinutes.Title"/}}</customDisplay>
+      <disabled>0</disabled>
+      <hint/>
+      <name>title</name>
+      <number>2</number>
+      <prettyName>Title</prettyName>
+      <script/>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.ComputedFieldClass</classType>
+    </title>
   </class>
   <object>
     <name>AI.Collections.Code.CollectionsClass</name>

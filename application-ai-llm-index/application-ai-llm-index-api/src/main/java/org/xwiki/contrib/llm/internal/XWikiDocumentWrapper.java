@@ -88,6 +88,14 @@ public class XWikiDocumentWrapper
     }
 
     /**
+     * @return the last space of the document
+     */
+    public String getLastSpaceSpace()
+    {
+        return this.currentDocument.getDocumentReference().getLastSpaceReference().getName();
+    }
+
+    /**
      * @param title the title of the document
      */
     public void setTitle(String title) throws IndexException

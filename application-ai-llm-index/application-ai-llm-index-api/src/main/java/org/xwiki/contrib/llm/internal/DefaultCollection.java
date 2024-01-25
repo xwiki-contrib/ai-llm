@@ -51,6 +51,7 @@ import com.xpn.xwiki.doc.XWikiDocument;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class DefaultCollection implements Collection
 {
+    private static final String ID_FIELDNAME = "id";
     private static final String EMBEDDINGMODEL_FIELDNAME = "embeddingModel";
     private static final String CHUNKING_METHOD_FIELDNAME = "chunkingMethod";
     private static final String CHUNKING_MAX_SIZE_FIELDNAME = "chunkingMaxSize";
@@ -90,7 +91,13 @@ public class DefaultCollection implements Collection
     }
 
     @Override
-    public String getName()
+    public String getID()
+    {
+        return this.xWikiDocumentWrapper.getStringValue(ID_FIELDNAME);
+    }
+
+    @Override
+    public String getTitle()
     {
         return this.xWikiDocumentWrapper.getTitle();
     }
@@ -154,11 +161,17 @@ public class DefaultCollection implements Collection
     {
         return this.xWikiDocumentWrapper.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME);
     }
-    
+
     @Override
-    public void setName(String name) throws IndexException
+    public void setID(String id) throws IndexException
     {
-        this.xWikiDocumentWrapper.setTitle(name);
+        this.xWikiDocumentWrapper.setStringValue(ID_FIELDNAME, id);
+    }
+
+    @Override
+    public void setTitle(String title) throws IndexException
+    {
+        this.xWikiDocumentWrapper.setTitle(title);
     }
     
     @Override
@@ -244,7 +257,7 @@ public class DefaultCollection implements Collection
             XWikiContext context = this.contextProvider.get();
             context.getWiki().saveDocument(this.xWikiDocumentWrapper.getClonedXWikiDocument(), context);
         } catch (XWikiException e) {
-            throw new IndexException(String.format("Error saving collection [%s].", this.getName()), e);
+            throw new IndexException(String.format("Error saving collection [%s].", this.getID()), e);
         }
     }
     
@@ -263,7 +276,7 @@ public class DefaultCollection implements Collection
                     + "and prop.id.name = 'id' "
                     + "and obj.id = collectionProp.id.id "
                     + "and collectionProp.id.name = 'collection' "
-                    + "and collectionProp.value = '" + this.getName() + "'";
+                    + "and collectionProp.value = '" + this.getID() + "'";
          
         try {
             Query query = queryManager.createQuery(hql, Query.HQL);
@@ -308,7 +321,7 @@ public class DefaultCollection implements Collection
             document.initialize(xwikiDoc);
             document.setID(documentId);
             document.setTitle(documentId);
-            document.setCollection(this.getName());
+            document.setCollection(this.getID());
             return document;
         } catch (XWikiException e) {
             throw new IndexException("Failed to create document [" + documentId + "]", e);

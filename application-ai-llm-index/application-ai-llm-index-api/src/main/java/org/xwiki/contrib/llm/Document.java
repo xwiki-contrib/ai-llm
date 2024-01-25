@@ -137,7 +137,7 @@ public interface Document
     /**
      * Sets the collection of the document.
      *
-     * @param collection The new collection
+     * @param collection The name of the new collection
      */
     void setCollection(String collection) throws IndexException;
 

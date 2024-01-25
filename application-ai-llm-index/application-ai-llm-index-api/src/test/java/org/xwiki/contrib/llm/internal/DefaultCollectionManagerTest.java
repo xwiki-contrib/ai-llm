@@ -60,10 +60,10 @@ class DefaultCollectionManagerTest
 {
     public static final String WIKI_NAME = "testwiki";
 
-    public static final String COLLECTION_NAME = "testcollection";
+    public static final String COLLECTION_ID = "testcollection";
 
     public static final DocumentReference COLLECTION_REFERENCE =
-        new DocumentReference(WIKI_NAME, List.of("AI", "Collections", COLLECTION_NAME), "WebHome");
+        new DocumentReference(WIKI_NAME, List.of("AI", "Collections", COLLECTION_ID), "WebHome");
 
     @InjectMockitoOldcore
     private MockitoOldcore oldcore;
@@ -79,16 +79,16 @@ class DefaultCollectionManagerTest
 
         mockCollectionsQuery(List.of());
 
-        DefaultCollection collection = this.collectionManager.createCollection(COLLECTION_NAME);
+        DefaultCollection collection = this.collectionManager.createCollection(COLLECTION_ID);
 
         assertEquals(COLLECTION_REFERENCE, collection.getCollectionDocument().getDocumentReference());
-        assertEquals(COLLECTION_NAME, collection.getName());
+        assertEquals(COLLECTION_ID, collection.getID());
 
         collection.save();
 
         XWikiDocument document = this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context);
         assertNotNull(document.getXObject(Collection.XCLASS_REFERENCE));
-        assertEquals(COLLECTION_NAME, document.getTitle());
+        assertEquals(COLLECTION_ID, document.getTitle());
     }
 
     @Test
@@ -118,8 +118,8 @@ class DefaultCollectionManagerTest
         doc.setTitle(title);
         this.oldcore.getSpyXWiki().saveDocument(doc, context);
 
-        DefaultCollection collection = this.collectionManager.getCollection(COLLECTION_NAME);
-        assertEquals(title, collection.getName());
+        DefaultCollection collection = this.collectionManager.getCollection(COLLECTION_ID);
+        assertEquals(title, collection.getTitle());
     }
 
     @Test
@@ -130,13 +130,13 @@ class DefaultCollectionManagerTest
         context.setWikiId(WIKI_NAME);
         mockCollectionsQuery(List.of());
 
-        this.collectionManager.createCollection(COLLECTION_NAME).save();
-        mockCollectionsQuery(List.of(COLLECTION_NAME));
+        this.collectionManager.createCollection(COLLECTION_ID).save();
+        mockCollectionsQuery(List.of(COLLECTION_ID));
 
         assertFalse(this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).isNew());
 
         // Delete the collection
-        this.collectionManager.deleteCollection(COLLECTION_NAME, false);
+        this.collectionManager.deleteCollection(COLLECTION_ID, false);
 
         // Check that the collection has been deleted
         assertTrue(this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).isNew());
@@ -147,6 +147,6 @@ class DefaultCollectionManagerTest
     {
         this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
 
-        assertEquals(COLLECTION_REFERENCE, this.collectionManager.getDocumentReference(COLLECTION_NAME));
+        assertEquals(COLLECTION_REFERENCE, this.collectionManager.getDocumentReference(COLLECTION_ID));
     }
 }

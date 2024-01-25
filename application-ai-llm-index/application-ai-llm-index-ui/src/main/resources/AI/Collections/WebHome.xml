@@ -38,7 +38,8 @@
   <hidden>true</hidden>
   <content>{{velocity}}
 #set ($columnsProperties = {
-  'doc.title': {"displayName":"Name","link":"view"},
+  'doc.title': {"link":"view"},
+  'id': {},
   'documentSpaces': {},
   'doc.location': {"html":true},
   'doc.date': {},
@@ -54,7 +55,7 @@
   'selectedColumn': 'doc.title',
   'defaultOrder': 'asc'
 })
-#set ($columns = ['doc.title', 'documentSpaces', 'doc.location', 'doc.date', 'doc.author', '_actions'])
+#set ($columns = ['doc.title', 'id', 'documentSpaces', 'doc.location', 'doc.date', 'doc.author', '_actions'])
 #livetable('collections' $columns $columnsProperties $options)
 {{/velocity}}</content>
   <object>
@@ -130,7 +131,7 @@
       <class>AI.Collections.Code.CollectionsClass</class>
     </property>
     <property>
-      <columns>name documentSpaces doc.location doc.date doc.author _actions</columns>
+      <columns>doc.title id documentSpaces doc.location doc.date doc.author _actions</columns>
     </property>
     <property>
       <dataSpace/>

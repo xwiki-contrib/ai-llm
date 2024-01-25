@@ -39,9 +39,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @Unstable
 public class JSONCollection
 {
-    private String name;
+    private String id;
 
-
+    @JsonProperty("title")
+    private String title;
     @JsonProperty("embedding_model")
     private String embeddingModel;
     @JsonProperty("chunking_method")
@@ -77,7 +78,8 @@ public class JSONCollection
      */
     public JSONCollection(Collection collection)
     {
-        this.name = collection.getName();
+        this.id = collection.getID();
+        this.title = collection.getTitle();
         this.embeddingModel = collection.getEmbeddingModel();
         this.chunkingMethod = collection.getChunkingMethod();
         this.chunkingMaxSize = collection.getChunkingMaxSize();
@@ -97,6 +99,7 @@ public class JSONCollection
      */
     public void applyTo(Collection collection) throws IndexException
     {
+        applyTitle(collection);
         applyEmbeddingModel(collection);
         applyChunkingMethod(collection);
         applyChunkingMaxSize(collection);
@@ -108,6 +111,13 @@ public class JSONCollection
         applyRightsCheckMethod(collection);
         applyRightsCheckMethodParam(collection);
         collection.save();
+    }
+
+    private void applyTitle(Collection collection) throws IndexException
+    {
+        if (this.title != null) {
+            collection.setTitle(this.title);
+        }
     }
 
     private void applyEmbeddingModel(Collection collection) throws IndexException
@@ -183,9 +193,17 @@ public class JSONCollection
     /**
      * @return the name of the collection
      */
-    public String getName()
+    public String getID()
     {
-        return this.name;
+        return this.id;
+    }
+
+    /**
+     * @return the title of the collection
+     */
+    public String getTitle()
+    {
+        return this.id;
     }
 
     /**
@@ -269,11 +287,19 @@ public class JSONCollection
     }
 
     /**
-     * @param name the name of the collection
+     * @param id the name of the collection
      */
-    public void setName(String name)
+    public void setID(String id)
     {
-        this.name = name;
+        this.id = id;
+    }
+
+    /**
+     * @param title the name of the collection
+     */
+    public void setTitle(String title)
+    {
+        this.title = title;
     }
 
     /**
@@ -373,7 +399,8 @@ public class JSONCollection
         return new EqualsBuilder()
             .append(getChunkingMaxSize(), that.getChunkingMaxSize())
             .append(getChunkingOverlapOffset(), that.getChunkingOverlapOffset())
-            .append(getName(), that.getName())
+            .append(getID(), that.getID())
+            .append(getTitle(), that.getTitle())
             .append(getEmbeddingModel(), that.getEmbeddingModel())
             .append(getChunkingMethod(), that.getChunkingMethod())
             .append(getDocumentSpaces(), that.getDocumentSpaces())
@@ -389,7 +416,7 @@ public class JSONCollection
     public int hashCode()
     {
         return new HashCodeBuilder(17, 37)
-            .append(getName())
+            .append(getID())
             .append(getEmbeddingModel())
             .append(getChunkingMethod())
             .append(getChunkingMaxSize())
@@ -407,7 +434,8 @@ public class JSONCollection
     public String toString()
     {
         return new XWikiToStringBuilder(this)
-            .append("name", this.name)
+            .append("id", this.id)
+            .append("title", this.title)
             .append("embeddingModel", this.embeddingModel)
             .append("chunkingMethod", this.chunkingMethod)
             .append("chunkingMaxSize", this.chunkingMaxSize)

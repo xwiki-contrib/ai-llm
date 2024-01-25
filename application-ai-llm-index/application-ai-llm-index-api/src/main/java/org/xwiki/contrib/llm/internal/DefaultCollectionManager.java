@@ -64,24 +64,25 @@ public class DefaultCollectionManager implements CollectionManager
     private SolrConnector solrConnector;
 
     @Override
-    public DefaultCollection createCollection(String name) throws IndexException
+    public DefaultCollection createCollection(String id) throws IndexException
     {
         XWikiContext context = this.contextProvider.get();
-        DocumentReference documentReference = getDocumentReference(name);
+        DocumentReference documentReference = getDocumentReference(id);
         try {
             XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
             if (!xdocument.isNew()) {
                 throw new IndexException(String.format("Failed to create collection [%s], "
                                                      + "an xwiki document with the same reference [%s] already exists.",
-                                                        name, documentReference));
+                                                        id, documentReference));
             }
 
             DefaultCollection newCollection = collectionProvider.get();
             newCollection.initialize(xdocument);
-            newCollection.setName(name);
+            newCollection.setID(id);
+            newCollection.setTitle(id);
             return newCollection;
         } catch (XWikiException e) {
-            throw new IndexException(String.format("Failed to create collection [%s]", name), e);
+            throw new IndexException(String.format("Failed to create collection [%s]", id), e);
         }
     }
 
@@ -90,9 +91,13 @@ public class DefaultCollectionManager implements CollectionManager
     {
         List<String> collections = null;
         String templateDoc = Collection.XCLASS_SPACE_STRING + ".CollectionsTemplate";
-        String hql = "select doc.title from XWikiDocument doc, BaseObject obj "
-                    + "where doc.fullName=obj.name and obj.className='" + Collection.XCLASS_FULLNAME + "' "
-                    + "and doc.fullName <> '" + templateDoc + "'";
+        String hql = "select stringprop.value "
+                    +    "from XWikiDocument doc, BaseObject obj, StringProperty stringprop "
+                    +    "where doc.fullName=obj.name "
+                    +    "and obj.className='" + Collection.XCLASS_FULLNAME + "' "
+                    +    "and obj.id=stringprop.id.id "
+                    +    "and stringprop.id.name='id' "
+                    +    "and doc.fullName <> '" + templateDoc + "'";
         try {
             Query query = queryManager.createQuery(hql, Query.HQL);
             collections = query.execute();
@@ -103,11 +108,11 @@ public class DefaultCollectionManager implements CollectionManager
     }
     
     @Override
-    public DefaultCollection getCollection(String name) throws IndexException
+    public DefaultCollection getCollection(String id) throws IndexException
     {
         XWikiContext context = contextProvider.get();
         try {
-            DocumentReference documentReference = getDocumentReference(name);
+            DocumentReference documentReference = getDocumentReference(id);
             XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
             if (!xwikiDoc.isNew()) {
                 DefaultCollection collection = this.collectionProvider.get();
@@ -117,15 +122,15 @@ public class DefaultCollectionManager implements CollectionManager
                 return null;
             }
         } catch (XWikiException e) {
-            throw new IndexException(String.format("Failed to get collection with name [%s]:", name), e);
+            throw new IndexException(String.format("Failed to get collection with name [%s]:", id), e);
         }
     }
 
     @Override
-    public void deleteCollection(String name, boolean deleteDocuments) throws IndexException
+    public void deleteCollection(String id, boolean deleteDocuments) throws IndexException
     {
         try {
-            Collection collection = getCollection(name);
+            Collection collection = getCollection(id);
             if (deleteDocuments) {
                 for (String docID : collection.getDocuments()) {
                     collection.removeDocument(docID, 
@@ -134,20 +139,20 @@ public class DefaultCollectionManager implements CollectionManager
                 }
             }
             XWikiContext context = contextProvider.get();
-            DocumentReference documentReference = getDocumentReference(name);
+            DocumentReference documentReference = getDocumentReference(id);
             XWikiDocument xdocument = context.getWiki().getDocument(documentReference, context);
             context.getWiki().deleteDocument(xdocument, context);
         } catch (Exception e) {
-            throw new IndexException(String.format("Failed to delete collection [%s]", name), e);
+            throw new IndexException(String.format("Failed to delete collection [%s]", id), e);
         }
     }
 
     @Override
-    public DocumentReference getDocumentReference(String name)
+    public DocumentReference getDocumentReference(String id)
     {
         String wikiId = this.contextProvider.get().getWikiId();
         return new DocumentReference("WebHome",
-            new SpaceReference(name, new SpaceReference(wikiId, Collection.DEFAULT_COLLECTION_SPACE)));
+            new SpaceReference(id, new SpaceReference(wikiId, Collection.DEFAULT_COLLECTION_SPACE)));
     }
 
     @Override

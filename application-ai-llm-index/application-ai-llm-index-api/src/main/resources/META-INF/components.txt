@@ -10,6 +10,7 @@ org.xwiki.contrib.llm.internal.RAGChatModel
 org.xwiki.contrib.llm.internal.RAGChatModelManager
 org.xwiki.contrib.llm.script.CollectionManagerScriptService
 org.xwiki.contrib.llm.IndexWorker
+org.xwiki.contrib.llm.Migrator
 org.xwiki.contrib.llm.SolrConnector
 org.xwiki.contrib.llm.Chunk
 org.xwiki.contrib.llm.Utils

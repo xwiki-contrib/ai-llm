@@ -93,7 +93,14 @@ public interface Collection
      * 
      * @return The name of the collection.
      */
-    String getName();
+    String getID();
+
+    /**
+     * Gets the title of the collection.
+     * 
+     * @return The title of the collection.
+     */
+    String getTitle();
 
     /**
      * Gets the embedding model used by the collection.
@@ -164,14 +171,21 @@ public interface Collection
      * @return A string representing the rights check method parameter of the collection.
      */
     String getRightsCheckMethodParam();
-    
+
     /**
-     * Sets the name of the collection.
+     * Sets the id of the collection.
      * 
-     * @param name The name of the collection.
+     * @param id The id of the collection.
      */
-    void setName(String name) throws IndexException;
-    
+    void setID(String id) throws IndexException;
+
+    /**
+     * Sets the title of the collection.
+     * 
+     * @param title The title of the collection.
+     */
+    void setTitle(String title) throws IndexException;
+
     /**
      * Sets the embedding model of the collection.
      * 

@@ -131,7 +131,7 @@ public class CurrentUserCollection extends DefaultCollection
             super.save();
         } catch (XWikiException | AuthorizationException e) {
             throw new IndexException(
-                String.format("Access denied for saving collection [%s]", super.getName()), e);
+                String.format("Access denied for saving collection [%s]", super.getID()), e);
         }
     }
 }

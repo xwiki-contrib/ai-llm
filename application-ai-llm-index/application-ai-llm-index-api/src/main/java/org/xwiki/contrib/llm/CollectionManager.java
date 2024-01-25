@@ -35,10 +35,10 @@ public interface CollectionManager
     /**
      * Creates a new collection.
      *
-     * @param fullName the name of the collection
+     * @param id the id of the collection
      * @return the created collection
      */
-    Collection createCollection(String fullName) throws IndexException;
+    Collection createCollection(String id) throws IndexException;
     
     /**
      * Lists all collections.
@@ -50,23 +50,23 @@ public interface CollectionManager
     /**
      * Gets a collection by name.
      *
-     * @param name the name of the collection
+     * @param id the id of the collection
      * @return the collection with the given name
      */
-    Collection getCollection(String name) throws IndexException;
+    Collection getCollection(String id) throws IndexException;
     
     /**
      * Deletes a collection.
-     * @param name the name of the collection
+     * @param id the id of the collection
      * @param deleteDocuments if true, deletes all documents in the collection
      */
-    void deleteCollection(String name, boolean deleteDocuments) throws IndexException;
+    void deleteCollection(String id, boolean deleteDocuments) throws IndexException;
 
     /**
-     * @param name the name of the collection
+     * @param id the id of the collection
      * @return the document reference of the collection
      */
-    DocumentReference getDocumentReference(String name);
+    DocumentReference getDocumentReference(String id);
 
     /**
      * Clears the solr core of all data.
