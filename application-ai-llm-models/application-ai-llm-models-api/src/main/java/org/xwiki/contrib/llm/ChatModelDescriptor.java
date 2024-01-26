@@ -39,6 +39,9 @@ public class ChatModelDescriptor
     @JsonProperty("context_length")
     private int contextLength;
 
+    @JsonProperty("can_stream")
+    private boolean canStream;
+
     /**
      * Default constructor.
      */
@@ -52,12 +55,14 @@ public class ChatModelDescriptor
      * @param id the id of the model
      * @param name the name of the model that should be displayed to the user
      * @param contextLength the number of tokens that this model supports as context
+     * @param canStream whether the model supports streaming
      */
-    public ChatModelDescriptor(String id, String name, int contextLength)
+    public ChatModelDescriptor(String id, String name, int contextLength, boolean canStream)
     {
         this.id = id;
         this.name = name;
         this.contextLength = contextLength;
+        this.canStream = canStream;
     }
 
     /**
@@ -106,5 +111,21 @@ public class ChatModelDescriptor
     public void setContextLength(int contextLength)
     {
         this.contextLength = contextLength;
+    }
+
+    /**
+     * @return whether the model supports streaming
+     */
+    public boolean getCanStream()
+    {
+        return this.canStream;
+    }
+
+    /**
+     * @param canStream whether the model supports streaming
+     */
+    public void setCanStream(boolean canStream)
+    {
+        this.canStream = canStream;
     }
 }

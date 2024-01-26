@@ -106,13 +106,14 @@ public class OpenAIChatModelManager implements ChatModelManager
                 // and thus all models shall be exposed.
                 for (ChatModelDescriptor chatModelDescriptor : requestModels(entry.getValue())) {
                     chatModelDescriptor.setId(entry.getKey() + MODEL_SEPARATOR + chatModelDescriptor.getId());
+                    chatModelDescriptor.setCanStream(entry.getValue().getCanStream());
                     result.add(chatModelDescriptor);
                 }
             } else {
                 // Use the configured models without making an API request.
                 result.addAll(models.stream()
                     .map(name -> new ChatModelDescriptor(entry.getKey() + MODEL_SEPARATOR + name,
-                        String.format("%s (%s)", name, entry.getKey()), 0))
+                        String.format("%s (%s)", name, entry.getKey()), 0, entry.getValue().getCanStream()))
                     .collect(Collectors.toList()));
             }
         }

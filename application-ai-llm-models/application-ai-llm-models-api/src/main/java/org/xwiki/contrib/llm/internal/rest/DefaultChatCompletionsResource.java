@@ -28,6 +28,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
 
@@ -37,13 +38,16 @@ import org.xwiki.contrib.llm.ChatModel;
 import org.xwiki.contrib.llm.ChatModelManager;
 import org.xwiki.contrib.llm.ChatRequest;
 import org.xwiki.contrib.llm.ChatRequestParameters;
+import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.contrib.llm.RequestError;
 import org.xwiki.contrib.llm.rest.ChatCompletionsResource;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.user.CurrentUserReference;
 
+import com.theokanning.openai.completion.chat.ChatCompletionChoice;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
+import com.theokanning.openai.completion.chat.ChatCompletionResult;
 
 /**
  * Default implementation of {@link ChatCompletionsResource}.
@@ -64,7 +68,7 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
     {
         try {
             ChatModel model =
-                this.chatModelManager.getModel(wikiName, CurrentUserReference.INSTANCE, request.getModel());
+                this.chatModelManager.getModel(request.getModel(), CurrentUserReference.INSTANCE, wikiName);
 
             List<ChatMessage> messages = request.getMessages().stream()
                 .map(m -> new ChatMessage(m.getRole(), m.getContent()))
@@ -80,9 +84,20 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                         writer.write(line);
                         writer.flush();
                     });
-                }).build();
+                }, MediaType.TEXT_PLAIN).build();
             } else {
-                return Response.ok(model.process(chatRequest)).build();
+                // Convert to OpenAI format
+                ChatResponse chatResponse = model.process(chatRequest);
+                ChatCompletionResult result = new ChatCompletionResult();
+                result.setObject("chat.completion");
+                ChatCompletionChoice choice = new ChatCompletionChoice();
+                choice.setFinishReason(chatResponse.getFinishReason());
+                choice.setIndex(0);
+                choice.setMessage(new com.theokanning.openai.completion.chat.ChatMessage(
+                    chatResponse.getMessage().getRole(),
+                    chatResponse.getMessage().getContent()));
+                result.setChoices(List.of(choice));
+                return Response.ok(result).build();
             }
         } catch (GPTAPIException | RequestError e) {
             throw new WebApplicationException(e, Response.Status.INTERNAL_SERVER_ERROR);

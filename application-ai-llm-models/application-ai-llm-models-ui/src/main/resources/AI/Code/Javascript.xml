@@ -508,19 +508,6 @@
     }
 
     /**
-     * /!\ This method is extremely approximative and need to be change.
-     * @param {string} modelType The model type (OpenAI for example).
-     * @return {number} 2000 if its not an OpenAI model, 4000 if it is.
-     */
-    function chooseMaxToken(modelType) {
-        modelType = modelType.toLowerCase();
-        if (modelType !== 'openai') {
-            return 2000;
-        }
-        else return 4000;
-    }
-
-    /**
      * /!\ This method is extremely approximative and need to be change with appropriate tokenizer.
      * @param {JSON} query A json representation of the last context.
      * @return {number} The number of token from the specified query.
@@ -539,26 +526,19 @@
 
     /**
      * Build the parameters to send for the request.
-     * @param {string} userText The user chat input.
-     * @param {string} modelType The modelType (it's the name of the configuration the model came from).
+     * @param {array} messages The array of messages to complete
      * @param {string} model The LLM model to send the request.
-     * @param {string} prompt The system prompt to send.
-     * @param {string} context The previous context of the conversation.
-     * @param {number} temp The temperature of the chat.
-     * @return {JSON} A JSON representation of the parameters.
+     * @param {number} temperature The temperature of the chat.
+     * @return {Object} An object representing the parameters.
      */
-    function getRequestParams(userText, modelType, model, prompt, context, temp) {
+    function getRequestParams(messages, model, temperature) {
         const modelMenu = document.querySelector('#model-menu');
-        const params = {
-            text: userText,
-            modelType: modelType,
+        return {
+            messages: messages,
             model: model,
-            context: context,
-            prompt: prompt,
-            temperature: Number(temp),
-            stream: modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming"),
+            temperature: Number(temperature),
+            stream: modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming") === "true"
         };
-        return params;
     }
 
     /**
@@ -580,6 +560,7 @@
             body: JSON.stringify(params),
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRFToken': csrf
             },
             signal: globalSignal
@@ -895,9 +876,9 @@
 
     /**
      * Method called to make every request to the models.
-     * @param {JSON} options The JSON representation of the request options. 
+     * @param {JSON} options The JSON representation of the request options.
      * @param {HTMLElement} chatContent The chat box element.
-     * @param {string} model The LLM model name. 
+     * @param {string} model The LLM model name.
      * @param {string} userText The user text corresponding to this request.
      * @param {boolean} isStreaming true if the request can be streamed, else false.
      */
@@ -905,7 +886,7 @@
         changeBtnState();
         document.querySelector('#txt-input').value = '';
         const root = getRoot();
-        const URI = root !== '' ? root + "/rest/v1/chat/completions" : "/rest/v1/chat/completions";
+        const URI = `${root}/rest/wikis/${XWiki.currentWiki}/aiLLM/v1/chat/completions`;
         const start = Date.now();
         if (isStreaming === "true") {
             streamingRequest(chatContent, URI, options, start, model, userText);
@@ -1143,18 +1124,22 @@
     }
 
     /**
-     * @param {JSON} options The JSON representation of the request options.
      * @return {Promise&lt;JSON&gt;} A promise containing a JSON object with the models usable by the current user.
      */
-    function getModels(options) {
+    function getModels() {
         return new Promise((resolve, reject) =&gt; {
             const chatContent = document.querySelector('#chatContent');
             changeBtnState();
             document.querySelector('#stopRqst').style.display = "none";
             const root = getRoot();
-            const URI = root !== '' ? root + "/rest/v1/models" : "/rest/v1/models";
+            const URI = `${root}/rest/wikis/${XWiki.currentWiki}/aiLLM/v1/models`;
             chatContent.appendChild(addSystemChat('Models are loading..', null, null));
-            fetch(URI, options)
+            fetch(URI, {
+                headers: {
+                    'Accept': 'application/json'
+                },
+                signal: globalSignal
+            })
                 .then(response =&gt; {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -1162,11 +1147,11 @@
                     return response.json();
                 })
                 .then(json =&gt; {
-                    if (Object.keys(json).length === 0) {
+                    if (json.data.length === 0) {
                         throw new Error('There is no models to load');
                     }
                     else {
-                        initModelMenu(json);
+                        initModelMenu(json.data);
                         chatContent.appendChild(addSystemChat('Models are now loaded.', null, null));
                     }
                     resolve(true);
@@ -1225,9 +1210,8 @@
         const csrf = document.querySelector('#form_token').value;
         // Which model should we adress and what feature is wanted
         const modelMenu = document.querySelector('#model-menu');
-        const selectedMod = modelMenu.value;
-        const modelType = selectedMod.substring(0, selectedMod.indexOf("/"));
-        const model = selectedMod.substring(selectedMod.indexOf("/") + 1);
+        const model = modelMenu.value;
+        const contextLength = Number(modelMenu.options[modelMenu.selectedIndex].getAttribute("data-context-length"));
         let temp;
         if (paramView) {
             const sliderTempVal = parseFloat(document.querySelector('#sliderTemp').value);
@@ -1238,7 +1222,7 @@
         else
             temp = promptData.temperature;
         const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");
-        maxToken = chooseMaxToken(modelType);
+        maxToken = contextLength &gt; 0 ? maxToken : 2000;
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');
         if (promptData.prompt !== '') {
@@ -1250,8 +1234,30 @@
         chatContent.appendChild(addUserChat(userText));
         scrollToBottom();
 
-        const params = getRequestParams(userText, modelType, model, promptData.prompt, context, temp);
-        const options = getRequestOptions(params, csrf);
+        // Build the messages to send.
+        const messages = [];
+        // Add the system prompt in promptData.prompt
+        if (promptData.prompt !== '') {
+            messages.push({"role": "system", "content": promptData.prompt});
+        }
+        // Add the context messages.
+        for (let i = 0; i &lt; contextSize; i++) {
+            messages.push({"role": "user", "content": context[i].user});
+            messages.push({"role": "assistant", "content": context[i].assistant});
+        }
+        // Add the user message.
+        messages.push({"role": "user", "content": userText});
+
+        const params = getRequestParams(messages, model, temp);
+        const options = {
+            method: 'POST',
+            body: JSON.stringify(params),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            signal: globalSignal
+        };
 
         // Make the POST request with query parameters
         postRequest(options, chatContent, model, userText, isStreaming);
@@ -1412,21 +1418,17 @@
 
     /**
      * Initialize the LLM model menu.
-     * @param {JSON} modelList JSON Array containing every LLM models available for the current user.
+     * @param {Array} modelList Array containing every LLM models available for the current user.
      */
     function initModelMenu(modelList) {
         const modelMenu = document.querySelector('#model-menu');
         modelList.forEach(element =&gt; {
-            const prefix = element.prefix;
-            const filter = element.filter;
-            const filterTab = filter.split(',');
-            const isStreaming = element.canStream;
-            for (let model of element.data) {
-                const value = prefix + '/' + model.id;
-                const valueToDisplay = model.id + ' (' + prefix + ')';
-                if (filterTab.includes(model.id) || filter === '')
-                    modelMenu.innerHTML += `&lt;option value="${value}" data-streaming="${isStreaming}"&gt;${valueToDisplay}&lt;/option&gt;`
-            }
+            const optionElement = document.createElement('option');
+            optionElement.value = element.id;
+            optionElement.textContent = element.name;
+            optionElement.setAttribute('data-streaming', element.can_stream);
+            optionElement.setAttribute('data-context-length', element.context_length);
+            modelMenu.appendChild(optionElement);
         });
 
     }
@@ -1458,7 +1460,7 @@
         userRef = await getUserName();
         const csrf = document.querySelector('#form_token').value;
         const options = getRequestOptions(null, csrf);
-        Promise.all([initFormEvent(form), isUserAdmin(options), getModels(options)])
+        Promise.all([initFormEvent(form), isUserAdmin(options), getModels()])
             .then((res) =&gt; {
                 initDropMenu(res[1]);
                 if (res[2])

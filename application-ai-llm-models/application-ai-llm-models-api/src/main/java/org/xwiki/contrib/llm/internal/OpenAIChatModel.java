@@ -40,10 +40,8 @@ import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.RequestError;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.theokanning.openai.OpenAiResponse;
 import com.theokanning.openai.completion.chat.ChatCompletionChoice;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionResult;
@@ -134,13 +132,9 @@ public class OpenAIChatModel implements ChatModel
                             InputStream inputStream = entity.getContent();
                             ObjectMapper objectMapper = new ObjectMapper();
                             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                            OpenAiResponse<ChatCompletionResult> modelOpenAiResponse =
-                                objectMapper.readValue(inputStream,
-                                    new TypeReference<OpenAiResponse<ChatCompletionResult>>()
-                                    {
-                                    });
-                            List<ChatCompletionChoice> chatCompletionChoices =
-                                modelOpenAiResponse.getData().get(0).getChoices();
+                            ChatCompletionResult modelOpenAiResponse =
+                                objectMapper.readValue(inputStream, ChatCompletionResult.class);
+                            List<ChatCompletionChoice> chatCompletionChoices = modelOpenAiResponse.getChoices();
                             ChatCompletionChoice chatCompletionChoice = chatCompletionChoices.get(0);
                             com.theokanning.openai.completion.chat.ChatMessage resultMessage =
                                 chatCompletionChoice.getMessage();
