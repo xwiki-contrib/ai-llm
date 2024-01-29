@@ -37,13 +37,14 @@
   <syntaxId>plain/1.0</syntaxId>
   <hidden>true</hidden>
   <content># Class fields
-AI.Models.Code.ModelsClass_provider=Provider
+AI.Models.Code.ModelsClass_serverName=Server name
 AI.Models.Code.ModelsClass_type=Type
 AI.Models.Code.ModelsClass_type_llm=Large language model
 AI.Models.Code.ModelsClass_type_emb=Embeddings model
 AI.Models.Code.ModelsClass_model=Model id
 AI.Models.Code.ModelsClass_dimensions=Number of Dimensions
 AI.Models.Code.ModelsClass_contextSize=Context size
+AI.Models.Code.ModelsClass_groups=Group
 
 # Sheet keys
 models.sheet.description=This page controls how Models pages are displayed in both view and edit modes.
@@ -69,11 +70,12 @@ models.livetable._actions.delete=Delete
 models.livetable.emptyvalue=-
 
 # Live table specific keys
-models.livetable.provider=Provider
+models.livetable.serverName=Server name
 models.livetable.type=Type
 models.livetable.model=Model id
 models.livetable.dimensions=Number of Dimensions
 models.livetable.contextSize=Context size
+models.livetable.groups=Group
 
 # Other keys
 models.entry.name=Models

@@ -79,6 +79,28 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
       </dimensions>
+      <groups>
+        <cache>0</cache>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <hint/>
+        <multiSelect>1</multiSelect>
+        <name>groups</name>
+        <number>6</number>
+        <picker>0</picker>
+        <prettyName>Group</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators/>
+        <size>6</size>
+        <sort>none</sort>
+        <unmodifiable>0</unmodifiable>
+        <usesList>1</usesList>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
+      </groups>
       <model>
         <customDisplay/>
         <disabled>0</disabled>
@@ -93,20 +115,33 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
       </model>
-      <provider>
+      <serverName>
+        <cache>0</cache>
+        <classname>AI.Code.AIConfigClass</classname>
         <customDisplay/>
+        <defaultValue/>
         <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText/>
         <hint/>
-        <name>provider</name>
+        <idField>Name</idField>
+        <multiSelect>0</multiSelect>
+        <name>serverName</name>
         <number>1</number>
         <picker>0</picker>
-        <prettyName>Provider</prettyName>
-        <size>30</size>
+        <prettyName>Server name</prettyName>
+        <relationalStorage>1</relationalStorage>
+        <separator> </separator>
+        <separators/>
+        <size>1</size>
+        <sort>none</sort>
+        <sql/>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
         <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </provider>
+        <valueField>Name</valueField>
+        <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
+      </serverName>
       <type>
         <cache>0</cache>
         <customDisplay/>
@@ -140,10 +175,13 @@
       <dimensions/>
     </property>
     <property>
+      <groups/>
+    </property>
+    <property>
       <model>gpt-4</model>
     </property>
     <property>
-      <provider>OpenAI</provider>
+      <serverName>OpenAI</serverName>
     </property>
     <property>
       <type>llm</type>

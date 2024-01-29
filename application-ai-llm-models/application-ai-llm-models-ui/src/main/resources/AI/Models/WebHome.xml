@@ -38,8 +38,8 @@
   <hidden>true</hidden>
   <content>{{velocity}}
 #set ($columnsProperties = {
-  'doc.title': {"link":"view"},
-  'provider': {},
+  'doc.name': {"link":"view"},
+  'serverName': {},
   'model': {},
   'type': {},
   'contextSize': {},
@@ -53,10 +53,10 @@
   'tagCloud': true,
   'rowCount': 15,
   'maxPages': 10,
-  'selectedColumn': 'doc.title',
+  'selectedColumn': 'doc.name',
   'defaultOrder': 'asc'
 })
-#set ($columns = ['doc.title', 'provider', 'model', 'type', 'contextSize', 'dimensions', 'doc.author', '_actions'])
+#set ($columns = ['doc.name', 'serverName', 'model', 'type', 'contextSize', 'dimensions', 'doc.author', '_actions'])
 #livetable('models' $columns $columnsProperties $options)
 {{/velocity}}</content>
   <object>
@@ -132,7 +132,7 @@
       <class>AI.Models.Code.ModelsClass</class>
     </property>
     <property>
-      <columns>doc.title provider model type contextSize dimensions doc.author _actions</columns>
+      <columns>doc.name serverName model type contextSize dimensions doc.author _actions</columns>
     </property>
     <property>
       <dataSpace/>
