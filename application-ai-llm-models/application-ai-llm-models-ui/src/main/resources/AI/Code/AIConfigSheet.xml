@@ -69,14 +69,8 @@
   #set ($deleteURL = $configDoc.getURL('objectremove', "form_token=$!{services.csrf.getToken()}&amp;classname=${escapetool.url($configClassName)}&amp;classid=${serverObject.number}&amp;xredirect=${escapetool.url($redirect)}"))
 
 {{box}}
-|=$services.localization.render('llm.config.name') |$serverObject.display('Name', 'edit')
-|=$services.localization.render('llm.config.url') |$serverObject.display('url', 'edit')
-|=$services.localization.render('llm.config.token') |$serverObject.display('token', 'edit')
-|=$services.localization.render('llm.config.requestmode') |$serverObject.display('Requestmode', 'edit')
-|=$services.localization.render('llm.config.groups') |$serverObject.display('RightLLM', 'edit')
-|= $services.localization.render('llm.config.configfile') |$serverObject.display('languageModels', 'edit')
-|=$services.localization.render('llm.config.embeddingModels') |$serverObject.display('embeddingModels', 'edit')
-|=$services.localization.render('llm.config.delete') |=[[image:icon:cross&gt;&gt;path:$deleteURL]]
+|=$services.localization.render('llm.config.name')|=$services.localization.render('llm.config.url')|=$services.localization.render('llm.config.token')|=$services.localization.render('llm.config.requestmode')|=$services.localization.render('llm.config.delete')
+|$serverObject.display('Name', 'edit') |$serverObject.display('url', 'edit')|$serverObject.display('token', 'edit')|$serverObject.display('Requestmode', 'edit')|[[image:icon:cross&gt;&gt;path:$deleteURL]]
 {{/box}}
 
 #end
