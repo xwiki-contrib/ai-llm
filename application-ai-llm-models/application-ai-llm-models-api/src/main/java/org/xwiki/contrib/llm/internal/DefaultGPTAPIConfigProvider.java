@@ -19,29 +19,20 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.stability.Unstable;
-import org.xwiki.user.UserReference;
-import org.xwiki.user.UserReferenceSerializer;
-import org.xwiki.user.group.GroupException;
-import org.xwiki.user.group.GroupManager;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -66,42 +57,23 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider
     @Inject
     private Provider<XWikiContext> contextProvider;
 
-    @Inject
-    @Named("document")
-    private UserReferenceSerializer<DocumentReference> userReferenceSerializer;
-
-    @Inject
-    private DocumentReferenceResolver<String> documentReferenceResolver;
-
-    @Inject
-    private GroupManager groupManager;
-
     @Override
-    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki, UserReference userReference)
+    public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki)
         throws GPTAPIException
     {
         XWikiContext context = contextProvider.get();
         com.xpn.xwiki.XWiki xwiki = context.getWiki();
-        // Get the user using the Extension in the actual context.
-        DocumentReference documentUserReference = userReferenceSerializer.serialize(userReference);
-        try {
-            Collection<DocumentReference> userGroups =
-                this.groupManager.getGroups(documentUserReference, currentWiki, true);
-            return getConfigFromDoc(xwiki, context, currentWiki, userGroups);
-        } catch (GroupException e) {
-            throw new GPTAPIException("Error while trying to access the user's groups.", e);
-        }
+        return getConfigFromDoc(xwiki, context, currentWiki);
     }
 
     /**
      * @param xwiki       The XWiki instance.
      * @param context     The current XWiki context.
      * @param currentWiki The current Wiki id.
-     * @param userGroups  The list of groups containing the actual suser.
      * @return A map object of {@link #GPTAPIConfig}
      */
     private Map<String, GPTAPIConfig> getConfigFromDoc(com.xpn.xwiki.XWiki xwiki, XWikiContext context,
-            String currentWiki, Collection<DocumentReference> userGroups) throws GPTAPIException
+            String currentWiki) throws GPTAPIException
     {
         // Retrieve the LLM Configuration Objects
         Map<String, GPTAPIConfig> configProperties = new HashMap<>();
@@ -125,13 +97,7 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider
                 }
 
                 GPTAPIConfig res = new GPTAPIConfig(configObjMap);
-                boolean allowed = Arrays.stream(StringUtils.split(res.getAllowedGroup(), ','))
-                    .map(String::trim)
-                    .map(this.documentReferenceResolver::resolve)
-                    .anyMatch(userGroups::contains);
-                if (allowed) {
-                    configProperties.put(res.getName(), res);
-                }
+                configProperties.put(res.getName(), res);
             }
             return configProperties;
         } catch (XWikiException e) {

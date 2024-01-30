@@ -20,24 +20,25 @@
 package org.xwiki.contrib.llm.internal;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.EmbeddingModel;
 import org.xwiki.contrib.llm.EmbeddingModelDescriptor;
 import org.xwiki.contrib.llm.EmbeddingModelManager;
-import org.xwiki.contrib.llm.GPTAPIConfig;
-import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.stability.Unstable;
 import org.xwiki.user.UserReference;
+
+import com.xpn.xwiki.XWikiContext;
 
 /**
  * Default implementation of {@link EmbeddingModelManager}.
@@ -50,36 +51,32 @@ import org.xwiki.user.UserReference;
 @Singleton
 public class DefaultEmbeddingModelManager implements EmbeddingModelManager
 {
-    private static final String MODEL_SEPARATOR = "/";
+    @Inject
+    @Named("context")
+    private Provider<ComponentManager> componentManagerProvider;
 
     @Inject
-    private GPTAPIConfigProvider configProvider;
-
-    @Inject
-    private Provider<OpenAIEmbeddingModel> openAIEmbeddingModelProvider;
+    private Provider<XWikiContext> contextProvider;
 
     @Override
     public EmbeddingModel getModel(WikiReference wiki, String id, UserReference userReference) throws GPTAPIException
     {
-        Map<String, GPTAPIConfig> configObjects = this.configProvider.getConfigObjects(wiki.getName(), userReference);
-
-        String[] parts = StringUtils.split(id, MODEL_SEPARATOR, 2);
-        if (parts.length != 2 || StringUtils.isBlank(parts[0])) {
-            throw new GPTAPIException(String.format("Invalid model name [%s]", id));
-        }
-
-        GPTAPIConfig config = configObjects.get(parts[0]);
-
-        if (config == null) {
-            throw new GPTAPIException(String.format("No configuration with name [%s] found", parts[0]));
-        }
-
-        if (config.getEmbeddingModels().stream().map(EmbeddingModelDescriptor::getId).anyMatch(parts[1]::equals)) {
-            OpenAIEmbeddingModel model = this.openAIEmbeddingModelProvider.get();
-            model.initialize(parts[1], config);
-            return model;
-        } else {
-            throw new GPTAPIException("No model with name [" + parts[1] + "] found");
+        XWikiContext context = this.contextProvider.get();
+        String currentWiki = context.getWikiId();
+        try {
+            context.setWikiReference(wiki);
+            EmbeddingModel result = this.componentManagerProvider.get().getInstance(EmbeddingModel.class, id);
+            if (!result.hasAccess(userReference)) {
+                throw new GPTAPIException(
+                    String.format("User [%s] does not have access to embedding model [%s] in wiki [%s].",
+                        userReference, id, wiki.getName()));
+            }
+            return result;
+        } catch (ComponentLookupException e) {
+            throw new GPTAPIException(
+                String.format("Failed to get embedding model with name [%s] in wiki [%s].", id, wiki), e);
+        } finally {
+            context.setWikiId(currentWiki);
         }
     }
 
@@ -87,11 +84,20 @@ public class DefaultEmbeddingModelManager implements EmbeddingModelManager
     public List<EmbeddingModelDescriptor> getModelDescriptors(WikiReference wiki, UserReference userReference)
         throws GPTAPIException
     {
-        return this.configProvider.getConfigObjects(wiki.getName(), userReference).values().stream()
-            .flatMap(config -> config.getEmbeddingModels().stream().map(descriptor -> {
-                String id = config.getName() + MODEL_SEPARATOR + descriptor.getId();
-                return new EmbeddingModelDescriptor(id, descriptor.getName(), descriptor.getDimensions());
-            }))
-            .collect(Collectors.toList());
+        XWikiContext context = this.contextProvider.get();
+        String currentWiki = context.getWikiId();
+        try {
+            context.setWikiReference(wiki);
+
+            List<EmbeddingModel> models = this.componentManagerProvider.get().getInstanceList(EmbeddingModel.class);
+            return models.stream()
+                .filter(model -> model.hasAccess(userReference))
+                .map(EmbeddingModel::getDescriptor)
+                .collect(Collectors.toList());
+        } catch (ComponentLookupException e) {
+            throw new GPTAPIException(String.format("Failed to get embedding models in wiki [%s].", wiki), e);
+        } finally {
+            context.setWikiId(currentWiki);
+        }
     }
 }

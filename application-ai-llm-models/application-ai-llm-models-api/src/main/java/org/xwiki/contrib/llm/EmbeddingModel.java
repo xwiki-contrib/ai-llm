@@ -21,7 +21,9 @@ package org.xwiki.contrib.llm;
 
 import java.util.List;
 
+import org.xwiki.component.annotation.Role;
 import org.xwiki.stability.Unstable;
+import org.xwiki.user.UserReference;
 
 /**
  * An embedding model that can be used to embed a text.
@@ -30,6 +32,7 @@ import org.xwiki.stability.Unstable;
  * @since 0.3
  */
 @Unstable
+@Role
 public interface EmbeddingModel
 {
     /**
@@ -44,4 +47,15 @@ public interface EmbeddingModel
      * @throws RequestError when the API request fails
      */
     List<double[]> embed(List<String> texts) throws RequestError;
+
+    /**
+     * @return the descriptor of the model
+     */
+    EmbeddingModelDescriptor getDescriptor();
+
+    /**
+     * @param user the user for whom to check the access
+     * @return {@code true} if the user has access to the model, {@code false} otherwise
+     */
+    boolean hasAccess(UserReference user);
 }

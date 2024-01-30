@@ -1,11 +1,12 @@
+org.xwiki.contrib.llm.internal.ChatRequestConverter
+org.xwiki.contrib.llm.internal.ChatResponseConverter
 org.xwiki.contrib.llm.internal.DefaultChatModelManager
 org.xwiki.contrib.llm.internal.DefaultEmbeddingModelManager
 org.xwiki.contrib.llm.internal.DefaultGPTAPI
 org.xwiki.contrib.llm.internal.DefaultGPTAPIConfigProvider
 org.xwiki.contrib.llm.internal.DefaultGPTAPIPromptDBProvider
+org.xwiki.contrib.llm.internal.ModelWikiObjectComponentBuilder
 org.xwiki.contrib.llm.internal.HttpClientFactory
-org.xwiki.contrib.llm.internal.OpenAIChatModel
-org.xwiki.contrib.llm.internal.OpenAIEmbeddingModel
 org.xwiki.contrib.llm.internal.RequestHelper
 org.xwiki.contrib.llm.internal.rest.DefaultChatCompletionsResource
 org.xwiki.contrib.llm.internal.rest.DefaultModelsResource

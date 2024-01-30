@@ -23,26 +23,20 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import javax.inject.Inject;
+import java.lang.reflect.Type;
 
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.apache.hc.core5.http.HttpEntity;
-import org.xwiki.component.annotation.Component;
-import org.xwiki.component.annotation.InstantiationStrategy;
-import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
-import org.xwiki.contrib.llm.ChatMessage;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.ChatModel;
+import org.xwiki.contrib.llm.ChatModelDescriptor;
 import org.xwiki.contrib.llm.ChatRequest;
 import org.xwiki.contrib.llm.ChatResponse;
-import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.RequestError;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.theokanning.openai.completion.chat.ChatCompletionChoice;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionResult;
 
@@ -52,34 +46,33 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
  * @version $Id$
  * @since 0.3
  */
-@Component(roles = { OpenAIChatModel.class })
-@InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
-public class OpenAIChatModel implements ChatModel
+public class OpenAIChatModel extends AbstractModel implements ChatModel
 {
-
     private static final String PATH = "/chat/completions";
 
     private static final String EMPTY = "Response is empty.";
 
     private static final String RESPONSE_CODE_ERROR = "Response code is %d";
 
-    @Inject
-    private RequestHelper requestHelper;
+    private final RequestHelper requestHelper;
 
-    private GPTAPIConfig config;
+    private final ChatRequestConverter chatRequestConverter;
 
-    private String model;
+    private final ChatResponseConverter chatResponseConverter;
 
     /**
      * Initialize the model.
      *
-     * @param config the API configuration
-     * @param model the model to use
+     * @param modelConfiguration the configuration of the model
+     * @param componentManager the component manager
      */
-    public void initialize(GPTAPIConfig config, String model)
+    public OpenAIChatModel(ModelConfiguration modelConfiguration, ComponentManager componentManager) throws
+        ComponentLookupException
     {
-        this.config = config;
-        this.model = model;
+        super(modelConfiguration, componentManager);
+        this.requestHelper = componentManager.getInstance(RequestHelper.class);
+        this.chatRequestConverter = componentManager.getInstance(ChatRequestConverter.class);
+        this.chatResponseConverter = componentManager.getInstance(ChatResponseConverter.class);
     }
 
     @Override
@@ -89,10 +82,11 @@ public class OpenAIChatModel implements ChatModel
 
         // TODO: Implement this once JAX-RS 2.1 with real streaming is available. For now, fall back to non-streaming.
         // With JAX-RS 2.1, use real streaming if the model supports it, otherwise fall back to non-streaming.
-        ChatCompletionRequest chatCompletionRequest = buildChatCompletionRequest(request);
+        ChatCompletionRequest chatCompletionRequest = this.chatRequestConverter.toOpenAI(request,
+            this.modelConfiguration.getModel());
         chatCompletionRequest.setStream(true);
 
-        this.requestHelper.post(this.config,
+        this.requestHelper.post(this.getConfig(),
             PATH,
             chatCompletionRequest,
             response -> {
@@ -119,10 +113,11 @@ public class OpenAIChatModel implements ChatModel
     @Override
     public ChatResponse process(ChatRequest request) throws RequestError
     {
-        ChatCompletionRequest chatCompletionRequest = buildChatCompletionRequest(request);
+        ChatCompletionRequest chatCompletionRequest = this.chatRequestConverter.toOpenAI(request,
+            this.modelConfiguration.getModel());
 
         try {
-            return this.requestHelper.post(this.config,
+            return this.requestHelper.post(this.getConfig(),
                 PATH,
                 chatCompletionRequest,
                 response -> {
@@ -132,14 +127,8 @@ public class OpenAIChatModel implements ChatModel
                             InputStream inputStream = entity.getContent();
                             ObjectMapper objectMapper = new ObjectMapper();
                             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                            ChatCompletionResult modelOpenAiResponse =
-                                objectMapper.readValue(inputStream, ChatCompletionResult.class);
-                            List<ChatCompletionChoice> chatCompletionChoices = modelOpenAiResponse.getChoices();
-                            ChatCompletionChoice chatCompletionChoice = chatCompletionChoices.get(0);
-                            com.theokanning.openai.completion.chat.ChatMessage resultMessage =
-                                chatCompletionChoice.getMessage();
-                            return new ChatResponse(chatCompletionChoice.getFinishReason(),
-                                new ChatMessage(resultMessage.getRole(), resultMessage.getContent()));
+                            return this.chatResponseConverter.fromOpenAIResponse(
+                                objectMapper.readValue(inputStream, ChatCompletionResult.class));
                         } else {
                             throw new IOException(EMPTY);
                         }
@@ -184,22 +173,22 @@ public class OpenAIChatModel implements ChatModel
         */
     }
 
-    private ChatCompletionRequest buildChatCompletionRequest(ChatRequest request)
+    @Override
+    public Type getRoleType()
     {
-        List<com.theokanning.openai.completion.chat.ChatMessage> messages = request.getMessages().stream()
-            .map(message ->
-                new com.theokanning.openai.completion.chat.ChatMessage(message.getRole(), message.getContent()))
-            .collect(Collectors.toList());
-        return ChatCompletionRequest.builder()
-            .model(this.model)
-            .temperature(request.getParameters().getTemperature())
-            .messages(messages)
-            .build();
+        return ChatModel.class;
     }
 
     @Override
     public boolean supportsStreaming()
     {
-        return this.config.getCanStream();
+        return getConfig().getCanStream();
+    }
+
+    @Override
+    public ChatModelDescriptor getDescriptor()
+    {
+        return new ChatModelDescriptor(this.getRoleHint(), this.modelConfiguration.getName(),
+            this.modelConfiguration.getContextSize(), supportsStreaming());
     }
 }

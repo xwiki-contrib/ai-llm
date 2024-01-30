@@ -76,6 +76,11 @@
         <version>${platform.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.xwiki.platform</groupId>
+        <artifactId>xwiki-platform-component-wiki</artifactId>
+        <version>${platform.version}</version>
+      </dependency>
+      <dependency>
         <groupId>com.theokanning.openai-gpt3-java</groupId>
         <artifactId>api</artifactId>
         <version>0.18.2</version>

@@ -19,33 +19,30 @@
  */
 package org.xwiki.contrib.llm;
 
-import com.github.openjson.JSONObject;
-import org.xwiki.stability.Unstable;
-
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
-import javax.ws.rs.core.Response;
-
-import org.xwiki.component.annotation.Component;
-import org.xwiki.rest.XWikiRestException;
-import org.xwiki.rest.XWikiRestComponent;
-import org.xwiki.rest.internal.resources.pages.ModifiablePageResource;
-
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.StreamingOutput;
+import javax.ws.rs.core.Response;
 
 import org.slf4j.Logger;
-
-import java.nio.charset.StandardCharsets;
+import org.xwiki.component.annotation.Component;
 import org.xwiki.csrf.CSRFToken;
+import org.xwiki.rest.XWikiRestComponent;
+import org.xwiki.rest.XWikiRestException;
+import org.xwiki.rest.internal.resources.pages.ModifiablePageResource;
+import org.xwiki.stability.Unstable;
+
+import com.github.openjson.JSONObject;
 
 /**
  * REST API for the LLM AI extension.
@@ -89,88 +86,6 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             return false;
         }
         return true;
-    }
-
-    /**
-     * @param data    Map representing the body parameter of the
-     *                request.
-     * @param headers The http headers of the request.
-     * @return {@link javax.ws.rs.core.Response} A Response containing JSON data of
-     *         the LLM model response or a stream connection if streaming request.
-     * @throws XWikiRestException if something goes wrong.
-     */
-    @POST
-    @Path("/chat/completions")
-    @Consumes("application/json")
-    public Response getContents(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException
-    {
-        try {
-            if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
-                return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
-            }
-            for (Map.Entry<String, Object> entry : data.entrySet()) {
-                logger.info("key: " + entry.getKey() + "; value: " + entry.getValue());
-            }
-            boolean isMapEmpty = data.get("text") == null || data.get("modelType") == null || data.get("model") == null
-                    || data.get("prompt") == null;
-            if (isMapEmpty) {
-                logger.info("Invalid error data");
-                return Response.status(Response.Status.BAD_REQUEST).entity("Invalid input data.").build();
-            }
-
-            String resStr;
-            if (!data.get("stream").equals("true")) {
-                try {
-                    logger.info("thread request 1");
-                    resStr = gptApi.getLLMChatCompletion(data);
-                    logger.info("end oof thread request");
-                    JSONObject res = new JSONObject(resStr);
-                    byte[] resByte = res.toString().getBytes(StandardCharsets.UTF_8);
-                    return Response.ok(resByte, MediaType.APPLICATION_JSON).build();
-                } catch (GPTAPIException e) {
-                    logger.error("An error occured" + e);
-                    throw new Exception(e);
-                }
-            } else {
-                StreamingOutput stream = gptApi.getLLMChatCompletionAsStream(data);
-                return Response.ok(stream, MediaType.TEXT_PLAIN).build();
-            }
-        } catch (Exception e) {
-            logger.error("An error occured in REST method", e);
-            JSONObject builder = new JSONObject();
-            JSONObject root = new JSONObject();
-            root.put("error", "An error occured. " + e.getMessage());
-            builder.put("", root);
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(builder.toString())
-                    .type(MediaType.APPLICATION_JSON).build();
-        }
-    }
-
-    /**
-     * @param data    Map representing the body parameter of the
-     *                request.
-     * @param headers The http headers of the request.
-     * @return A {@link javax.ws.rs.core.Response} A Response containing JSON data
-     *         of every LLM models properties.
-     * @throws XWikiRestException if something goes wrong.
-     */
-    @POST
-    @Path("/models")
-    public Response getModels(Map<String, Object> data, @Context HttpHeaders headers) throws XWikiRestException
-    {
-        if (!isCsrfValid(headers.getRequestHeader(csrfKey))) {
-            return Response.status(Response.Status.FORBIDDEN).entity(invalidRequestMsg).build();
-        }
-        try {
-            byte[] resByte = gptApi.getModels(data).getBytes(StandardCharsets.UTF_8);
-            return Response.ok(resByte, MediaType.APPLICATION_JSON).build();
-        } catch (Exception e) {
-            logger.error("Error processing request: " + e);
-            JSONObject builder = new JSONObject();
-            builder.put("", e.getMessage());
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(builder.toString())
-                    .type(MediaType.APPLICATION_JSON).build();
-        }
     }
 
     /**

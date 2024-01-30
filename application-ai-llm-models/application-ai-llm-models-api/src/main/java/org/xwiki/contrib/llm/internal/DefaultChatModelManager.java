@@ -19,32 +19,24 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.hc.core5.http.HttpEntity;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.ChatModel;
 import org.xwiki.contrib.llm.ChatModelDescriptor;
 import org.xwiki.contrib.llm.ChatModelManager;
-import org.xwiki.contrib.llm.GPTAPIConfig;
-import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.user.UserReference;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.theokanning.openai.OpenAiResponse;
+import com.xpn.xwiki.XWikiContext;
 
 /**
  * Default implementation of {@link ChatModelManager}.
@@ -56,112 +48,53 @@ import com.theokanning.openai.OpenAiResponse;
 @Singleton
 public class DefaultChatModelManager implements ChatModelManager
 {
-    private static final String MODEL_SEPARATOR = "/";
+    @Inject
+    @Named("context")
+    private Provider<ComponentManager> componentManagerProvider;
 
     @Inject
-    private GPTAPIConfigProvider configProvider;
-
-    @Inject
-    private Provider<OpenAIChatModel> chatModelProvider;
-
-    @Inject
-    private RequestHelper requestHelper;
+    private Provider<XWikiContext> contextProvider;
 
     @Override
     public ChatModel getModel(String name, UserReference userReference, String wikiId) throws GPTAPIException
     {
-        Map<String, GPTAPIConfig> configMap = this.configProvider.getConfigObjects(wikiId, userReference);
-        String[] parts = StringUtils.split(name, MODEL_SEPARATOR, 2);
-        if (parts.length != 2 || StringUtils.isBlank(parts[0])) {
-            throw new GPTAPIException("Invalid model name [" + name + "]");
+        XWikiContext context = this.contextProvider.get();
+        String currentWiki = context.getWikiId();
+        try {
+            context.setWikiId(wikiId);
+            ChatModel result = this.componentManagerProvider.get().getInstance(ChatModel.class, name);
+            if (!result.hasAccess(userReference)) {
+                throw new GPTAPIException(
+                    String.format("User [%s] does not have access to chat model [%s] in wiki [%s].",
+                        userReference, name, wikiId));
+            }
+            return result;
+        } catch (ComponentLookupException e) {
+            throw new GPTAPIException(
+                String.format("Failed to get chat model with name [%s] in wiki [%s].", name, wikiId), e);
+        } finally {
+            context.setWikiId(currentWiki);
         }
-
-        GPTAPIConfig config = configMap.get(parts[0]);
-        if (config == null) {
-            throw new GPTAPIException("No config found for [" + parts[0] + "]");
-        }
-
-        List<String> models = config.getLanguageModels();
-        if (models != null && !models.contains(parts[1])) {
-            throw new GPTAPIException("Model [" + parts[1] + "] is not configured for [" + parts[0] + "]");
-        }
-
-        OpenAIChatModel chatModel = chatModelProvider.get();
-        chatModel.initialize(config, parts[1]);
-        return chatModel;
     }
 
     @Override
     public List<ChatModelDescriptor> getModels(UserReference userReference, String wikiId) throws GPTAPIException
     {
-        Map<String, GPTAPIConfig> configMap = this.configProvider.getConfigObjects(wikiId, userReference);
-        List<ChatModelDescriptor> result = new ArrayList<>();
-
-        for (Map.Entry<String, GPTAPIConfig> entry : configMap.entrySet()) {
-            List<String> models = entry.getValue().getLanguageModels();
-            if (models == null || models.isEmpty()) {
-                // Make an API request to get the models if the config doesn't have any
-                // and thus all models shall be exposed.
-                for (ChatModelDescriptor chatModelDescriptor : requestModels(entry.getValue())) {
-                    chatModelDescriptor.setId(entry.getKey() + MODEL_SEPARATOR + chatModelDescriptor.getId());
-                    chatModelDescriptor.setCanStream(entry.getValue().getCanStream());
-                    result.add(chatModelDescriptor);
-                }
-            } else {
-                // Use the configured models without making an API request.
-                result.addAll(models.stream()
-                    .map(name -> new ChatModelDescriptor(entry.getKey() + MODEL_SEPARATOR + name,
-                        String.format("%s (%s)", name, entry.getKey()), 0, entry.getValue().getCanStream()))
-                    .collect(Collectors.toList()));
-            }
-        }
-
-        return result;
-    }
-
-    private List<ChatModelDescriptor> requestModels(GPTAPIConfig config) throws GPTAPIException
-    {
+        XWikiContext context = this.contextProvider.get();
+        String currentWiki = context.getWikiId();
         try {
-            return this.requestHelper.get(config, "/models", response -> {
-                HttpEntity entity = response.getEntity();
-                if (entity != null) {
-                    InputStream inputStream = entity.getContent();
-                    ObjectMapper objectMapper = new ObjectMapper();
-                    objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                    OpenAiResponse<ChatModelDescriptor> modelOpenAiResponse = objectMapper
-                        .readValue(inputStream, new TypeReference<OpenAiResponse<ChatModelDescriptor>>() { });
-                    return modelOpenAiResponse.getData();
-                } else {
-                    throw new IOException("Response is empty.");
-                }
-            });
-        } catch (Exception e) {
-            throw new GPTAPIException("Failed to retrieve models from OpenAI API.", e);
-        }
-/* Using JAX-RS 2.0 APIs...
-        Client client = ClientBuilder.newClient();
-        Invocation.Builder models = client.target(config.getURL())
-            .path("models")
-            .request(MediaType.APPLICATION_JSON)
-            .header(AUTHORIZATION, BEARER + config.getToken());
+            context.setWikiId(wikiId);
 
-        GenericType<OpenAiResponse<Model>> modelResponse = new GenericType<>()
-        {
-        };
-        // FIXME this is a workaround until we can use JAX-RS 2.0
-
-
-        try {
-            // TODO: change this to use jax-rs 2.0 where we can get a response object and then read different types
-            //  of entities depending on the success/error.
-            OpenAiResponse<Model> modelOpenAiResponse = models.get(modelResponse);
-            return modelOpenAiResponse.getData().stream()
-                .map(Model::getId)
+            List<ChatModel> models = this.componentManagerProvider.get().getInstanceList(ChatModel.class);
+            return models.stream()
+                .filter(model -> model.hasAccess(userReference))
+                .map(ChatModel::getDescriptor)
                 .collect(Collectors.toList());
-        } catch (Exception e) {
-            throw new GPTAPIException("Failed to retrieve models from OpenAI API.", e);
+        } catch (ComponentLookupException e) {
+            throw new GPTAPIException(String.format("Failed to get chat models in wiki [%s].", wikiId), e);
+        } finally {
+            context.setWikiId(currentWiki);
         }
- */
     }
-
 }
+

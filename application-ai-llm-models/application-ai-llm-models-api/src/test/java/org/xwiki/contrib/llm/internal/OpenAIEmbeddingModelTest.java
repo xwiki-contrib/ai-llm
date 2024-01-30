@@ -24,6 +24,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+import javax.inject.Named;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -38,12 +41,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.contrib.llm.GPTAPIConfig;
+import org.xwiki.contrib.llm.GPTAPIConfigProvider;
+import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.contrib.llm.RequestError;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.ComponentTest;
-import org.xwiki.test.junit5.mockito.InjectMockComponents;
+import org.xwiki.test.junit5.mockito.InjectComponentManager;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.test.mockito.MockitoComponentManager;
+import org.xwiki.user.UserReferenceSerializer;
+import org.xwiki.user.group.GroupManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -64,6 +74,12 @@ class OpenAIEmbeddingModelTest
     private static final String URL = "https://api.openai.com/v1/";
 
     private static final String MODEL = "text-embedding-ada-002";
+
+    private static final String SERVER_NAME = "LocalAI";
+
+    private static final String WIKI_NAME = "wiki";
+
+    private static final DocumentReference DOCUMENT_REFERENCE = new DocumentReference(WIKI_NAME, "space", "modelPage");
 
     /**
      * Example response taken from
@@ -92,6 +108,19 @@ class OpenAIEmbeddingModelTest
     @MockComponent
     private HttpClientFactory httpClientFactory;
 
+    @MockComponent
+    private GPTAPIConfigProvider configProvider;
+
+    @MockComponent
+    private GroupManager groupManager;
+
+    @MockComponent
+    @Named("document")
+    private UserReferenceSerializer<DocumentReference> userReferenceSerializer;
+
+    @InjectComponentManager
+    private MockitoComponentManager componentManager;
+
     @Mock
     private CloseableHttpClient httpClient;
 
@@ -101,11 +130,8 @@ class OpenAIEmbeddingModelTest
     @Mock
     private GPTAPIConfig config;
 
-    @InjectMockComponents
-    private OpenAIEmbeddingModel openAIEmbeddingModel;
-
     @BeforeEach
-    void setUp() throws IOException
+    void setUp() throws IOException, GPTAPIException
     {
         when(this.httpClientFactory.createHttpClient()).thenReturn(this.httpClient);
         when(this.httpClient.execute(any(ClassicHttpRequest.class), any(HttpClientResponseHandler.class)))
@@ -115,18 +141,27 @@ class OpenAIEmbeddingModelTest
             });
         when(this.config.getToken()).thenReturn(TOKEN);
         when(this.config.getURL()).thenReturn(URL);
+
+        when(this.configProvider.getConfigObjects(WIKI_NAME)).thenReturn(Map.of(SERVER_NAME, this.config));
+
     }
 
     @Test
-    void embed() throws IOException, RequestError, URISyntaxException
+    void embed() throws IOException, RequestError, URISyntaxException, ComponentLookupException
     {
         when(this.httpResponse.getCode()).thenReturn(200);
         try (HttpEntity entity = mock(HttpEntity.class)) {
             when(this.httpResponse.getEntity()).thenReturn(entity);
             when(entity.getContent()).thenReturn(IOUtils.toInputStream(EMBEDDING_RESPONSE, StandardCharsets.UTF_8));
 
-            this.openAIEmbeddingModel.initialize(MODEL, this.config);
-            double[] embedding = this.openAIEmbeddingModel.embed(INPUT);
+            ModelConfiguration modelConfiguration = new ModelConfiguration();
+            modelConfiguration.setModel(MODEL);
+            modelConfiguration.setServerName(SERVER_NAME);
+            modelConfiguration.setDocumentReference(DOCUMENT_REFERENCE);
+
+            OpenAIEmbeddingModel openAIEmbeddingModel =
+                new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
+            double[] embedding = openAIEmbeddingModel.embed(INPUT);
             assertEquals(3, embedding.length);
             assertEquals(0.0023064255, embedding[0]);
             assertEquals(-0.009327292, embedding[1]);
@@ -150,16 +185,22 @@ class OpenAIEmbeddingModelTest
     }
 
     @Test
-    void embedWithError() throws IOException
+    void embedWithError() throws IOException, ComponentLookupException
     {
         when(this.httpResponse.getCode()).thenReturn(400);
         try (HttpEntity entity = mock(HttpEntity.class)) {
             when(this.httpResponse.getEntity()).thenReturn(entity);
             when(entity.getContent()).thenReturn(new ByteArrayInputStream("".getBytes(StandardCharsets.UTF_8)));
-            this.openAIEmbeddingModel.initialize(MODEL, this.config);
+            ModelConfiguration modelConfiguration = new ModelConfiguration();
+            modelConfiguration.setModel(MODEL);
+            modelConfiguration.setServerName(SERVER_NAME);
+            modelConfiguration.setDocumentReference(DOCUMENT_REFERENCE);
+
+            OpenAIEmbeddingModel openAIEmbeddingModel =
+                new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
+
             RequestError exception = assertThrows(
-                RequestError.class,
-                () -> this.openAIEmbeddingModel.embed(INPUT)
+                RequestError.class, () -> openAIEmbeddingModel.embed(INPUT)
             );
             assertEquals("500: No content to map due to end-of-input\n"
                 + " at [Source: (ByteArrayInputStream); line: 1, column: 0]", exception.getMessage());

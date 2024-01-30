@@ -20,17 +20,15 @@
 package org.xwiki.contrib.llm.internal;
 
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import javax.inject.Inject;
-
 import org.apache.hc.core5.http.HttpEntity;
-import org.xwiki.component.annotation.Component;
-import org.xwiki.component.annotation.InstantiationStrategy;
-import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.EmbeddingModel;
-import org.xwiki.contrib.llm.GPTAPIConfig;
+import org.xwiki.contrib.llm.EmbeddingModelDescriptor;
 import org.xwiki.contrib.llm.RequestError;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -47,27 +45,22 @@ import com.theokanning.openai.embedding.EmbeddingRequest;
  * @version $Id$
  * @since 0.3
  */
-@Component(roles = OpenAIEmbeddingModel.class)
-@InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
-public class OpenAIEmbeddingModel implements EmbeddingModel
+public class OpenAIEmbeddingModel extends AbstractModel implements EmbeddingModel
 {
-    @Inject
-    private RequestHelper requestHelper;
-
-    private String id;
-
-    private GPTAPIConfig config;
+    private final RequestHelper requestHelper;
 
     /**
-     * Initialize the model.
+     * Constructor.
      *
-     * @param id the id of the model
-     * @param config the configuration object for this model
+     * @param config the model configuration
+     * @param componentManager the component manager
+     * @throws ComponentLookupException if a component cannot be found
      */
-    public void initialize(String id, GPTAPIConfig config)
+    public OpenAIEmbeddingModel(ModelConfiguration config, ComponentManager componentManager)
+        throws ComponentLookupException
     {
-        this.id = id;
-        this.config = config;
+        super(config, componentManager);
+        this.requestHelper = componentManager.getInstance(RequestHelper.class);
     }
 
     @Override
@@ -79,10 +72,10 @@ public class OpenAIEmbeddingModel implements EmbeddingModel
     @Override
     public List<double[]> embed(List<String> texts) throws RequestError
     {
-        EmbeddingRequest request = new EmbeddingRequest(this.id, texts, null);
+        EmbeddingRequest request = new EmbeddingRequest(this.modelConfiguration.getModel(), texts, null);
 
         try {
-            return this.requestHelper.post(this.config, "embeddings", request, response -> {
+            return this.requestHelper.post(getConfig(), "embeddings", request, response -> {
                 ObjectMapper objectMapper = new ObjectMapper();
                 objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -117,5 +110,18 @@ public class OpenAIEmbeddingModel implements EmbeddingModel
         } catch (IOException e) {
             throw new RequestError(500, e.getMessage());
         }
+    }
+
+    @Override
+    public EmbeddingModelDescriptor getDescriptor()
+    {
+        return new EmbeddingModelDescriptor(getRoleHint(), this.modelConfiguration.getName(),
+            this.modelConfiguration.getDimensions());
+    }
+
+    @Override
+    public Type getRoleType()
+    {
+        return EmbeddingModel.class;
     }
 }

@@ -22,7 +22,9 @@ package org.xwiki.contrib.llm;
 import java.io.IOException;
 
 import org.apache.commons.lang3.function.FailableConsumer;
+import org.xwiki.component.annotation.Role;
 import org.xwiki.stability.Unstable;
+import org.xwiki.user.UserReference;
 
 /**
  * A chat model that can be used to process a chat request.
@@ -35,6 +37,7 @@ import org.xwiki.stability.Unstable;
  * @since 0.3
  */
 @Unstable
+@Role
 public interface ChatModel
 {
     /**
@@ -55,4 +58,15 @@ public interface ChatModel
      * @return {@code true} if the model supports streaming, {@code false} otherwise
      */
     boolean supportsStreaming();
+
+    /**
+     * @return the descriptor of the model
+     */
+    ChatModelDescriptor getDescriptor();
+
+    /**
+     * @param user the user to check access for
+     * @return {@code true} if the user has access to the model, {@code false} otherwise
+     */
+    boolean hasAccess(UserReference user);
 }

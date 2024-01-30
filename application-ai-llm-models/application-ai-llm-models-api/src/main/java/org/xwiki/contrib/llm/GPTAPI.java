@@ -19,15 +19,10 @@
  */
 package org.xwiki.contrib.llm;
 
-import org.apache.commons.httpclient.methods.PostMethod;
-import org.codehaus.janino.Java;
-import org.xwiki.component.annotation.Component;
-import org.xwiki.component.annotation.Role;
-import org.xwiki.user.UserReference;
-
 import java.util.Map;
 
-import javax.ws.rs.core.StreamingOutput;
+import org.xwiki.component.annotation.Component;
+import org.xwiki.component.annotation.Role;
 
 /**
  * The GPTAPI interface defines methods for interacting with the XWiki instances
@@ -40,57 +35,6 @@ import javax.ws.rs.core.StreamingOutput;
 @Role
 public interface GPTAPI 
 {
-    /**
-     * This method is used for test purpose only. It is a basic representation of
-     * the
-     * {@link GPTRestAPI#getContents(Java.util.Map, javax.ws.rs.core.HttpHeaders)}
-     * method.
-     * 
-     * @param data Map representing the body parameter of the
-     *             request.
-     * @return A string representation of the JSON object resulting from the
-     *         request.
-     * @throws GPTAPIException if something goes wrong.
-     */
-    String getLLMChatCompletion(Map<String, Object> data) throws GPTAPIException;
-
-    /**
-     * @param data Map representing the body parameter of the
-     *             request.
-     * @return A {@link javax.ws.rs.core.StreamingOutput} to stream the result.
-     * @throws GPTAPIException if something goes wrong.
-     */
-    StreamingOutput getLLMChatCompletionAsStream(Map<String, Object> data) throws GPTAPIException;
-
-    /**
-     * @param data Map representing the body parameter of the
-     *             request.
-     * @return The {@link org.apache.commons.httpclient.methods.PostMethod} object
-     *         corresponding to the request.
-     * @throws GPTAPIException if something goes wrong.
-     */
-    PostMethod requestBuilder(Map<String, Object> data) throws GPTAPIException;
-
-    /**
-     * @param data Map representing the body parameter of the
-     *             request.
-     * @return A String representation of a JSON Array containing LLM models
-     *         available.
-     * @throws GPTAPIException if something goes wrong.
-     */
-    String getModels(Map<String, Object> data) throws GPTAPIException;
-
-    /**
-     * @param id          The key used to retrieve the corresponding configuration.
-     * @param currentWiki The identifier of the wiki from which the request
-     *                    originated.
-     * @param userReference The user the request came from.
-     * @return The corresponding {@link GPTAPIConfig} object.
-     * @throws GPTAPIException if something goes wrong. Will return default
-     *                         {@link GPTAPIConfig} in such case.
-     */
-    GPTAPIConfig getConfig(String id, String currentWiki, UserReference userReference) throws GPTAPIException;
-
     /**
      * @param data Map representing the body parameter of the
      *             request.

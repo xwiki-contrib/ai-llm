@@ -19,13 +19,7 @@
  */
 package org.xwiki.contrib.llm;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-
-import org.apache.commons.lang3.StringUtils;
 
 /**
  * A class representing an LLM AI extension confifuration as a java object.
@@ -33,16 +27,11 @@ import org.apache.commons.lang3.StringUtils;
  */
 public class GPTAPIConfig 
 {
-    private static final String MODEL_SEPARATOR = ",";
-    
     private String name;
     private String url;
-    private List<String> languageModels;
     private String token;
     private boolean canStream;
-    private String allowedGroup;
-    
-    private final List<EmbeddingModelDescriptor> embeddingModels;
+
     /**
      * Take a map representation of a GPTAPIConfig object as a parameter and build a
      * GPTAPIConfig object from it.
@@ -58,20 +47,7 @@ public class GPTAPIConfig
         } else {
             this.canStream = false;
         }
-        this.allowedGroup = (String) properties.get("RightLLM");
 
-        Object languageModelsProp = properties.get("languageModels");
-        if (languageModelsProp instanceof List) {
-            this.languageModels = ((List<?>) languageModelsProp)
-                                    .stream()
-                                    .filter(String.class::isInstance)
-                                    .map(String.class::cast)
-                                    .collect(Collectors.toList());
-        } else {
-            this.languageModels = new ArrayList<>();
-        }
-        String embeddingModelConfig = (String) properties.get("embeddingModels");
-        this.embeddingModels = getEmbeddingModelDescriptors(embeddingModelConfig);
     }
 
     /**
@@ -81,25 +57,6 @@ public class GPTAPIConfig
     public GPTAPIConfig()
     {
         this.name = "default";
-        this.embeddingModels = null;
-    }
-
-    private List<EmbeddingModelDescriptor> getEmbeddingModelDescriptors(String embeddingModelConfig)
-    {
-        return Arrays.stream(StringUtils.split(embeddingModelConfig, MODEL_SEPARATOR))
-            .map(String::trim)
-            .map(model -> StringUtils.split(model, ":", 2))
-            .map(model -> {
-                String displayName = String.format("%s (%s)", model[0], this.name);
-                int dimensions;
-                if (model.length == 1) {
-                    dimensions = 0;
-                } else {
-                    dimensions = Integer.parseInt(model[1]);
-                }
-                return new EmbeddingModelDescriptor(model[0], displayName, dimensions);
-            })
-            .collect(Collectors.toList());
     }
 
     /**
@@ -119,14 +76,6 @@ public class GPTAPIConfig
     }
 
     /**
-     * @return The LLM models of the GPTAPIConfig as a List of Strings.
-     */
-    public List<String> getLanguageModels()
-    {
-        return languageModels;
-    }
-
-    /**
      * @return The token of the GPTAPIConfig as a String.
      */
     public String getToken()
@@ -143,22 +92,6 @@ public class GPTAPIConfig
     }
 
     /**
-     * @return The XWiki group allowed to use this GPTAPIConfig in a String.
-     */
-    public String getAllowedGroup()
-    {
-        return allowedGroup;
-    }
-
-    /**
-     * @return The list of embedding models descriptors.
-     */
-    public List<EmbeddingModelDescriptor> getEmbeddingModels()
-    {
-        return this.embeddingModels;
-    }
-
-    /**
      * @return A String representation of the GPTAPIConfig object.
      */
     @Override
@@ -166,10 +99,8 @@ public class GPTAPIConfig
     {
         String res = "Name : " + name;
         res += " URL : " + url;
-        res += ", Language Models: " + String.join(MODEL_SEPARATOR, languageModels);
         res += " Token : " + token;
         res += " canStream : " + canStream;
-        res += " allowedGroup : " + allowedGroup;
         return res;
     }
 }
