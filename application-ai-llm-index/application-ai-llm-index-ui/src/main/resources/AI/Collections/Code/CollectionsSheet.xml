@@ -56,6 +56,12 @@
 }))
 #set ($discard = $doc.use($object))
 #set ($editing = $xcontext.action == 'edit')
+#set ($obj = $doc.getObject('AI.Collections.Code.CollectionsClass'))
+#if($obj.getProperty('id').value == '')
+  #set ($lastSpace = "$doc.getDocumentReference().getLastSpaceReference()")
+  #set ($idVal = $lastSpace.split('\.')[-1])
+  #set ($ok = $obj.set('id', $idVal))
+#end
 {{html wiki="true" clean="false"}}
 &lt;div class="xform"&gt;
   &lt;dl&gt;
