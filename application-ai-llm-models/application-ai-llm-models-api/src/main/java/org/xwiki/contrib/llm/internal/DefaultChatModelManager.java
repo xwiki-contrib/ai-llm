@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -89,6 +90,7 @@ public class DefaultChatModelManager implements ChatModelManager
             return models.stream()
                 .filter(model -> model.hasAccess(userReference))
                 .map(ChatModel::getDescriptor)
+                .sorted(Comparator.comparing(ChatModelDescriptor::getName))
                 .collect(Collectors.toList());
         } catch (ComponentLookupException e) {
             throw new GPTAPIException(String.format("Failed to get chat models in wiki [%s].", wikiId), e);

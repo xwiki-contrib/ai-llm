@@ -176,7 +176,7 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
         modelConfiguration.setContextSize(xObject.getIntValue(CONTEXT_SIZE_FIELD));
         modelConfiguration.setId(this.localEntityReferenceSerializer.serialize(xObject.getDocumentReference()));
         modelConfiguration.setName(xObject.getOwnerDocument().getTitle());
-        modelConfiguration.setDocumentReference(xObject.getDocumentReference());
+        modelConfiguration.setObjectReference(xObject.getReference());
         modelConfiguration.setAuthor(xObject.getOwnerDocument().getAuthors().getEffectiveMetadataAuthor());
         modelConfiguration.setAllowedGroups(groups);
         return modelConfiguration;

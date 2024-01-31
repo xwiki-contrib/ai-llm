@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm.internal;
 import java.util.List;
 
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.ObjectReference;
 import org.xwiki.user.UserReference;
 
 /**
@@ -46,7 +47,7 @@ public class ModelConfiguration
 
     private List<DocumentReference> allowedGroups;
 
-    private DocumentReference documentReference;
+    private ObjectReference objectReference;
 
     private UserReference author;
 
@@ -99,11 +100,11 @@ public class ModelConfiguration
     }
 
     /**
-     * @return the document reference of the document containing the model configuration
+     * @return the reference of the object that contains the model configuration
      */
-    public DocumentReference getDocumentReference()
+    public ObjectReference getObjectReference()
     {
-        return this.documentReference;
+        return this.objectReference;
     }
 
     /**
@@ -179,11 +180,11 @@ public class ModelConfiguration
     }
 
     /**
-     * @param documentReference the document reference of the document containing the model configuration
+     * @param objectReference the reference of the object that contains the model configuration
      */
-    public void setDocumentReference(DocumentReference documentReference)
+    public void setObjectReference(ObjectReference objectReference)
     {
-        this.documentReference = documentReference;
+        this.objectReference = objectReference;
     }
 
     /**

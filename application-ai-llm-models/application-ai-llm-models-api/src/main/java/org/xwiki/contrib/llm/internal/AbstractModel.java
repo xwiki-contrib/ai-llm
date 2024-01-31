@@ -31,6 +31,7 @@ import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.user.UserReference;
 import org.xwiki.user.UserReferenceSerializer;
@@ -69,7 +70,13 @@ public abstract class AbstractModel implements WikiComponent
     @Override
     public DocumentReference getDocumentReference()
     {
-        return this.modelConfiguration.getDocumentReference();
+        return this.modelConfiguration.getObjectReference().getDocumentReference();
+    }
+
+    @Override
+    public EntityReference getEntityReference()
+    {
+        return this.modelConfiguration.getObjectReference();
     }
 
     @Override
@@ -87,12 +94,17 @@ public abstract class AbstractModel implements WikiComponent
     protected GPTAPIConfig getConfig()
     {
         try {
-            String wiki = this.modelConfiguration.getDocumentReference().getWikiReference().getName();
+            String wiki = getWikiReference().getName();
             return this.configProvider.getConfigObjects(wiki).get(this.modelConfiguration.getServerName());
         } catch (GPTAPIException e) {
             LOGGER.warn("Failed to get config for server [{}]", this.modelConfiguration.getServerName(), e);
             return null;
         }
+    }
+
+    private WikiReference getWikiReference()
+    {
+        return this.modelConfiguration.getObjectReference().getDocumentReference().getWikiReference();
     }
 
     @Override
@@ -108,10 +120,9 @@ public abstract class AbstractModel implements WikiComponent
     public boolean hasAccess(UserReference user)
     {
         DocumentReference documentUserReference = this.userReferenceSerializer.serialize(user);
-        WikiReference currentWiki = this.modelConfiguration.getDocumentReference().getWikiReference();
         Collection<DocumentReference> userGroups;
         try {
-            userGroups = this.groupManager.getGroups(documentUserReference, currentWiki, true);
+            userGroups = this.groupManager.getGroups(documentUserReference, getWikiReference(), true);
         } catch (GroupException e) {
             LOGGER.warn("Failed to get groups for user [{}]", documentUserReference, e);
             return false;

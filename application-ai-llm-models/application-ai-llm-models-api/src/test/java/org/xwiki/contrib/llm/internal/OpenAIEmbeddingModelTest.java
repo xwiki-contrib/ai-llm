@@ -47,6 +47,7 @@ import org.xwiki.contrib.llm.GPTAPIConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.contrib.llm.RequestError;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.ObjectReference;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectComponentManager;
@@ -80,6 +81,9 @@ class OpenAIEmbeddingModelTest
     private static final String WIKI_NAME = "wiki";
 
     private static final DocumentReference DOCUMENT_REFERENCE = new DocumentReference(WIKI_NAME, "space", "modelPage");
+
+    private static final ObjectReference OBJECT_REFERENCE = new ObjectReference("AI.Models.Code.ModelsClass[0]",
+        DOCUMENT_REFERENCE);
 
     /**
      * Example response taken from
@@ -143,7 +147,6 @@ class OpenAIEmbeddingModelTest
         when(this.config.getURL()).thenReturn(URL);
 
         when(this.configProvider.getConfigObjects(WIKI_NAME)).thenReturn(Map.of(SERVER_NAME, this.config));
-
     }
 
     @Test
@@ -157,7 +160,7 @@ class OpenAIEmbeddingModelTest
             ModelConfiguration modelConfiguration = new ModelConfiguration();
             modelConfiguration.setModel(MODEL);
             modelConfiguration.setServerName(SERVER_NAME);
-            modelConfiguration.setDocumentReference(DOCUMENT_REFERENCE);
+            modelConfiguration.setObjectReference(OBJECT_REFERENCE);
 
             OpenAIEmbeddingModel openAIEmbeddingModel =
                 new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
@@ -194,7 +197,7 @@ class OpenAIEmbeddingModelTest
             ModelConfiguration modelConfiguration = new ModelConfiguration();
             modelConfiguration.setModel(MODEL);
             modelConfiguration.setServerName(SERVER_NAME);
-            modelConfiguration.setDocumentReference(DOCUMENT_REFERENCE);
+            modelConfiguration.setObjectReference(OBJECT_REFERENCE);
 
             OpenAIEmbeddingModel openAIEmbeddingModel =
                 new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
