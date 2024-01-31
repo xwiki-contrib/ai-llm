@@ -56,6 +56,10 @@
 }))
 #set ($discard = $doc.use($object))
 #set ($editing = $xcontext.action == 'edit')
+#set ($obj = $doc.getObject('AI.Documents.Code.DocumentsClass'))
+#if($obj.getProperty('id').value == '')
+  #set ($ok = $obj.set('id', $doc.title))
+#end
 {{html wiki="true" clean="false"}}
 &lt;div class="xform"&gt;
   &lt;dl&gt;
