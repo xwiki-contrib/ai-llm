@@ -64,9 +64,14 @@ import com.xpn.xwiki.objects.BaseObject;
 @Singleton
 public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuilder
 {
+    private static final List<String> SPACE_NAMES = List.of("AI", "Models", "Code");
+
     // Local reference to the class AI.Models.Code.ModelsClass that should trigger the builder.
     private static final LocalDocumentReference CLASS_REFERENCE =
-        new LocalDocumentReference(List.of("AI", "Models", "Code"), "ModelsClass");
+        new LocalDocumentReference(SPACE_NAMES, "ModelsClass");
+
+    private static final LocalDocumentReference TEMPLATE_REFERENCE =
+        new LocalDocumentReference(SPACE_NAMES, "ModelsTemplate");
 
     /**
      * The name of the field containing the type of the model.
@@ -134,15 +139,21 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
     @Override
     public List<WikiComponent> buildComponents(ObjectReference reference) throws WikiComponentException
     {
+        DocumentReference documentReference = reference.getDocumentReference();
+        // Skip the template document.
+        if (TEMPLATE_REFERENCE.equals(documentReference.getLocalDocumentReference())) {
+            return List.of();
+        }
+
         XWikiContext context = this.contextProvider.get();
         try {
-            XWikiDocument document = context.getWiki().getDocument(reference.getDocumentReference(), context);
+            XWikiDocument document = context.getWiki().getDocument(documentReference, context);
             // Check wiki admin rights.
             if (!this.authorizationManager.hasAccess(Right.ADMIN, document.getAuthorReference(),
-                document.getDocumentReference().getWikiReference())) {
+                documentReference.getWikiReference())) {
                 throw new WikiComponentException(String.format(
                     "Failed to build component for object [%s], user [%s] does not have admin rights on the wiki.",
-                    reference, document.getDocumentReference()));
+                    reference, documentReference));
             }
 
             BaseObject xObject = document.getXObject(reference);
