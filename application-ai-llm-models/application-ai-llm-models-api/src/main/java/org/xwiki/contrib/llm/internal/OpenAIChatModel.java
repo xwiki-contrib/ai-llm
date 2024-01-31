@@ -29,9 +29,8 @@ import org.apache.commons.lang3.function.FailableConsumer;
 import org.apache.hc.core5.http.HttpEntity;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.contrib.llm.ChatModel;
-import org.xwiki.contrib.llm.ChatModelDescriptor;
 import org.xwiki.contrib.llm.ChatRequest;
+import org.xwiki.contrib.llm.ChatRequestFilter;
 import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.RequestError;
 
@@ -46,7 +45,7 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
  * @version $Id$
  * @since 0.3
  */
-public class OpenAIChatModel extends AbstractModel implements ChatModel
+public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
 {
     private static final String PATH = "/chat/completions";
 
@@ -73,6 +72,12 @@ public class OpenAIChatModel extends AbstractModel implements ChatModel
         this.requestHelper = componentManager.getInstance(RequestHelper.class);
         this.chatRequestConverter = componentManager.getInstance(ChatRequestConverter.class);
         this.chatResponseConverter = componentManager.getInstance(ChatResponseConverter.class);
+    }
+
+    @Override
+    public void setNext(ChatRequestFilter next)
+    {
+        // Ignored, this is the last filter.
     }
 
     @Override
@@ -176,19 +181,6 @@ public class OpenAIChatModel extends AbstractModel implements ChatModel
     @Override
     public Type getRoleType()
     {
-        return ChatModel.class;
-    }
-
-    @Override
-    public boolean supportsStreaming()
-    {
-        return getConfig().getCanStream();
-    }
-
-    @Override
-    public ChatModelDescriptor getDescriptor()
-    {
-        return new ChatModelDescriptor(this.getRoleHint(), this.modelConfiguration.getName(),
-            this.modelConfiguration.getContextSize(), supportsStreaming());
+        return ChatRequestFilter.class;
     }
 }

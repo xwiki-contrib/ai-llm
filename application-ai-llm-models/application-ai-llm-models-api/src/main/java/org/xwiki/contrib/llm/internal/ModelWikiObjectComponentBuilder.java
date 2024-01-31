@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,6 +36,8 @@ import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.component.wiki.WikiComponent;
 import org.xwiki.component.wiki.WikiComponentException;
 import org.xwiki.component.wiki.WikiObjectComponentBuilder;
+import org.xwiki.contrib.llm.ChatRequestFilter;
+import org.xwiki.contrib.llm.ChatRequestFilterBuilder;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
@@ -148,7 +151,9 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
 
             String modelType = xObject.getStringValue(TYPE_FIELD);
             if (TYPE_LLM.equals(modelType)) {
-                return List.of(new OpenAIChatModel(modelConfiguration, this.componentManager));
+                List<ChatRequestFilter> filters = getChatRequestFilters(document);
+
+                return List.of(new FilteringOpenAIChatModel(modelConfiguration, filters, this.componentManager));
             } else if (TYPE_EMBEDDING.equals(modelType)) {
                 return List.of(new OpenAIEmbeddingModel(modelConfiguration, this.componentManager));
             } else {
@@ -159,6 +164,21 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
         } catch (ComponentLookupException e) {
             throw new WikiComponentException(String.format("Failed to lookup components for [%s]", reference), e);
         }
+    }
+
+    private List<ChatRequestFilter> getChatRequestFilters(XWikiDocument document) throws ComponentLookupException
+    {
+        // Get all filter builders and build the respective filter components.
+        List<ChatRequestFilterBuilder> filterBuilders =
+            this.componentManager.getInstanceList(ChatRequestFilterBuilder.class);
+        List<ChatRequestFilter> filters = new ArrayList<>();
+        for (ChatRequestFilterBuilder filterBuilder : filterBuilders) {
+            BaseObject filterObject = document.getXObject(filterBuilder.getClassReference());
+            if (filterObject != null) {
+                filters.addAll(filterBuilder.build(filterObject));
+            }
+        }
+        return filters;
     }
 
     private ModelConfiguration buildModelConfiguration(BaseObject xObject)

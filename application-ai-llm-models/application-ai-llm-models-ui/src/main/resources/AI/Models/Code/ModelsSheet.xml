@@ -114,6 +114,19 @@
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('groups')&lt;/dd&gt;
   &lt;/dl&gt;
+  &lt;div class="llm-chat-filters"&gt;
+    == {{translation key="llm.models.filter.title" /}} ==
+
+    ## Save any added objects
+    &lt;div hidden&gt;
+    &lt;input type="hidden" name="objectPolicy" value="updateOrCreate" /&gt;
+    &lt;/div&gt;
+
+    #foreach($filter in $services.llm.models.chatRequestFilters)
+      #set ($object = $doc.getObject($filter.classReference, true))
+      {{include reference="$services.rendering.escape($filter.sheetReference, 'xwiki/2.1')" author="target" /}}
+
+    #end
 &lt;/div&gt;
 {{/html}}
 {{/velocity}}</content>

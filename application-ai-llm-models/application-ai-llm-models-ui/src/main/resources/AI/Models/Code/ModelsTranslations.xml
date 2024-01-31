@@ -82,6 +82,9 @@ models.entry.name=Models
 
 # Deprecated keys
 models.dataSpace.title=Data
+
+# Keys related to filters
+llm.models.filter.title=Filters
 </content>
   <object>
     <name>AI.Models.Code.ModelsTranslations</name>
