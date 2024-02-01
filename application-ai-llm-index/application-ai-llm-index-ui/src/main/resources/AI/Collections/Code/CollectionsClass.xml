@@ -179,14 +179,14 @@
     </editGroups>
     <embeddingModel>
       <cache>0</cache>
-      <classname>AI.Code.AIConfigClass</classname>
+      <classname/>
       <customDisplay/>
       <defaultValue/>
       <disabled>0</disabled>
       <displayType>select</displayType>
       <freeText/>
       <hint/>
-      <idField>prop.value</idField>
+      <idField/>
       <largeStorage>0</largeStorage>
       <multiSelect>0</multiSelect>
       <name>embeddingModel</name>
@@ -198,17 +198,19 @@
       <separators/>
       <size>1</size>
       <sort>none</sort>
-      <sql>SELECT prop.value
-FROM XWikiDocument as doc, BaseObject as obj, LargeStringProperty as prop
-WHERE doc.fullName = 'AI.Code.AIConfig'
-AND obj.name=doc.fullName
-AND obj.className = 'AI.Code.AIConfigClass'
-AND prop.id.id = obj.id
-AND prop.id.name = 'embeddingModels'</sql>
+      <sql>select modelProp.value
+from XWikiDocument doc, BaseObject obj, StringProperty typeProp, StringProperty modelProp
+where doc.fullName=obj.name
+and obj.className='AI.Models.Code.ModelsClass'
+and obj.id=typeProp.id.id
+and typeProp.id.name='type'
+and typeProp.value='emb'
+and obj.id=modelProp.id.id
+and modelProp.id.name='model'</sql>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
-      <valueField>prop.name</valueField>
+      <valueField/>
       <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
     </embeddingModel>
     <id>

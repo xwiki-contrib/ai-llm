@@ -90,7 +90,7 @@ public class IndexWorker implements EventListener
         XWikiDocument xdocument = (XWikiDocument) source;
         BaseObject documentObject = xdocument.getXObject(documentClassReference);
         this.logger.info("Document ref on event: {}", xdocument.getDocumentReference());
-        if (documentObject != null) {
+        if (documentObject != null && !xdocument.getDocumentReference().getName().equals("DocumentsTemplate")) {
             try {
                 //Add document to the queue
                 String docID = documentObject.getStringValue("id");
