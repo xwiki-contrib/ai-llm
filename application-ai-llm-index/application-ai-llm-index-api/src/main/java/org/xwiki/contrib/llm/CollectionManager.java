@@ -74,4 +74,9 @@ public interface CollectionManager
      */
     void clearIndexCore() throws IndexException;
 
+    /**
+     * @param textQuery the text query
+     * @return a list of document ids that are similar to the text query
+     */
+    List<String> similaritySearch(String textQuery) throws IndexException;
 }

@@ -26,7 +26,7 @@ import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 import org.xwiki.contrib.llm.Chunk;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
-import org.xwiki.contrib.llm.Utils;
+import org.xwiki.contrib.llm.ChunkingUtils;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -65,7 +65,7 @@ public class DefaultDocument implements Document
     protected Provider<XWikiContext> contextProvider;
 
     @Inject
-    private Utils utils;
+    private ChunkingUtils chunkingUtilsutils;
 
     private XWikiDocumentWrapper xwikiDocumentWrapper;
 
@@ -183,7 +183,7 @@ public class DefaultDocument implements Document
     @Override
     public List<Chunk> chunkDocument()
     {
-        Map<Integer, Chunk> chunks = utils.chunkDocument(this);
+        Map<Integer, Chunk> chunks = chunkingUtilsutils.chunkDocument(this);
         if (chunks == null) {
             return List.of();
         } else {

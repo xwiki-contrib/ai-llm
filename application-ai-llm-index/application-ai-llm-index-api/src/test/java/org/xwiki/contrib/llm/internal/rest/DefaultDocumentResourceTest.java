@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.SolrConnector;
-import org.xwiki.contrib.llm.Utils;
+import org.xwiki.contrib.llm.ChunkingUtils;
 import org.xwiki.contrib.llm.internal.CurrentUserCollection;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
 import org.xwiki.contrib.llm.internal.CurrentUserDocument;
@@ -108,7 +108,7 @@ class DefaultDocumentResourceTest
     private CollectionManager collectionManager;
 
     @MockComponent
-    private Utils utils;
+    private ChunkingUtils chunkingUtils;
 
     @MockComponent
     private SolrConnector solrConnector;

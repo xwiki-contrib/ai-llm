@@ -47,7 +47,7 @@ public class Chunk
     private Logger logger;
 
     @Inject
-    private Utils utils;
+    private EmbeddingsUtils embeddingsUtils;
  
     /**
      * Initialize the chunk.
@@ -208,7 +208,7 @@ public class Chunk
     public void computeEmbeddings()
     {
         try {
-            this.embeddings = utils.computeEmbeddings(this.content);
+            this.embeddings = embeddingsUtils.computeEmbeddings(this.content);
         } catch (Exception e) {
             logger.error("Failure to compute embeddings for chunk [{}] of document [{}]: [{}]",
                          this.chunkIndex, this.documentID, e.getMessage());

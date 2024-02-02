@@ -94,4 +94,13 @@ public class CollectionManagerScriptService implements ScriptService
     {
         this.collectionManager.clearIndexCore();
     }
+
+    /**
+     * @param textQuery the text query
+     * @return a list of document ids that are similar to the text query
+     */
+    public List<String> similaritySearch(String textQuery) throws IndexException
+    {
+        return this.collectionManager.similaritySearch(textQuery);
+    }
 }

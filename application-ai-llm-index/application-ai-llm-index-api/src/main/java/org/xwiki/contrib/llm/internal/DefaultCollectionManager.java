@@ -165,4 +165,14 @@ public class DefaultCollectionManager implements CollectionManager
         } 
     }
 
+    @Override
+    public List<String> similaritySearch(String textQuery) throws IndexException
+    {
+        try {
+            return solrConnector.similaritySearch(textQuery);
+        } catch (SolrServerException e) {
+            throw new IndexException("Failed to perform similarity search", e);
+        }
+    }
+
 }
