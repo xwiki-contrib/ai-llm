@@ -70,7 +70,7 @@
         $escapetool.xml($doc.displayPrettyName('id', false, false))
       &lt;/label&gt;
     &lt;/dt&gt;
-    &lt;dd&gt;$doc.display('id')&lt;/dd&gt;
+    &lt;dd&gt;#if ($doc.isNew()) $doc.display('id') #else $obj.getProperty('id').value #end &lt;/dd&gt;
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
         data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('title')))"

@@ -109,7 +109,7 @@ and stringprop.id.name='id'</sql>
     </content>
     <id>
       <customDisplay/>
-      <disabled>1</disabled>
+      <disabled>0</disabled>
       <hint/>
       <name>id</name>
       <number>1</number>

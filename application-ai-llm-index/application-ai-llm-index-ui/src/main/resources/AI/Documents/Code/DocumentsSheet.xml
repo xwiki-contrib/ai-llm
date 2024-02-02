@@ -63,15 +63,12 @@
 {{html wiki="true" clean="false"}}
 &lt;div class="xform"&gt;
   &lt;dl&gt;
-    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
-        class="editableProperty"
-        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('id')))"
-        data-property-type="object"#end&gt;
+    &lt;dt&gt;
       &lt;label#if ($editing) for="AI.Documents.Code.DocumentsClass_0_id"#end&gt;
         $escapetool.xml($doc.displayPrettyName('id', false, false))
       &lt;/label&gt;
     &lt;/dt&gt;
-    &lt;dd&gt;$doc.display('id')&lt;/dd&gt;
+    &lt;dd&gt;#if ($doc.isNew()) $doc.display('id') #else $obj.getProperty('id').value #end &lt;/dd&gt;
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
         data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('title')))"

@@ -215,7 +215,7 @@ and modelProp.id.name='model'</sql>
     </embeddingModel>
     <id>
       <customDisplay/>
-      <disabled>1</disabled>
+      <disabled>0</disabled>
       <hint/>
       <name>id</name>
       <number>1</number>
