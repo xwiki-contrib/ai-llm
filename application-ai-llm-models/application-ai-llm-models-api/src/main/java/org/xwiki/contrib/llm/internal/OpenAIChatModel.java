@@ -47,7 +47,7 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
  */
 public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
 {
-    private static final String PATH = "/chat/completions";
+    private static final String PATH = "chat/completions";
 
     private static final String EMPTY = "Response is empty.";
 
