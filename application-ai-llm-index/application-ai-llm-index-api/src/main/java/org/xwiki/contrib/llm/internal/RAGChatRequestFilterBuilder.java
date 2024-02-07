@@ -23,12 +23,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.annotation.Priority;
+import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.ChatRequestFilter;
 import org.xwiki.contrib.llm.ChatRequestFilterBuilder;
+import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.LocalDocumentReference;
 
@@ -58,6 +60,9 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
 
     private static final String COLLECTIONS_FIELD = "collections";
 
+    @Inject
+    private SolrConnector solrConnector;
+
     @Override
     public List<ChatRequestFilter> build(BaseObject object)
     {
@@ -68,7 +73,7 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
             .collect(Collectors.toList());
 
         // Only return a filter if there are collections to filter on.
-        return collections.isEmpty() ? List.of() : List.of(new RAGChatRequestFilter(collections));
+        return collections.isEmpty() ? List.of() : List.of(new RAGChatRequestFilter(collections, solrConnector));
     }
 
     @Override

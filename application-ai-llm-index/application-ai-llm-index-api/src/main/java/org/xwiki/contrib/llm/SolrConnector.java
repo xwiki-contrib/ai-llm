@@ -158,7 +158,7 @@ public class SolrConnector
             String embeddingsAsString = arrayToString(queryEmbeddings);
 
             SolrQuery query = new SolrQuery();
-            query.setQuery("{!knn f=vector topK=10}" + embeddingsAsString);
+            query.setQuery("{!knn f=vector topK=1}" + embeddingsAsString);
             query.setFields(FIELD_ID,
                             FIELD_DOC_ID,
                             FIELD_LANGUAGE,
