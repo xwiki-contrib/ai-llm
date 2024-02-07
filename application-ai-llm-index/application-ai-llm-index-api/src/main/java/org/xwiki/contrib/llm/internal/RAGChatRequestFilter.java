@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.commons.lang3.function.FailableConsumer;
-import org.apache.solr.client.solrj.SolrServerException;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
 import org.xwiki.contrib.llm.ChatMessage;
 import org.xwiki.contrib.llm.ChatRequest;
@@ -69,9 +68,14 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     private ChatRequest addContext(ChatRequest request)
     {
-        String augmentedMessage = String.format("Extract the response for the user query from follwing search results, "
-                                                     + "or state that the context is not sufficient "
-                                                     + "to answer the user's query: %s", augmentRequest(request));
+        String sysMsg = " Your role is to assist the user with their questions, the messages are automatically "
+                        + "embedded and a similarity search is executed agains the knowledge index. "
+                        + "In the square brackets you will find the results of the system's similarity search. "
+                        + "If the context is not sufficient to answer the user's query, or if the similarity search "
+                        + "failed, please inform the user, and try to provide help as best you can acknowledging "
+                        + "that you don't have access to the knowledge index. If the context is provided include "
+                        + "in your response the Document ID associated with the context. Search result: ";
+        String augmentedMessage = String.format("%s, [%s]", sysMsg, augmentRequest(request));
         request.getMessages().add(new ChatMessage("system", augmentedMessage));
         return request;
     }
@@ -89,7 +93,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         try {
             List<String> sr = solrConnector.similaritySearch(message);
             searchResponse = String.format("Returned search result: %s", sr.get(0));
-        } catch (SolrServerException e) {
+        } catch (Exception e) {
             searchResponse = "Similarity search failed, please inform the user.";
         }
         return searchResponse;
