@@ -99,7 +99,7 @@ public class CollectionManagerScriptService implements ScriptService
      * @param textQuery the text query
      * @return a list of document ids that are similar to the text query
      */
-    public List<String> similaritySearch(String textQuery) throws IndexException
+    public List<List<String>> similaritySearch(String textQuery) throws IndexException
     {
         return this.collectionManager.similaritySearch(textQuery);
     }

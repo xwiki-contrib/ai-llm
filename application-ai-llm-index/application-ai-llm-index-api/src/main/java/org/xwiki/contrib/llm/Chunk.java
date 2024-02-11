@@ -36,6 +36,7 @@ import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 public class Chunk
 {
     private String documentID;
+    private String documentURL;
     private String language;
     private int chunkIndex;
     private int posFirstChar;
@@ -53,16 +54,23 @@ public class Chunk
      * Initialize the chunk.
      *  
      * @param documentID the document ID
+     * @param documentURL the document URL
      * @param language the language
      * @param chunkIndex the chunk index
      * @param posFirstChar the position of the first character
      * @param posLastChar the position of the last character
      * @param content the content
      */
-    public void initialize(String documentID, String language, int chunkIndex, int posFirstChar, int posLastChar,
+    public void initialize(String documentID,
+        String documentURL,
+        String language,
+        int chunkIndex,
+        int posFirstChar,
+        int posLastChar,
         String content)
     {
         this.documentID = documentID;
+        this.documentURL = documentURL;
         this.language = language;
         this.chunkIndex = chunkIndex;
         this.posFirstChar = posFirstChar;
@@ -79,6 +87,16 @@ public class Chunk
     public String getDocumentID()
     {
         return documentID;
+    }
+
+    /**
+     * Getter for the document URL.
+     *
+     * @return the document URL
+     */
+    public String getDocumentURL()
+    {
+        return documentURL;
     }
 
     /**
@@ -149,6 +167,16 @@ public class Chunk
     public void setDocumentID(String documentID)
     {
         this.documentID = documentID;
+    }
+
+    /**
+     * Setter for the document URL.
+     *
+     * @param documentURL the document URL
+     */
+    public void setDocumentURL(String documentURL)
+    {
+        this.documentURL = documentURL;
     }
 
     /**

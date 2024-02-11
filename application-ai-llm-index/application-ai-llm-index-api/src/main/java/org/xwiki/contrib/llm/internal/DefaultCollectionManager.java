@@ -166,7 +166,7 @@ public class DefaultCollectionManager implements CollectionManager
     }
 
     @Override
-    public List<String> similaritySearch(String textQuery) throws IndexException
+    public List<List<String>> similaritySearch(String textQuery) throws IndexException
     {
         try {
             return solrConnector.similaritySearch(textQuery);

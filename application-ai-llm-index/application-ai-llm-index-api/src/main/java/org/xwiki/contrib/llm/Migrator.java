@@ -89,7 +89,6 @@ public class Migrator extends AbstractLocalEventListener
     @Override public void processLocalEvent(Event event, Object source, Object data)
     {
         try {
-            this.logger.info("Event zedaDelta: {}", event);
             DocumentRenamedEvent documentRenamedEvent = (DocumentRenamedEvent) event;
             DocumentReference targetRef = documentRenamedEvent.getTargetReference();
             XWikiContext context = this.contextProvider.get();
@@ -97,7 +96,6 @@ public class Migrator extends AbstractLocalEventListener
             EntityReference documentClassReference = getCollectionObjectReference();
             BaseObject collectionObject = xdocument.getXObject(documentClassReference);
             if (collectionObject != null) {
-                this.logger.info("Found collection object {}", collectionObject);
                 String oldID = collectionObject.getStringValue(ID_FIELDNAME);
                 String newIDRef = xdocument.getDocumentReference().getLastSpaceReference().toString();
                 String newID = newIDRef.substring(newIDRef.lastIndexOf(Collection.SPACE_DELIMITER) + 1);
@@ -134,7 +132,6 @@ public class Migrator extends AbstractLocalEventListener
                 documentObject.setStringValue(COLLECTION_FIELDNAME, newID);
                 context.getWiki().saveDocument(xdocument, COMMENT_STRING, true, context);
             } catch (XWikiException e) {
-                // Handle exceptions appropriately
                 this.logger.error("Failure to update document [{}] in migratior listener: [{}]",
                                  documentName, e.getMessage());
             }

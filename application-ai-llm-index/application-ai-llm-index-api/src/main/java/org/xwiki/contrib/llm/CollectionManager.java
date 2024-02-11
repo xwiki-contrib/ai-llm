@@ -78,5 +78,5 @@ public interface CollectionManager
      * @param textQuery the text query
      * @return a list of document ids that are similar to the text query
      */
-    List<String> similaritySearch(String textQuery) throws IndexException;
+    List<List<String>> similaritySearch(String textQuery) throws IndexException;
 }

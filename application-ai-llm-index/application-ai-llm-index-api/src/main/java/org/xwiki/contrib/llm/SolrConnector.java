@@ -32,6 +32,7 @@ import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.slf4j.Logger;
@@ -53,6 +54,7 @@ public class SolrConnector
     private static final String SOLR_CORE_URL = SOLR_INSTANCE_URL + SOLR_CORE_NAME;
     private static final String FIELD_ID = "id";
     private static final String FIELD_DOC_ID = "docId";
+    private static final String FIELD_DOC_URL = "docURL";
     private static final String FIELD_LANGUAGE = "language";
     private static final String FIELD_INDEX = "index";
     private static final String FIELD_POS_FIRST_CHAR = "posFirstChar";
@@ -80,6 +82,7 @@ public class SolrConnector
             SolrInputDocument solrDocument = new SolrInputDocument();
             solrDocument.addField(FIELD_ID, id);
             solrDocument.addField(FIELD_DOC_ID, chunk.getDocumentID());
+            solrDocument.addField(FIELD_DOC_URL, chunk.getDocumentURL());
             solrDocument.addField(FIELD_LANGUAGE, chunk.getLanguage());
             solrDocument.addField(FIELD_INDEX, chunk.getChunkIndex());
             solrDocument.addField(FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
@@ -144,23 +147,25 @@ public class SolrConnector
         }
     }
 
+
     /**
-     * Similarity search in the Solr index.
+     * Simple similarity search in the Solr index.
      * 
      * @param textQuery the query to search for
      * @return a list of document details
      */
-    public List<String> similaritySearch(String textQuery) throws SolrServerException
+    public List<List<String>> similaritySearch(String textQuery) throws SolrServerException
     {
-        List<String> resultsList = new ArrayList<>();
+        List<List<String>> resultsList = new ArrayList<>();
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
             double[] queryEmbeddings = embeddingsUtils.computeEmbeddings(textQuery);
             String embeddingsAsString = arrayToString(queryEmbeddings);
 
             SolrQuery query = new SolrQuery();
-            query.setQuery("{!knn f=vector topK=1}" + embeddingsAsString);
+            query.setQuery("{!knn f=vector topK=3}" + embeddingsAsString);
             query.setFields(FIELD_ID,
                             FIELD_DOC_ID,
+                            FIELD_DOC_URL,
                             FIELD_LANGUAGE,
                             FIELD_INDEX,
                             FIELD_POS_FIRST_CHAR,
@@ -170,12 +175,11 @@ public class SolrConnector
 
             QueryResponse response = client.query(query);
             SolrDocumentList documents = response.getResults();
-
-            for (int i = 0; i < documents.size(); i++) {
-                String documentDetails = String.format("Document ID: %s, Content: %s, Score: %s", 
-                                                        documents.get(i).getFieldValue(FIELD_ID), 
-                                                        documents.get(i).getFieldValue(FIELD_CONTENT), 
-                                                        documents.get(i).getFieldValue(FIELD_SCORE));
+            for (SolrDocument document : documents) {
+                List<String> documentDetails = new ArrayList<>();
+                documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_ID)));
+                documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_URL)));
+                documentDetails.add(String.valueOf(document.getFieldValue(FIELD_CONTENT)));
 
                 resultsList.add(documentDetails);
             }

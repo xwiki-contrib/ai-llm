@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.internal;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.function.FailableConsumer;
@@ -68,34 +69,40 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     private ChatRequest addContext(ChatRequest request)
     {
-        String sysMsg = " Your role is to assist the user with their questions, the messages are automatically "
-                        + "embedded and a similarity search is executed agains the knowledge index. "
-                        + "In the square brackets you will find the results of the system's similarity search. "
-                        + "If the context is not sufficient to answer the user's query, or if the similarity search "
-                        + "failed, please inform the user, and try to provide help as best you can acknowledging "
-                        + "that you don't have access to the knowledge index. If the context is provided include "
-                        + "in your response the Document ID associated with the context. Search result: ";
-        String augmentedMessage = String.format("%s, [%s]", sysMsg, augmentRequest(request));
-        request.getMessages().add(new ChatMessage("system", augmentedMessage));
+        List<String> sources = augmentRequest(request);
+        String sourceURL = sources.get(0);
+        String contentMsg = sources.get(1);
+        String sysMsg = String.format("Provided context: %n"
+                       + "Source: %s %n "
+                       + "Content: %n %s %n"
+                       + "Instructions: "
+                       + "Respond strictly in the following format without the bracket: %n"
+                       + "Source: [the provided URL] %n"
+                       + "Answer: [Formulate a response based on the provided context, after you quoted the source]",
+                        sourceURL, contentMsg);
+       
+        request.getMessages().add(new ChatMessage("system", sysMsg));
         return request;
     }
 
-    private String augmentRequest(ChatRequest request)
+    private List<String> augmentRequest(ChatRequest request)
     {
-        //get last message
+        List<String> sources = new ArrayList<>();
         ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
-        //get the message content
         String message = lastMessage.getContent();
-
-        String searchResponse = "";
 
         //perform solr similarity search on the last message
         try {
-            List<String> sr = solrConnector.similaritySearch(message);
-            searchResponse = String.format("Returned search result: %s", sr.get(0));
+            List<List<String>> sr = solrConnector.similaritySearch(message);
+            //add url of the source to the sources list
+            sources.add(sr.get(0).get(1));
+            //add the source content to the search response
+            sources.add(sr.get(0).get(2));
         } catch (Exception e) {
-            searchResponse = "Similarity search failed, please inform the user.";
+            sources = new ArrayList<>();
+            sources.add("");
+            sources.add("Source not found");
         }
-        return searchResponse;
+        return sources;
     }
 }
