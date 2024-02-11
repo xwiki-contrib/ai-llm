@@ -78,7 +78,8 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
                        + "Instructions: "
                        + "Respond strictly in the following format without the bracket: %n"
                        + "Source: [the provided URL] %n"
-                       + "Answer: [Formulate a response based on the provided context, after you quoted the source]",
+                       + "Answer: [Formulate a response based on the provided context, after you quoted the source "
+                       + "or inform the user that the requested information was found in the source.]",
                         sourceURL, contentMsg);
        
         request.getMessages().add(new ChatMessage("system", sysMsg));
