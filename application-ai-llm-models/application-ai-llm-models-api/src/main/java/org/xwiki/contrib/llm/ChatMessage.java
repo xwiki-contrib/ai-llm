@@ -34,7 +34,7 @@ public class ChatMessage
 {
     private final String role;
 
-    private final String content;
+    private String content;
 
     /**
      * Creates a new chat message.
@@ -62,6 +62,16 @@ public class ChatMessage
     public String getContent()
     {
         return content;
+    }
+    
+    /**
+     * Sets the content of the message.
+     *
+     * @param content the content of the message
+     */
+    public void setContent(String content)
+    {
+        this.content = content;
     }
 
     @Override

@@ -69,41 +69,60 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     private ChatRequest addContext(ChatRequest request)
     {
-        List<String> sources = augmentRequest(request);
-        String sourceURL = sources.get(0);
-        String contentMsg = sources.get(1);
-        String sysMsg = String.format("Provided context: %n"
-                       + "Source: %s %n "
-                       + "Content: %n %s %n"
-                       + "Instructions: "
-                       + "Respond strictly in the following format without the bracket: %n"
-                       + "Source: [the provided URL] %n"
-                       + "Answer: [Formulate a response based on the provided context, after you quoted the source "
-                       + "or inform the user that the requested information was found in the source.]",
-                        sourceURL, contentMsg);
-       
-        request.getMessages().add(new ChatMessage("system", sysMsg));
+        String context = augmentRequest(request);
+        if (!request.getMessages().isEmpty()) {
+            ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
+            lastMessage.setContent(context + "\n\n User message: " + lastMessage.getContent());
+        }
         return request;
     }
 
-    private List<String> augmentRequest(ChatRequest request)
+    private String augmentRequest(ChatRequest request)
     {
-        List<String> sources = new ArrayList<>();
+        if (request.getMessages().isEmpty()) {
+            return "No user message to augment.";
+        }
+
         ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
         String message = lastMessage.getContent();
 
-        //perform solr similarity search on the last message
+        StringBuilder contextBuilder = new StringBuilder();
+        List<String> addedUrls = new ArrayList<>();
+
+        // Perform solr similarity search on the last message
         try {
-            List<List<String>> sr = solrConnector.similaritySearch(message);
-            //add url of the source to the sources list
-            sources.add(sr.get(0).get(1));
-            //add the source content to the search response
-            sources.add(sr.get(0).get(2));
+            List<List<String>> searchResults = solrConnector.similaritySearch(message);
+            if (!searchResults.isEmpty()) {
+                contextBuilder.append("Provided context: \n");
+                for (List<String> result : searchResults) {
+                    if (result.size() >= 3) {
+                        String sourceURL = result.get(1);
+                        // Check if URL has already been added
+                        if (!addedUrls.contains(sourceURL)) {
+                            String contentMsg = result.get(2);
+                            contextBuilder.append(String.format(
+                                    "Source: %s \n"
+                                    + "Content: \n %s \n\n",
+                                    sourceURL, contentMsg));
+                            addedUrls.add(sourceURL); 
+                        }
+                    }
+                }
+                contextBuilder.append("Instructions: "
+                                    + "Respond strictly in the following format: \n"
+                                    + "Source: \n the provided URLs separated by new line"
+                                    + "Answer: \n Formulate a response based on the provided context, "
+                                    + "after you quoted the source "
+                                    + "or inform the user that the requested information was found in the source.");
+            } else {
+                return "No similar content found.";
+            }
         } catch (Exception e) {
-            sources = new ArrayList<>();
-            sources.add("");
-            sources.add("Source not found");
+            // Log the exception or handle it as needed
+            return "Error during similarity search: " + e.getMessage();
         }
-        return sources;
+
+        return contextBuilder.toString();
     }
+
 }
