@@ -65,7 +65,7 @@ public class DefaultDocument implements Document
     protected Provider<XWikiContext> contextProvider;
 
     @Inject
-    private ChunkingUtils chunkingUtilsutils;
+    private ChunkingUtils chunkingUtils;
 
     private XWikiDocumentWrapper xwikiDocumentWrapper;
 
@@ -183,7 +183,7 @@ public class DefaultDocument implements Document
     @Override
     public List<Chunk> chunkDocument()
     {
-        Map<Integer, Chunk> chunks = chunkingUtilsutils.chunkDocument(this);
+        Map<Integer, Chunk> chunks = chunkingUtils.chunkDocument(this);
         if (chunks == null) {
             return List.of();
         } else {

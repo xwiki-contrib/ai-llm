@@ -101,9 +101,11 @@ public class ChunkingUtils
             String chunkContent = content.substring(start, end);
             Chunk chunk = chunkProvider.get();
             chunk.initialize(document.getID(),
+                            document.getCollection(),
                             document.getURL(),
                             document.getLanguage(),
-                            chunkIndex, start, end, chunkContent);
+                            start, end, chunkContent);
+            chunk.setChunkIndex(chunkIndex);
             chunks.put(chunkIndex, chunk);
     
             // Prepare for the next iteration

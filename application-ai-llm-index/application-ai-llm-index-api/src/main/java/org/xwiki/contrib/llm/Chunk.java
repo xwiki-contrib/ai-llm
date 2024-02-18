@@ -38,6 +38,7 @@ public class Chunk
     private String documentID;
     private String documentURL;
     private String language;
+    private String collection;
     private int chunkIndex;
     private int posFirstChar;
     private int posLastChar;
@@ -54,25 +55,26 @@ public class Chunk
      * Initialize the chunk.
      *  
      * @param documentID the document ID
+     * @param collection the collection
      * @param documentURL the document URL
      * @param language the language
-     * @param chunkIndex the chunk index
      * @param posFirstChar the position of the first character
      * @param posLastChar the position of the last character
      * @param content the content
      */
-    public void initialize(String documentID,
+    public void initialize(
+        String documentID,
+        String collection,
         String documentURL,
         String language,
-        int chunkIndex,
         int posFirstChar,
         int posLastChar,
         String content)
     {
         this.documentID = documentID;
+        this.collection = collection;
         this.documentURL = documentURL;
         this.language = language;
-        this.chunkIndex = chunkIndex;
         this.posFirstChar = posFirstChar;
         this.posLastChar = posLastChar;
         this.content = content;
@@ -87,6 +89,16 @@ public class Chunk
     public String getDocumentID()
     {
         return documentID;
+    }
+
+    /**
+     * Getter for the collection.
+     *
+     * @return the collection
+     */
+    public String getCollection()
+    {
+        return collection;
     }
 
     /**
@@ -167,6 +179,16 @@ public class Chunk
     public void setDocumentID(String documentID)
     {
         this.documentID = documentID;
+    }
+
+    /**
+     * Setter for the collection.
+     *
+     * @param collection the collection
+     */
+    public void setCollection(String collection)
+    {
+        this.collection = collection;
     }
 
     /**

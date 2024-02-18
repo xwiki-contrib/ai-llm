@@ -49,10 +49,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class SolrConnector
 {
     //Connection method will be modifed after Solr integration in XWiki
-    private static final String SOLR_INSTANCE_URL = "http://my_solr:8983/solr/";
+    private static final String SOLR_INSTANCE_URL = "http://localhost:8983/solr/";
     private static final String SOLR_CORE_NAME = "knowledgeIndex";
     private static final String SOLR_CORE_URL = SOLR_INSTANCE_URL + SOLR_CORE_NAME;
     private static final String FIELD_ID = "id";
+    private static final String FIELD_COLLECTION = "collection";
     private static final String FIELD_DOC_ID = "docId";
     private static final String FIELD_DOC_URL = "docURL";
     private static final String FIELD_LANGUAGE = "language";
@@ -82,6 +83,7 @@ public class SolrConnector
             SolrInputDocument solrDocument = new SolrInputDocument();
             solrDocument.addField(FIELD_ID, id);
             solrDocument.addField(FIELD_DOC_ID, chunk.getDocumentID());
+            solrDocument.addField(FIELD_COLLECTION, chunk.getCollection());
             solrDocument.addField(FIELD_DOC_URL, chunk.getDocumentURL());
             solrDocument.addField(FIELD_LANGUAGE, chunk.getLanguage());
             solrDocument.addField(FIELD_INDEX, chunk.getChunkIndex());
