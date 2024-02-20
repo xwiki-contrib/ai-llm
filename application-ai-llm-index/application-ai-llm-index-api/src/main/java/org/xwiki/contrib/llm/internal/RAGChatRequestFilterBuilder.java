@@ -25,20 +25,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Priority;
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.ChatRequestFilter;
 import org.xwiki.contrib.llm.ChatRequestFilterBuilder;
 import org.xwiki.contrib.llm.CollectionManager;
-import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.LocalDocumentReference;
 
-import org.slf4j.Logger;
-
-import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.objects.BaseObject;
 
 /**
@@ -66,16 +61,7 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
     private static final String COLLECTIONS_FIELD = "collections";
 
     @Inject
-    private SolrConnector solrConnector;
-
-    @Inject
     private CollectionManager collectionManager;
-    
-    @Inject
-    private Logger logger;
-    
-    @Inject
-    private Provider<XWikiContext> contextProvider;
     
     @Override
     public List<ChatRequestFilter> build(BaseObject object)
@@ -88,12 +74,7 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
 
         // Only return a filter if there are collections to filter on.
         return collections.isEmpty() ? List.of() 
-                                     : List.of(new RAGChatRequestFilter(collections,
-                                                                        solrConnector,
-                                                                        collectionManager,
-                                                                        contextProvider,
-                                                                        logger
-                                                                        ));
+                                     : List.of(new RAGChatRequestFilter(collections, collectionManager));
     }
 
     @Override

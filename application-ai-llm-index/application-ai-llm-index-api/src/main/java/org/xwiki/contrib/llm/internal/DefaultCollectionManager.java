@@ -184,8 +184,13 @@ public class DefaultCollectionManager implements CollectionManager
     @Override
     public List<List<String>> similaritySearch(String textQuery, List<String> collections) throws IndexException
     {
+        List<String> collectionsUserHasAccessTo = filterCollectionbasedOnUserAccess(collections);
+        if (collectionsUserHasAccessTo.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         try {
-            return solrConnector.similaritySearch(textQuery, collections);
+            return solrConnector.similaritySearch(textQuery, collectionsUserHasAccessTo);
         } catch (SolrServerException e) {
             throw new IndexException("Failed to perform similarity search", e);
         }
@@ -231,6 +236,21 @@ public class DefaultCollectionManager implements CollectionManager
             allowedGroupReferences.add(groupReference);
         }
         return allowedGroupReferences;
+    }
+
+    private List<String> filterCollectionbasedOnUserAccess(List<String> collections)
+    {
+        List<String> collectionsUserHasAccessTo = new ArrayList<>();
+        for (String collection : collections) {
+            try {
+                if (this.hasAccess(this.getCollection(collection))) {
+                    collectionsUserHasAccessTo.add(collection);
+                }
+            } catch (IndexException e) {
+                logger.error("Failed to check access to collection [{}]: [{}]", collection, e.getMessage());
+            }
+        }
+        return collectionsUserHasAccessTo;
     }
 
 }
