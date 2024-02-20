@@ -93,7 +93,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
         // Perform solr similarity search on the last message
         try {
-            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections);
+            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, 5);
             if (!searchResults.isEmpty()) {
                 contextBuilder.append("Provided context: \n");
                 for (List<String> result : searchResults) {

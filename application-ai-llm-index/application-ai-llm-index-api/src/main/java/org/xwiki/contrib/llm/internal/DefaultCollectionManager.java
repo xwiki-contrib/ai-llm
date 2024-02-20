@@ -20,7 +20,9 @@
 package org.xwiki.contrib.llm.internal;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
@@ -182,18 +184,39 @@ public class DefaultCollectionManager implements CollectionManager
     }
 
     @Override
-    public List<List<String>> similaritySearch(String textQuery, List<String> collections) throws IndexException
+    public List<List<String>> similaritySearch(String textQuery,
+                                                List<String> collections,
+                                                int limit) throws IndexException
     {
         List<String> collectionsUserHasAccessTo = filterCollectionbasedOnUserAccess(collections);
         if (collectionsUserHasAccessTo.isEmpty()) {
             return new ArrayList<>();
         }
 
+        Map<String, String> collectionEmbeddingModelMap = createCollectionEmbeddingModelMap(collectionsUserHasAccessTo);
+
         try {
-            return solrConnector.similaritySearch(textQuery, collectionsUserHasAccessTo);
+            return solrConnector.similaritySearch(textQuery, 
+                                                  collectionEmbeddingModelMap,
+                                                  limit
+                                                );
         } catch (SolrServerException e) {
             throw new IndexException("Failed to perform similarity search", e);
         }
+    }
+
+    private Map<String, String> createCollectionEmbeddingModelMap(List<String> collectionsUserHasAccessTo)
+    {  
+        Map<String, String> collectionEmbeddingModelMap = new HashMap<>();
+        for (String collection : collectionsUserHasAccessTo) {
+            try {
+                Collection collectionObj = this.getCollection(collection);
+                collectionEmbeddingModelMap.put(collection, collectionObj.getEmbeddingModel());
+            } catch (IndexException e) {
+                logger.error("Failed to get collection [{}]: [{}]", collection, e.getMessage());
+            }
+        }
+        return collectionEmbeddingModelMap;
     }
 
     @Override
@@ -216,7 +239,9 @@ public class DefaultCollectionManager implements CollectionManager
         DocumentReference documentUserReference = contextProvider.get().getUserReference();
         java.util.Collection<DocumentReference> userGroups = new ArrayList<>();
         try {
-            userGroups = groupManager.getGroups(documentUserReference, contextProvider.get().getWikiReference(), true);
+            userGroups = groupManager.getGroups(documentUserReference,
+                                                contextProvider.get().getWikiReference(),
+                                                 true);
         } catch (GroupException e) {
             logger.warn("Failed to get groups for user [{}]", documentUserReference, e);
         }
@@ -238,7 +263,8 @@ public class DefaultCollectionManager implements CollectionManager
         return allowedGroupReferences;
     }
 
-    private List<String> filterCollectionbasedOnUserAccess(List<String> collections)
+    @Override
+    public List<String> filterCollectionbasedOnUserAccess(List<String> collections)
     {
         List<String> collectionsUserHasAccessTo = new ArrayList<>();
         for (String collection : collections) {

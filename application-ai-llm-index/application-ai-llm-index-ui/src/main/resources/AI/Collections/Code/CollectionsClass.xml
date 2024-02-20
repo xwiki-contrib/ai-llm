@@ -198,7 +198,7 @@
       <separators/>
       <size>1</size>
       <sort>none</sort>
-      <sql>select modelProp.value
+      <sql>select doc.fullName
 from XWikiDocument doc, BaseObject obj, StringProperty typeProp, StringProperty modelProp
 where doc.fullName=obj.name
 and obj.className='AI.Models.Code.ModelsClass'

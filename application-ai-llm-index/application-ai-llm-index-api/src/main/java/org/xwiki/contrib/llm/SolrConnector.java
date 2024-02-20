@@ -21,7 +21,9 @@ package org.xwiki.contrib.llm;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -37,6 +39,7 @@ import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.search.solr.SolrUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 /**
@@ -69,6 +72,9 @@ public class SolrConnector
 
     @Inject
     private EmbeddingsUtils embeddingsUtils;
+
+    @Inject
+    private SolrUtils solrUtils;
 
     /**
      * Connects to the Solr server and stores a chunk.
@@ -154,50 +160,95 @@ public class SolrConnector
      * Simple similarity search in the Solr index.
      * 
      * @param textQuery the query to search for
-     * @param collections the collections to search in
+     * @param collectionEmbeddingModelMap a map of collections and their corresponding embedding models
+     * @param limit the maximum number of results to return
      * @return a list of document details
      */
-    public List<List<String>> similaritySearch(String textQuery, List<String> collections) throws SolrServerException
+    public List<List<String>> similaritySearch(String textQuery,
+                                               Map<String, String> collectionEmbeddingModelMap,
+                                               int limit) throws SolrServerException
     {
         List<List<String>> resultsList = new ArrayList<>();
+        
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
-            double[] queryEmbeddings = embeddingsUtils.computeEmbeddings(textQuery);
-            String embeddingsAsString = arrayToString(queryEmbeddings);
-
-            SolrQuery query = new SolrQuery();
-            query.setQuery("{!knn f=vector topK=3}" + embeddingsAsString);
-
-            // Constructing the filter query from the collections list
-            if (collections != null && !collections.isEmpty()) {
-                String filterQuery = collections.stream()
-                                        .map(collection -> FIELD_COLLECTION + ":\"" + collection + "\"")
-                                        .collect(Collectors.joining(" OR "));
-                query.addFilterQuery(filterQuery);
+            // split embeddingModelMap into sets of collections with the same embedding model
+            Map<String, List<String>> embeddingModelCollectionsMap = new HashMap<>();
+            for (Map.Entry<String, String> entry : collectionEmbeddingModelMap.entrySet()) {
+                String embeddingModel = entry.getValue();
+                String collection = entry.getKey();
+                if (!embeddingModelCollectionsMap.containsKey(embeddingModel)) {
+                    embeddingModelCollectionsMap.put(embeddingModel, new ArrayList<>());
+                }
+                embeddingModelCollectionsMap.get(embeddingModel).add(collection);
             }
 
-            query.setFields(FIELD_ID,
-                            FIELD_DOC_ID,
-                            FIELD_COLLECTION,
-                            FIELD_DOC_URL,
-                            FIELD_LANGUAGE,
-                            FIELD_INDEX,
-                            FIELD_POS_FIRST_CHAR,
-                            FIELD_POS_LAST_CHAR,
-                            FIELD_CONTENT,
-                            FIELD_SCORE);
+            // perform similarity search for each set of collections with the same embedding model
+            for (Map.Entry<String, List<String>> entry : embeddingModelCollectionsMap.entrySet()) {
+                String embeddingsModelID = entry.getKey();
+                List<String> collectionsWithSameEmbeddingModel = entry.getValue();
+                double[] queryEmbeddings = embeddingsUtils.computeEmbeddings(textQuery, embeddingsModelID);
+                String embeddingsAsString = arrayToString(queryEmbeddings);
+                SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel, limit);
+                QueryResponse response = client.query(query);
+                SolrDocumentList documents = response.getResults();
+                resultsList.addAll(collectResults(documents));
 
-            QueryResponse response = client.query(query);
-            SolrDocumentList documents = response.getResults();
-            for (SolrDocument document : documents) {
-                List<String> documentDetails = new ArrayList<>();
-                documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_ID)));
-                documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_URL)));
-                documentDetails.add(String.valueOf(document.getFieldValue(FIELD_CONTENT)));
+                //order the resultsList in desc order of FIELD_SCORE
+                resultsList.sort((a, b) -> Double.compare(Double.parseDouble(b.get(3)), Double.parseDouble(a.get(3))));
 
-                resultsList.add(documentDetails);
+                //limit the resultsList to the specified limit
+                if (resultsList.size() > limit) {
+                    resultsList = resultsList.subList(0, limit);
+                }
             }
+
         } catch (Exception e) {
             logger.error("Similarity search failed: {}", e.getMessage());
+        }
+        return resultsList;
+    }
+
+    private SolrQuery prepareQuery(String embeddingsAsString, List<String> collections, int limit)
+    {
+        SolrQuery query = new SolrQuery();
+        query.setQuery(String.format("{!knn f=vector topK=%s}%s", limit, embeddingsAsString));
+
+        // Constructing the filter query from the collections list
+        if (collections != null && !collections.isEmpty()) {
+            String filterQuery = collections.stream()
+                                    .map(collection -> FIELD_COLLECTION
+                                                    + ":\""
+                                                    + solrUtils.toCompleteFilterQueryString(collection)
+                                                    + "\""
+                                        )
+                                    .collect(Collectors.joining(" OR "));
+            query.addFilterQuery(filterQuery);
+        }
+
+        query.setFields(FIELD_ID,
+                        FIELD_DOC_ID,
+                        FIELD_COLLECTION,
+                        FIELD_DOC_URL,
+                        FIELD_LANGUAGE,
+                        FIELD_INDEX,
+                        FIELD_POS_FIRST_CHAR,
+                        FIELD_POS_LAST_CHAR,
+                        FIELD_CONTENT,
+                        FIELD_SCORE);
+        return query;
+    }
+
+    private List<List<String>> collectResults(SolrDocumentList documents)
+    {
+        List<List<String>> resultsList = new ArrayList<>();
+        for (SolrDocument document : documents) {
+            List<String> documentDetails = new ArrayList<>();
+            documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_ID)));
+            documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_URL)));
+            documentDetails.add(String.valueOf(document.getFieldValue(FIELD_CONTENT)));
+            documentDetails.add(String.valueOf(document.getFieldValue(FIELD_SCORE)));
+
+            resultsList.add(documentDetails);           
         }
         return resultsList;
     }

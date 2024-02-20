@@ -107,10 +107,22 @@ public class CollectionManagerScriptService implements ScriptService
     /**
      * @param textQuery the text query
      * @param collections the collections to search in
+     * @param limit the maximum number of results to return
      * @return a list of document ids that are similar to the text query
      */
-    public List<List<String>> similaritySearch(String textQuery, List<String> collections) throws IndexException
+    public List<List<String>> similaritySearch(String textQuery,
+                                                List<String> collections,
+                                                int limit) throws IndexException
     {
-        return this.collectionManager.similaritySearch(textQuery, collections);
+        return this.collectionManager.similaritySearch(textQuery, collections, limit);
+    }
+
+    /**
+     * @param collections the collections to filter
+     * @return a list of collections that the user has access to
+     */
+    public List<String> filterCollectionbasedOnUserAccess(List<String> collections)
+    {
+        return this.collectionManager.filterCollectionbasedOnUserAccess(collections);
     }
 }

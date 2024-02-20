@@ -83,7 +83,14 @@ public interface CollectionManager
     /**
      * @param textQuery the text query
      * @param collections the collections to search in
+     * @param limit the maximum number of results to return
      * @return a list of document ids that are similar to the text query
      */
-    List<List<String>> similaritySearch(String textQuery, List<String> collections) throws IndexException;
+    List<List<String>> similaritySearch(String textQuery, List<String> collections, int limit) throws IndexException;
+
+    /**
+     * @param collections the collections to filter
+     * @return a list of collections that the user has access to
+     */
+    List<String> filterCollectionbasedOnUserAccess(List<String> collections);
 }

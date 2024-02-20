@@ -125,14 +125,15 @@ public class IndexWorker implements EventListener
                     String key = nextInLine.getKey();
                     String value = nextInLine.getValue();
                     this.logger.info("Processing document: {}", key);
-                    Document document = collectionManager.getCollection(value).getDocument(key);
+                    Collection collection = collectionManager.getCollection(value);
+                    Document document = collection.getDocument(key);
                     logger.info("Document: {}", document);
                     solrConnector.deleteChunksByDocId(key);
                     List<Chunk> chunks = document.chunkDocument();
                     logger.info("Chunks: {}", chunks);
                     for (Chunk chunk : chunks) {
                         logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
-                        chunk.computeEmbeddings();
+                        chunk.computeEmbeddings(collection.getEmbeddingModel());
                         solrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
                     }
                 }

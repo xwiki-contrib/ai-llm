@@ -50,7 +50,7 @@ public class Chunk
 
     @Inject
     private EmbeddingsUtils embeddingsUtils;
- 
+
     /**
      * Initialize the chunk.
      *  
@@ -254,11 +254,12 @@ public class Chunk
     /**
      * Compute embeddings for current chunk.
      *
+     * @param embeddingModelID the embedding model ID
      */
-    public void computeEmbeddings()
+    public void computeEmbeddings(String embeddingModelID)
     {
         try {
-            this.embeddings = embeddingsUtils.computeEmbeddings(this.content);
+            this.embeddings = embeddingsUtils.computeEmbeddings(this.content, embeddingModelID);
         } catch (Exception e) {
             logger.error("Failure to compute embeddings for chunk [{}] of document [{}]: [{}]",
                          this.chunkIndex, this.documentID, e.getMessage());

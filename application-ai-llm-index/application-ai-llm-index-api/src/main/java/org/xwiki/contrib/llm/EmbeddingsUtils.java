@@ -20,7 +20,6 @@
 package org.xwiki.contrib.llm;
 
 import java.util.Arrays;
-import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -44,6 +43,8 @@ import com.xpn.xwiki.XWikiContext;
 public class EmbeddingsUtils
 {
 
+    private static final int EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA = 384;
+
     @Inject 
     private Provider<XWikiContext> contextProvider;
 
@@ -57,27 +58,19 @@ public class EmbeddingsUtils
      * Compute embeddings for given text.
      *
      * @param text the text to compute embeddings for
+     * @param modelId the id of the model to use
      * @return the embeddings as double array
      */
-    public double[] computeEmbeddings(String text)
+    public double[] computeEmbeddings(String text, String modelId)
     {
         try {
             XWikiContext context = this.contextProvider.get();
             WikiReference wikiReference = context.getWikiReference();
             UserReference userReference = CurrentUserReference.INSTANCE;
-            List<EmbeddingModelDescriptor> embeddingModelDescriptors = embeddingModelManager
-                    .getModelDescriptors(wikiReference, userReference);
-            EmbeddingModel embeddingModel = embeddingModelManager
-                    .getModel(wikiReference, embeddingModelDescriptors.get(0).getId(), userReference);
-            
+            EmbeddingModel embeddingModel = embeddingModelManager.getModel(wikiReference, modelId, userReference);
             double[] embeddingsFull = embeddingModel.embed(text);
     
-            // Truncate the embeddings array to 1024 dimensions if necessary
-            if (embeddingsFull.length > 1024) {
-                return Arrays.copyOf(embeddingsFull, 1024);
-            } else {
-                return embeddingsFull;
-            }
+            return Arrays.copyOf(embeddingsFull, EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA);
         } catch (Exception e) {
             logger.error("Failure to compute embeddings for the given text: [{}]", e.getMessage());
             return new double[0];
