@@ -23,14 +23,20 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.inject.Provider;
+
 import org.apache.commons.lang3.function.FailableConsumer;
+import org.slf4j.Logger;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
 import org.xwiki.contrib.llm.ChatMessage;
 import org.xwiki.contrib.llm.ChatRequest;
 import org.xwiki.contrib.llm.ChatResponse;
+import org.xwiki.contrib.llm.CollectionManager;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.RequestError;
 import org.xwiki.contrib.llm.SolrConnector;
 
+import com.xpn.xwiki.XWikiContext;
 /**
  * A filter that adds context from the given collections to the request.
  *
@@ -43,17 +49,35 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     private SolrConnector solrConnector;
 
+    private Provider<XWikiContext> contextProvider;
+
+    private CollectionManager collectionManager;
+
+    private Logger logger;
+
     /**
      * Constructor.
      *
      * @param collections the collections to use
      * @param solrConnector the solr connector to use
+     * @param collectionManager the collection manager
+     * @param contextProvider the context provider
+     * @param logger the logger to use
      */
-    public RAGChatRequestFilter(List<String> collections, SolrConnector solrConnector)
+    public RAGChatRequestFilter(List<String> collections,
+                                SolrConnector solrConnector,
+                                CollectionManager collectionManager,
+                                Provider<XWikiContext> contextProvider,
+                                Logger logger
+                                )
     {
+        this.logger = logger;
+        this.contextProvider = contextProvider;
         this.collections = collections;
         this.solrConnector = solrConnector;
+        this.collectionManager = collectionManager;
     }
+
 
     @Override
     public void processStreaming(ChatRequest request, FailableConsumer<String, IOException> consumer) throws IOException
@@ -69,7 +93,13 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     private ChatRequest addContext(ChatRequest request)
     {
-        String context = augmentRequest(request);
+        List<String> collectionsUserHasAccessTo = getCollectionUserHasAccessTo();
+        logger.debug("User has access to collections: [{}]", collectionsUserHasAccessTo);
+        if (collectionsUserHasAccessTo.isEmpty()) {
+            return request;
+        }
+        
+        String context = augmentRequest(request, collectionsUserHasAccessTo);
         if (!request.getMessages().isEmpty()) {
             ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
             lastMessage.setContent(context + "\n\n User message: " + lastMessage.getContent());
@@ -77,7 +107,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         return request;
     }
 
-    private String augmentRequest(ChatRequest request)
+    private String augmentRequest(ChatRequest request, List<String> collectionsUserHasAccessTo)
     {
         if (request.getMessages().isEmpty()) {
             return "No user message to augment.";
@@ -91,7 +121,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
         // Perform solr similarity search on the last message
         try {
-            List<List<String>> searchResults = solrConnector.similaritySearch(message);
+            List<List<String>> searchResults = solrConnector.similaritySearch(message, collectionsUserHasAccessTo);
             if (!searchResults.isEmpty()) {
                 contextBuilder.append("Provided context: \n");
                 for (List<String> result : searchResults) {
@@ -123,6 +153,21 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         }
 
         return contextBuilder.toString();
+    }
+
+    private List<String> getCollectionUserHasAccessTo()
+    {
+        List<String> collectionsUserHasAccessTo = new ArrayList<>();
+        for (String collection : collections) {
+            try {
+                if (collectionManager.hasAccess(collectionManager.getCollection(collection))) {
+                    collectionsUserHasAccessTo.add(collection);
+                }
+            } catch (IndexException e) {
+                logger.error("Failed to check access to collection [{}]: [{}]", collection, e.getMessage());
+            }
+        }
+        return collectionsUserHasAccessTo;
     }
 
 }

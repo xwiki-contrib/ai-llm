@@ -69,6 +69,12 @@ public interface CollectionManager
     DocumentReference getDocumentReference(String id);
 
     /**
+    * @param collection the collection to check access to
+    * @return {@code true} if the user has access to query a collection, {@code false} otherwise.
+    */
+    boolean hasAccess(Collection collection);
+
+    /**
      * Clears the solr core of all data.
      * 
      */
@@ -76,7 +82,8 @@ public interface CollectionManager
 
     /**
      * @param textQuery the text query
+     * @param collections the collections to search in
      * @return a list of document ids that are similar to the text query
      */
-    List<List<String>> similaritySearch(String textQuery) throws IndexException;
+    List<List<String>> similaritySearch(String textQuery, List<String> collections) throws IndexException;
 }

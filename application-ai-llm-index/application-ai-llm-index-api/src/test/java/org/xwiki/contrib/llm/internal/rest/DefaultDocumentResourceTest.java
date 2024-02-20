@@ -46,6 +46,8 @@ import org.xwiki.security.authorization.Right;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.user.UserReferenceSerializer;
+import org.xwiki.user.group.GroupManager;
 
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.InjectMockitoOldcore;
@@ -112,6 +114,9 @@ class DefaultDocumentResourceTest
 
     @MockComponent
     private SolrConnector solrConnector;
+
+    @MockComponent
+    private GroupManager groupManager;
 
     @BeforeEach
     void setUp() throws Exception

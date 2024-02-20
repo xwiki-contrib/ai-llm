@@ -154,9 +154,10 @@ public class SolrConnector
      * Simple similarity search in the Solr index.
      * 
      * @param textQuery the query to search for
+     * @param collections the collections to search in
      * @return a list of document details
      */
-    public List<List<String>> similaritySearch(String textQuery) throws SolrServerException
+    public List<List<String>> similaritySearch(String textQuery, List<String> collections) throws SolrServerException
     {
         List<List<String>> resultsList = new ArrayList<>();
         try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
@@ -165,8 +166,18 @@ public class SolrConnector
 
             SolrQuery query = new SolrQuery();
             query.setQuery("{!knn f=vector topK=3}" + embeddingsAsString);
+
+            // Constructing the filter query from the collections list
+            if (collections != null && !collections.isEmpty()) {
+                String filterQuery = collections.stream()
+                                        .map(collection -> FIELD_COLLECTION + ":\"" + collection + "\"")
+                                        .collect(Collectors.joining(" OR "));
+                query.addFilterQuery(filterQuery);
+            }
+
             query.setFields(FIELD_ID,
                             FIELD_DOC_ID,
+                            FIELD_COLLECTION,
                             FIELD_DOC_URL,
                             FIELD_LANGUAGE,
                             FIELD_INDEX,

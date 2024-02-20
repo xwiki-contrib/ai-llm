@@ -87,6 +87,15 @@ public class CollectionManagerScriptService implements ScriptService
     }
 
     /**
+    * @param collection the collection to check access to
+    * @return {@code true} if the user has access to query a collection, {@code false} otherwise.
+    */
+    public boolean hasAccess(Collection collection)
+    {
+        return this.collectionManager.hasAccess(collection);
+    }
+
+    /**
      * Clears the solr core of all data.
      * 
      */
@@ -97,10 +106,11 @@ public class CollectionManagerScriptService implements ScriptService
 
     /**
      * @param textQuery the text query
+     * @param collections the collections to search in
      * @return a list of document ids that are similar to the text query
      */
-    public List<List<String>> similaritySearch(String textQuery) throws IndexException
+    public List<List<String>> similaritySearch(String textQuery, List<String> collections) throws IndexException
     {
-        return this.collectionManager.similaritySearch(textQuery);
+        return this.collectionManager.similaritySearch(textQuery, collections);
     }
 }

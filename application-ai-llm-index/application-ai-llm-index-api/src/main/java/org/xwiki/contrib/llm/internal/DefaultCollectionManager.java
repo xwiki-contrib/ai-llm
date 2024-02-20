@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.xwiki.contrib.llm.Collection;
@@ -30,6 +31,9 @@ import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
+import org.xwiki.user.UserReferenceSerializer;
+import org.xwiki.user.group.GroupException;
+import org.xwiki.user.group.GroupManager;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -38,8 +42,10 @@ import com.xpn.xwiki.doc.XWikiDocument;
 import org.xwiki.component.annotation.Component;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import javax.inject.Provider;
+import org.slf4j.Logger;
 
 import org.apache.solr.client.solrj.SolrServerException;
 /**
@@ -62,6 +68,16 @@ public class DefaultCollectionManager implements CollectionManager
 
     @Inject
     private SolrConnector solrConnector;
+
+    @Inject
+    private Logger logger;
+
+    @Inject
+    private GroupManager groupManager;
+
+    @Inject
+    @Named("document")
+    private UserReferenceSerializer<DocumentReference> userReferenceSerializer;
 
     @Override
     public DefaultCollection createCollection(String id) throws IndexException
@@ -166,13 +182,55 @@ public class DefaultCollectionManager implements CollectionManager
     }
 
     @Override
-    public List<List<String>> similaritySearch(String textQuery) throws IndexException
+    public List<List<String>> similaritySearch(String textQuery, List<String> collections) throws IndexException
     {
         try {
-            return solrConnector.similaritySearch(textQuery);
+            return solrConnector.similaritySearch(textQuery, collections);
         } catch (SolrServerException e) {
             throw new IndexException("Failed to perform similarity search", e);
         }
+    }
+
+    @Override
+    public boolean hasAccess(Collection collection)
+    {
+        java.util.Collection<DocumentReference> userGroups = fetchCrtUserGroups();
+        if (userGroups.isEmpty()) {
+            return false;
+        }
+    
+        java.util.Collection<DocumentReference> allowedGroupReferences = 
+                convertAllowedGroupsToReferences(collection.getQueryGroups());
+    
+        return allowedGroupReferences.stream().anyMatch(userGroups::contains);
+    }
+    
+
+    private java.util.Collection<DocumentReference> fetchCrtUserGroups()
+    {
+        DocumentReference documentUserReference = contextProvider.get().getUserReference();
+        java.util.Collection<DocumentReference> userGroups = new ArrayList<>();
+        try {
+            userGroups = groupManager.getGroups(documentUserReference, contextProvider.get().getWikiReference(), true);
+        } catch (GroupException e) {
+            logger.warn("Failed to get groups for user [{}]", documentUserReference, e);
+        }
+        return userGroups;
+    }
+    
+    private java.util.Collection<DocumentReference> convertAllowedGroupsToReferences(String stringGroups)
+    {
+        String[] allowedGroups = stringGroups.split(",");
+        java.util.Collection<DocumentReference> allowedGroupReferences = new ArrayList<>();
+        for (String group : allowedGroups) {
+            String[] stringGroupParts = group.trim().split("\\.");
+            DocumentReference groupReference = new DocumentReference(contextProvider.get().getWikiId(),
+                                                                     stringGroupParts[0],
+                                                                     stringGroupParts[1]
+                                                                    );
+            allowedGroupReferences.add(groupReference);
+        }
+        return allowedGroupReferences;
     }
 
 }
