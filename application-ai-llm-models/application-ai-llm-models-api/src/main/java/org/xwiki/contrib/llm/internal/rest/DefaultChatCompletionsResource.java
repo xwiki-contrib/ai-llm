@@ -94,8 +94,8 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                 choice.setFinishReason(chatResponse.getFinishReason());
                 choice.setIndex(0);
                 choice.setMessage(new com.theokanning.openai.completion.chat.ChatMessage(
-                    chatResponse.getMessage().getRole(),
-                    chatResponse.getMessage().getContent()));
+                                        chatResponse.getMessage().getRole(),
+                                        chatResponse.getMessage().getContent()));
                 result.setChoices(List.of(choice));
                 return Response.ok(result).build();
             }

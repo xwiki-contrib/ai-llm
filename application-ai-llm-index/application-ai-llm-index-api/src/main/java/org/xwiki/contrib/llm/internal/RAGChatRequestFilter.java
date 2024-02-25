@@ -25,6 +25,7 @@ import java.util.List;
 
 
 import org.apache.commons.lang3.function.FailableConsumer;
+import org.slf4j.Logger;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
 import org.xwiki.contrib.llm.ChatMessage;
 import org.xwiki.contrib.llm.ChatRequest;
@@ -44,16 +45,20 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     private CollectionManager collectionManager;
 
+    private Logger logger;
+
     /**
      * Constructor.
      *
      * @param collections the collections to use
      * @param collectionManager the collection manager
+     * @param logger the logger
      */
-    public RAGChatRequestFilter(List<String> collections, CollectionManager collectionManager)
+    public RAGChatRequestFilter(List<String> collections, CollectionManager collectionManager, Logger logger)
     {
         this.collections = collections;
         this.collectionManager = collectionManager;
+        this.logger = logger;
     }
 
 
@@ -75,6 +80,8 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         if (!request.getMessages().isEmpty()) {
             ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
             lastMessage.setContent(context + "\n\n User message: " + lastMessage.getContent());
+            logger.info("Augmented message: [{}]", lastMessage.getContent());
+            lastMessage.setContent(lastMessage.getContent());
         }
         return request;
     }
@@ -93,26 +100,27 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
         // Perform solr similarity search on the last message
         try {
-            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, 5);
+            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, 10);
             if (!searchResults.isEmpty()) {
                 contextBuilder.append("Provided context: \n");
                 for (List<String> result : searchResults) {
-                    if (result.size() >= 3) {
-                        String sourceURL = result.get(1);
-                        // Check if URL has already been added
-                        if (!addedUrls.contains(sourceURL)) {
-                            String contentMsg = result.get(2);
-                            contextBuilder.append(String.format(
-                                    "Source: %s \n"
-                                    + "Content: \n %s \n\n",
-                                    sourceURL, contentMsg));
-                            addedUrls.add(sourceURL); 
-                        }
+                    String sourceURL = result.get(1);
+                    // Check if URL has already been added
+                    if (!addedUrls.contains(sourceURL)) {
+                        String contentMsg = result.get(2);
+                        contextBuilder.append(String.format(
+                                "Source: %s \n"
+                                + "Content: \n %s \n\n",
+                                sourceURL, contentMsg));
+                        addedUrls.add(sourceURL); 
+                    } else {
+                        String contentMsg = result.get(2);
+                        contextBuilder.append(String.format("Document chunk content: %s %n", contentMsg));
                     }
                 }
                 contextBuilder.append("Instructions: "
                                     + "Respond strictly in the following format: \n"
-                                    + "Source: \n the provided URLs separated by new line"
+                                    + "Source: \n the provided URLs separated by new line\n"
                                     + "Answer: \n Formulate a response based on the provided context, "
                                     + "after you quoted the source "
                                     + "or inform the user that the requested information was found in the source.");

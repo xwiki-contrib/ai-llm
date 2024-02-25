@@ -27,6 +27,7 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.SpaceReferenceResolver;
 
@@ -49,6 +50,9 @@ public class ChunkingUtils
 
     @Inject
     private CollectionManager collectionManager;
+
+    @Inject
+    private Logger logger;
     
     /**
      * This method is responsible for splitting the document into chunks.
@@ -70,7 +74,7 @@ public class ChunkingUtils
             }
             return chunkMap;
         } catch (IndexException e) {
-            e.printStackTrace();
+            logger.error("Error while chunking the document [{}]: [{}]", document, e.getMessage());
         }
         return new HashMap<>();
     }
