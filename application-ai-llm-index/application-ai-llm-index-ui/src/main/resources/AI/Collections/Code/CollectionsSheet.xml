@@ -172,6 +172,46 @@
     &lt;dd&gt;$doc.display('rightsCheckMethodParam')&lt;/dd&gt;
   &lt;/dl&gt;
 &lt;/div&gt;
+#if (!$doc.isNew() &amp;&amp; $hasEdit &amp;&amp; !$editing)
+&lt;form action=""&gt;
+  &lt;dl&gt;
+    &lt;dt&gt;
+      &lt;label&gt;
+        Add new document
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;
+    &lt;input type="text" id="documentId" name="documentId"&gt;
+    &lt;input class="btn btn-primary" type="submit" value="Add Document"&gt;
+    &lt;/dd&gt;
+  &lt;/dl&gt;
+&lt;/form&gt;
+#end
 {{/html}}
+
+####
+##Create new document script
+#if ("$!{request.documentId}" != "")
+  #set($cm = $services.collectionManager)
+  #set($crtCollectionId = $doc.getObject("AI.Collections.Code.CollectionsClass").getProperty('id').value)
+  #set($collection =  $cm.getCollection($crtCollectionId))
+  #set($newDoc = $collection.newDocument($request.documentId))
+  #set($ok = $newDoc.save())
+  #set($documentsSpaceStringName = "$!{doc}")
+  #set($documentsSpaceName = $documentsSpaceStringName.replace('WebHome','Documents.WebHome'))
+  #set($documentsSpace = $xwiki.getDocument($documentsSpaceName))
+  #if ($documentsSpace.isNew())
+    #set($ok = $documentsSpace.setContent($crtCollectionId))
+    #set($ok = $documentsSpace.setTitle("Documents"))
+    #set($docsObj = $documentsSpace.getObject("XWiki.DocumentSheetBinding",true))
+    #set($ok = $docsObj.set('sheet','xwiki:AI.Documents.WebHome'))
+    #set($ok = $documentsSpace.save())
+  #end
+  ####
+  ## Redirect to it
+  #set($newXDoc = $newDoc.getXWikiDocument())
+  #set($newDocURL = $newXDoc.getURL('edit', $xcontext.getContext()))
+  #set($ok = $response.sendRedirect($newDocURL))
+#end
 {{/velocity}}</content>
 </xwikidoc>

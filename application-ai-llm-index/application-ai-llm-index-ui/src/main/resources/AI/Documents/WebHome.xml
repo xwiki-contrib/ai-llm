@@ -37,6 +37,9 @@
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
   <content>{{velocity}}
+#if($doc != 'AI.Documents.WebHome')
+  #set($filter = $doc.getContent())
+#end
 #set ($columnsProperties = {
   'doc.title': {"link":"view"},
   'collection': {},
@@ -53,91 +56,11 @@
   'rowCount': 15,
   'maxPages': 10,
   'selectedColumn': 'doc.title',
-  'defaultOrder': 'asc'
+  'defaultOrder': 'asc',
+  "extraParams" : "&amp;collection=$!{filter}"
 })
 #set ($columns = ['doc.title', 'collection', 'language', 'doc.location', 'doc.date', 'doc.author', '_actions'])
+
 #livetable('documents' $columns $columnsProperties $options)
 {{/velocity}}</content>
-  <object>
-    <name>AI.Documents.WebHome</name>
-    <number>0</number>
-    <className>AppWithinMinutes.LiveTableClass</className>
-    <guid>32c3ad40-7a9a-46fc-9677-bf46f1b2ba2b</guid>
-    <class>
-      <name>AppWithinMinutes.LiveTableClass</name>
-      <customClass/>
-      <customMapping/>
-      <defaultViewSheet/>
-      <defaultEditSheet/>
-      <defaultWeb/>
-      <nameField/>
-      <validationScript/>
-      <class>
-        <customDisplay/>
-        <disabled>0</disabled>
-        <name>class</name>
-        <number>1</number>
-        <picker>0</picker>
-        <prettyName>Class</prettyName>
-        <size>30</size>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </class>
-      <columns>
-        <customDisplay/>
-        <disabled>0</disabled>
-        <name>columns</name>
-        <number>3</number>
-        <picker>0</picker>
-        <prettyName>Live Table Columns</prettyName>
-        <size>30</size>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </columns>
-      <dataSpace>
-        <customDisplay/>
-        <disabled>0</disabled>
-        <name>dataSpace</name>
-        <number>4</number>
-        <picker>0</picker>
-        <prettyName>Data Location</prettyName>
-        <size>30</size>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </dataSpace>
-      <description>
-        <customDisplay/>
-        <disabled>0</disabled>
-        <editor>---</editor>
-        <name>description</name>
-        <number>2</number>
-        <picker>0</picker>
-        <prettyName>Description</prettyName>
-        <rows>5</rows>
-        <size>40</size>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
-      </description>
-    </class>
-    <property>
-      <class>AI.Documents.Code.DocumentsClass</class>
-    </property>
-    <property>
-      <columns>doc.title collection language doc.location doc.date doc.author _actions</columns>
-    </property>
-    <property>
-      <dataSpace/>
-    </property>
-    <property>
-      <description/>
-    </property>
-  </object>
 </xwikidoc>
