@@ -103,7 +103,7 @@ public class RequestHelper
         if (body != null) {
             ObjectMapper objectMapper = new ObjectMapper();
             objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-            request.setEntity(new StringEntity(objectMapper.writeValueAsString(body)));
+            request.setEntity(new StringEntity(objectMapper.writeValueAsString(body), ContentType.APPLICATION_JSON));
         }
     }
 

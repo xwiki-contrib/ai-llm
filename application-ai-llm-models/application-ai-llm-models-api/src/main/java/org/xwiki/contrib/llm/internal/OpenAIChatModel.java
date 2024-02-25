@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.apache.hc.core5.http.HttpEntity;
@@ -99,7 +100,9 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
                     HttpEntity entity = response.getEntity();
                     if (entity != null) {
                         InputStream inputStream = entity.getContent();
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+                        BufferedReader reader = new BufferedReader(
+                                                    new InputStreamReader(inputStream, StandardCharsets.UTF_8)
+                                                );
                         String line;
                         while ((line = reader.readLine()) != null) {
                             consumer.accept(line);

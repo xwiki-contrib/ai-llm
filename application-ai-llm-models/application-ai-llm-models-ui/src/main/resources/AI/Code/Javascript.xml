@@ -1335,6 +1335,14 @@
             submitChat(event, form)
         });
 
+        // Listen for the Enter key press within the form
+        form.addEventListener('keypress', (event) =&gt; {
+            if (event.key === 'Enter' &amp;&amp; !event.shiftKey) {
+                event.preventDefault(); // Prevent the form from submitting
+                submitChat(event, form);
+            }
+        });
+
         const newConvButton = document.querySelector('#newconv');
         newConvButton.addEventListener('click', (event) =&gt; {
             document.querySelector('#chatContent').innerHTML = '';
