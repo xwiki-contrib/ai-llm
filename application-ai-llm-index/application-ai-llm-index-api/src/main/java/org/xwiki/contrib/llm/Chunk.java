@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
+import org.xwiki.user.UserReference;
 
 /**
  * The chunk will be used to store the information in Solr.
@@ -255,11 +256,12 @@ public class Chunk
      * Compute embeddings for current chunk.
      *
      * @param embeddingModelID the embedding model ID
+     * @param userReference the user reference
      */
-    public void computeEmbeddings(String embeddingModelID)
+    public void computeEmbeddings(String embeddingModelID, UserReference userReference)
     {
         try {
-            this.embeddings = embeddingsUtils.computeEmbeddings(this.content, embeddingModelID);
+            this.embeddings = embeddingsUtils.computeEmbeddings(this.content, embeddingModelID, userReference);
         } catch (Exception e) {
             logger.error("Failure to compute embeddings for chunk [{}] of document [{}]: [{}]",
                          this.chunkIndex, this.documentID, e.getMessage());

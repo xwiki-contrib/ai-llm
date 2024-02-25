@@ -40,6 +40,7 @@ import org.apache.solr.common.SolrInputDocument;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.search.solr.SolrUtils;
+import org.xwiki.user.CurrentUserReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 /**
@@ -186,7 +187,9 @@ public class SolrConnector
             for (Map.Entry<String, List<String>> entry : embeddingModelCollectionsMap.entrySet()) {
                 String embeddingsModelID = entry.getKey();
                 List<String> collectionsWithSameEmbeddingModel = entry.getValue();
-                double[] queryEmbeddings = embeddingsUtils.computeEmbeddings(textQuery, embeddingsModelID);
+                double[] queryEmbeddings = embeddingsUtils.computeEmbeddings(textQuery,
+                                                                            embeddingsModelID,
+                                                                            CurrentUserReference.INSTANCE);
                 String embeddingsAsString = arrayToString(queryEmbeddings);
                 SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel, limit);
                 QueryResponse response = client.query(query);

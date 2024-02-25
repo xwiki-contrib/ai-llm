@@ -28,7 +28,6 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.WikiReference;
-import org.xwiki.user.CurrentUserReference;
 import org.xwiki.user.UserReference;
 
 import com.xpn.xwiki.XWikiContext;
@@ -59,14 +58,14 @@ public class EmbeddingsUtils
      *
      * @param text the text to compute embeddings for
      * @param modelId the id of the model to use
+     * @param userReference the user reference
      * @return the embeddings as double array
      */
-    public double[] computeEmbeddings(String text, String modelId)
+    public double[] computeEmbeddings(String text, String modelId, UserReference userReference)
     {
         try {
             XWikiContext context = this.contextProvider.get();
             WikiReference wikiReference = context.getWikiReference();
-            UserReference userReference = CurrentUserReference.INSTANCE;
             EmbeddingModel embeddingModel = embeddingModelManager.getModel(wikiReference, modelId, userReference);
             double[] embeddingsFull = embeddingModel.embed(text);
     

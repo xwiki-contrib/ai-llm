@@ -14,3 +14,4 @@ org.xwiki.contrib.llm.SolrConnector
 org.xwiki.contrib.llm.Chunk
 org.xwiki.contrib.llm.ChunkingUtils
 org.xwiki.contrib.llm.EmbeddingsUtils
+org.xwiki.contrib.llm.IndexTaskConsumer

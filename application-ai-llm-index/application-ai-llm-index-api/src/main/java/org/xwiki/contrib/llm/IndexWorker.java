@@ -43,6 +43,7 @@ import org.slf4j.Logger;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.index.TaskManager;
 
 /**
  * This class is responsible for handling the document queue,
@@ -60,10 +61,7 @@ public class IndexWorker implements EventListener
     private Logger logger;
 
     @Inject
-    private CollectionManager collectionManager;
-
-    @Inject
-    private SolrConnector solrConnector;
+    private TaskManager taskManager;
 
     @Inject
     @Named("current")
@@ -85,25 +83,22 @@ public class IndexWorker implements EventListener
 
     @Override public void onEvent(Event event, Object source, Object data)
     {
-        EntityReference documentClassReference = getObjectReference();
-        this.logger.info("Event: {}", event);
         XWikiDocument xdocument = (XWikiDocument) source;
+        EntityReference documentClassReference = getObjectReference();
         BaseObject documentObject = xdocument.getXObject(documentClassReference);
-        this.logger.info("Document ref on event: {}", xdocument.getDocumentReference());
+
         if (documentObject != null && !xdocument.getDocumentReference().getName().equals("DocumentsTemplate")) {
             try {
                 //Add document to the queue
-                String docID = documentObject.getStringValue("id");
-                String docCollection = documentObject.getStringValue("collection");
-                this.keyValueQueue.add(new AbstractMap.SimpleEntry<>(docID, docCollection));
-                this.logger.info("Document added to queue: {}", docID);
-                this.logger.info("Queue size: {}", keyValueQueue.size());
-                //if the queue is not empty and the worker is not processing, process the queue
-                if (!keyValueQueue.isEmpty() && !isProcessing) {
+                Queue<XWikiDocument> queue = new LinkedList<>();
+                queue.add(xdocument);
+
+                if (!isProcessing && !queue.isEmpty()) {
                     isProcessing = true;
-                    processDocumentQueue(xdocument);
+                    processDocumentQueue(queue);
                     isProcessing = false;
                 }
+
             } catch (Exception e) {
                 this.logger.error("Failure in indexWorker listener", e);
             }
@@ -111,31 +106,18 @@ public class IndexWorker implements EventListener
         }
     }
 
-    private void processDocumentQueue(XWikiDocument xdocument)
+    private void processDocumentQueue(Queue<XWikiDocument> queue)
     {
-        logger.info("document ref {}", xdocument.getDocumentReference());
-        //while queue is not empty, get first document, log it's ID and remove it from the queue
-        while (!this.keyValueQueue.isEmpty()) {
+        // while queue is not empty, take next document in line and add it to the task manager
+        while (!queue.isEmpty()) {
             try {
-                logger.info("collectionManager pull {}", collectionManager.getCollections());
-                logger.info("for document {}", xdocument.getDocumentReference());
-                AbstractMap.SimpleEntry<String, String> nextInLine = this.keyValueQueue.poll();
-                logger.info("nextInLine {}", nextInLine);
+                XWikiDocument nextInLine = queue.poll();
                 if (nextInLine != null) {
-                    String key = nextInLine.getKey();
-                    String value = nextInLine.getValue();
-                    this.logger.info("Processing document: {}", key);
-                    Collection collection = collectionManager.getCollection(value);
-                    Document document = collection.getDocument(key);
-                    logger.info("Document: {}", document);
-                    solrConnector.deleteChunksByDocId(key);
-                    List<Chunk> chunks = document.chunkDocument();
-                    logger.info("Chunks: {}", chunks);
-                    for (Chunk chunk : chunks) {
-                        logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
-                        chunk.computeEmbeddings(collection.getEmbeddingModel());
-                        solrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
-                    }
+                    String wikiId = nextInLine.getDocumentReference().getWikiReference().getName();
+                    long documentId = nextInLine.getId();
+                    String taskType = "indexing";
+
+                    this.taskManager.addTask(wikiId, documentId, taskType);
                 }
             } catch (Exception e) {
                 this.logger.error("Failure to process document in indexWorker", e);
@@ -143,7 +125,7 @@ public class IndexWorker implements EventListener
         }
     }
 
-    //get XObject reference for the collection XClass
+    //get XObject reference for the document XClass
     private EntityReference getObjectReference()
     {
         SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(Document.XCLASS_SPACE_STRING);
@@ -155,10 +137,6 @@ public class IndexWorker implements EventListener
         return new EntityReference(Document.XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
     }
 
-    //generate unique id for chunks
-    private String generateChunkID(String docID, int chunkIndex)
-    {
-        return docID + "_" + chunkIndex;
-    }
+
 
 }
