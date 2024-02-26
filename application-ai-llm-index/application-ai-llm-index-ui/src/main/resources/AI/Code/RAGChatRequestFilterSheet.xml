@@ -58,6 +58,26 @@
       &lt;/label&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('collections')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('maxResults')))"
+        data-object-policy="updateOrCreate"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Code.RAGChatRequestFilterClass_0_maxResults"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('maxResults', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('maxResults')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('contextPrompt')))"
+        data-object-policy="updateOrCreate"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Code.RAGChatRequestFilterClass_0_contextPrompt"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('contextPrompt', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('contextPrompt')&lt;/dd&gt;
   &lt;/dl&gt;
   {{/html}}
 #end

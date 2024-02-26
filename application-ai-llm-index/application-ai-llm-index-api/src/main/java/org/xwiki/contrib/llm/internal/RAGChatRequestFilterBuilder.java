@@ -27,7 +27,6 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.ChatRequestFilter;
 import org.xwiki.contrib.llm.ChatRequestFilterBuilder;
@@ -63,9 +62,6 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
 
     @Inject
     private CollectionManager collectionManager;
-    
-    @Inject
-    private Logger logger;
 
     @Override
     public List<ChatRequestFilter> build(BaseObject object)
@@ -76,9 +72,16 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
             .map(o -> (String) o)
             .collect(Collectors.toList());
 
+        Integer maxResults = object.getIntValue("maxResults");
+        String contextPrompt = object.getLargeStringValue("contextPrompt");
+
+
         // Only return a filter if there are collections to filter on.
         return collections.isEmpty() ? List.of() 
-                                     : List.of(new RAGChatRequestFilter(collections, collectionManager, logger));
+                                     : List.of(new RAGChatRequestFilter(collections,
+                                                                        collectionManager,
+                                                                        maxResults,
+                                                                        contextPrompt));
     }
 
     @Override

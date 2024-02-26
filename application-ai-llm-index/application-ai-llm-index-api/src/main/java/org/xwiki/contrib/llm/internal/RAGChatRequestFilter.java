@@ -25,7 +25,6 @@ import java.util.List;
 
 
 import org.apache.commons.lang3.function.FailableConsumer;
-import org.slf4j.Logger;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
 import org.xwiki.contrib.llm.ChatMessage;
 import org.xwiki.contrib.llm.ChatRequest;
@@ -45,20 +44,27 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     private CollectionManager collectionManager;
 
-    private Logger logger;
+    private Integer maxResults;
+
+    private String contextPrompt;
 
     /**
      * Constructor.
      *
      * @param collections the collections to use
      * @param collectionManager the collection manager
-     * @param logger the logger
+     * @param maxResults the maximum number of results to return
+     * @param contextPrompt the context prompt
      */
-    public RAGChatRequestFilter(List<String> collections, CollectionManager collectionManager, Logger logger)
+    public RAGChatRequestFilter(List<String> collections,
+                                CollectionManager collectionManager,
+                                Integer maxResults,
+                                String contextPrompt)
     {
         this.collections = collections;
         this.collectionManager = collectionManager;
-        this.logger = logger;
+        this.maxResults = maxResults;
+        this.contextPrompt = contextPrompt;
     }
 
 
@@ -80,8 +86,6 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         if (!request.getMessages().isEmpty()) {
             ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
             lastMessage.setContent(context + "\n\n User message: " + lastMessage.getContent());
-            logger.info("Augmented message: [{}]", lastMessage.getContent());
-            lastMessage.setContent(lastMessage.getContent());
         }
         return request;
     }
@@ -100,7 +104,11 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
         // Perform solr similarity search on the last message
         try {
-            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, 10);
+            // If max results is not set, default to 10
+            if (maxResults == null) {
+                maxResults = 10;
+            }
+            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, maxResults);
             if (!searchResults.isEmpty()) {
                 contextBuilder.append("Provided context: \n");
                 for (List<String> result : searchResults) {
@@ -118,12 +126,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
                         contextBuilder.append(String.format("Document chunk content: %s %n", contentMsg));
                     }
                 }
-                contextBuilder.append("Instructions: "
-                                    + "Respond strictly in the following format: \n"
-                                    + "Source: \n the provided URLs separated by new line\n"
-                                    + "Answer: \n Formulate a response based on the provided context, "
-                                    + "after you quoted the source "
-                                    + "or inform the user that the requested information was found in the source.");
+                contextBuilder.append(contextPrompt);
             } else {
                 return "No similar content found.";
             }

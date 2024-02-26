@@ -80,5 +80,37 @@ and stringprop.id.name='id'</sql>
       <valueField/>
       <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
     </collections>
+    <contextPrompt>
+      <contenttype>---</contenttype>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <editor>---</editor>
+      <hint/>
+      <name>contextPrompt</name>
+      <number>3</number>
+      <picker>1</picker>
+      <prettyName>Context prompt</prettyName>
+      <restricted>0</restricted>
+      <rows>5</rows>
+      <size>40</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+    </contextPrompt>
+    <maxResults>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>Maximum number of results returned by the similarity search (number)</hint>
+      <name>maxResults</name>
+      <number>2</number>
+      <numberType>long</numberType>
+      <prettyName>Search results limit (number)</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+    </maxResults>
   </class>
 </xwikidoc>
