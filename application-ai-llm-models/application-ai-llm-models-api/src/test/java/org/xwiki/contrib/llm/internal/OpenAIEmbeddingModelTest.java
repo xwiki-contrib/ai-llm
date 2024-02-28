@@ -206,7 +206,8 @@ class OpenAIEmbeddingModelTest
                 RequestError.class, () -> openAIEmbeddingModel.embed(INPUT)
             );
             assertEquals("500: No content to map due to end-of-input\n"
-                + " at [Source: (ByteArrayInputStream); line: 1, column: 0]", exception.getMessage());
+                + " at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1]",
+                exception.getMessage());
         }
     }
 }
