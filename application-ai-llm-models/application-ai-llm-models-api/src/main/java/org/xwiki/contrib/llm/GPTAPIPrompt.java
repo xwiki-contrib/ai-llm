@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm;
 
 import java.util.Map;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * A class representing a prompt and its properties.
@@ -28,15 +29,31 @@ import java.util.Map;
  */
 public class GPTAPIPrompt 
 {
+    private static final String DEFAULT = "default";
+
+    @JsonProperty("name")
     private String name;
+
+    @JsonProperty("prompt")
     private String prompt;
+
+    @JsonProperty("user_prompt")
     private String userPrompt;
+
+    @JsonProperty("description")
     private String description;
+
+    @JsonProperty("is_active")
     private Boolean isActive;
+
+    @JsonProperty("default")
     private Boolean isDefault;
+
+    @JsonProperty("temperature")
     private Float temperature;
+
+    @JsonProperty("page_name")
     private String xWikiPageName;
-    private String def = "default";
 
     /**
      * Default constructor. every values are null except {@link GPTAPIPrompt#name},
@@ -44,7 +61,7 @@ public class GPTAPIPrompt
      */
     public GPTAPIPrompt()
     {
-        this.name = def;
+        this.name = DEFAULT;
     }
 
     /**
@@ -59,7 +76,7 @@ public class GPTAPIPrompt
         this.userPrompt = (String) dbMap.get("userPrompt");
         this.description = (String) dbMap.get("longText1");
         this.isActive = ((Integer) dbMap.get("boolean1")) == 1;
-        this.isDefault = ((Integer) dbMap.get(def)) == 1;
+        this.isDefault = ((Integer) dbMap.get(DEFAULT)) == 1;
         String tempValue = (String) dbMap.get("shortText1");
         if (!tempValue.equals("")) {
             this.temperature = Float.parseFloat(tempValue);

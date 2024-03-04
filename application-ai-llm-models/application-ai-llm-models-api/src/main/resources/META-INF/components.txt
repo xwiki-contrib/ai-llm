@@ -10,6 +10,7 @@ org.xwiki.contrib.llm.internal.HttpClientFactory
 org.xwiki.contrib.llm.internal.RequestHelper
 org.xwiki.contrib.llm.internal.rest.DefaultChatCompletionsResource
 org.xwiki.contrib.llm.internal.rest.DefaultModelsResource
+org.xwiki.contrib.llm.internal.rest.DefaultPromptsResource
 org.xwiki.contrib.llm.script.AILLMScriptService
 org.xwiki.contrib.llm.script.ModelsScriptService
 org.xwiki.contrib.llm.GPTRestAPI
