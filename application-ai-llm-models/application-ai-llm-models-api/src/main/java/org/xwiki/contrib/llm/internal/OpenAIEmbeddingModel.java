@@ -20,11 +20,11 @@
 package org.xwiki.contrib.llm.internal;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.net.http.HttpResponse;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import org.apache.hc.core5.http.HttpEntity;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.EmbeddingModel;
@@ -75,38 +75,29 @@ public class OpenAIEmbeddingModel extends AbstractModel implements EmbeddingMode
         EmbeddingRequest request = new EmbeddingRequest(this.modelConfiguration.getModel(), texts, null);
 
         try {
-            return this.requestHelper.post(getConfig(), "embeddings", request, response -> {
-                ObjectMapper objectMapper = new ObjectMapper();
-                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            HttpResponse<InputStream> httpResponse =
+                this.requestHelper.post(getConfig(), "embeddings", request, HttpResponse.BodyHandlers.ofInputStream());
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-                if (response.getCode() != 200) {
-                    if (response.getEntity() != null) {
-                        OpenAiError error =
-                            objectMapper.readValue(response.getEntity().getContent(), OpenAiError.class);
-                        throw new IOException(error.getError().getMessage());
-                    } else {
-                        throw new IOException("Error embedding content with code " + response.getCode() + " with "
-                            + "no response body.");
-                    }
-                }
+            if (httpResponse.statusCode() != 200) {
+                OpenAiError error = objectMapper.readValue(httpResponse.body(), OpenAiError.class);
+                throw new RequestError(httpResponse.statusCode(), error.error.getMessage());
+            }
 
-                HttpEntity entity = response.getEntity();
-                if (entity == null) {
-                    throw new IOException("No response body");
-                }
+            OpenAiResponse<Embedding> openAiResponse = objectMapper.readValue(httpResponse.body(),
+                new TypeReference<OpenAiResponse<Embedding>>()
+                {
+                });
 
-                OpenAiResponse<Embedding> openAiResponse = objectMapper.readValue(entity.getContent(),
-                    new TypeReference<OpenAiResponse<Embedding>>() { });
-
-                if (openAiResponse.data != null) {
-                    return openAiResponse.data.stream()
-                        .map(Embedding::getEmbedding)
-                        .map(list -> list.stream().mapToDouble(Double::doubleValue).toArray())
-                        .collect(Collectors.toList());
-                } else {
-                    throw new IOException("Response data is null");
-                }
-            });
+            if (openAiResponse.data != null) {
+                return openAiResponse.data.stream()
+                    .map(Embedding::getEmbedding)
+                    .map(list -> list.stream().mapToDouble(Double::doubleValue).toArray())
+                    .toList();
+            } else {
+                throw new IOException("Response data is null");
+            }
         } catch (IOException e) {
             throw new RequestError(500, e.getMessage());
         }

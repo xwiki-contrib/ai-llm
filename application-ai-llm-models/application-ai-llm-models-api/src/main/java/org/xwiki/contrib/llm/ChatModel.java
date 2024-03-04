@@ -51,7 +51,7 @@ public interface ChatModel
      * @param request the request to process
      * @return the response
      */
-    ChatResponse process(ChatRequest request) throws RequestError;
+    ChatResponse process(ChatRequest request) throws IOException, RequestError;
 
     /**
      * @return {@code true} if the model supports streaming, {@code false} otherwise

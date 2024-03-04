@@ -76,7 +76,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     }
 
     @Override
-    public ChatResponse process(ChatRequest request) throws RequestError
+    public ChatResponse process(ChatRequest request) throws IOException, RequestError
     {
         return super.process(addContext(request));
     }

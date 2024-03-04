@@ -19,12 +19,13 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.net.http.HttpResponse;
 
 import org.apache.commons.lang3.function.FailableConsumer;
-import org.apache.hc.core5.http.HttpEntity;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.ChatRequest;
@@ -46,8 +47,6 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
 public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
 {
     private static final String PATH = "chat/completions";
-
-    private static final String EMPTY = "Response is empty.";
 
     private static final String RESPONSE_CODE_ERROR = "Response code is %d";
 
@@ -87,35 +86,28 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
                 this.modelConfiguration.getModel());
             chatCompletionRequest.setStream(true);
 
-            try {
-                this.requestHelper.post(this.getConfig(),
-                    PATH,
-                    chatCompletionRequest,
-                    response -> {
-                        if (response.getCode() == 200 && response.getEntity() != null) {
-                            HttpEntity entity = response.getEntity();
-                            InputStream inputStream = entity.getContent();
-                            ObjectMapper objectMapper = new ObjectMapper();
-                            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            HttpResponse<InputStream> httpResponse = this.requestHelper.post(this.getConfig(), PATH,
+                chatCompletionRequest, HttpResponse.BodyHandlers.ofInputStream());
+            try (InputStream body = httpResponse.body()) {
+                if (httpResponse.statusCode() == 200) {
+                    ObjectMapper objectMapper = new ObjectMapper();
+                    objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-                            // Read the SSE stream and call the consumer for every chunk
-                            this.requestHelper.readSSEStream(inputStream, chunk -> {
-                                if ("[DONE]\n".equals(chunk)) {
-                                    return;
-                                }
-                                ChatCompletionResult chatCompletionResult =
-                                    objectMapper.readValue(chunk, ChatCompletionResult.class);
-                                consumer.accept(
-                                    this.chatResponseConverter.fromOpenAIResponse(chatCompletionResult));
-                            });
-                        } else {
-                            throw new IOException(String.format(RESPONSE_CODE_ERROR, response.getCode()));
+                    // Read the SSE stream and call the consumer for every chunk
+                    this.requestHelper.readSSEStream(body, chunk -> {
+                        if ("[DONE]\n".equals(chunk)) {
+                            return;
                         }
 
-                        return null;
+                        ChatCompletionResult chatCompletionResult =
+                            objectMapper.readValue(chunk, ChatCompletionResult.class);
+                        consumer.accept(this.chatResponseConverter.fromOpenAIResponse(chatCompletionResult));
                     });
-            } catch (Exception e) {
-                throw new RequestError(500, e.getMessage());
+                } else {
+                    throw new IOException(String.format(RESPONSE_CODE_ERROR, httpResponse.statusCode()));
+                }
+            } catch (EOFException e) {
+                // Ignore, this is expected when request is closed by the client.
             }
         } else {
             consumer.accept(this.process(request));
@@ -123,33 +115,22 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
     }
 
     @Override
-    public ChatResponse process(ChatRequest request) throws RequestError
+    public ChatResponse process(ChatRequest request) throws IOException, RequestError
     {
         ChatCompletionRequest chatCompletionRequest = this.chatRequestConverter.toOpenAI(request,
             this.modelConfiguration.getModel());
 
-        try {
-            return this.requestHelper.post(this.getConfig(),
-                PATH,
-                chatCompletionRequest,
-                response -> {
-                    if (response.getCode() == 200) {
-                        HttpEntity entity = response.getEntity();
-                        if (entity != null) {
-                            InputStream inputStream = entity.getContent();
-                            ObjectMapper objectMapper = new ObjectMapper();
-                            objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                            return this.chatResponseConverter.fromOpenAIResponse(
-                                objectMapper.readValue(inputStream, ChatCompletionResult.class));
-                        } else {
-                            throw new IOException(EMPTY);
-                        }
-                    } else {
-                        throw new IOException(String.format(RESPONSE_CODE_ERROR, response.getCode()));
-                    }
-                });
-        } catch (Exception e) {
-            throw new RequestError(500, e.getMessage());
+        HttpResponse<InputStream> httpResponse = this.requestHelper.post(this.getConfig(),
+            PATH, chatCompletionRequest, HttpResponse.BodyHandlers.ofInputStream());
+        try (InputStream body = httpResponse.body()) {
+            if (httpResponse.statusCode() == 200) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                return this.chatResponseConverter.fromOpenAIResponse(
+                    objectMapper.readValue(body, ChatCompletionResult.class));
+            } else {
+                throw new IOException(String.format(RESPONSE_CODE_ERROR, httpResponse.statusCode()));
+            }
         }
     }
 

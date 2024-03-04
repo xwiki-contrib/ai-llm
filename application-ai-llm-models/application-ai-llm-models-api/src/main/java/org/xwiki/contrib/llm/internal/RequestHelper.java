@@ -23,6 +23,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 
 import javax.inject.Inject;
@@ -30,14 +34,6 @@ import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.FailableConsumer;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.io.HttpClientResponseHandler;
-import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.GPTAPIConfig;
 
@@ -58,6 +54,8 @@ public class RequestHelper
 
     private static final String DATA_PREFIX = "data: ";
 
+    private static final String APPLICATION_JSON = "application/json";
+
     @Inject
     private HttpClientFactory httpClientFactory;
 
@@ -67,19 +65,24 @@ public class RequestHelper
      * @param config the configuration that provides the URL and the authentication token
      * @param path the path of the API endpoint
      * @param body the object to send in the body of the request
-     * @param responseHandler the callback that handles the response
-     * @return the value returned by the response handler
+     * @param bodyHandler the handler that processes the response body
+     * @return the value returned by the body handler
      * @param <T> the type of the body
      * @param <R> the return type
      * @throws IOException if the request fails
      */
-    public <T, R> R post(GPTAPIConfig config, String path, T body,
-        HttpClientResponseHandler<? extends R> responseHandler) throws IOException
+    public <T, R> HttpResponse<R> post(GPTAPIConfig config, String path, T body,
+        HttpResponse.BodyHandler<R> bodyHandler)
+        throws IOException
     {
-        try (CloseableHttpClient httpClient = this.httpClientFactory.createHttpClient()) {
-            HttpPost httpPost = new HttpPost(config.getURL() + path);
-            prepareRequest(httpPost, config, body);
-            return httpClient.execute(httpPost, responseHandler);
+        HttpClient httpClient = this.httpClientFactory.createHttpClient();
+        HttpRequest request = prepareRequest(path, config, body);
+
+        try {
+            return httpClient.send(request, bodyHandler);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException(e);
         }
     }
 
@@ -88,19 +91,15 @@ public class RequestHelper
      *
      * @param config the configuration that provides the URL and the authentication token
      * @param path the path of the API endpoint
-     * @param responseHandler the callback that handles the response
+     * @param bodyHandler the handler that processes the response body
      * @return the value returned by the response handler
-     * @param <R> the return type
+     * @param <R> the type of the body
      * @throws IOException if the request fails
      */
-    public <R> R get(GPTAPIConfig config, String path,
-        HttpClientResponseHandler<? extends R> responseHandler) throws IOException
+    public <R> HttpResponse<R> get(GPTAPIConfig config, String path,
+        HttpResponse.BodyHandler<R> bodyHandler) throws IOException
     {
-        try (CloseableHttpClient httpClient = this.httpClientFactory.createHttpClient()) {
-            HttpGet httpGet = new HttpGet(config.getURL() + path);
-            prepareRequest(httpGet, config, null);
-            return httpClient.execute(httpGet, responseHandler);
-        }
+        return post(config, path, null, bodyHandler);
     }
 
     /**
@@ -113,7 +112,9 @@ public class RequestHelper
     public void readSSEStream(InputStream inputStream, FailableConsumer<String, IOException> consumer)
         throws IOException
     {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+        // Use a small buffer to avoid delaying the streaming output too much.
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8),
+            128)) {
             // Read the input stream line by line and group the lines into chunks.
             String line;
             StringBuilder chunk = new StringBuilder();
@@ -134,16 +135,21 @@ public class RequestHelper
         }
     }
 
-    private <T> void prepareRequest(HttpUriRequestBase request, GPTAPIConfig config, T body) throws IOException
+    private <T> HttpRequest prepareRequest(String path, GPTAPIConfig config, T body) throws IOException
     {
-        request.setHeader(HttpHeaders.AUTHORIZATION, BEARER + config.getToken());
-        request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON);
-        request.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON);
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+            .uri(URI.create(config.getURL() + path))
+            .header("Authorization", BEARER + config.getToken())
+            .header("Accept", APPLICATION_JSON)
+            .header("Content-Type", APPLICATION_JSON)
+            .header("User-Agent", "XWiki AI LLM Application");
+
         if (body != null) {
             ObjectMapper objectMapper = new ObjectMapper();
             objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-            request.setEntity(new StringEntity(objectMapper.writeValueAsString(body), ContentType.APPLICATION_JSON));
+            builder = builder.POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
         }
-    }
 
+        return builder.build();
+    }
 }

@@ -51,7 +51,7 @@ public abstract class AbstractChatRequestFilter implements ChatRequestFilter
     }
 
     @Override
-    public ChatResponse process(ChatRequest request) throws RequestError
+    public ChatResponse process(ChatRequest request) throws IOException, RequestError
     {
         return this.next != null ? this.next.process(request) : null;
     }

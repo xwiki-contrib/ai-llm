@@ -19,10 +19,11 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
+
 import javax.inject.Singleton;
 
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.xwiki.component.annotation.Component;
 
 /**
@@ -38,11 +39,12 @@ public class HttpClientFactory
     /**
      * @return a new HTTP client
      */
-    CloseableHttpClient createHttpClient()
+    HttpClient createHttpClient()
     {
-        return HttpClientBuilder.create()
-            .useSystemProperties()
-            .setUserAgent("XWiki AI LLM Application")
+        return HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_2)
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .connectTimeout(Duration.ofSeconds(20))
             .build();
     }
 }

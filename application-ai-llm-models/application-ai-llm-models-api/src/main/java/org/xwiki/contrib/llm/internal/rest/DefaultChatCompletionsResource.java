@@ -85,15 +85,15 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                     try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
                         writeResponseStream(request, model, chatRequest, writer);
                     }
-                }, MediaType.TEXT_PLAIN).build();
+                }, MediaType.SERVER_SENT_EVENTS_TYPE).build();
             } else {
                 ChatResponse chatResponse = model.process(chatRequest);
                 // Convert to OpenAI format
                 ChatCompletionResult openAIChatCompletionResult =
                     this.chatResponseConverter.toOpenAIChatCompletionResult(chatResponse, request.getModel());
-                return Response.ok(openAIChatCompletionResult).build();
+                return Response.ok(openAIChatCompletionResult, MediaType.APPLICATION_JSON_TYPE).build();
             }
-        } catch (GPTAPIException | RequestError e) {
+        } catch (GPTAPIException | RequestError | IOException e) {
             throw new WebApplicationException(e, Response.Status.INTERNAL_SERVER_ERROR);
         }
     }

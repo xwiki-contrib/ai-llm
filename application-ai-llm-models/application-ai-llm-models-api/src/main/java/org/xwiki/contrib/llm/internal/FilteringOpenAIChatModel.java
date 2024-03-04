@@ -88,7 +88,7 @@ public class FilteringOpenAIChatModel extends AbstractModel implements ChatModel
     }
 
     @Override
-    public ChatResponse process(ChatRequest request) throws RequestError
+    public ChatResponse process(ChatRequest request) throws IOException, RequestError
     {
         return this.firstFilter.process(request);
     }

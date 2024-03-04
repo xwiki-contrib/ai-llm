@@ -58,5 +58,5 @@ public interface ChatRequestFilter
      * @param request the request to process
      * @return the response
      */
-    ChatResponse process(ChatRequest request) throws RequestError;
+    ChatResponse process(ChatRequest request) throws IOException, RequestError;
 }

@@ -19,24 +19,21 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.Flow;
 
 import javax.inject.Named;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.core5.http.ClassicHttpRequest;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.io.HttpClientResponseHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -59,6 +56,7 @@ import org.xwiki.user.group.GroupManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -109,6 +107,8 @@ class OpenAIEmbeddingModelTest
         + "  }\n"
         + "}\n";
 
+    private static final String APPLICATION_JSON = "application/json";
+
     @MockComponent
     private HttpClientFactory httpClientFactory;
 
@@ -126,23 +126,19 @@ class OpenAIEmbeddingModelTest
     private MockitoComponentManager componentManager;
 
     @Mock
-    private CloseableHttpClient httpClient;
+    private HttpClient httpClient;
 
     @Mock
-    private ClassicHttpResponse httpResponse;
+    private HttpResponse<InputStream> httpResponse;
 
     @Mock
     private GPTAPIConfig config;
 
     @BeforeEach
-    void setUp() throws IOException, GPTAPIException
+    void setUp() throws IOException, GPTAPIException, InterruptedException
     {
         when(this.httpClientFactory.createHttpClient()).thenReturn(this.httpClient);
-        when(this.httpClient.execute(any(ClassicHttpRequest.class), any(HttpClientResponseHandler.class)))
-            .thenAnswer(invocation -> {
-                HttpClientResponseHandler<?> handler = invocation.getArgument(1);
-                return handler.handleResponse(this.httpResponse);
-            });
+        when(this.httpClient.<InputStream>send(any(HttpRequest.class), any())).thenReturn(this.httpResponse);
         when(this.config.getToken()).thenReturn(TOKEN);
         when(this.config.getURL()).thenReturn(URL);
 
@@ -150,64 +146,64 @@ class OpenAIEmbeddingModelTest
     }
 
     @Test
-    void embed() throws IOException, RequestError, URISyntaxException, ComponentLookupException
+    void embed() throws IOException, RequestError, URISyntaxException, ComponentLookupException, InterruptedException
     {
-        when(this.httpResponse.getCode()).thenReturn(200);
-        try (HttpEntity entity = mock(HttpEntity.class)) {
-            when(this.httpResponse.getEntity()).thenReturn(entity);
-            when(entity.getContent()).thenReturn(IOUtils.toInputStream(EMBEDDING_RESPONSE, StandardCharsets.UTF_8));
+        when(this.httpResponse.statusCode()).thenReturn(200);
+        when(this.httpResponse.body()).thenReturn(IOUtils.toInputStream(EMBEDDING_RESPONSE, StandardCharsets.UTF_8));
 
-            ModelConfiguration modelConfiguration = new ModelConfiguration();
-            modelConfiguration.setModel(MODEL);
-            modelConfiguration.setServerName(SERVER_NAME);
-            modelConfiguration.setObjectReference(OBJECT_REFERENCE);
+        ModelConfiguration modelConfiguration = new ModelConfiguration();
+        modelConfiguration.setModel(MODEL);
+        modelConfiguration.setServerName(SERVER_NAME);
+        modelConfiguration.setObjectReference(OBJECT_REFERENCE);
 
-            OpenAIEmbeddingModel openAIEmbeddingModel =
-                new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
-            double[] embedding = openAIEmbeddingModel.embed(INPUT);
-            assertEquals(3, embedding.length);
-            assertEquals(0.0023064255, embedding[0]);
-            assertEquals(-0.009327292, embedding[1]);
-            assertEquals(-0.0028842222, embedding[2]);
+        OpenAIEmbeddingModel openAIEmbeddingModel =
+            new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
+        double[] embedding = openAIEmbeddingModel.embed(INPUT);
+        assertEquals(3, embedding.length);
+        assertEquals(0.0023064255, embedding[0]);
+        assertEquals(-0.009327292, embedding[1]);
+        assertEquals(-0.0028842222, embedding[2]);
 
-            // Capture the POST request
-            ArgumentCaptor<HttpPost> requestCaptor = ArgumentCaptor.forClass(HttpPost.class);
-            verify(this.httpClient).execute(requestCaptor.capture(), any(HttpClientResponseHandler.class));
-            HttpPost request = requestCaptor.getValue();
-            assertEquals(URL + "embeddings", request.getUri().toString());
-            assertEquals("Bearer " + TOKEN, request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue());
-            assertEquals(ContentType.APPLICATION_JSON.toString(),
-                request.getFirstHeader(HttpHeaders.ACCEPT).getValue());
-            assertEquals(ContentType.APPLICATION_JSON.toString(),
-                request.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue());
-            try (InputStream content = request.getEntity().getContent()) {
-                assertEquals("{\"model\":\"text-embedding-ada-002\",\"input\":[\"XWiki is awesome\"]}",
-                    IOUtils.toString(content, StandardCharsets.UTF_8));
-            }
-        }
+        // Capture the POST request
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(this.httpClient).send(requestCaptor.capture(), any());
+        HttpRequest request = requestCaptor.getValue();
+        assertEquals(URL + "embeddings", request.uri().toString());
+        HttpHeaders headers = request.headers();
+        assertEquals("Bearer " + TOKEN, headers.firstValue("Authorization").orElseThrow());
+        assertEquals(APPLICATION_JSON, headers.firstValue("Accept").orElseThrow());
+        assertEquals(APPLICATION_JSON, headers.firstValue("Content-Type").orElseThrow());
+
+        Flow.Subscriber<ByteBuffer> bufferSubscriber = mock();
+        doAnswer(invocation -> {
+            Flow.Subscription subscription = invocation.getArgument(0);
+            subscription.request(Long.MAX_VALUE);
+            return null;
+        }).when(bufferSubscriber).onSubscribe(any());
+        request.bodyPublisher().orElseThrow().subscribe(bufferSubscriber);
+        ArgumentCaptor<ByteBuffer> bufferCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
+        verify(bufferSubscriber).onNext(bufferCaptor.capture());
+        ByteBuffer buffer = bufferCaptor.getValue();
+
+        assertEquals("{\"model\":\"text-embedding-ada-002\",\"input\":[\"XWiki is awesome\"]}",
+            StandardCharsets.UTF_8.decode(buffer).toString());
     }
 
     @Test
     void embedWithError() throws IOException, ComponentLookupException
     {
-        when(this.httpResponse.getCode()).thenReturn(400);
-        try (HttpEntity entity = mock(HttpEntity.class)) {
-            when(this.httpResponse.getEntity()).thenReturn(entity);
-            when(entity.getContent()).thenReturn(new ByteArrayInputStream("".getBytes(StandardCharsets.UTF_8)));
-            ModelConfiguration modelConfiguration = new ModelConfiguration();
-            modelConfiguration.setModel(MODEL);
-            modelConfiguration.setServerName(SERVER_NAME);
-            modelConfiguration.setObjectReference(OBJECT_REFERENCE);
+        when(this.httpResponse.statusCode()).thenReturn(400);
+        when(this.httpResponse.body()).thenReturn(IOUtils.toInputStream(
+            "{\"error\": {\"message\": \"Invalid request\", \"code\": 400}}", StandardCharsets.UTF_8));
+        ModelConfiguration modelConfiguration = new ModelConfiguration();
+        modelConfiguration.setModel(MODEL);
+        modelConfiguration.setServerName(SERVER_NAME);
+        modelConfiguration.setObjectReference(OBJECT_REFERENCE);
 
-            OpenAIEmbeddingModel openAIEmbeddingModel =
-                new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
+        OpenAIEmbeddingModel openAIEmbeddingModel =
+            new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
 
-            RequestError exception = assertThrows(
-                RequestError.class, () -> openAIEmbeddingModel.embed(INPUT)
-            );
-            assertEquals("500: No content to map due to end-of-input\n"
-                + " at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1]",
-                exception.getMessage());
-        }
+        RequestError exception = assertThrows(RequestError.class, () -> openAIEmbeddingModel.embed(INPUT));
+        assertEquals("400: Invalid request", exception.getMessage());
     }
 }
