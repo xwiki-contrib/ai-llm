@@ -26,6 +26,8 @@ import javax.inject.Singleton;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.ChatMessage;
 import org.xwiki.contrib.llm.ChatResponse;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunkChoice;
 
 import com.theokanning.openai.completion.chat.ChatCompletionChoice;
 import com.theokanning.openai.completion.chat.ChatCompletionResult;
@@ -40,6 +42,8 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
 @Singleton
 public class ChatResponseConverter
 {
+    private static final String CHAT_COMPLETION_CHUNK = "chat.completion.chunk";
+
     /**
      * Convert a {@link ChatCompletionResult} object to a {@link ChatResponse} object.
      *
@@ -54,5 +58,44 @@ public class ChatResponseConverter
             chatCompletionChoice.getMessage();
         return new ChatResponse(chatCompletionChoice.getFinishReason(),
             new ChatMessage(resultMessage.getRole(), resultMessage.getContent()));
+    }
+
+    /**
+     * Convert a {@link ChatResponse} object to a {@link ChatCompletionResult} object.
+     *
+     * @param chatResponse the response to convert
+     * @param model the model used to generate the response
+     * @return the converted result
+     */
+    public ChatCompletionResult toOpenAIChatCompletionResult(ChatResponse chatResponse, String model)
+    {
+        ChatCompletionResult result = new ChatCompletionResult();
+        result.setObject("chat.completion");
+        ChatCompletionChoice choice = new ChatCompletionChoice();
+        choice.setFinishReason(chatResponse.getFinishReason());
+        choice.setIndex(0);
+        choice.setMessage(new com.theokanning.openai.completion.chat.ChatMessage(
+            chatResponse.getMessage().getRole(),
+            chatResponse.getMessage().getContent()));
+        result.setChoices(List.of(choice));
+        result.setModel(model);
+        return result;
+    }
+
+    /**
+     * Convert a {@link ChatResponse} object to a {@link ChatCompletionChunk} object.
+     *
+     * @param chatResponse the response to convert
+     * @param model the model used to generate the response
+     * @return the converted chunk
+     */
+    public ChatCompletionChunk toOpenAIChatCompletionChunk(ChatResponse chatResponse, String model)
+    {
+        com.theokanning.openai.completion.chat.ChatMessage message =
+            new com.theokanning.openai.completion.chat.ChatMessage(
+                chatResponse.getMessage().getRole(),
+                chatResponse.getMessage().getContent());
+        var choice = new ChatCompletionChunkChoice(0, message, chatResponse.getFinishReason());
+        return new ChatCompletionChunk(null, CHAT_COMPLETION_CHUNK, 0, model, List.of(choice));
     }
 }

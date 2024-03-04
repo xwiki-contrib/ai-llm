@@ -81,7 +81,8 @@ public class FilteringOpenAIChatModel extends AbstractModel implements ChatModel
     }
 
     @Override
-    public void processStreaming(ChatRequest request, FailableConsumer<String, IOException> consumer) throws IOException
+    public void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
+        throws IOException, RequestError
     {
         this.firstFilter.processStreaming(request, consumer);
     }

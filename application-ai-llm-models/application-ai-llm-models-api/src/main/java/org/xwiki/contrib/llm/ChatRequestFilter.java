@@ -44,13 +44,13 @@ public interface ChatRequestFilter
     void setNext(ChatRequestFilter next);
 
     /**
-     * Processes the given request and calls the given consumer for every line of the response.
+     * Processes the given request and calls the given consumer for every chunk of the response.
      *
      * @param request the request to process
-     * @param consumer the consumer that will be called for every line that is received. This will be improved in the
-     * future to pass a {@link ChatResponse} instead.
+     * @param consumer the consumer that will be called for every chunk that is received.
      */
-    void processStreaming(ChatRequest request, FailableConsumer<String, IOException> consumer) throws IOException;
+    void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
+        throws IOException, RequestError;
 
     /**
      * Processes the given request and returns the response.

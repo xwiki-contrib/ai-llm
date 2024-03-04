@@ -19,10 +19,10 @@
  */
 package org.xwiki.contrib.llm.internal.rest;
 
+import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -41,11 +41,14 @@ import org.xwiki.contrib.llm.ChatRequestParameters;
 import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.contrib.llm.RequestError;
+import org.xwiki.contrib.llm.internal.ChatResponseConverter;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
 import org.xwiki.contrib.llm.rest.ChatCompletionsResource;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.user.CurrentUserReference;
 
-import com.theokanning.openai.completion.chat.ChatCompletionChoice;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionResult;
 
@@ -60,8 +63,13 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
 @Singleton
 public class DefaultChatCompletionsResource extends XWikiResource implements ChatCompletionsResource
 {
+    private static final String DATA_FORMAT = "data: %s%n%n";
+
     @Inject
     private ChatModelManager chatModelManager;
+
+    @Inject
+    private ChatResponseConverter chatResponseConverter;
 
     @Override
     public Response getCompletions(String wikiName, ChatCompletionRequest request)
@@ -70,37 +78,51 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
             ChatModel model =
                 this.chatModelManager.getModel(request.getModel(), CurrentUserReference.INSTANCE, wikiName);
 
-            List<ChatMessage> messages = request.getMessages().stream()
-                .map(m -> new ChatMessage(m.getRole(), m.getContent()))
-                .collect(Collectors.toList());
-            ChatRequestParameters parameters = new ChatRequestParameters(request.getTemperature());
-            ChatRequest chatRequest = new ChatRequest(messages, parameters);
+            ChatRequest chatRequest = getChatRequest(request);
 
             if (model.supportsStreaming() && Boolean.TRUE.equals(request.getStream())) {
                 return Response.ok((StreamingOutput) output -> {
-                    OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8);
-
-                    model.processStreaming(chatRequest, line -> {
-                        writer.write(line);
-                        writer.flush();
-                    });
+                    try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
+                        writeResponseStream(request, model, chatRequest, writer);
+                    }
                 }, MediaType.TEXT_PLAIN).build();
             } else {
-                // Convert to OpenAI format
                 ChatResponse chatResponse = model.process(chatRequest);
-                ChatCompletionResult result = new ChatCompletionResult();
-                result.setObject("chat.completion");
-                ChatCompletionChoice choice = new ChatCompletionChoice();
-                choice.setFinishReason(chatResponse.getFinishReason());
-                choice.setIndex(0);
-                choice.setMessage(new com.theokanning.openai.completion.chat.ChatMessage(
-                                        chatResponse.getMessage().getRole(),
-                                        chatResponse.getMessage().getContent()));
-                result.setChoices(List.of(choice));
-                return Response.ok(result).build();
+                // Convert to OpenAI format
+                ChatCompletionResult openAIChatCompletionResult =
+                    this.chatResponseConverter.toOpenAIChatCompletionResult(chatResponse, request.getModel());
+                return Response.ok(openAIChatCompletionResult).build();
             }
         } catch (GPTAPIException | RequestError e) {
             throw new WebApplicationException(e, Response.Status.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private void writeResponseStream(ChatCompletionRequest request, ChatModel model, ChatRequest chatRequest,
+        OutputStreamWriter writer) throws IOException
+    {
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.setSerializationInclusion(Include.NON_NULL);
+        try {
+            model.processStreaming(chatRequest, chatResponse -> {
+                ChatCompletionChunk chunk =
+                    this.chatResponseConverter.toOpenAIChatCompletionChunk(chatResponse,
+                        request.getModel());
+                writer.write(DATA_FORMAT.formatted(objectMapper.writeValueAsString(chunk)));
+                writer.flush();
+            });
+        } catch (RequestError e) {
+            writer.write(DATA_FORMAT.formatted(objectMapper.writeValueAsString(e)));
+            writer.flush();
+        }
+    }
+
+    private ChatRequest getChatRequest(ChatCompletionRequest request)
+    {
+        List<ChatMessage> messages = request.getMessages().stream()
+            .map(m -> new ChatMessage(m.getRole(), m.getContent()))
+            .toList();
+        ChatRequestParameters parameters = new ChatRequestParameters(request.getTemperature());
+        return new ChatRequest(messages, parameters);
     }
 }

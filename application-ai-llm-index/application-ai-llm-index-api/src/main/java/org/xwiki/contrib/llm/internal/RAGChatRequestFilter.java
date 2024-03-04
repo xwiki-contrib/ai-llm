@@ -69,7 +69,8 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
 
     @Override
-    public void processStreaming(ChatRequest request, FailableConsumer<String, IOException> consumer) throws IOException
+    public void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
+        throws IOException, RequestError
     {
         super.processStreaming(addContext(request), consumer);
     }

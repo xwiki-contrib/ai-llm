@@ -42,11 +42,10 @@ public interface ChatModel
 {
     /**
      * @param request the request to process
-     * @param consumer the consumer that will be called for every line that is received. This will be improved in the
-     * future to pass a {@link ChatResponse} instead.
+     * @param consumer the consumer that will be called for every chat response that is received.
      */
-    void processStreaming(ChatRequest request, FailableConsumer<String, IOException> consumer)
-        throws IOException;
+    void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
+        throws IOException, RequestError;
 
     /**
      * @param request the request to process

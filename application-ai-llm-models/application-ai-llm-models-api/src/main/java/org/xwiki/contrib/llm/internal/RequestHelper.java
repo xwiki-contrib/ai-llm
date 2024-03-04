@@ -19,11 +19,17 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.function.FailableConsumer;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
@@ -49,6 +55,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class RequestHelper
 {
     private static final String BEARER = "Bearer ";
+
+    private static final String DATA_PREFIX = "data: ";
 
     @Inject
     private HttpClientFactory httpClientFactory;
@@ -92,6 +100,37 @@ public class RequestHelper
             HttpGet httpGet = new HttpGet(config.getURL() + path);
             prepareRequest(httpGet, config, null);
             return httpClient.execute(httpGet, responseHandler);
+        }
+    }
+
+    /**
+     * Read a Server-Sent Events (SSE) stream.
+     *
+     * @param inputStream the input stream to read
+     * @param consumer the consumer that processes the data chunks of the stream
+     * @throws IOException if the stream cannot be read
+     */
+    public void readSSEStream(InputStream inputStream, FailableConsumer<String, IOException> consumer)
+        throws IOException
+    {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            // Read the input stream line by line and group the lines into chunks.
+            String line;
+            StringBuilder chunk = new StringBuilder();
+            while ((line = reader.readLine()) != null) {
+                if (line.isEmpty()) {
+                    // Call the consumer with the chunk
+                    consumer.accept(chunk.toString());
+                    chunk.setLength(0);
+                } else if (line.startsWith(DATA_PREFIX)) {
+                    chunk.append(StringUtils.removeStart(line, DATA_PREFIX)).append('\n');
+                }
+            }
+
+            // Call the consumer with the last chunk
+            if (!chunk.isEmpty()) {
+                consumer.accept(chunk.toString());
+            }
         }
     }
 

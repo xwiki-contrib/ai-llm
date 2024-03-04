@@ -42,7 +42,8 @@ public abstract class AbstractChatRequestFilter implements ChatRequestFilter
     }
 
     @Override
-    public void processStreaming(ChatRequest request, FailableConsumer<String, IOException> consumer) throws IOException
+    public void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
+        throws IOException, RequestError
     {
         if (this.next != null) {
             this.next.processStreaming(request, consumer);
