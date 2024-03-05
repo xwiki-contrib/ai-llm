@@ -106,6 +106,15 @@
     &lt;dd&gt;$doc.display('contextSize')&lt;/dd&gt;
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('allowGuests')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Models.Code.ModelsClass_0_allowGuests"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('allowGuests', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('allowGuests')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
         data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('groups')))"
         data-property-type="object"#end&gt;
       &lt;label#if ($editing) for="AI.Models.Code.ModelsClass_0_groups"#end&gt;

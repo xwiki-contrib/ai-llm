@@ -119,6 +119,9 @@ public abstract class AbstractModel implements WikiComponent
      */
     public boolean hasAccess(UserReference user)
     {
+        if (this.modelConfiguration.isAllowGuests()) {
+            return true;
+        }
         DocumentReference documentUserReference = this.userReferenceSerializer.serialize(user);
         Collection<DocumentReference> userGroups;
         try {

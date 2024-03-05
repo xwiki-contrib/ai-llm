@@ -99,6 +99,11 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
     private static final String DIMENSIONS_FIELD = "dimensions";
 
     /**
+     * The value indicating that guests are allowed to access the model.
+     */
+    private static final String ALLOW_GUESTS = "allowGuests";
+
+    /**
      * The name of the field containing the groups that can access the model.
      */
     private static final String GROUPS_FIELD = "groups";
@@ -209,6 +214,7 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
         modelConfiguration.setName(xObject.getOwnerDocument().getTitle());
         modelConfiguration.setObjectReference(xObject.getReference());
         modelConfiguration.setAuthor(xObject.getOwnerDocument().getAuthors().getEffectiveMetadataAuthor());
+        modelConfiguration.setAllowGuests(xObject.getIntValue(ALLOW_GUESTS) == 1);
         modelConfiguration.setAllowedGroups(groups);
         return modelConfiguration;
     }

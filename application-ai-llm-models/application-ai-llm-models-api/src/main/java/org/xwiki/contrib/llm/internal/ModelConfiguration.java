@@ -45,6 +45,8 @@ public class ModelConfiguration
 
     private int contextSize;
 
+    private boolean allowGuests;
+
     private List<DocumentReference> allowedGroups;
 
     private ObjectReference objectReference;
@@ -116,6 +118,14 @@ public class ModelConfiguration
     }
 
     /**
+     * @return {@code true} if guests are allowed to access the model, {@code false} otherwise
+     */
+    public boolean isAllowGuests()
+    {
+        return this.allowGuests;
+    }
+
+    /**
      * @return the list of user groups allowed to access the model
      */
     public List<DocumentReference> getAllowedGroups()
@@ -169,6 +179,14 @@ public class ModelConfiguration
     public void setContextSize(int contextSize)
     {
         this.contextSize = contextSize;
+    }
+
+    /**
+     * @param allowGuests {@code true} if guests are allowed to access the model, {@code false} otherwise
+     */
+    public void setAllowGuests(boolean allowGuests)
+    {
+        this.allowGuests = allowGuests;
     }
 
     /**
