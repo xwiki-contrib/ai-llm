@@ -21,7 +21,8 @@ package org.xwiki.contrib.llm.openai;
 
 import org.xwiki.stability.Unstable;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.theokanning.openai.completion.chat.ChatMessage;
 
 /**
@@ -35,10 +36,10 @@ import com.theokanning.openai.completion.chat.ChatMessage;
  * @since 0.3
  */
 @Unstable
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record ChatCompletionChunkChoice(
     Integer index,
     ChatMessage delta,
-    @JsonProperty("finish_reason")
     String finishReason)
 {
 }

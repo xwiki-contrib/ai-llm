@@ -21,7 +21,8 @@ package org.xwiki.contrib.llm;
 
 import org.xwiki.stability.Unstable;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
  * A descriptor for a chat model.
@@ -30,16 +31,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 0.3
  */
 @Unstable
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ChatModelDescriptor
 {
     private String id;
 
     private String name;
 
-    @JsonProperty("context_length")
     private int contextLength;
 
-    @JsonProperty("can_stream")
     private boolean canStream;
 
     /**

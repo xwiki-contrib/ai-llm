@@ -28,7 +28,8 @@ import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.stability.Unstable;
 import org.xwiki.text.XWikiToStringBuilder;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
  * Collection representation for the REST API.
@@ -37,31 +38,21 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @since 0.3
  */
 @Unstable
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class JSONCollection
 {
     private String id;
 
-    @JsonProperty("title")
     private String title;
-    @JsonProperty("embedding_model")
     private String embeddingModel;
-    @JsonProperty("chunking_method")
     private String chunkingMethod;
-    @JsonProperty("chunking_max_size")
     private int chunkingMaxSize;
-    @JsonProperty("chunking_overlap_offset")
     private int chunkingOverlapOffset;
-    @JsonProperty("document_spaces")
     private List<String> documentSpaces;
-    @JsonProperty("query_groups")
     private String queryGroups;
-    @JsonProperty("edit_groups")
     private String editGroups;
-    @JsonProperty("admin_groups")
     private String adminGroups;
-    @JsonProperty("rights_check_method")
     private String rightsCheckMethod;
-    @JsonProperty("rights_check_method_param")
     private String rightsCheckMethodParam;
 
     /**
