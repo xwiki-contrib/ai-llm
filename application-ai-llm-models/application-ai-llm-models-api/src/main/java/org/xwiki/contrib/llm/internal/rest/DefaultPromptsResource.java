@@ -59,9 +59,13 @@ public class DefaultPromptsResource extends XWikiResource implements PromptsReso
             Map<String, GPTAPIPrompt> dbMap = dbProvider.getPrompts(wikiName);
             promptsList.addAll(dbMap.values());
             GenericEntity<List<GPTAPIPrompt>> entity = new GenericEntity<List<GPTAPIPrompt>>(promptsList) { };
-            return Response.ok(entity, MediaType.APPLICATION_JSON).build();
+            return Response.ok(entity, MediaType.APPLICATION_JSON)
+                    .header("Access-Control-Allow-Origin", "http://localhost:3000")
+                    .header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                    .header("Access-Control-Allow-Headers", "Content-Type")
+                    .build();
         } catch (Exception e) {
             throw new XWikiRestException("Error loading the list of prompts.", e);
         }
-    }
+    }    
 }
