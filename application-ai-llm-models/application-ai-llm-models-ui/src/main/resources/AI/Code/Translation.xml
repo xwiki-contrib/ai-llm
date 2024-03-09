@@ -68,7 +68,12 @@ llm.config.delete=Delete
 llm.config.requestmode=Can Stream
 llm.config.groups=Group Allowed
 llm.quickaction.name=Generative AI
-llm.quickaction.hint=Insert content using Generative AI.</content>
+llm.quickaction.hint=Insert content using Generative AI.
+
+llm.chat.client.config.name=Chat client name
+llm.chat.client.config.URL=Chat client origin URL
+llm.chat.client.config.label=Chat client origin configuration
+llm.chat.client.config.label.hint=Origin of the embedded chat client ex: http://localhost:3000</content>
   <object>
     <name>AI.Code.Translation</name>
     <number>0</number>

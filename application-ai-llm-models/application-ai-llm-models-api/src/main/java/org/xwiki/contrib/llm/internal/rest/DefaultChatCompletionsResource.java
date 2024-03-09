@@ -33,6 +33,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.ChatClientConfigProvider;
 import org.xwiki.contrib.llm.ChatMessage;
 import org.xwiki.contrib.llm.ChatModel;
 import org.xwiki.contrib.llm.ChatModelManager;
@@ -41,10 +42,12 @@ import org.xwiki.contrib.llm.ChatRequestParameters;
 import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.contrib.llm.RequestError;
+import org.xwiki.contrib.llm.internal.CORSUtils;
 import org.xwiki.contrib.llm.internal.ChatResponseConverter;
 import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
 import org.xwiki.contrib.llm.rest.ChatCompletionsResource;
 import org.xwiki.rest.XWikiResource;
+import org.xwiki.rest.XWikiRestException;
 import org.xwiki.user.CurrentUserReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -64,6 +67,14 @@ import com.theokanning.openai.completion.chat.ChatCompletionResult;
 public class DefaultChatCompletionsResource extends XWikiResource implements ChatCompletionsResource
 {
     private static final String DATA_FORMAT = "data: %s%n%n";
+    private static final String CORS_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
+    private static final String CORS_ALLOW_METHODS = "Access-Control-Allow-Methods";
+    private static final String CORS_ALLOW_HEADERS = "Access-Control-Allow-Headers";
+    private static final String CORS_METHODS = "POST, OPTIONS";
+    private static final String CORS_HEADERS = "Content-Type, Authorization, Origin";
+
+    @Inject
+    private ChatClientConfigProvider configProvider;
 
     @Inject
     private ChatModelManager chatModelManager;
@@ -72,9 +83,10 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
     private ChatResponseConverter chatResponseConverter;
 
     @Override
-    public Response getCompletions(String wikiName, ChatCompletionRequest request)
+    public Response getCompletions(String origin, String wikiName, ChatCompletionRequest request)
     {
         try {
+            String allowedOrigin = CORSUtils.matchOrigin(origin, configProvider, wikiName);
             ChatModel model =
                 this.chatModelManager.getModel(request.getModel(), CurrentUserReference.INSTANCE, wikiName);
 
@@ -85,16 +97,37 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                     try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
                         writeResponseStream(request, model, chatRequest, writer);
                     }
-                }, MediaType.SERVER_SENT_EVENTS_TYPE).build();
+                }, MediaType.SERVER_SENT_EVENTS_TYPE)
+                        .header(CORS_ALLOW_ORIGIN, allowedOrigin)
+                        .header(CORS_ALLOW_METHODS, CORS_METHODS)
+                        .header(CORS_ALLOW_HEADERS, CORS_HEADERS)
+                        .header("Access-Control-Expose-Headers", "Cache-Control, Content-Encoding, Content-Type")
+                        .header("Cache-Control", "no-cache")
+                        .build();
             } else {
                 ChatResponse chatResponse = model.process(chatRequest);
                 // Convert to OpenAI format
                 ChatCompletionResult openAIChatCompletionResult =
                     this.chatResponseConverter.toOpenAIChatCompletionResult(chatResponse, request.getModel());
-                return Response.ok(openAIChatCompletionResult, MediaType.APPLICATION_JSON_TYPE).build();
+                return Response.ok(openAIChatCompletionResult, MediaType.APPLICATION_JSON_TYPE)
+                                .header(CORS_ALLOW_ORIGIN, allowedOrigin)
+                                .header(CORS_ALLOW_METHODS, CORS_METHODS)
+                                .header(CORS_ALLOW_HEADERS, CORS_HEADERS)
+                                .build();
             }
         } catch (GPTAPIException | RequestError | IOException e) {
             throw new WebApplicationException(e, Response.Status.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Override
+    public Response options(String origin, String wikiName) throws XWikiRestException
+    {
+        try {
+            String allowedOrigin = CORSUtils.matchOrigin(origin, configProvider, wikiName);
+            return CORSUtils.addCORSHeaders(allowedOrigin, CORS_METHODS, CORS_HEADERS).build();
+        } catch (Exception e) {
+            throw new XWikiRestException("Error handling the preflight request.", e);
         }
     }
 

@@ -20,6 +20,8 @@
 package org.xwiki.contrib.llm.rest;
 
 import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
+import javax.ws.rs.OPTIONS;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Response;
@@ -39,12 +41,26 @@ import org.xwiki.stability.Unstable;
 public interface PromptsResource
 {
     /**
-     * Gets a list of all available (chat) models.
+     * Gets a list of all available (chat) prompts.
      *
-     * @param wikiName the wiki in which the models are located
+     * @param origin the origin of the request
+     * @param wikiName the wiki in which the prompts are located
      * @return the database prompts map
-     * @throws XWikiRestException when there is an error retrieving the models
+     * @throws XWikiRestException when there is an error retrieving the prompts
      */
     @GET
-    Response getPrompts(@PathParam("wikiName") String wikiName) throws XWikiRestException;
+    Response getPrompts(@HeaderParam("Origin") String origin,
+                        @PathParam("wikiName") String wikiName) throws XWikiRestException;
+
+    /**
+     * Handles CORS preflight request for the resource.
+     *
+     * @param origin the origin of the request
+     * @param wikiName the wiki in which the prompts are located
+     * @return the HTTP options for the resource
+     * @throws XWikiRestException when there is an error handling the preflight request
+     */
+    @OPTIONS
+    Response options(@HeaderParam("Origin") String origin,
+                     @PathParam("wikiName") String wikiName) throws XWikiRestException;
 }

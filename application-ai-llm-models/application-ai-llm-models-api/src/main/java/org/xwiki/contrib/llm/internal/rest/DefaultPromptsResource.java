@@ -19,10 +19,7 @@
  */
 package org.xwiki.contrib.llm.internal.rest;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -31,8 +28,10 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.ChatClientConfigProvider;
 import org.xwiki.contrib.llm.GPTAPIPrompt;
 import org.xwiki.contrib.llm.GPTAPIPromptDBProvider;
+import org.xwiki.contrib.llm.internal.CORSUtils;
 import org.xwiki.contrib.llm.rest.PromptsResource;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.rest.XWikiRestException;
@@ -48,24 +47,43 @@ import org.xwiki.rest.XWikiRestException;
 @Singleton
 public class DefaultPromptsResource extends XWikiResource implements PromptsResource
 {
+    private static final String CORS_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
+    private static final String CORS_ALLOW_METHODS = "Access-Control-Allow-Methods";
+
+    @Inject
+    private ChatClientConfigProvider configProvider;
+
     @Inject
     private GPTAPIPromptDBProvider dbProvider;
 
     @Override
-    public Response getPrompts(String wikiName) throws XWikiRestException
+    public Response getPrompts(String origin, String wikiName) throws XWikiRestException
     {
-        List<GPTAPIPrompt> promptsList = new ArrayList<>();
         try {
-            Map<String, GPTAPIPrompt> dbMap = dbProvider.getPrompts(wikiName);
-            promptsList.addAll(dbMap.values());
-            GenericEntity<List<GPTAPIPrompt>> entity = new GenericEntity<List<GPTAPIPrompt>>(promptsList) { };
-            return Response.ok(entity, MediaType.APPLICATION_JSON)
-                    .header("Access-Control-Allow-Origin", "http://localhost:3000")
-                    .header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                    .header("Access-Control-Allow-Headers", "Content-Type")
-                    .build();
+            List<GPTAPIPrompt> promptsList = dbProvider.getPrompts(wikiName).values().stream().toList();
+            GenericEntity<List<GPTAPIPrompt>> entity = new GenericEntity<>(promptsList) { };
+            String allowedOrigin = CORSUtils.matchOrigin(origin, configProvider, wikiName);
+            Response.ResponseBuilder responseBuilder = Response.ok(entity, MediaType.APPLICATION_JSON);
+            if (allowedOrigin != null) {
+                responseBuilder.header(CORS_ALLOW_ORIGIN, allowedOrigin);
+            }
+            return responseBuilder.header(CORS_ALLOW_METHODS, "GET").build();
         } catch (Exception e) {
             throw new XWikiRestException("Error loading the list of prompts.", e);
         }
-    }    
+    }
+
+    @Override
+    public Response options(String origin, String wikiName) throws XWikiRestException
+    {
+        try {
+            String allowedOrigin = CORSUtils.matchOrigin(origin, configProvider, wikiName);
+            return CORSUtils.addCORSHeaders(allowedOrigin,
+                                            "OPTIONS, GET",
+                                            "Authorization, Content-Type, Origin")
+                                            .build();
+        } catch (Exception e) {
+            throw new XWikiRestException("Error handling the preflight request.", e);
+        }
+    }
 }

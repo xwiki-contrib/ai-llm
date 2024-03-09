@@ -19,11 +19,14 @@
  */
 package org.xwiki.contrib.llm.rest;
 
+import javax.ws.rs.HeaderParam;
+import javax.ws.rs.OPTIONS;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Response;
 
+import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
 
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
@@ -41,10 +44,24 @@ public interface ChatCompletionsResource
     /**
      * Completes a list of chat messages.
      *
+     * @param origin the origin of the request
      * @param wikiName the wiki in which the model is located
      * @param request the request containing the messages to complete
      * @return the generated completions
      */
     @POST
-    Response getCompletions(@PathParam("wikiName") String wikiName, ChatCompletionRequest request);
+    Response getCompletions(@HeaderParam("Origin") String origin,
+                            @PathParam("wikiName") String wikiName, ChatCompletionRequest request);
+
+    /**
+     * Handles the preflight request for the resource.
+     *
+     * @param origin the origin of the request
+     * @param wikiName the wiki in which the models are located
+     * @return the HTTP options for the resource
+     * @throws XWikiRestException when there is an error retrieving the models
+     */
+    @OPTIONS
+    Response options(@HeaderParam("Origin") String origin,
+                     @PathParam("wikiName") String wikiName) throws XWikiRestException;
 }

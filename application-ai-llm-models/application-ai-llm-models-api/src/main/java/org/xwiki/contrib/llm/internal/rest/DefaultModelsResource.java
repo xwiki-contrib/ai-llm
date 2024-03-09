@@ -24,11 +24,16 @@ import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import javax.ws.rs.core.GenericEntity;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.ChatClientConfigProvider;
 import org.xwiki.contrib.llm.ChatModelDescriptor;
 import org.xwiki.contrib.llm.ChatModelManager;
 import org.xwiki.contrib.llm.GPTAPIException;
+import org.xwiki.contrib.llm.internal.CORSUtils;
 import org.xwiki.contrib.llm.rest.ModelsResource;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.rest.XWikiRestException;
@@ -47,20 +52,50 @@ import com.theokanning.openai.OpenAiResponse;
 @Singleton
 public class DefaultModelsResource extends XWikiResource implements ModelsResource
 {
+    private static final String CORS_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
+    private static final String CORS_ALLOW_METHODS = "Access-Control-Allow-Methods";
+    
+    @Inject
+    private ChatClientConfigProvider configProvider;
+
     @Inject
     private ChatModelManager chatModelManager;
 
     @Override
-    public OpenAiResponse<ChatModelDescriptor> getModels(String wikiName) throws XWikiRestException
+    public Response getModels(String origin, String wikiName) throws XWikiRestException
     {
         try {
             List<ChatModelDescriptor> models = this.chatModelManager.getModels(CurrentUserReference.INSTANCE, wikiName);
             OpenAiResponse<ChatModelDescriptor> response = new OpenAiResponse<>();
             response.setData(models);
             response.setObject("list");
-            return response;
+
+            // Convert OpenAiResponse object to JAX-RS Response object
+            GenericEntity<OpenAiResponse<ChatModelDescriptor>> entity =
+                                                                 new GenericEntity<>(response, OpenAiResponse.class);
+
+            String allowedOrigin = CORSUtils.matchOrigin(origin, configProvider, wikiName);
+            Response.ResponseBuilder responseBuilder = Response.ok(entity, MediaType.APPLICATION_JSON);
+            if (allowedOrigin != null) {
+                responseBuilder.header(CORS_ALLOW_ORIGIN, allowedOrigin);
+            }
+            return responseBuilder.header(CORS_ALLOW_METHODS, "GET").build();
         } catch (GPTAPIException e) {
             throw new XWikiRestException("Error loading the list of chat models.", e);
+        }
+    }
+
+    @Override
+    public Response options(String origin, String wikiName) throws XWikiRestException
+    {
+        try {
+            String allowedOrigin = CORSUtils.matchOrigin(origin, configProvider, wikiName);
+            return CORSUtils.addCORSHeaders(allowedOrigin,
+                                            "OPTIONS, GET",
+                                            "Authorization, Content-Type, Origin")
+                                            .build();
+        } catch (Exception e) {
+            throw new XWikiRestException("Error handling the preflight request.", e);
         }
     }
 }

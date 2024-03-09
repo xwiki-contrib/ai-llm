@@ -1,6 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-
-<!--
+/*
  * See the NOTICE file distributed with this work for additional
  * information regarding copyright ownership.
  *
@@ -18,12 +16,27 @@
  * License along with this software; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
+ */
+package org.xwiki.contrib.llm;
 
-<!DOCTYPE suppressions PUBLIC
-        "-//Puppy Crawl//DTD Suppressions 1.0//EN"
-        "http://www.puppycrawl.com/dtds/suppressions_1_0.dtd">
+import java.util.Map;
 
-<suppressions>
-  <suppress checks="ClassFanOutComplexity" files="DefaultChatCompletionsResource.java"/>
-</suppressions>
+import org.xwiki.component.annotation.Component;
+import org.xwiki.component.annotation.Role;
+
+/**
+ * Interface to retrieve Configuration of the LLM AI extension in XWiki instances.
+ * @version $Id$
+ */
+@Component
+@Role
+public interface ChatClientConfigProvider 
+{
+    /**
+     * @param currentWiki The identifier of the wiki from which the request originated.
+     * @return A map containing all the available {@link ChatClientConfig} objects in the specified wiki or an empty map if
+     *     none exist.
+     * @throws GPTAPIException if something goes wrong. Will return an empty map as well in such case.
+     */
+    Map<String, ChatClientConfig> getConfigObjects(String currentWiki) throws GPTAPIException;
+}
