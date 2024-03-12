@@ -119,7 +119,6 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider
             String hql = "select doc.fullName from XWikiDocument as doc, BaseObject as obj where obj.name=doc.fullName"
                     + " and obj.className='AI.PromptDB.Code.PromptDBClass'";
 
-            logger.info("hql query : " + hql);
             Query query = queryManager.createQuery(hql, Query.HQL);
             query.setWiki(currentWiki);
             query.setLimit(0);

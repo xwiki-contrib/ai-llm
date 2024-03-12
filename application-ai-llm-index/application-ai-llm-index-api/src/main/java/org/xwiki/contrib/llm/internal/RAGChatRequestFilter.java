@@ -44,6 +44,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     private static final String PROVIDED_CONTEXT_STRING = "Provided context: %n";
     private static final String SOURCE_STRING = "Source: %s %n";
     private static final String CONTENT_CHUNK_STRING = "Content chunk: %n %s %n";
+    private static final String SIMILARITY_SEARCH_ERROR_MSG = "There was an error during similarity search";
 
     private final List<String> collections;
     private CollectionManager collectionManager;
@@ -135,8 +136,8 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
                 return "No similar content found.";
             }
         } catch (Exception e) {
-            logger.error("Error during similarity search: {}", e.getMessage());
-            return "There was an Error during similarity search";
+            logger.error("{}: {}", SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
+            return SIMILARITY_SEARCH_ERROR_MSG;
         }
 
         return contextBuilder.toString();
