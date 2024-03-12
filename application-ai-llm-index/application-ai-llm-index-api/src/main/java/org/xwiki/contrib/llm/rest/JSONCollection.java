@@ -49,9 +49,8 @@ public class JSONCollection
     private int chunkingMaxSize;
     private int chunkingOverlapOffset;
     private List<String> documentSpaces;
+    private boolean allowGuests;
     private String queryGroups;
-    private String editGroups;
-    private String adminGroups;
     private String rightsCheckMethod;
     private String rightsCheckMethodParam;
 
@@ -76,9 +75,8 @@ public class JSONCollection
         this.chunkingMaxSize = collection.getChunkingMaxSize();
         this.chunkingOverlapOffset = collection.getChunkingOverlapOffset();
         this.documentSpaces = collection.getDocumentSpaces();
+        this.allowGuests = collection.getAllowGuests();
         this.queryGroups = collection.getQueryGroups();
-        this.editGroups = collection.getEditGroups();
-        this.adminGroups = collection.getAdminGroups();
         this.rightsCheckMethod = collection.getRightsCheckMethod();
         this.rightsCheckMethodParam = collection.getRightsCheckMethodParam();
     }
@@ -96,9 +94,8 @@ public class JSONCollection
         applyChunkingMaxSize(collection);
         applyChunkingOverlapOffset(collection);
         applyDocumentSpaces(collection);
+        applyAllowGuests(collection);
         applyQueryGroups(collection);
-        applyEditGroups(collection);
-        applyAdminGroups(collection);
         applyRightsCheckMethod(collection);
         applyRightsCheckMethodParam(collection);
         collection.save();
@@ -146,24 +143,15 @@ public class JSONCollection
         }
     }
 
+    private void applyAllowGuests(Collection collection) throws IndexException
+    {
+        collection.setAllowGuests(this.allowGuests);
+    }
+
     private void applyQueryGroups(Collection collection) throws IndexException
     {
         if (this.queryGroups != null) {
             collection.setQueryGroups(this.queryGroups);
-        }
-    }
-
-    private void applyEditGroups(Collection collection) throws IndexException
-    {
-        if (this.editGroups != null) {
-            collection.setEditGroups(this.editGroups);
-        }
-    }
-
-    private void applyAdminGroups(Collection collection) throws IndexException
-    {
-        if (this.adminGroups != null) {
-            collection.setAdminGroups(this.adminGroups);
         }
     }
 
@@ -238,27 +226,19 @@ public class JSONCollection
     }
 
     /**
+     * @return true if guests are allowed to access the collection, false otherwise
+     */
+    public boolean getAllowGuests()
+    {
+        return this.allowGuests;
+    }
+
+    /**
      * @return the list of groups that can query the collection
      */
     public String getQueryGroups()
     {
         return this.queryGroups;
-    }
-
-    /**
-     * @return the list of groups that can edit the collection's contents
-     */
-    public String getEditGroups()
-    {
-        return this.editGroups;
-    }
-
-    /**
-     * @return the list of groups that can edit the collection's settings
-     */
-    public String getAdminGroups()
-    {
-        return this.adminGroups;
     }
 
     /**
@@ -334,27 +314,19 @@ public class JSONCollection
     }
 
     /**
+     * @param allowGuests true if guests are allowed to access the collection, false otherwise
+     */
+    public void setAllowGuests(boolean allowGuests)
+    {
+        this.allowGuests = allowGuests;
+    }
+
+    /**
      * @param queryGroups the list of groups that can query the collection
      */
     public void setQueryGroups(String queryGroups)
     {
         this.queryGroups = queryGroups;
-    }
-
-    /**
-     * @param editGroups the list of groups that can edit the collection
-     */
-    public void setEditGroups(String editGroups)
-    {
-        this.editGroups = editGroups;
-    }
-
-    /**
-     * @param adminGroups the list of groups that can edit the collection settings
-     */
-    public void setAdminGroups(String adminGroups)
-    {
-        this.adminGroups = adminGroups;
     }
 
     /**
@@ -395,9 +367,8 @@ public class JSONCollection
             .append(getEmbeddingModel(), that.getEmbeddingModel())
             .append(getChunkingMethod(), that.getChunkingMethod())
             .append(getDocumentSpaces(), that.getDocumentSpaces())
+            .append(getAllowGuests(), that.getAllowGuests())
             .append(getQueryGroups(), that.getQueryGroups())
-            .append(getEditGroups(), that.getEditGroups())
-            .append(getAdminGroups(), that.getAdminGroups())
             .append(getRightsCheckMethod(), that.getRightsCheckMethod())
             .append(getRightsCheckMethodParam(), that.getRightsCheckMethodParam())
             .isEquals();
@@ -413,9 +384,8 @@ public class JSONCollection
             .append(getChunkingMaxSize())
             .append(getChunkingOverlapOffset())
             .append(getDocumentSpaces())
+            .append(getAllowGuests())
             .append(getQueryGroups())
-            .append(getEditGroups())
-            .append(getAdminGroups())
             .append(getRightsCheckMethod())
             .append(getRightsCheckMethodParam())
             .toHashCode();
@@ -432,9 +402,8 @@ public class JSONCollection
             .append("chunkingMaxSize", this.chunkingMaxSize)
             .append("chunkingOverlapOffset", this.chunkingOverlapOffset)
             .append("documentSpaces", this.documentSpaces)
+            .append("allowGuests", this.allowGuests)
             .append("queryGroups", this.queryGroups)
-            .append("editGroups", this.editGroups)
-            .append("adminGroups", this.adminGroups)
             .append("rightsCheckMethod", this.rightsCheckMethod)
             .append("rightsCheckMethodParam", this.rightsCheckMethodParam)
             .toString();

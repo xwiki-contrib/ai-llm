@@ -56,9 +56,8 @@ public class DefaultCollection implements Collection
     private static final String CHUNKING_METHOD_FIELDNAME = "chunkingMethod";
     private static final String CHUNKING_MAX_SIZE_FIELDNAME = "chunkingMaxSize";
     private static final String CHUNKING_OVERLAP_OFFSET_FIELDNAME = "chunkingOverlapOffset";
+    private static final String ALLOW_GUESTS = "allowGuests";
     private static final String QUERY_GROUPS_FIELDNAME = "queryGroups";
-    private static final String EDIT_GROUPS_FIELDNAME = "editGroups";
-    private static final String ADMIN_GROUPS_FIELDNAME = "adminGroups";
     private static final String RIGHTS_CHECK_METHOD_FIELDNAME = "rightsCheckMethod";
     private static final String RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME = "rightsCheckMethodParam";
     private static final String DOCUMENT_SPACE_FIELDNAME = "documentSpaces";
@@ -133,22 +132,16 @@ public class DefaultCollection implements Collection
     }
     
     @Override
+    public boolean getAllowGuests()
+    {
+        return this.xWikiDocumentWrapper.getIntValue(ALLOW_GUESTS) == 1;
+    }
+
+    @Override
     public String getQueryGroups()
     {
         return this.xWikiDocumentWrapper.getLargeStringValue(QUERY_GROUPS_FIELDNAME);
     }
-    
-    @Override
-    public String getEditGroups()
-    {
-        return this.xWikiDocumentWrapper.getLargeStringValue(EDIT_GROUPS_FIELDNAME);
-    }
-    
-    @Override
-    public String getAdminGroups()
-    {
-        return this.xWikiDocumentWrapper.getLargeStringValue(ADMIN_GROUPS_FIELDNAME);
-    }   
     
     @Override
     public String getRightsCheckMethod()
@@ -209,28 +202,18 @@ public class DefaultCollection implements Collection
             this.xWikiDocumentWrapper.setStringListValue(DOCUMENT_SPACE_FIELDNAME, documentSpaces);
         }
     }
-    
+
+    @Override
+    public void setAllowGuests(boolean allowGuests) throws IndexException
+    {
+        this.xWikiDocumentWrapper.setIntValue(ALLOW_GUESTS, allowGuests ? 1 : 0);
+    }
+
     @Override
     public void setQueryGroups(String queryGroups) throws IndexException
     {
         if (queryGroups != null) {
             this.xWikiDocumentWrapper.setLargeStringValue(QUERY_GROUPS_FIELDNAME, queryGroups);
-        }
-    }
-    
-    @Override
-    public void setEditGroups(String editGroups) throws IndexException
-    {
-        if (editGroups != null) {
-            this.xWikiDocumentWrapper.setLargeStringValue(EDIT_GROUPS_FIELDNAME, editGroups);
-        }
-    }
-    
-    @Override
-    public void setAdminGroups(String adminGroups) throws IndexException
-    {
-        if (adminGroups != null) {
-            this.xWikiDocumentWrapper.setLargeStringValue(ADMIN_GROUPS_FIELDNAME, adminGroups);
         }
     }
     
@@ -378,5 +361,6 @@ public class DefaultCollection implements Collection
     {
         return this.xWikiDocumentWrapper.getXWikiDocument();
     }
+
 }
 

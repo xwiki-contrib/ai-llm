@@ -2,11 +2,11 @@
  * A singleton object that provides methods to interact with the XWiki AI Chat API.
  */
 const XWikiAiAPI = (() => {
-    let baseURL = 'http://localhost:8080/xwiki'; // Default base URL
+    let baseURL = 'http://localhost:8081/xwiki'; // Default base URL
     let wikiName = 'xwiki'; // Default wiki name
     let apiKey = ''; // API key for authentication
     let temperature = 1;
-    let stream = true;
+    let stream = false;
 
     /**
      * Generates the fetch options for a request.
@@ -49,14 +49,14 @@ const XWikiAiAPI = (() => {
                 let jsonMessages = completeData.split('data: ').filter(Boolean).map(msg => 'data: ' + msg);
                 jsonMessages.forEach(msg => {
                     // Optionally, process each JSON message as it arrives
-                    if (onMessageChunk) onMessageChunk(msg.replace(/^data: /, '').trim());
+                    if (onMessageChunk) onMessageChunk(JSON.parse(msg.replace(/^data: /, '').trim()));
                 });
             }
         }
 
         // Handle the final chunk
         if (accumulatedChunks) {
-            if (onMessageChunk) onMessageChunk(accumulatedChunks.replace(/^data: /, '').trim());
+            if (onMessageChunk) onMessageChunk(JSON.parse(accumulatedChunks.replace(/^data: /, '').trim()));
         }
     };
 
@@ -132,6 +132,7 @@ const XWikiAiAPI = (() => {
        * Sends a ChatCompletionRequest to get chat completions with streaming support.
        * 
        * @param {ChatCompletionRequest} request - The completion request.
+       * @param {Function} onMessageChunk - The callback to call for each message chunk.
        * @return {Promise} A promise that resolves when the stream is fully processed.
        */
         getCompletions: async (request, onMessageChunk) => {
@@ -154,6 +155,64 @@ const XWikiAiAPI = (() => {
                 console.error('Failed to get chat completions:', error);
                 throw error;
             }
+        },
+
+        insertChatUI: () => {
+            const htmlContent = `
+            <fab-app id="fab">
+              <chat-pane id="pane">
+                  <ion-toolbar slot="header" color="primary">
+                    <ion-title>XWiki AI Chat</ion-title>
+                    <ion-buttons slot="primary">
+                      <ion-button id="close">
+                        <ion-icon slot="icon-only" name="close" />
+                      </ion-button>
+                    </ion-buttons>
+                  </ion-toolbar>
+                  <ion-card style="background: white;">
+                    <ion-card-content>
+                    <p>Chat with <i>WAISE-Bot</i>!</p>
+                    </ion-card-content>
+                  </ion-card>
+                  <chat-message state="read" footer="10:00 AM">
+                    <p>yess!!</p>
+                  </chat-message>
+                  <chat-message direction="incoming">
+                    <h2>Welcome to Assister Chat!</h2>
+                    <p>This is a demo for <b>chat-pane</b> web component.</p>
+                    <br />
+                    <p>
+                      <b>chat-pane</b> is an <i>"all-in-one"</i> element that
+                      encapsulates other chat elements, designed for simple
+                      use cases.
+                    </p>
+                    <h2>Use with other libraries?</h2>
+                    <p>That's exactly the purpose of our design!</p>
+                    <br />
+                    <p>
+                      However, you might want to use our <i>"view components"</i> so
+                      that you have fine-grained control over things that render
+                      inside <b>DOM</b>.
+                    </p>
+                  </chat-message>
+                  <chat-message state="pending"  footer="Hello! I'm little-footer!">
+                    <p>This is a <b>chat-message</b>!</p>
+                    <p>It has <i>"footer"</i> and <i>"state"</i> attributes.</p>              
+                  </chat-message>
+                  <chat-message state="delivered" footer="10:01 AM">
+                    <p>This one is <i>"delivered"</i>!</p>
+                  </chat-message>
+                  <chat-message state="read" footer="10:01 AM">
+                    <p><i>"read"</i>!</p>
+                  </chat-message>
+                  <chat-message direction="incoming" footer="10:02 AM">
+                    <p>Your turn!</p>
+                  </chat-message>
+              </chat-pane>
+            </fab-app>
+          `;
+        
+          document.body.innerHTML += htmlContent;
         }
     };
 })();
@@ -260,3 +319,139 @@ class ChatCompletionRequest {
         };
     }
 }
+
+function loadCSS(href) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.appendChild(link);
+}
+  
+function loadJSModule(src) {
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = src;
+    document.body.appendChild(script);
+}
+
+window.addEventListener('load', () => {
+    loadCSS('dist/chat/chat.css');
+    loadJSModule('dist/chat/chat.esm.js');
+})
+
+const cssCode = `
+.waiting-line {
+    width: 100%;
+    height: 20px;
+    display: flex;
+    justify-content: left;
+    align-items: center;
+}
+
+.dot {
+    width: 20%;
+    height: 90%;
+    background-color: #C9C9C9;
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+    margin-right: 0.5%;
+}
+
+.dot1 {
+    animation-delay: 0.2s;
+}
+
+.dot2 {
+    animation-delay: 0.4s;
+}
+
+.dot3 {
+    animation-delay: 0.6s;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(0.5);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+`;
+
+// Load Chat UI
+window.onload = () => {
+    XWikiAiAPI.insertChatUI();
+    const styleElement = document.createElement('style');
+    styleElement.innerHTML = cssCode;
+    document.head.appendChild(styleElement);
+
+    const fab = document.getElementById('fab');
+    const pane = document.getElementById('pane');
+    document.getElementById('close').addEventListener('click', () => fab.close());
+
+    XWikiAiAPI.getModels().then(models => console.log(models)).catch(err => console.error(err));
+    XWikiAiAPI.getPrompts().then(prompts => console.log(prompts)).catch(err => console.error(err));
+
+    let completionRequest = new ChatCompletionRequest(
+        "AI.Models.mixtral", // model
+        0.5, // temperature
+        [], // messages
+        false, // streaming
+    )
+
+    async function sendMessageToLLM(completionRequest) {
+        let incomingMessage = await pane.addIncomingMessage("");
+        // Create separate container for loading animation and text content
+        incomingMessage.innerHTML = '<div class="message-text"><div class="waiting-line"><div class="dot dot1"></div><div class="dot dot2"></div><div class="dot dot3"></div></div></div>';
+
+        function removeLoadingAnimation() {
+            const loadingSpinner = incomingMessage.querySelector('.waiting-line');
+            if (loadingSpinner) {
+                loadingSpinner.remove(); // Remove only the loading spinner
+            }
+        }
+
+        if (completionRequest.stream) {
+            XWikiAiAPI.getCompletions(completionRequest, async (messageChunk) => {
+                const messageTextContainer = incomingMessage.querySelector('.message-text');
+                messageTextContainer.textContent += messageChunk.choices[0].delta.content;
+                removeLoadingAnimation(); // Clear loading after updating text to preserve content
+            })
+            .then(() => {
+                completionRequest.addMessage("assistant", incomingMessage.querySelector('.message-text').textContent);
+                return completionRequest;
+            })
+            .catch(err => {
+                console.error(err);
+                removeLoadingAnimation(); // Ensure to clear loading spinner in case of error
+            })
+        } else {
+            return XWikiAiAPI.getCompletions(completionRequest).then(async messageChunk => {
+                removeLoadingAnimation(); // Clear loading before showing the message
+                incomingMessage.querySelector('.message-text').textContent = messageChunk.choices[0].message.content;
+                completionRequest.addMessage("assistant", incomingMessage.querySelector('.message-text').textContent);
+            }).catch(err => {
+                console.error(err);
+                removeLoadingAnimation(); // Ensure to clear loading spinner in case of error
+            }); 
+        }
+    }
+
+    const wait = () => new Promise(resolve => setTimeout(resolve, 500));
+
+    function handleIncomingMessage(event) {
+      let message = event.detail.element;
+      wait()
+        .then(() => message.state = 'delivered')
+        .then(() => completionRequest.addMessage("user", event.detail.text))
+        .then(() => message.state = 'read')
+        .then(() => sendMessageToLLM(completionRequest));
+    }
+    pane.addEventListener('incoming', handleIncomingMessage);
+}
+
+

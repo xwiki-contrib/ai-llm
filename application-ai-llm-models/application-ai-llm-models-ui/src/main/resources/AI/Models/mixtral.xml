@@ -20,9 +20,9 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.Models.bert" locale="">
+<xwikidoc version="1.5" reference="AI.Models.mixtral" locale="">
   <web>AI.Models</web>
-  <name>bert</name>
+  <name>mixtral</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
@@ -31,17 +31,17 @@
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>bert</title>
+  <title>mixtral</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
   <content/>
   <object>
-    <name>AI.Models.bert</name>
+    <name>AI.Models.mixtral</name>
     <number>0</number>
     <className>AI.Code.RAGChatRequestFilterClass</className>
-    <guid>628164bd-57a4-4bad-b774-4b99f4afad40</guid>
+    <guid>09e5fc64-d2f7-4457-bb8d-2e9084048415</guid>
     <class>
       <name>AI.Code.RAGChatRequestFilterClass</name>
       <customClass/>
@@ -124,17 +124,17 @@ and stringprop.id.name='id'</sql>
       </collections>
     </property>
     <property>
-      <contextPrompt/>
+      <contextPrompt>Use the search results to provide an answer to the user with a link to the source or state that you don't have access to the information.</contextPrompt>
     </property>
     <property>
-      <maxResults/>
+      <maxResults>5</maxResults>
     </property>
   </object>
   <object>
-    <name>AI.Models.bert</name>
+    <name>AI.Models.mixtral</name>
     <number>0</number>
     <className>AI.Models.Code.ModelsClass</className>
-    <guid>5c5737b5-c723-4e49-a496-8964c8370c85</guid>
+    <guid>0477e460-43ed-4fb3-a7ab-6f97f8c71a30</guid>
     <class>
       <name>AI.Models.Code.ModelsClass</name>
       <customClass/>
@@ -284,22 +284,105 @@ and stringprop.id.name='id'</sql>
       <allowGuests>1</allowGuests>
     </property>
     <property>
-      <contextSize/>
+      <contextSize>4000</contextSize>
     </property>
     <property>
-      <dimensions>384</dimensions>
+      <dimensions/>
     </property>
     <property>
       <groups>XWiki.XWikiAdminGroup,XWiki.XWikiAllGroup</groups>
     </property>
     <property>
-      <model>bert-embeddings</model>
+      <model>mixtral</model>
     </property>
     <property>
-      <serverName>LocalAI</serverName>
+      <serverName>Ollama</serverName>
     </property>
     <property>
-      <type>emb</type>
+      <type>llm</type>
+    </property>
+  </object>
+  <object>
+    <name>AI.Models.mixtral</name>
+    <number>0</number>
+    <className>XWiki.XWikiRights</className>
+    <guid>9f260b07-2f08-4092-8e3d-aab61ef518e7</guid>
+    <class>
+      <name>XWiki.XWikiRights</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <allow>
+        <defaultValue>1</defaultValue>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>allow</displayType>
+        <name>allow</name>
+        <number>4</number>
+        <prettyName>Allow/Deny</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </allow>
+      <groups>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>input</displayType>
+        <multiSelect>1</multiSelect>
+        <name>groups</name>
+        <number>1</number>
+        <picker>1</picker>
+        <prettyName>Groups</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <size>5</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
+      </groups>
+      <levels>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <multiSelect>1</multiSelect>
+        <name>levels</name>
+        <number>2</number>
+        <prettyName>Levels</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <size>3</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.LevelsClass</classType>
+      </levels>
+      <users>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>input</displayType>
+        <multiSelect>1</multiSelect>
+        <name>users</name>
+        <number>3</number>
+        <picker>1</picker>
+        <prettyName>Users</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <size>5</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.UsersClass</classType>
+      </users>
+    </class>
+    <property>
+      <allow>1</allow>
+    </property>
+    <property>
+      <groups/>
+    </property>
+    <property>
+      <levels>view</levels>
+    </property>
+    <property>
+      <users>XWiki.XWikiGuest</users>
     </property>
   </object>
 </xwikidoc>

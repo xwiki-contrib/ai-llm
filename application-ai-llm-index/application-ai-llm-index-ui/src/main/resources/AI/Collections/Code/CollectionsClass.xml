@@ -46,31 +46,21 @@
     <defaultWeb/>
     <nameField/>
     <validationScript/>
-    <adminGroups>
-      <cache>0</cache>
+    <allowGuests>
       <customDisplay/>
       <defaultValue/>
       <disabled>0</disabled>
-      <displayType>select</displayType>
-      <freeText/>
+      <displayFormType>select</displayFormType>
+      <displayType/>
       <hint/>
-      <largeStorage>0</largeStorage>
-      <multiSelect>1</multiSelect>
-      <name>adminGroups</name>
-      <number>10</number>
-      <picker>0</picker>
-      <prettyName>Groups that can Manage Settings</prettyName>
-      <relationalStorage>0</relationalStorage>
-      <separator> </separator>
-      <separators/>
-      <size>6</size>
-      <sort>none</sort>
+      <name>allowGuests</name>
+      <number>8</number>
+      <prettyName>Allow guests to query collection</prettyName>
       <unmodifiable>0</unmodifiable>
-      <usesList>1</usesList>
       <validationMessage/>
       <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
-    </adminGroups>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </allowGuests>
     <chunkingMaxSize>
       <customDisplay/>
       <disabled>0</disabled>
@@ -152,31 +142,6 @@
       <valueField/>
       <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
     </documentSpaces>
-    <editGroups>
-      <cache>0</cache>
-      <customDisplay/>
-      <defaultValue/>
-      <disabled>0</disabled>
-      <displayType>select</displayType>
-      <freeText/>
-      <hint/>
-      <largeStorage>0</largeStorage>
-      <multiSelect>1</multiSelect>
-      <name>editGroups</name>
-      <number>9</number>
-      <picker>0</picker>
-      <prettyName>Groups that can manage content</prettyName>
-      <relationalStorage>0</relationalStorage>
-      <separator> </separator>
-      <separators/>
-      <size>6</size>
-      <sort>none</sort>
-      <unmodifiable>0</unmodifiable>
-      <usesList>1</usesList>
-      <validationMessage/>
-      <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
-    </editGroups>
     <embeddingModel>
       <cache>0</cache>
       <classname/>
@@ -238,7 +203,7 @@ and modelProp.id.name='model'</sql>
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>queryGroups</name>
-      <number>8</number>
+      <number>9</number>
       <picker>0</picker>
       <prettyName>Groups that can query</prettyName>
       <relationalStorage>0</relationalStorage>
@@ -263,7 +228,7 @@ and modelProp.id.name='model'</sql>
       <largeStorage>0</largeStorage>
       <multiSelect>0</multiSelect>
       <name>rightsCheckMethod</name>
-      <number>11</number>
+      <number>10</number>
       <picker>0</picker>
       <prettyName>Rights check method</prettyName>
       <relationalStorage>1</relationalStorage>
@@ -282,7 +247,7 @@ and modelProp.id.name='model'</sql>
       <disabled>0</disabled>
       <hint/>
       <name>rightsCheckMethodParam</name>
-      <number>12</number>
+      <number>11</number>
       <picker>0</picker>
       <prettyName>Rights check method parameter (URL)</prettyName>
       <size>30</size>

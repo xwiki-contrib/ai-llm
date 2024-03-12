@@ -51,6 +51,21 @@
       <defaultWeb/>
       <nameField/>
       <validationScript/>
+      <allowGuests>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType/>
+        <hint/>
+        <name>allowGuests</name>
+        <number>7</number>
+        <prettyName>Allow guests to access the model</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </allowGuests>
       <contextSize>
         <customDisplay/>
         <disabled>0</disabled>
@@ -82,9 +97,12 @@
       <groups>
         <cache>0</cache>
         <customDisplay/>
+        <defaultValue/>
         <disabled>0</disabled>
         <displayType>select</displayType>
+        <freeText/>
         <hint/>
+        <largeStorage>0</largeStorage>
         <multiSelect>1</multiSelect>
         <name>groups</name>
         <number>6</number>
@@ -125,6 +143,7 @@
         <freeText/>
         <hint/>
         <idField>Name</idField>
+        <largeStorage>0</largeStorage>
         <multiSelect>0</multiSelect>
         <name>serverName</name>
         <number>1</number>
@@ -168,6 +187,9 @@
         <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
       </type>
     </class>
+    <property>
+      <allowGuests/>
+    </property>
     <property>
       <contextSize/>
     </property>

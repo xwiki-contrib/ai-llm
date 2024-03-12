@@ -136,27 +136,20 @@ public interface Collection
      * @return A list of spaces.
      */
     List<String> getDocumentSpaces();
-    
+
+    /**
+     * Boolean value if guests are allowed to access the collection.
+     * 
+     * @return true if guests are allowed to access the collection, false otherwise.
+     */
+    boolean getAllowGuests();
+
     /**
      * Gets the list of groups that can query the collection.
      * 
      * @return A list of groups.
      */
     String getQueryGroups();
-    
-    /**
-     * Gets the list of groups that can edit the collection.
-     * 
-     * @return A list of groups.
-     */
-    String getEditGroups();
-    
-    /**
-     * Gets the list of groups that can administer the collection.
-     * 
-     * @return A list of groups.
-     */
-    String getAdminGroups();
     
     /**
      * Gets the rights check method associated with the collection.
@@ -220,28 +213,21 @@ public interface Collection
      * @param documentSpaces A list of spaces.
      */
     void setDocumentSpaces(List<String> documentSpaces) throws IndexException;
-    
+
+    /**
+     * Sets whether guests are allowed to access the collection.
+     * 
+     * @param allowGuests A boolean value indicating whether guests are allowed to access the collection.
+     */
+    void setAllowGuests(boolean allowGuests) throws IndexException;
+
     /**
      * Sets the list of groups that can query the collection.
      * 
      * @param queryGroups A list of groups.
      */
     void setQueryGroups(String queryGroups) throws IndexException;
-    
-    /**
-     * Sets the list of groups that can edit the collection.
-     * 
-     * @param editGroups A list of groups.
-     */
-    void setEditGroups(String editGroups) throws IndexException;
-    
-    /**
-     * Sets the list of groups that can administer the collection.
-     * 
-     * @param adminGroups A list of groups.
-     */
-    void setAdminGroups(String adminGroups) throws IndexException;
-    
+
     /**
      * Sets the rights check method associated with the collection.
      * 

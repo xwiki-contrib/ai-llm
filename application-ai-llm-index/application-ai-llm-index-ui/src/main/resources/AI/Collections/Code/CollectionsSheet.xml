@@ -127,6 +127,15 @@
     &lt;dd&gt;$doc.display('documentSpaces')&lt;/dd&gt;
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('allowGuests')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Collections.Code.CollectionsClass_0_allowGuests"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('allowGuests', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('allowGuests')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
         data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('queryGroups')))"
         data-property-type="object"#end&gt;
       &lt;label#if ($editing) for="AI.Collections.Code.CollectionsClass_0_queryGroups"#end&gt;
@@ -134,24 +143,6 @@
       &lt;/label&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('queryGroups')&lt;/dd&gt;
-    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
-        class="editableProperty"
-        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('editGroups')))"
-        data-property-type="object"#end&gt;
-      &lt;label#if ($editing) for="AI.Collections.Code.CollectionsClass_0_editGroups"#end&gt;
-        $escapetool.xml($doc.displayPrettyName('editGroups', false, false))
-      &lt;/label&gt;
-    &lt;/dt&gt;
-    &lt;dd&gt;$doc.display('editGroups')&lt;/dd&gt;
-    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
-        class="editableProperty"
-        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('adminGroups')))"
-        data-property-type="object"#end&gt;
-      &lt;label#if ($editing) for="AI.Collections.Code.CollectionsClass_0_adminGroups"#end&gt;
-        $escapetool.xml($doc.displayPrettyName('adminGroups', false, false))
-      &lt;/label&gt;
-    &lt;/dt&gt;
-    &lt;dd&gt;$doc.display('adminGroups')&lt;/dd&gt;
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
         data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('rightsCheckMethod')))"

@@ -232,6 +232,9 @@ public class DefaultCollectionManager implements CollectionManager
     @Override
     public boolean hasAccess(Collection collection)
     {
+        if (collection.getAllowGuests()) {
+            return true;
+        }
         java.util.Collection<DocumentReference> userGroups = fetchCrtUserGroups();
         if (userGroups.isEmpty()) {
             return false;
