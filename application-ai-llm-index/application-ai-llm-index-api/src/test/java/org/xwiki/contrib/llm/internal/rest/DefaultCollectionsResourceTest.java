@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.xwiki.contrib.llm.SolrConnector;
+import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.query.Query;
@@ -67,6 +68,9 @@ class DefaultCollectionsResourceTest
 
     @MockComponent
     private SolrConnector solrConnector;
+
+    @MockComponent
+    private AiLLMSolrCoreInitializer aillmSolrCoreInitializer;
 
     @MockComponent
     private GroupManager groupManager;

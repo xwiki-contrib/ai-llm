@@ -105,6 +105,17 @@ public class CollectionManagerScriptService implements ScriptService
     }
 
     /**
+     * @param solrQuery the solr query to use for the search
+     * @param limit the maximum number of results to return
+     * @param includeVector if true, includes the vector field in the results
+     * @return the results of the search within the aillm core
+     */
+    public List<List<String>> search(String solrQuery, int limit, boolean includeVector) throws IndexException
+    {
+        return this.collectionManager.search(solrQuery, limit, includeVector);
+    }
+
+    /**
      * @param textQuery the text query
      * @param collections the collections to search in
      * @param limit the maximum number of results to return
@@ -125,4 +136,5 @@ public class CollectionManagerScriptService implements ScriptService
     {
         return this.collectionManager.filterCollectionbasedOnUserAccess(collections);
     }
+
 }

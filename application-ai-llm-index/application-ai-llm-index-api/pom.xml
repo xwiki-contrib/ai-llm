@@ -36,6 +36,8 @@
         <xwiki.extension.features>
           org.xwiki.contrib.llm:application-llm-index-api
         </xwiki.extension.features>
+        <!-- Needs to be installed on root to be able to use ExecutionContextInitializer. -->
+        <xwiki.extension.namespaces>{root}</xwiki.extension.namespaces>
         <maven.checksum.policy>ignore</maven.checksum.policy> <!-- Ignore checksums for now. -->
     </properties>
     <dependencies>

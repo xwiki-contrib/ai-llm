@@ -142,8 +142,6 @@ public class DefaultGPTAPI implements GPTAPI
 
         // Get the user using the Extension in the actual context.
         DocumentReference username = context.getUserReference();
-        logger.info("user in isUserAdmin: " + username.getName());
-        logger.info("user wiki : " + username.getWikiReference().getName());
         User xwikiUser = xwiki.getUser(username, context);
         Boolean res = xwikiUser.hasWikiAdminRights();
         context.setWikiId(mainWiki);

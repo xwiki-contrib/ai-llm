@@ -75,17 +75,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
      */
     private boolean isCsrfValid(List<String> csrfTokenList)
     {
-        if (csrfTokenList.isEmpty()) {
-            return false;
-        }
-        String token = csrfToken.getToken();
-        String csrfClient = csrfTokenList.get(0);
-        if (!csrfClient.equals(token)) {
-            logger.info(token);
-            logger.info(csrfClient);
-            return false;
-        }
-        return true;
+        return !(csrfTokenList.isEmpty() || !csrfTokenList.get(0).equals(csrfToken.getToken()));
     }
 
     /**
@@ -194,7 +184,6 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
         }
         try {
             Boolean isAdmin = gptApi.isUserAdmin((String) data.get("currentWiki"));
-            logger.info("isAdmin user:" + isAdmin);
             JSONObject res = new JSONObject();
             res.put("isAdmin", isAdmin);
             byte[] resByte = res.toString().getBytes(StandardCharsets.UTF_8);

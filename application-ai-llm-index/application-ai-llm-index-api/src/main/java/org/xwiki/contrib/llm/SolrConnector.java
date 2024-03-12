@@ -32,13 +32,14 @@ import javax.inject.Singleton;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
+import org.xwiki.search.solr.Solr;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.user.CurrentUserReference;
 
@@ -52,10 +53,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Singleton
 public class SolrConnector
 {
-    //Connection method will be modifed after Solr integration in XWiki
-    private static final String SOLR_INSTANCE_URL = "http://localhost:8983/solr/";
-    private static final String SOLR_CORE_NAME = "knowledgeIndex";
-    private static final String SOLR_CORE_URL = SOLR_INSTANCE_URL + SOLR_CORE_NAME;
     private static final String FIELD_ID = "id";
     private static final String FIELD_COLLECTION = "collection";
     private static final String FIELD_DOC_ID = "docId";
@@ -77,6 +74,9 @@ public class SolrConnector
     @Inject
     private SolrUtils solrUtils;
 
+    @Inject
+    private Solr solr;
+
     /**
      * Connects to the Solr server and stores a chunk.
      * If a chunk with the same id exists, it will be updated.
@@ -86,7 +86,7 @@ public class SolrConnector
      */
     public void storeChunk(Chunk chunk, String id) throws SolrServerException
     {
-        try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
+        try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             SolrInputDocument solrDocument = new SolrInputDocument();
             solrDocument.addField(FIELD_ID, id);
             solrDocument.addField(FIELD_DOC_ID, chunk.getDocumentID());
@@ -99,15 +99,15 @@ public class SolrConnector
             ObjectMapper mapper = new ObjectMapper();
             String content = mapper.writeValueAsString(chunk.getContent());
 
-
             solrDocument.addField(FIELD_CONTENT, content);
             double[] embeddings = chunk.getEmbeddings();
             List<Float> embeddingsList = Arrays.stream(embeddings)
                                             .mapToObj(d -> (float) d)
                                             .collect(Collectors.toList());
-            solrDocument.setField(FIELD_VECTOR, Arrays.asList(embeddingsList));
+            solrDocument.setField(FIELD_VECTOR, embeddingsList);
             client.add(solrDocument);
             client.commit();
+            
         } catch (Exception e) {
             this.logger.error("Failed to store chunk with id [{}]", id, e);
         }
@@ -120,7 +120,7 @@ public class SolrConnector
      */
     public void deleteChunk(String id)
     {
-        try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
+        try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             client.deleteById(id);
             client.commit();
         } catch (Exception e) {
@@ -135,7 +135,7 @@ public class SolrConnector
      */
     public void deleteChunksByDocId(String docId)
     {
-        try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
+        try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             client.deleteByQuery("docId:" + docId);
             client.commit();
         } catch (Exception e) {
@@ -148,7 +148,7 @@ public class SolrConnector
      */
     public void clearIndexCore() throws SolrServerException
     {
-        try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
+        try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             client.deleteByQuery("*:*");
             client.commit();
         } catch (Exception e) {
@@ -156,6 +156,41 @@ public class SolrConnector
         }
     }
 
+    /**
+     * Simple search in the Solr index.
+     * 
+     * @param solrQuery the query to use for the search
+     * @param limit the maximum number of results to return
+     * @param includeVector if true, includes the vector in the results
+     * @return a list of document details
+     */
+    public List<List<String>> search(String solrQuery, int limit, boolean includeVector) throws SolrServerException
+    {
+        List<List<String>> resultsList = new ArrayList<>();
+        try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
+            SolrQuery query = new SolrQuery();
+            query.setQuery(solrQuery);
+            query.setFields(FIELD_ID,
+                            FIELD_DOC_ID,
+                            FIELD_COLLECTION,
+                            FIELD_DOC_URL,
+                            FIELD_LANGUAGE,
+                            FIELD_INDEX,
+                            FIELD_POS_FIRST_CHAR,
+                            FIELD_POS_LAST_CHAR,
+                            FIELD_CONTENT,
+                            FIELD_SCORE,
+                            FIELD_VECTOR
+                            );
+            query.setRows(limit);
+            QueryResponse response = client.query(query);
+            SolrDocumentList documents = response.getResults();
+            resultsList = collectResults(documents, includeVector);
+        } catch (Exception e) {
+            logger.error("Search failed: {}", e.getMessage());
+        }
+        return resultsList;
+    }
 
     /**
      * Simple similarity search in the Solr index.
@@ -171,7 +206,7 @@ public class SolrConnector
     {
         List<List<String>> resultsList = new ArrayList<>();
         
-        try (SolrClient client = new HttpSolrClient.Builder(SOLR_CORE_URL).build()) {
+        try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             // split embeddingModelMap into sets of collections with the same embedding model
             Map<String, List<String>> embeddingModelCollectionsMap = new HashMap<>();
             for (Map.Entry<String, String> entry : collectionEmbeddingModelMap.entrySet()) {
@@ -194,7 +229,7 @@ public class SolrConnector
                 SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel, limit);
                 QueryResponse response = client.query(query);
                 SolrDocumentList documents = response.getResults();
-                resultsList.addAll(collectResults(documents));
+                resultsList.addAll(collectResults(documents, false));
 
                 //order the resultsList in desc order of FIELD_SCORE
                 resultsList.sort((a, b) -> Double.compare(Double.parseDouble(b.get(3)), Double.parseDouble(a.get(3))));
@@ -241,7 +276,7 @@ public class SolrConnector
         return query;
     }
 
-    private List<List<String>> collectResults(SolrDocumentList documents)
+    private List<List<String>> collectResults(SolrDocumentList documents, boolean includeVector)
     {
         List<List<String>> resultsList = new ArrayList<>();
         for (SolrDocument document : documents) {
@@ -250,7 +285,9 @@ public class SolrConnector
             documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_URL)));
             documentDetails.add(String.valueOf(document.getFieldValue(FIELD_CONTENT)));
             documentDetails.add(String.valueOf(document.getFieldValue(FIELD_SCORE)));
-
+            if (includeVector) {
+                documentDetails.add(String.valueOf(document.getFieldValue(FIELD_VECTOR)));
+            }
             resultsList.add(documentDetails);           
         }
         return resultsList;

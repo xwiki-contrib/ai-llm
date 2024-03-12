@@ -184,6 +184,16 @@ public class DefaultCollectionManager implements CollectionManager
     }
 
     @Override
+    public List<List<String>> search(String solrQuery, int limit, boolean includeVector) throws IndexException
+    {
+        try {
+            return solrConnector.search(solrQuery, limit, includeVector);
+        } catch (SolrServerException e) {
+            throw new IndexException("Failed to perform simple search", e);
+        }
+    }
+
+    @Override
     public List<List<String>> similaritySearch(String textQuery,
                                                 List<String> collections,
                                                 int limit) throws IndexException

@@ -81,6 +81,14 @@ public interface CollectionManager
     void clearIndexCore() throws IndexException;
 
     /**
+     * @param solrQuery the solr query to use for the search
+     * @param limit the maximum number of results to return
+     * @param includeVector if true, the vector field of the document will be included in the results
+     * @return the results of the search within the aillm core
+     */
+    List<List<String>> search(String solrQuery, int limit, boolean includeVector) throws IndexException;
+
+    /**
      * @param textQuery the text query
      * @param collections the collections to search in
      * @param limit the maximum number of results to return
@@ -93,4 +101,5 @@ public interface CollectionManager
      * @return a list of collections that the user has access to
      */
     List<String> filterCollectionbasedOnUserAccess(List<String> collections);
+    
 }

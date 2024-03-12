@@ -25,6 +25,7 @@ import java.util.List;
 
 
 import org.apache.commons.lang3.function.FailableConsumer;
+import org.slf4j.Logger;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
 import org.xwiki.contrib.llm.ChatMessage;
 import org.xwiki.contrib.llm.ChatRequest;
@@ -40,13 +41,15 @@ import org.xwiki.contrib.llm.RequestError;
  */
 public class RAGChatRequestFilter extends AbstractChatRequestFilter
 {
+    private static final String PROVIDED_CONTEXT_STRING = "Provided context: %n";
+    private static final String SOURCE_STRING = "Source: %s %n";
+    private static final String CONTENT_CHUNK_STRING = "Content chunk: %n %s %n";
+
     private final List<String> collections;
-
     private CollectionManager collectionManager;
-
     private Integer maxResults;
-
     private String contextPrompt;
+    private Logger logger;
 
     /**
      * Constructor.
@@ -55,16 +58,18 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
      * @param collectionManager the collection manager
      * @param maxResults the maximum number of results to return
      * @param contextPrompt the context prompt
+     * @param logger the logger
      */
     public RAGChatRequestFilter(List<String> collections,
                                 CollectionManager collectionManager,
                                 Integer maxResults,
-                                String contextPrompt)
+                                String contextPrompt, Logger logger)
     {
         this.collections = collections;
         this.collectionManager = collectionManager;
         this.maxResults = maxResults;
         this.contextPrompt = contextPrompt;
+        this.logger = logger;
     }
 
 
@@ -111,20 +116,18 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
             }
             List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, maxResults);
             if (!searchResults.isEmpty()) {
-                contextBuilder.append("Provided context: \n");
+                contextBuilder.append(PROVIDED_CONTEXT_STRING);
                 for (List<String> result : searchResults) {
                     String sourceURL = result.get(1);
+                    String contentMsg = result.get(2);
+
                     // Check if URL has already been added
                     if (!addedUrls.contains(sourceURL)) {
-                        String contentMsg = result.get(2);
-                        contextBuilder.append(String.format(
-                                "Source: %s \n"
-                                + "Content: \n %s \n\n",
-                                sourceURL, contentMsg));
+                        contextBuilder.append(String.format(SOURCE_STRING + CONTENT_CHUNK_STRING,
+                                                            sourceURL, contentMsg));
                         addedUrls.add(sourceURL); 
                     } else {
-                        String contentMsg = result.get(2);
-                        contextBuilder.append(String.format("Document chunk content: %s %n", contentMsg));
+                        contextBuilder.append(String.format(CONTENT_CHUNK_STRING, contentMsg));
                     }
                 }
                 contextBuilder.append(contextPrompt);
@@ -132,8 +135,8 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
                 return "No similar content found.";
             }
         } catch (Exception e) {
-            // Log the exception or handle it as needed
-            return "Error during similarity search: " + e.getMessage();
+            logger.error("Error during similarity search: {}", e.getMessage());
+            return "There was an Error during similarity search";
         }
 
         return contextBuilder.toString();

@@ -32,6 +32,7 @@ import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.ChunkingUtils;
+import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.internal.CurrentUserCollection;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
 import org.xwiki.contrib.llm.internal.CurrentUserDocument;
@@ -114,6 +115,9 @@ class DefaultDocumentResourceTest
 
     @MockComponent
     private SolrConnector solrConnector;
+
+    @MockComponent
+    private AiLLMSolrCoreInitializer aillmSolrCoreInitializer;
 
     @MockComponent
     private GroupManager groupManager;

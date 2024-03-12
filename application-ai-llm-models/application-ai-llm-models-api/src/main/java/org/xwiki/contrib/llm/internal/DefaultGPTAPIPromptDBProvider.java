@@ -85,8 +85,6 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider
             if (promptDoc != null) {
                 BaseObject object = promptDoc.getObject(currentWiki + ":AI.PromptDB.Code.PromptDBClass");
                 if (object != null) {
-                    logger.info("title of the doc : {}", promptDoc.getTitle());
-                    logger.info("prompt wanted : {}", promptPage);
                     Map<String, Object> dbObjMap = new HashMap<>();
                     Collection<BaseProperty> fields = object.getFieldList();
                     for (BaseProperty field : fields) {
@@ -137,7 +135,6 @@ public class DefaultGPTAPIPromptDBProvider implements GPTAPIPromptDBProvider
             // Iterate over all documents that contain an object of the class
             // 'AI.PromptDB.Code.PromptDBClass'
             for (String documentName : documentNames) {
-                logger.info("doc name : " + documentName);
                 XWikiDocument doc = xwiki.getDocument(currentWiki + postWikiRefExpr + documentName, context);
                 if (doc != null) {
                     // Get the objects of the class 'AI.PromptDB.Code.PromptDBClass' from the
