@@ -143,7 +143,11 @@
       <cache>long</cache>
     </property>
     <property>
-      <code>#chatUI .user-message {
+      <code>
+#chatUI{
+  height:90vh
+}
+#chatUI .user-message {
   position: relative;
   float: right;
   clear: both;
@@ -204,7 +208,7 @@
 
 #chatContent {
   position: relative;
-  max-height: 400px;
+  height: 60vh;
   min-height: 100px;
   max-width: 100%;
   margin: 10px auto;
@@ -445,7 +449,7 @@
       <parse/>
     </property>
     <property>
-      <use>onDemand</use>
+      <use>always</use>
     </property>
   </object>
 </xwikidoc>

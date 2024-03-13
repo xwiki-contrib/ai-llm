@@ -1402,7 +1402,7 @@
             const menuContent = document.querySelector('#dropMenuContent');
             if (menuContent.style.display === 'none' || menuContent.style.display === '') {
                 const top = dropMenuBtn.offsetTop + dropMenuBtn.offsetHeight;
-                const left = dropMenuBtn.offsetLeft;
+                const left = dropMenuBtn.offsetLeft - 114;
                 menuContent.style.top = top + "px";
                 menuContent.style.left = left + "px";
                 menuContent.style.display = 'flex';
