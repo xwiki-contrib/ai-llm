@@ -84,6 +84,16 @@
         <groupId>com.theokanning.openai-gpt3-java</groupId>
         <artifactId>api</artifactId>
         <version>0.18.2</version>
+        <exclusions>
+          <exclusion>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
     </dependencies>
 </project>
