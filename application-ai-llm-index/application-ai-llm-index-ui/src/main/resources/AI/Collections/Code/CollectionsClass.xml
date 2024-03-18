@@ -54,19 +54,55 @@
       <displayType/>
       <hint/>
       <name>allowGuests</name>
-      <number>8</number>
+      <number>9</number>
       <prettyName>Allow guests to query collection</prettyName>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
     </allowGuests>
+    <chunkingLLMmodel>
+      <cache>0</cache>
+      <classname/>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayType>select</displayType>
+      <freeText/>
+      <hint>For AI formatted chunking</hint>
+      <idField/>
+      <largeStorage>0</largeStorage>
+      <multiSelect>0</multiSelect>
+      <name>chunkingLLMmodel</name>
+      <number>5</number>
+      <picker>1</picker>
+      <prettyName>Chunking LLM model</prettyName>
+      <relationalStorage>0</relationalStorage>
+      <separator> </separator>
+      <separators/>
+      <size>1</size>
+      <sort/>
+      <sql>select doc.fullName
+from XWikiDocument doc, BaseObject obj, StringProperty typeProp, StringProperty modelProp
+where doc.fullName=obj.name
+and obj.className='AI.Models.Code.ModelsClass'
+and obj.id=typeProp.id.id
+and typeProp.id.name='type'
+and typeProp.value='llm'
+and obj.id=modelProp.id.id
+and modelProp.id.name='model'</sql>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <valueField/>
+      <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
+    </chunkingLLMmodel>
     <chunkingMaxSize>
       <customDisplay/>
       <disabled>0</disabled>
       <hint/>
       <name>chunkingMaxSize</name>
-      <number>5</number>
+      <number>6</number>
       <numberType>integer</numberType>
       <prettyName>Chunking max size</prettyName>
       <size>30</size>
@@ -78,7 +114,7 @@
     <chunkingMethod>
       <cache>0</cache>
       <customDisplay/>
-      <defaultValue/>
+      <defaultValue>maxChars</defaultValue>
       <disabled>0</disabled>
       <displayType>select</displayType>
       <freeText/>
@@ -97,7 +133,7 @@
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
-      <values>sectionChunking=Section-based chunking|maxChars=Max characters chunking</values>
+      <values>llmFormattedChunking=AI formatted chunking (experimental)|maxChars=Max characters chunking</values>
       <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
     </chunkingMethod>
     <chunkingOverlapOffset>
@@ -105,7 +141,7 @@
       <disabled>0</disabled>
       <hint/>
       <name>chunkingOverlapOffset</name>
-      <number>6</number>
+      <number>7</number>
       <numberType>long</numberType>
       <prettyName>Chunking overlap offset</prettyName>
       <size>30</size>
@@ -127,7 +163,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>documentSpaces</name>
-      <number>7</number>
+      <number>8</number>
       <picker>1</picker>
       <prettyName>Document spaces</prettyName>
       <relationalStorage>1</relationalStorage>
@@ -203,7 +239,7 @@ and modelProp.id.name='model'</sql>
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>queryGroups</name>
-      <number>9</number>
+      <number>10</number>
       <picker>0</picker>
       <prettyName>Groups that can query</prettyName>
       <relationalStorage>0</relationalStorage>
@@ -228,7 +264,7 @@ and modelProp.id.name='model'</sql>
       <largeStorage>0</largeStorage>
       <multiSelect>0</multiSelect>
       <name>rightsCheckMethod</name>
-      <number>10</number>
+      <number>11</number>
       <picker>0</picker>
       <prettyName>Rights check method</prettyName>
       <relationalStorage>1</relationalStorage>
@@ -247,7 +283,7 @@ and modelProp.id.name='model'</sql>
       <disabled>0</disabled>
       <hint/>
       <name>rightsCheckMethodParam</name>
-      <number>11</number>
+      <number>12</number>
       <picker>0</picker>
       <prettyName>Rights check method parameter (URL)</prettyName>
       <size>30</size>

@@ -54,6 +54,7 @@ public class DefaultCollection implements Collection
     private static final String ID_FIELDNAME = "id";
     private static final String EMBEDDINGMODEL_FIELDNAME = "embeddingModel";
     private static final String CHUNKING_METHOD_FIELDNAME = "chunkingMethod";
+    private static final String CHUNKING_LLM_MODEL_FIELDNAME = "chunkingLLMmodel";
     private static final String CHUNKING_MAX_SIZE_FIELDNAME = "chunkingMaxSize";
     private static final String CHUNKING_OVERLAP_OFFSET_FIELDNAME = "chunkingOverlapOffset";
     private static final String ALLOW_GUESTS = "allowGuests";
@@ -111,6 +112,12 @@ public class DefaultCollection implements Collection
     public String getChunkingMethod()
     {
         return this.xWikiDocumentWrapper.getStringValue(CHUNKING_METHOD_FIELDNAME);
+    }
+
+    @Override
+    public String getChunkingLLMModel()
+    {
+        return this.xWikiDocumentWrapper.getStringValue(CHUNKING_LLM_MODEL_FIELDNAME);
     }
     
     @Override
@@ -182,7 +189,15 @@ public class DefaultCollection implements Collection
             this.xWikiDocumentWrapper.setStringValue(CHUNKING_METHOD_FIELDNAME, chunkingMethod);
         }
     }
-    
+
+    @Override
+    public void setChunkingLLMModel(String chunkingLLMModel) throws IndexException
+    {
+        if (chunkingLLMModel != null) {
+            this.xWikiDocumentWrapper.setStringValue(CHUNKING_LLM_MODEL_FIELDNAME, chunkingLLMModel);
+        }
+    }
+
     @Override
     public void setChunkingMaxSize(int chunkingMaxSize) throws IndexException
     {

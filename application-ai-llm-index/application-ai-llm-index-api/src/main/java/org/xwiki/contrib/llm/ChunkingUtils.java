@@ -19,7 +19,10 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -29,6 +32,8 @@ import javax.inject.Singleton;
 
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.model.reference.SpaceReferenceResolver;
 
 /**
@@ -44,6 +49,10 @@ public class ChunkingUtils
     @Inject
     @Named("current")
     private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
+
+    @Inject
+    @Named("context")
+    private Provider<ComponentManager> componentManagerProvider;
 
     @Inject 
     private Provider<Chunk> chunkProvider;
@@ -66,11 +75,10 @@ public class ChunkingUtils
         Collection collection;
         try {
             collection = collectionManager.getCollection(document.getCollection());
-            if (collection.getChunkingMethod().equals("sectionChunking")) {
-                chunkMap = chunkDocumentBasedOnSections();
+            if (collection.getChunkingMethod().equals("llmFormattedChunking")) {
+                chunkMap = aiFormattedChunking(document, collection);
             } else {
-                chunkMap = chunkDocumentBasedOnCharacters(document, collection.getChunkingMaxSize(),
-                            collection.getChunkingOverlapOffset());
+                chunkMap = chunkDocumentBasedOnCharacters(document, collection, false);
             }
             return chunkMap;
         } catch (IndexException e) {
@@ -79,14 +87,18 @@ public class ChunkingUtils
         return new HashMap<>();
     }
 
-    private Map<Integer, Chunk> chunkDocumentBasedOnSections()
+    private Map<Integer, Chunk> aiFormattedChunking(Document document, Collection collection)
     {
-        // TODO Auto-generated method stub
-        return new HashMap<>();
+        return chunkDocumentBasedOnCharacters(document, collection, true);
     }
 
-    private Map<Integer, Chunk> chunkDocumentBasedOnCharacters(Document document, int maxChunkSize, int offset)
+    private Map<Integer, Chunk> chunkDocumentBasedOnCharacters(Document document,
+                                                               Collection collection,
+                                                               boolean aiFormatted)
     {
+        int maxChunkSize = collection.getChunkingMaxSize();
+        int offset = collection.getChunkingOverlapOffset();
+
         // get the document content
         String content = document.getContent();
 
@@ -102,7 +114,14 @@ public class ChunkingUtils
             end = Math.min(start + maxChunkSize, content.length());
     
             // Extract the chunk content
-            String chunkContent = content.substring(start, end);
+            String baseChunkContent = content.substring(start, end);
+
+            // Format the chunk content using llm
+            String chunkContent = baseChunkContent;
+            if (aiFormatted) {
+                chunkContent = formatChunkContent(baseChunkContent, collection);
+                logger.info("Formatted chunk content: [{}]", chunkContent);
+            }
             Chunk chunk = chunkProvider.get();
             chunk.initialize(document.getID(),
                             document.getCollection(),
@@ -120,4 +139,33 @@ public class ChunkingUtils
         return chunks;
     }
     
+    private String formatChunkContent(String chunkContent, Collection collection)
+    {
+        String chunkingModelId = collection.getChunkingLLMModel();
+        try {
+            ChatModel model = this.componentManagerProvider.get().getInstance(ChatModel.class, chunkingModelId);
+            if (model == null)
+            {
+                return chunkContent;
+            }
+            // create formatted request
+            List<ChatMessage> messages = new ArrayList<>();
+            String formatInstructions = String.format("Format the following chunk of text "
+                                                     + "to make it more compact "
+                                                     + "without loosing information, and at the end, "
+                                                     + "add some questions the text provides answers to: %s",
+                                                      chunkContent);
+            ChatMessage chatMessage = new ChatMessage("user", formatInstructions);
+            messages.add(chatMessage);
+
+            ChatRequestParameters requestParameters = new ChatRequestParameters(1);
+            ChatRequest request = new ChatRequest(messages, requestParameters);
+            ChatResponse response = model.process(request);
+            return response.getMessage().getContent();
+        } catch (RequestError | IOException | ComponentLookupException e) {
+            // Handle the exception here
+            logger.error("Error while getting the model falling back on maxChar chunking method: [{}]", e.getMessage());
+            return chunkContent;
+        }
+    }
 }

@@ -105,7 +105,7 @@ public interface Collection
     /**
      * Gets the embedding model used by the collection.
      * 
-     * @return A string representing the embedding model.
+     * @return A string representing the embedding model id.
      */
     String getEmbeddingModel();
     
@@ -115,6 +115,13 @@ public interface Collection
      * @return A string representing the chunking method.
      */
     String getChunkingMethod();
+
+    /**
+     * Gets llm model usef for formatting the chunks.
+     * 
+     * @return A string representing the llm model id used for formatting.
+     */
+    String getChunkingLLMModel();
     
     /**
      * Gets the maximum size of a chunk.
@@ -193,6 +200,13 @@ public interface Collection
      */
     void setChunkingMethod(String chunkingMethod) throws IndexException;
     
+    /**
+     * Sets the llm model used for formatting the chunks.
+     * 
+     * @param chunkingLLMModel The llm model used for formatting the chunks.
+     */
+    void setChunkingLLMModel(String chunkingLLMModel) throws IndexException;
+
     /**
      * Sets the maximum size of a chunk.
      * 
