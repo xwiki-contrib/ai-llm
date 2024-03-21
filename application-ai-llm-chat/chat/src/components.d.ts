@@ -34,9 +34,14 @@ export namespace Components {
         "scrollToBottom": () => Promise<void>;
         "triangle": MessageTriangle;
     }
+    interface ChatSettings {
+        "getSettings": () => Promise<{ llmServerAddress: string; selectedModel: string; temperature: number; jsonWebToken: string; stream: boolean; }>;
+    }
     interface FabApp {
         "close": () => Promise<void>;
         "ionicon": string;
+    }
+    interface PromptPicker {
     }
 }
 export interface ChatInputCustomEvent<T> extends CustomEvent<T> {
@@ -106,11 +111,23 @@ declare global {
         prototype: HTMLChatPaneElement;
         new (): HTMLChatPaneElement;
     };
+    interface HTMLChatSettingsElement extends Components.ChatSettings, HTMLStencilElement {
+    }
+    var HTMLChatSettingsElement: {
+        prototype: HTMLChatSettingsElement;
+        new (): HTMLChatSettingsElement;
+    };
     interface HTMLFabAppElement extends Components.FabApp, HTMLStencilElement {
     }
     var HTMLFabAppElement: {
         prototype: HTMLFabAppElement;
         new (): HTMLFabAppElement;
+    };
+    interface HTMLPromptPickerElement extends Components.PromptPicker, HTMLStencilElement {
+    }
+    var HTMLPromptPickerElement: {
+        prototype: HTMLPromptPickerElement;
+        new (): HTMLPromptPickerElement;
     };
     interface HTMLElementTagNameMap {
         "chat-check-mark": HTMLChatCheckMarkElement;
@@ -119,7 +136,9 @@ declare global {
         "chat-message": HTMLChatMessageElement;
         "chat-message-status": HTMLChatMessageStatusElement;
         "chat-pane": HTMLChatPaneElement;
+        "chat-settings": HTMLChatSettingsElement;
         "fab-app": HTMLFabAppElement;
+        "prompt-picker": HTMLPromptPickerElement;
     }
 }
 declare namespace LocalJSX {
@@ -145,8 +164,12 @@ declare namespace LocalJSX {
         "onIncoming"?: (event: ChatPaneCustomEvent<IncomingEventDetail>) => void;
         "triangle"?: MessageTriangle;
     }
+    interface ChatSettings {
+    }
     interface FabApp {
         "ionicon"?: string;
+    }
+    interface PromptPicker {
     }
     interface IntrinsicElements {
         "chat-check-mark": ChatCheckMark;
@@ -155,7 +178,9 @@ declare namespace LocalJSX {
         "chat-message": ChatMessage;
         "chat-message-status": ChatMessageStatus;
         "chat-pane": ChatPane;
+        "chat-settings": ChatSettings;
         "fab-app": FabApp;
+        "prompt-picker": PromptPicker;
     }
 }
 export { LocalJSX as JSX };
@@ -168,7 +193,9 @@ declare module "@stencil/core" {
             "chat-message": LocalJSX.ChatMessage & JSXBase.HTMLAttributes<HTMLChatMessageElement>;
             "chat-message-status": LocalJSX.ChatMessageStatus & JSXBase.HTMLAttributes<HTMLChatMessageStatusElement>;
             "chat-pane": LocalJSX.ChatPane & JSXBase.HTMLAttributes<HTMLChatPaneElement>;
+            "chat-settings": LocalJSX.ChatSettings & JSXBase.HTMLAttributes<HTMLChatSettingsElement>;
             "fab-app": LocalJSX.FabApp & JSXBase.HTMLAttributes<HTMLFabAppElement>;
+            "prompt-picker": LocalJSX.PromptPicker & JSXBase.HTMLAttributes<HTMLPromptPickerElement>;
         }
     }
 }

@@ -262,3 +262,4 @@ class ChatCompletionRequest {
         };
     }
 }
+window.XWikiAiAPI = XWikiAiAPI;

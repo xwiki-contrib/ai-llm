@@ -1,0 +1,24 @@
+.temperature-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+  
+  .temperature-range {
+    flex-grow: 4;
+    margin-right: 30px; /* Adjust spacing between slider and input field */
+  }
+  
+  .temperature-input {
+    flex-grow: 1;
+    width: 10%; /* Adjust based on preferred width of the input */
+  }
+  
+  .stream-label {
+    max-width: 20%;
+  }
+
+  .settings-header {
+    background-color: white;
+  }

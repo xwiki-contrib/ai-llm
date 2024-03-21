@@ -1,0 +1,9 @@
+.prompt-menu, .send-msg-btn:hover {
+    padding: 5px;
+}
+
+.prompt-menu:hover, .send-msg-btn:hover {
+    padding: 5px;
+    /* add box shadow underneeth */
+    box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.1);
+}

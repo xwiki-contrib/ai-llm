@@ -1,4 +1,4 @@
-import { Component, h, Element, Event, EventEmitter, Prop, Method } from '@stencil/core';
+import { Component, h, Element, Event, EventEmitter, Prop, Method, State, Listen } from '@stencil/core';
 import { MessageTriangle, MessageDirection, IncomingEventDetail } from '../../interfaces';
 
 function createElementsFromText(text: string): HTMLElement[] {
@@ -20,11 +20,22 @@ function createElementsFromText(text: string): HTMLElement[] {
 export class Pane {
   @Prop() mapInputTextToHtmlElements = createElementsFromText;
   @Prop() triangle: MessageTriangle = 'bottom';
-
   @Event() incoming: EventEmitter<IncomingEventDetail>;
-
   @Element() pane?: HTMLChatPaneElement;
+
+  @State() showSettings = false; // State to toggle between chat and settings
+
   private conversation?: HTMLChatConversationElement;
+
+  // Listen for the custom event
+  @Listen('toggleSettingsView', { target: 'document' })
+  toggleSettingsViewHandler() {
+    this.showSettings = !this.showSettings;
+  }
+
+  toggleSettingsView() {
+    this.showSettings = !this.showSettings;
+  }
 
   addMessage(direction: MessageDirection, text) {
     const message = document.createElement('chat-message');
@@ -88,28 +99,34 @@ export class Pane {
   }
 
   render() {
-    return [
-        <ion-header class="header">
+    if (this.showSettings) {
+      // Render settings menu
+      return (
+        <ion-content>
           <slot name="header" />
-        </ion-header>,
+          <chat-settings />
+        </ion-content>
+      );
+    } else {
+      // Render chat interface
+      return [
+          <ion-header class="header">
+            <slot name="header" />
+            <prompt-picker />
+          </ion-header>,
+          <chat-conversation ref={element => this.conversation = element}>
+            <slot />
+          </chat-conversation>,
 
-        <chat-conversation
-         ref={element => this.conversation = element}
-        >
-          <slot />
-        </chat-conversation>,
-
-        <ion-footer class="footer">
-          <chat-input
-            onSend={
-              event => this.addOutgoingMessage(event.detail.value)
-                .then(message => this.incoming.emit({
-                  element: message,
-                  text: event.detail.value
-                }))
-            }
-          />
-        </ion-footer>
-    ];
+          <ion-footer class="footer">
+            <chat-input onSend={event => this.addOutgoingMessage(event.detail.value)
+              .then(message => this.incoming.emit({
+                element: message,
+                text: event.detail.value
+              }))
+            } />
+          </ion-footer>
+      ];
+    }
   }
 }

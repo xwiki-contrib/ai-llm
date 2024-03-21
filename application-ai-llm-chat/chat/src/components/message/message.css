@@ -67,6 +67,10 @@
   background-color: transparent;
 }
 
+#chat-settings-container .triangle{
+  display: none;
+}
+
 .top-right {
   top: 0;
 	right: var(--message-round-size-negative);

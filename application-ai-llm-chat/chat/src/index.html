@@ -26,6 +26,7 @@
   <link rel="icon" type="image/x-icon" href="/assets/icon/favicon.ico">
   <link rel="manifest" href="/manifest.json">
   <script>
+    XWikiAiAPI.getPrompts().then(prompts => console.log(prompts)).catch(err => console.error(err));
     const responses = [
       'Interesting!',
       'Yeah, I thought so too.',
@@ -58,8 +59,22 @@
           .then(() => pane.addIncomingMessage(randomResponse()));
       }
       pane.addEventListener('incoming', handleIncomingMessage);
+      const chatSettings = document.getElementById('chat-settings');
+      console.log(chatSettings.getSettings().then(settings => console.log(settings)));
     }
   </script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const settingsButton = document.getElementById('settings');
+      settingsButton.addEventListener('click', () => {
+        const event = new CustomEvent('toggleSettingsView', { bubbles: true, composed: true });
+        settingsButton.dispatchEvent(event);
+      });
+    });
+    const chatSettings = document.getElementById('chat-settings');
+</script>
+  
 </head>
 
 <body>
@@ -81,22 +96,21 @@
   <fab-app id="fab">
     <chat-pane id="pane">
         <ion-toolbar slot="header" color="primary">
-          <ion-title>Assister Chat</ion-title>
+          <ion-title>XWiki AI Chat</ion-title>
           <ion-buttons slot="primary">
+            <!-- settings button -->
+            <ion-button id="settings">
+              <ion-icon slot="icon-only" name="settings" />
+            </ion-button>
+            <!-- close button -->
             <ion-button id="close">
               <ion-icon slot="icon-only" name="close" />
             </ion-button>
           </ion-buttons>
         </ion-toolbar>
-        <ion-card style="background: white;">
-          <ion-card-content>
-          <p>Chat with this <i>Simple-Bot</i>!</p>
-          <p>It knows only a few responses...</p>
-          </ion-card-content>
-        </ion-card>
-        <chat-message state="read" footer="10:00 AM">
-          <p>yess!!</p>
-        </chat-message>
+        <br/><br/><br/>
+        <chat-settings id="chat-settings" hidden></chat-settings>
+        
         <chat-message direction="incoming">
           <h2>Welcome to Assister Chat!</h2>
           <p>This is a demo for <b>chat-pane</b> web component.</p>

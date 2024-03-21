@@ -1,23 +1,47 @@
 // Load Chat UI
 window.onload = () => {
   insertChatUI();
-  loadCSS('dist/chat/chat.css');
-  loadCSS('chatUI.css')
   loadJSModule('dist/chat/chat.esm.js');
+  loadCSS('dist/chat/chat.css');
+  loadCSS('waise/chatUI.css')
 
   const fab = document.getElementById('fab');
   const pane = document.getElementById('pane');
-  document.getElementById('close').addEventListener('click', () => fab.close());
 
-  XWikiAiAPI.getModels().then(models => console.log(models)).catch(err => console.error(err));
-  XWikiAiAPI.getPrompts().then(prompts => console.log(prompts)).catch(err => console.error(err));
+  // Chat pane buttons handlers
+  document.getElementById('chat-close-btn').addEventListener('click', () => fab.close());
 
+  const settingsButton = document.getElementById('chat-settings-btn');
+  settingsButton.addEventListener('click', () => {
+      const event = new CustomEvent('toggleSettingsView', { bubbles: true, composed: true });
+      settingsButton.dispatchEvent(event);
+  });
+
+  // Setup completion request
   let completionRequest = new ChatCompletionRequest(
       "AI.Models.mixtral", // model
       0.5, // temperature
       [], // messages
       true, // streaming
   )
+
+  setTimeout(async () => {
+      const chatSettings = document.getElementById('chat-settings');
+      if (chatSettings && typeof chatSettings.getSettings === "function") {
+          try {
+              const settings = await chatSettings.getSettings();
+              console.log(settings);
+              XWikiAiAPI.setBaseURL(settings.llmServerAddress || "http://localhost:8081/xwiki");
+              completionRequest.setModel(settings.selectedModel || "AI.Models.mixtral");
+              completionRequest.setTemperature(settings.temperature || 1);
+              completionRequest.setStream(settings.stream || false);
+          } catch (error) {
+              console.error("Failed to load settings from chatSettings:", error);
+          }
+      } else {
+          console.error("chatSettings.getSettings is not available");
+      }
+  }, 500);
 
   async function sendMessageToLLM(completionRequest) {
       let incomingMessage = await pane.addIncomingMessage("");
@@ -68,6 +92,7 @@ window.onload = () => {
       .then(() => sendMessageToLLM(completionRequest));
   }
   pane.addEventListener('incoming', handleIncomingMessage);
+  
 }
 
 function loadCSS(href) {
@@ -91,11 +116,17 @@ function insertChatUI(){
         <ion-toolbar slot="header" color="primary">
           <ion-title>XWiki AI Chat</ion-title>
           <ion-buttons slot="primary">
-            <ion-button id="close">
-              <ion-icon slot="icon-only" name="close" />
-            </ion-button>
+              <!-- settings button -->
+              <ion-button id="chat-settings-btn">
+                  <ion-icon slot="icon-only" name="settings" />
+              </ion-button>
+              <!-- close button -->
+              <ion-button id="chat-close-btn">
+                  <ion-icon slot="icon-only" name="close" />
+              </ion-button>
           </ion-buttons>
-        </ion-toolbar>
+        </ion-toolbar><br/><br/>
+        <chat-settings id="chat-settings" hidden></chat-settings>
         <ion-card style="background: white;">
           <ion-card-content>
           <p>Chat with <i>WAISE-Bot</i>!</p>
