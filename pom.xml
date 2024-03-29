@@ -46,6 +46,18 @@
             <id>mmunoz</id>
             <name>Matéo Munoz</name>
         </developer>
+        <developer>
+            <id>ldubost</id>
+            <name>Ludovic Dubost</name>
+        </developer>
+        <developer>
+            <id>michitux</id>
+            <name>Michael Hamann</name>
+        </developer>
+        <developer>
+            <id>ppantiru</id>
+            <name>Paul Pantiru</name>
+        </developer>
     </developers>
     <properties>
         <xwiki.release.jira.skip>false</xwiki.release.jira.skip>
