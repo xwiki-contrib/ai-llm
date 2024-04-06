@@ -11,7 +11,6 @@ export class ChatSettings {
   @State() llmServerAddress: string = '';
   @State() selectedModel: string = '';
   @State() temperature: number = 1;
-  @State() jsonWebToken: string = '';
   @State() stream: boolean = true;
   @State() models: Array<{ id: string; name: string }> = [];
 
@@ -72,11 +71,6 @@ export class ChatSettings {
     this.saveSettings();
   }
 
-  handleJSONWebTokenChange(event: CustomEvent) {
-    this.jsonWebToken = event.detail.value;
-    this.saveSettings();
-  }
-
   handleStreamChange(event: CustomEvent) {
     this.stream = event.detail.checked;
     this.saveSettings();
@@ -88,7 +82,6 @@ export class ChatSettings {
         llmServerAddress: this.llmServerAddress,
         selectedModel: this.selectedModel,
         temperature: this.temperature,
-        jsonWebToken: this.jsonWebToken,
         stream: this.stream,
         };
     }
@@ -106,13 +99,6 @@ export class ChatSettings {
             label='Server Address:'
             value={this.llmServerAddress}
             onIonChange={e => this.handleLLMServerAddressChange(e)}
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-input
-            label='JSON Web Token:'
-            value={this.jsonWebToken}
-            onIonChange={e => this.handleJSONWebTokenChange(e)}
           ></ion-input>
         </ion-item>
         <ion-item>
@@ -159,7 +145,6 @@ export class ChatSettings {
       llmServerAddress: this.llmServerAddress,
       selectedModel: this.selectedModel,
       temperature: this.temperature,
-      jsonWebToken: this.jsonWebToken,
       stream: this.stream,
     };
     localStorage.setItem(this.settingsKey, JSON.stringify(settings));
@@ -172,7 +157,6 @@ export class ChatSettings {
       this.llmServerAddress = settings.llmServerAddress;
       this.selectedModel = settings.selectedModel;
       this.temperature = settings.temperature;
-      this.jsonWebToken = settings.jsonWebToken;
       this.stream = settings.stream;
     }
   }

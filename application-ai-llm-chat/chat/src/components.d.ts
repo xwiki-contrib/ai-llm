@@ -35,7 +35,7 @@ export namespace Components {
         "triangle": MessageTriangle;
     }
     interface ChatSettings {
-        "getSettings": () => Promise<{ llmServerAddress: string; selectedModel: string; temperature: number; jsonWebToken: string; stream: boolean; }>;
+        "getSettings": () => Promise<{ llmServerAddress: string; selectedModel: string; temperature: number; stream: boolean; }>;
     }
     interface FabApp {
         "close": () => Promise<void>;

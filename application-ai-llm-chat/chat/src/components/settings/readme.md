@@ -7,13 +7,13 @@
 
 ## Methods
 
-### `getSettings() => Promise<{ llmServerAddress: string; selectedModel: string; temperature: number; jsonWebToken: string; stream: boolean; }>`
+### `getSettings() => Promise<{ llmServerAddress: string; selectedModel: string; temperature: number; stream: boolean; }>`
 
 
 
 #### Returns
 
-Type: `Promise<{ llmServerAddress: string; selectedModel: string; temperature: number; jsonWebToken: string; stream: boolean; }>`
+Type: `Promise<{ llmServerAddress: string; selectedModel: string; temperature: number; stream: boolean; }>`
 
 
 
