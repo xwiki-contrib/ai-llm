@@ -19,7 +19,6 @@
  */
 package org.xwiki.contrib.llm;
 
-import java.util.AbstractMap;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Arrays;
@@ -67,8 +66,6 @@ public class IndexWorker implements EventListener
     @Named("current")
     private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
 
-    //the queue of documents to be processed as key value pairs of documentID and the collection it belongs to
-    private Queue<AbstractMap.SimpleEntry<String, String>> keyValueQueue = new LinkedList<>();
     private boolean isProcessing;
     
     @Override public String getName()

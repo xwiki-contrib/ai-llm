@@ -136,5 +136,4 @@ public class CollectionManagerScriptService implements ScriptService
     {
         return this.collectionManager.filterCollectionbasedOnUserAccess(collections);
     }
-
 }

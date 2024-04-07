@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm;
 
 import java.util.Arrays;
+import java.util.stream.IntStream;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -30,6 +31,7 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.user.UserReference;
 
+import com.robrua.nlp.bert.Bert;
 import com.xpn.xwiki.XWikiContext;
 
 /**
@@ -57,7 +59,7 @@ public class EmbeddingsUtils
      * Compute embeddings for given text.
      *
      * @param text the text to compute embeddings for
-     * @param modelId the id of the model to use
+     * @param modelId the model id
      * @param userReference the user reference
      * @return the embeddings as double array
      */
@@ -67,12 +69,30 @@ public class EmbeddingsUtils
             XWikiContext context = this.contextProvider.get();
             WikiReference wikiReference = context.getWikiReference();
             EmbeddingModel embeddingModel = embeddingModelManager.getModel(wikiReference, modelId, userReference);
-            double[] embeddingsFull = embeddingModel.embed(text);
     
+            double[] embeddingsFull = embeddingModel.embed(text);
             return Arrays.copyOf(embeddingsFull, EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA);
         } catch (Exception e) {
-            logger.error("Failure to compute embeddings for the given text: [{}]", e.getMessage());
+            logger.error("Failed to compute embeddings using the specified model: [{}] Using fallback model.",
+                         e.getMessage());
+        }
+    
+        try (Bert bert = Bert.load("com/robrua/nlp/easy-bert/bert-multi-cased-L-12-H-768-A-12")) {
+            float[] embeddingsFull = bert.embedSequence(text);
+            return Arrays.copyOf(convertToDoubleArray(embeddingsFull), EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA);
+        } catch (Exception e) {
+            logger.error("Failed to compute embeddings using the fallback model: [{}]", e.getMessage());
             return new double[0];
         }
     }
+    
+    private double[] convertToDoubleArray(float[] floatArray)
+    {
+        int length = Math.min(floatArray.length, EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA);
+        return IntStream.range(0, length)
+                        .mapToDouble(i -> floatArray[i])
+                        .toArray();
+    }
+    
+    
 }
