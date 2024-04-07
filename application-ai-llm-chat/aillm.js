@@ -2,11 +2,12 @@
  * A singleton object that provides methods to interact with the XWiki AI Chat API.
  */
 const XWikiAiAPI = (() => {
-    let baseURL = 'http://localhost:8081/xwiki'; // Default base URL
+    let baseURL = 'http://localhost:8080/xwiki'; // Default base URL
     let wikiName = 'xwiki'; // Default wiki name
     let apiKey = ''; // API key for authentication
     let temperature = 1;
     let stream = false;
+    let chatUISettings = [];
 
     /**
      * Generates the fetch options for a request.
@@ -157,6 +158,23 @@ const XWikiAiAPI = (() => {
             }
         },
 
+        /**
+         * Set the available settings as an array of strings.
+         * 
+         * @param {Array} settings - The available settings as an array of strings. Available settings are: "server-address","temperature","model" and "stream"
+         */
+        setChatUISettings: (settings) => {
+            chatUISettings = settings;
+        },
+
+        /**
+         * Get the available settings as an array of strings.
+         * 
+         * @return {Array} The available settings.
+         * */
+        getChatUISettings: () => {
+            return chatUISettings;
+        }
     };
 })();
 
