@@ -13,16 +13,17 @@ export class ChatSettings {
   @State() temperature: number = 1;
   @State() stream: boolean = true;
   @State() models: Array<{ id: string; name: string }> = [];
+  @State() settings: string[] = [];
 
   private settingsKey = 'chatAppSettings';
 
   async componentWillLoad() {
     this.loadSettings();
     await this.fetchModels();
+    await this.fetchChatUISettings();
   }
 
   componentDidLoad() {
-    // Use this.el to dispatch the event
     const event = new CustomEvent('settingsLoaded', {
       detail: { settings: this.getSettings() },
       bubbles: true,
@@ -46,6 +47,17 @@ export class ChatSettings {
       } catch (error) {
         console.error('Failed to fetch models:', error);
         // Handle error appropriately
+      }
+    }
+  }
+
+  async fetchChatUISettings() {
+    const api = window['XWikiAiAPI'];
+    if (api) {
+      try {
+        this.settings = await api.getChatUISettings();
+      } catch (error) {
+        console.error('Failed to fetch chat UI settings:', error);
       }
     }
   }
@@ -86,58 +98,78 @@ export class ChatSettings {
         };
     }
 
-  render() {
-    return (
-      <div>
-        <ion-card>
-          <ion-card-content class="settings-header">
-          SETTINGS
-          </ion-card-content>
-        </ion-card>
-        <ion-item>
-          <ion-input
-            label='Server Address:'
-            value={this.llmServerAddress}
-            onIonChange={e => this.handleLLMServerAddressChange(e)}
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label>Model:</ion-label>
-          <ion-select
-            value={this.selectedModel}
-            onIonChange={e => this.handleSelectedModelChange(e)}
-          >
-            {this.models.length > 0 ? (
-              this.models.map(model => (
-                <ion-select-option value={model.id}>{model.name}</ion-select-option>
-              ))
-            ) : (
-              <ion-select-option disabled>Loading models...</ion-select-option>
-            )}
-          </ion-select>
-        </ion-item>
-        <ion-item>
-          <div class="temperature-container">
-              <ion-range 
-              label='Temp:'
-              min={0} max={2} step={0.01} value={this.temperature}
-              pin={false} snaps={true} onIonChange={e => this.handleTemperatureChange(e.detail.value as number)}
-              class="temperature-range">
-              <ion-label slot="start">0</ion-label>
-              <ion-label slot="end">2</ion-label>
-              </ion-range>
-              <ion-input type="number" value={this.temperature.toString()}
-              onIonChange={e => this.handleTemperatureInputChange(e)}
-              class="temperature-input"></ion-input>
-          </div>
-        </ion-item>
-        <ion-item>
-            <ion-label class="stream-label">Stream</ion-label>
-            <ion-toggle checked={this.stream} onIonChange={e => this.handleStreamChange(e)}></ion-toggle>
-        </ion-item>
-      </div>
-    );
-}
+    render() {
+      return (
+        <div>
+          <ion-card>
+            <ion-card-content class="settings-header">
+              SETTINGS
+            </ion-card-content>
+          </ion-card>
+          {this.settings.includes('server-address') && (
+            <ion-item>
+              <ion-input
+                label="Server Address:"
+                value={this.llmServerAddress}
+                onIonChange={e => this.handleLLMServerAddressChange(e)}
+              ></ion-input>
+            </ion-item>
+          )}
+          {this.settings.includes('model') && (
+            <ion-item>
+              <ion-label>Model:</ion-label>
+              <ion-select
+                value={this.selectedModel}
+                onIonChange={e => this.handleSelectedModelChange(e)}
+              >
+                {this.models.length > 0 ? (
+                  this.models.map(model => (
+                    <ion-select-option value={model.id}>{model.name}</ion-select-option>
+                  ))
+                ) : (
+                  <ion-select-option disabled>Loading models...</ion-select-option>
+                )}
+              </ion-select>
+            </ion-item>
+          )}
+          {this.settings.includes('temperature') && (
+            <ion-item>
+              <div class="temperature-container">
+                <ion-range
+                  label="Temp:"
+                  min={0}
+                  max={2}
+                  step={0.01}
+                  value={this.temperature}
+                  pin={false}
+                  snaps={true}
+                  onIonChange={e => this.handleTemperatureChange(e.detail.value as number)}
+                  class="temperature-range"
+                >
+                  <ion-label slot="start">0</ion-label>
+                  <ion-label slot="end">2</ion-label>
+                </ion-range>
+                <ion-input
+                  type="number"
+                  value={this.temperature.toString()}
+                  onIonChange={e => this.handleTemperatureInputChange(e)}
+                  class="temperature-input"
+                ></ion-input>
+              </div>
+            </ion-item>
+          )}
+          {this.settings.includes('stream') && (
+            <ion-item>
+              <ion-label class="stream-label">Stream</ion-label>
+              <ion-toggle
+                checked={this.stream}
+                onIonChange={e => this.handleStreamChange(e)}
+              ></ion-toggle>
+            </ion-item>
+          )}
+        </div>
+      );
+    }
 
 
   saveSettings() {
