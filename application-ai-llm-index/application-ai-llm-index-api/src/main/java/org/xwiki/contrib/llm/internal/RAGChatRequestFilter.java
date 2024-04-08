@@ -22,7 +22,8 @@ package org.xwiki.contrib.llm.internal;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.slf4j.Logger;
@@ -42,7 +43,7 @@ import org.xwiki.contrib.llm.RequestError;
 public class RAGChatRequestFilter extends AbstractChatRequestFilter
 {
     private static final String PROVIDED_CONTEXT_STRING = "Provided context: %n";
-    private static final String SOURCE_STRING = "Source: %s %n";
+    private static final String SOURCE_STRING = "Sources: %s %n";
     private static final String CONTENT_CHUNK_STRING = "Content chunk: %n %s %n";
     private static final String SIMILARITY_SEARCH_ERROR_MSG = "There was an error during similarity search";
 
@@ -51,6 +52,9 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     private Integer maxResults;
     private String contextPrompt;
     private Logger logger;
+
+    // Global state to hold search results
+    private Map<String, List<List<String>>> searchResultsCache = new ConcurrentHashMap<>();
 
     /**
      * Constructor.
@@ -73,13 +77,24 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         this.logger = logger;
     }
 
-
     @Override
     public void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
-        throws IOException, RequestError
+            throws IOException, RequestError
     {
-        super.processStreaming(addContext(request), consumer);
+        // First, modify the request with additional context as needed
+        ChatRequest modifiedRequest = addContext(request);
+    
+        // Get the sources from the search results cache or perform the search
+        String sources = getSources(request);
+    
+        // Create and send a custom ChatResponse with the sources
+        ChatResponse sourcesResponse = new ChatResponse("sources inserted, continuing", new ChatMessage("assistant", sources));
+        consumer.accept(sourcesResponse);
+        
+        // Now, use the super implementation with the modified request
+        super.processStreaming(modifiedRequest, consumer);
     }
+    
 
     @Override
     public ChatResponse process(ChatRequest request) throws IOException, RequestError
@@ -106,8 +121,10 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
         String message = lastMessage.getContent();
 
-        StringBuilder contextBuilder = new StringBuilder();
-        List<String> addedUrls = new ArrayList<>();
+        // Check if search results are already cached
+        if (searchResultsCache.containsKey(message)) {
+            return buildContext(searchResultsCache.get(message));
+        }
 
         // Perform solr similarity search on the last message
         try {
@@ -116,31 +133,93 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
                 maxResults = 10;
             }
             List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, maxResults);
-            if (!searchResults.isEmpty()) {
-                contextBuilder.append(PROVIDED_CONTEXT_STRING);
-                for (List<String> result : searchResults) {
-                    String sourceURL = result.get(1);
-                    String contentMsg = result.get(2);
-
-                    // Check if URL has already been added
-                    if (!addedUrls.contains(sourceURL)) {
-                        contextBuilder.append(String.format(SOURCE_STRING + CONTENT_CHUNK_STRING,
-                                                            sourceURL, contentMsg));
-                        addedUrls.add(sourceURL); 
-                    } else {
-                        contextBuilder.append(String.format(CONTENT_CHUNK_STRING, contentMsg));
-                    }
-                }
-                contextBuilder.append(contextPrompt);
-            } else {
-                return "No similar content found.";
-            }
+            
+            // Cache the search results
+            searchResultsCache.put(message, searchResults);
+            
+            return buildContext(searchResults);
         } catch (Exception e) {
-            logger.error("{}: {}", SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
+            logger.error("{}: {} ", SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
             return SIMILARITY_SEARCH_ERROR_MSG;
         }
+    }
+
+    private String buildContext(List<List<String>> searchResults)
+    {
+        if (searchResults.isEmpty()) {
+            return "No similar content found.";
+        }
+
+        StringBuilder contextBuilder = new StringBuilder();
+        List<String> addedUrls = new ArrayList<>();
+
+        contextBuilder.append(PROVIDED_CONTEXT_STRING);
+        for (List<String> result : searchResults) {
+            String sourceURL = result.get(1);
+            String contentMsg = result.get(2);
+
+            // Check if URL has already been added
+            if (!addedUrls.contains(sourceURL)) {
+                contextBuilder.append(String.format(SOURCE_STRING + CONTENT_CHUNK_STRING,
+                        sourceURL, contentMsg));
+                addedUrls.add(sourceURL);
+            } else {
+                contextBuilder.append(String.format(CONTENT_CHUNK_STRING, contentMsg));
+            }
+        }
+        contextBuilder.append(contextPrompt);
 
         return contextBuilder.toString();
     }
 
+    private String getSources(ChatRequest request)
+    {
+        if (request.getMessages().isEmpty()) {
+            return "No sources available.";
+        }
+
+        ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
+        String message = lastMessage.getContent();
+
+        // Check if search results are already cached
+        if (searchResultsCache.containsKey(message)) {
+            List<List<String>> searchResults = searchResultsCache.get(message);
+            return formatSources(searchResults);
+        }
+
+        // Perform solr similarity search on the last message
+        try {
+            // If max results is not set, default to 10
+            if (maxResults == null) {
+                maxResults = 10;
+            }
+            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, maxResults);
+            
+            // Cache the search results
+            searchResultsCache.put(message, searchResults);
+            
+            return formatSources(searchResults);
+        } catch (Exception e) {
+            logger.error("{}: {}", SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
+            return "Error retrieving sources.";
+        }
+    }
+
+    private String formatSources(List<List<String>> searchResults)
+    {
+        StringBuilder sourcesBuilder = new StringBuilder();
+        List<String> addedUrls = new ArrayList<>();
+
+        for (List<String> result : searchResults) {
+            String sourceURL = result.get(1);
+
+            // Check if URL has already been added
+            if (!addedUrls.contains(sourceURL)) {
+                sourcesBuilder.append(String.format(SOURCE_STRING, sourceURL));
+                addedUrls.add(sourceURL);
+            }
+        }
+
+        return sourcesBuilder.toString();
+    }
 }
