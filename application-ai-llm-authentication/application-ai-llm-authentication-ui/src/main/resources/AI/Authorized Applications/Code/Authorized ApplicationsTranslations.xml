@@ -1,0 +1,117 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Authorized Applications.Code.Authorized ApplicationsTranslations" locale="">
+  <web>AI.Authorized Applications.Code</web>
+  <name>Authorized ApplicationsTranslations</name>
+  <language/>
+  <defaultLanguage>en</defaultLanguage>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>Authorized ApplicationsClass</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title/>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>plain/1.0</syntaxId>
+  <hidden>true</hidden>
+  <content># Class fields
+AI.Authorized\ Applications.Code.Authorized\ ApplicationsClass_title1=Title
+AI.Authorized\ Applications.Code.Authorized\ ApplicationsClass_url=URL
+AI.Authorized\ Applications.Code.Authorized\ ApplicationsClass_publicKey=Public Key
+AI.Authorized\ Applications.Code.Authorized\ ApplicationsClass_groupFormat=Group Format
+
+# Sheet keys
+authorized\ applications.sheet.description=This page controls how Authorized Applications pages are displayed in both view and edit modes.
+authorized\ applications.sheet.noObject=The current page doesn't have the expected Authorized Applications object.
+authorized\ applications.sheet.noFields=The Authorized Applications application doesn't have any fields to display.
+
+# Live table generic keys
+authorized\ applications.livetable.doc.title=Page Title
+authorized\ applications.livetable.doc.name=Page Name
+authorized\ applications.livetable.doc.space=Space
+authorized\ applications.livetable.doc.fullname=Page full name
+authorized\ applications.livetable.doc.location=Location
+authorized\ applications.livetable.doc.author=Last Author
+authorized\ applications.livetable.doc.creator=Creator
+authorized\ applications.livetable.doc.date=Date
+authorized\ applications.livetable.doc.creationDate=Creation Date
+authorized\ applications.livetable._avatar=Avatar
+authorized\ applications.livetable._images=Images
+authorized\ applications.livetable._attachments=Attachments
+authorized\ applications.livetable._actions=Actions
+authorized\ applications.livetable._actions.edit=Edit
+authorized\ applications.livetable._actions.delete=Delete
+authorized\ applications.livetable.emptyvalue=-
+
+# Live table specific keys
+authorized\ applications.livetable.title1=Title
+authorized\ applications.livetable.url=URL
+authorized\ applications.livetable.publicKey=Public Key
+authorized\ applications.livetable.groupFormat=Group Format
+
+# Other keys
+authorized\ applications.entry.name=Authorized Applications
+
+# Deprecated keys
+authorized\ applications.dataSpace.title=Data
+</content>
+  <object>
+    <name>AI.Authorized Applications.Code.Authorized ApplicationsTranslations</name>
+    <number>0</number>
+    <className>XWiki.TranslationDocumentClass</className>
+    <guid>0154c858-397f-4040-be28-b538a327c370</guid>
+    <class>
+      <name>XWiki.TranslationDocumentClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <scope>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>scope</name>
+        <number>1</number>
+        <prettyName>Scope</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>GLOBAL|WIKI|USER|ON_DEMAND</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </scope>
+    </class>
+    <property>
+      <scope>WIKI</scope>
+    </property>
+  </object>
+</xwikidoc>

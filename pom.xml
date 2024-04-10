@@ -68,6 +68,7 @@
     <modules>
         <module>application-ai-llm-models</module>
         <module>application-ai-llm-index</module>
+        <module>application-ai-llm-authentication</module>
     </modules>
     <build>
         <extensions>
