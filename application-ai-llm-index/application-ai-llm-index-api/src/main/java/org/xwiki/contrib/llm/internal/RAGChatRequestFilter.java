@@ -88,7 +88,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         String sources = getSources(request);
     
         // Create and send a custom ChatResponse with the sources
-        ChatResponse sourcesResponse = new ChatResponse("sources inserted, continuing", new ChatMessage("assistant", sources));
+        ChatResponse sourcesResponse = new ChatResponse(null, new ChatMessage("assistant", sources));
         consumer.accept(sourcesResponse);
         
         // Now, use the super implementation with the modified request

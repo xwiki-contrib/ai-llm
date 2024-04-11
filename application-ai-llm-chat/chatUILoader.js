@@ -7,6 +7,8 @@ window.onload = () => {
 
   const fab = document.getElementById('fab');
   const pane = document.getElementById('pane');
+  
+  XWikiAiAPI.setChatUISettings(["temperature","model","stream"]); //"server-address","temperature","model","stream"
 
   // Chat pane buttons handlers
   document.getElementById('chat-close-btn').addEventListener('click', () => fab.close());
