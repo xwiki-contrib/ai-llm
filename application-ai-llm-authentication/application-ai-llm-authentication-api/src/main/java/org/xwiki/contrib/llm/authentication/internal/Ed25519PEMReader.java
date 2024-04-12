@@ -110,6 +110,7 @@ public class Ed25519PEMReader
 
         // Generate the public key from the private key. Code inspired from
         // https://stackoverflow.com/questions/64867752/how-derive-ed25519-eddsa-public-key-from-private-key-using-java
+        // and https://github.com/tjdragon/ed25519/blob/master/src/main/java/org/tj/jwsedemo/JWSEd25519Demo.java
         var publicKey = new Ed25519PrivateKeyParameters(d).generatePublicKey();
 
         return new OctetKeyPair.Builder(Curve.Ed25519, Base64URL.encode(publicKey.getEncoded()))
