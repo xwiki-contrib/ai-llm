@@ -61,42 +61,6 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
     </allowGuests>
-    <chunkingLLMmodel>
-      <cache>0</cache>
-      <classname/>
-      <customDisplay/>
-      <defaultValue/>
-      <disabled>0</disabled>
-      <displayType>select</displayType>
-      <freeText/>
-      <hint>For AI formatted chunking</hint>
-      <idField/>
-      <largeStorage>0</largeStorage>
-      <multiSelect>0</multiSelect>
-      <name>chunkingLLMmodel</name>
-      <number>6</number>
-      <picker>1</picker>
-      <prettyName>Chunking LLM model</prettyName>
-      <relationalStorage>0</relationalStorage>
-      <separator> </separator>
-      <separators/>
-      <size>1</size>
-      <sort/>
-      <sql>select doc.fullName
-from XWikiDocument doc, BaseObject obj, StringProperty typeProp, StringProperty modelProp
-where doc.fullName=obj.name
-and obj.className='AI.Models.Code.ModelsClass'
-and obj.id=typeProp.id.id
-and typeProp.id.name='type'
-and typeProp.value='llm'
-and obj.id=modelProp.id.id
-and modelProp.id.name='model'</sql>
-      <unmodifiable>0</unmodifiable>
-      <validationMessage/>
-      <validationRegExp/>
-      <valueField/>
-      <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
-    </chunkingLLMmodel>
     <chunkingMaxSize>
       <customDisplay/>
       <disabled>0</disabled>

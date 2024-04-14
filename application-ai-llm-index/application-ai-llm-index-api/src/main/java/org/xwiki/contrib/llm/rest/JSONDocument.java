@@ -26,6 +26,8 @@ import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.stability.Unstable;
 
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 /**
  * Document representation for the REST API.
  *
@@ -33,6 +35,7 @@ import org.xwiki.stability.Unstable;
  * @since 0.3
  */
 @Unstable
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class JSONDocument
 {
     private String id;
