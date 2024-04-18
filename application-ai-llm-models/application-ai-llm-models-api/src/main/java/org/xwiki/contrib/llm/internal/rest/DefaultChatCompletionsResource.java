@@ -32,6 +32,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
 
+import org.json.JSONArray;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.ChatClientConfigProvider;
 import org.xwiki.contrib.llm.ChatMessage;
@@ -106,6 +107,7 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                         .build();
             } else {
                 ChatResponse chatResponse = model.process(chatRequest);
+                JSONArray sources = chatResponse.getSources();
                 // Convert to OpenAI format
                 ChatCompletionResult openAIChatCompletionResult =
                     this.chatResponseConverter.toOpenAIChatCompletionResult(chatResponse, request.getModel());
@@ -113,6 +115,7 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                                 .header(CORS_ALLOW_ORIGIN, allowedOrigin)
                                 .header(CORS_ALLOW_METHODS, CORS_METHODS)
                                 .header(CORS_ALLOW_HEADERS, CORS_HEADERS)
+                                .header("X-Sources", sources)
                                 .build();
             }
         } catch (GPTAPIException | RequestError | IOException e) {

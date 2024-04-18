@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.json.JSONArray;
 import org.xwiki.stability.Unstable;
 
 /**
@@ -36,6 +37,8 @@ public class ChatResponse
 
     private final ChatMessage message;
 
+    private JSONArray sources;
+
     /**
      * Creates a new chat response.
      *
@@ -46,6 +49,20 @@ public class ChatResponse
     {
         this.finishReason = finishReason;
         this.message = message;
+    }
+
+    /**
+     * Creates a new chat response.
+     *
+     * @param finishReason the reason why the chat was finished, e.g., "stop", "length", "content_filter"
+     * @param message the completed message
+     * @param sources the context sources used to generate the completion
+     */
+    public ChatResponse(String finishReason, ChatMessage message, JSONArray sources)
+    {
+        this.finishReason = finishReason;
+        this.message = message;
+        this.sources = sources;
     }
 
     /**
@@ -62,6 +79,14 @@ public class ChatResponse
     public ChatMessage getMessage()
     {
         return message;
+    }
+
+    /**
+     * @return the context sources used to generate the completion
+     */
+    public JSONArray getSources()
+    {
+        return sources;
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +34,8 @@ import org.xwiki.contrib.llm.ChatRequest;
 import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.RequestError;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  * A filter that adds context from the given collections to the request.
@@ -42,10 +45,13 @@ import org.xwiki.contrib.llm.RequestError;
  */
 public class RAGChatRequestFilter extends AbstractChatRequestFilter
 {
-    private static final String PROVIDED_CONTEXT_STRING = "Provided context: %n";
-    private static final String SOURCE_STRING = "Sources: %s %n";
+    private static final String SEARCH_RESULTS_STRING = "SYSTEM MESSAGE: Search results: %n";
+    private static final String SOURCE_STRING = "%s %n";
     private static final String CONTENT_CHUNK_STRING = "Content chunk: %n %s %n";
     private static final String SIMILARITY_SEARCH_ERROR_MSG = "There was an error during similarity search";
+    private static final String USER_MESSAGE_STRING = "\n\n User message: ";
+    private static final String ERROR_LOG_FORMAT = "{}: {}";
+
 
     private final List<String> collections;
     private CollectionManager collectionManager;
@@ -85,7 +91,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         ChatRequest modifiedRequest = addContext(request);
     
         // Get the sources from the search results cache or perform the search
-        String sources = getSources(request);
+        String sources = extractURLsAndformat(getSearchResults(request));
     
         // Create and send a custom ChatResponse with the sources
         ChatResponse sourcesResponse = new ChatResponse(null, new ChatMessage("assistant", sources));
@@ -99,7 +105,10 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     @Override
     public ChatResponse process(ChatRequest request) throws IOException, RequestError
     {
-        return super.process(addContext(request));
+        JSONArray searchResults = formatSearchResults(getSearchResults(request));
+        ChatRequest modifiedRequest = addContext(request);
+        ChatResponse response = super.process(modifiedRequest);
+        return new ChatResponse(response.getFinishReason(), response.getMessage(), searchResults);
     }
 
     private ChatRequest addContext(ChatRequest request)
@@ -107,7 +116,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         String context = augmentRequest(request);
         if (!request.getMessages().isEmpty()) {
             ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
-            lastMessage.setContent(context + "\n\n User message: " + lastMessage.getContent());
+            lastMessage.setContent(context + USER_MESSAGE_STRING + lastMessage.getContent());
         }
         return request;
     }
@@ -139,7 +148,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
             
             return buildContext(searchResults);
         } catch (Exception e) {
-            logger.error("{}: {} ", SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
+            logger.error(ERROR_LOG_FORMAT, SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
             return SIMILARITY_SEARCH_ERROR_MSG;
         }
     }
@@ -153,7 +162,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         StringBuilder contextBuilder = new StringBuilder();
         List<String> addedUrls = new ArrayList<>();
 
-        contextBuilder.append(PROVIDED_CONTEXT_STRING);
+        contextBuilder.append(SEARCH_RESULTS_STRING);
         for (List<String> result : searchResults) {
             String sourceURL = result.get(1);
             String contentMsg = result.get(2);
@@ -172,21 +181,20 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         return contextBuilder.toString();
     }
 
-    private String getSources(ChatRequest request)
+    private List<List<String>> getSearchResults(ChatRequest request)
     {
         if (request.getMessages().isEmpty()) {
-            return "No sources available.";
+            return Collections.emptyList();
         }
-
+    
         ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
         String message = lastMessage.getContent();
-
+    
         // Check if search results are already cached
         if (searchResultsCache.containsKey(message)) {
-            List<List<String>> searchResults = searchResultsCache.get(message);
-            return formatSources(searchResults);
+            return searchResultsCache.get(message);
         }
-
+    
         // Perform solr similarity search on the last message
         try {
             // If max results is not set, default to 10
@@ -198,14 +206,39 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
             // Cache the search results
             searchResultsCache.put(message, searchResults);
             
-            return formatSources(searchResults);
+            return searchResults;
         } catch (Exception e) {
-            logger.error("{}: {}", SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
-            return "Error retrieving sources.";
+            logger.error(ERROR_LOG_FORMAT, SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
+            return Collections.emptyList();
         }
     }
+    
+    private JSONArray formatSearchResults(List<List<String>> searchResults)
+    {
+        JSONArray formattedResults = new JSONArray();
+    
+        for (List<String> result : searchResults) {
+            if (result.size() == 4) {
+                String docId = result.get(0);
+                String url = result.get(1);
+                String content = result.get(2);
+                String similarityScore = result.get(3);
+    
+                JSONObject jsonResult = new JSONObject();
+                jsonResult.put("docId", docId);
+                jsonResult.put("url", url);
+                jsonResult.put("content", content);
+                jsonResult.put("similarityScore", similarityScore);
+    
+                formattedResults.put(jsonResult);
+            }
+        }
+    
+        return formattedResults;
+    }
+    
 
-    private String formatSources(List<List<String>> searchResults)
+    private String extractURLsAndformat(List<List<String>> searchResults)
     {
         StringBuilder sourcesBuilder = new StringBuilder();
         List<String> addedUrls = new ArrayList<>();
