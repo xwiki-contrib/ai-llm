@@ -178,7 +178,7 @@ class DefaultCollectionResourceTest
         WebApplicationException exception = assertThrows(WebApplicationException.class,
             () -> this.collectionResource.getCollection(WIKI_NAME, COLLECTION_1));
 
-        assertEquals(403, exception.getResponse().getStatus());
+        assertEquals(401, exception.getResponse().getStatus());
     }
 
     @Test
@@ -244,7 +244,7 @@ class DefaultCollectionResourceTest
         WebApplicationException exception = assertThrows(WebApplicationException.class,
             () -> this.collectionResource.putCollection(WIKI_NAME, COLLECTION_1, collection));
 
-        assertEquals(403, exception.getResponse().getStatus());
+        assertEquals(401, exception.getResponse().getStatus());
 
         // Verify that the collection was not updated.
         assertEquals("", getCollectionFromWiki(COLLECTION_1).getChunkingMethod());
@@ -270,7 +270,7 @@ class DefaultCollectionResourceTest
         WebApplicationException exception = assertThrows(WebApplicationException.class,
             () -> this.collectionResource.deleteCollection(WIKI_NAME, COLLECTION_1));
 
-        assertEquals(403, exception.getResponse().getStatus());
+        assertEquals(401, exception.getResponse().getStatus());
 
         // Verify that the collection was not deleted.
         assertNotNull(getCollectionFromWiki(COLLECTION_1));

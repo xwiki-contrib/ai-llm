@@ -168,7 +168,7 @@ class DefaultDocumentResourceTest
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
                 () -> this.documentResource.getDocument(WIKI_NAME, COLLECTION_NAME, DOCUMENT_ID));
-        assertEquals(403, exception.getResponse().getStatus());
+        assertEquals(401, exception.getResponse().getStatus());
     }
 
     @Test
@@ -196,7 +196,7 @@ class DefaultDocumentResourceTest
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
                 () -> this.documentResource.deleteDocument(WIKI_NAME, COLLECTION_NAME, DOCUMENT_ID));
-        assertEquals(403, exception.getResponse().getStatus());
+        assertEquals(401, exception.getResponse().getStatus());
 
         // Verify that the document still exists.
         assertEquals(DOCUMENT_ID,
@@ -250,7 +250,7 @@ class DefaultDocumentResourceTest
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
                 () -> this.documentResource.putDocument(WIKI_NAME, COLLECTION_NAME, DOCUMENT_ID, document));
-        assertEquals(403, exception.getResponse().getStatus());
+        assertEquals(401, exception.getResponse().getStatus());
     }
 
     @Test
@@ -269,6 +269,6 @@ class DefaultDocumentResourceTest
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
                 () -> this.documentResource.putDocument(WIKI_NAME, COLLECTION_NAME, documentId, document));
-        assertEquals(403, exception.getResponse().getStatus());
+        assertEquals(401, exception.getResponse().getStatus());
     }
 }
