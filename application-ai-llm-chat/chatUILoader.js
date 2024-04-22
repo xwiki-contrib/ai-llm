@@ -1,6 +1,7 @@
 // Load Chat UI
 window.onload = () => {
   insertChatUI();
+  loadJSModule('https://cdn.jsdelivr.net/npm/marked/marked.min.js')
   loadJSModule('dist/chat/chat.esm.js');
   loadCSS('dist/chat/chat.css');
   loadCSS('waise/chatUI.css')
@@ -46,42 +47,42 @@ window.onload = () => {
   }, 500);
 
   async function sendMessageToLLM(completionRequest) {
-      let incomingMessage = await pane.addIncomingMessage("");
-      // Create separate container for loading animation and text content
-      incomingMessage.innerHTML = '<div class="message-text"><div class="waiting-line"><div class="dot dot1"></div><div class="dot dot2"></div><div class="dot dot3"></div></div></div>';
+    let incomingMessage = await pane.addIncomingMessage("");
+    // Create separate container for loading animation and text content
+    incomingMessage.innerHTML = '<div class="message-text"><div class="waiting-line"><div class="dot dot1"></div><div class="dot dot2"></div><div class="dot dot3"></div></div></div>';
 
-      function removeLoadingAnimation() {
-          const loadingSpinner = incomingMessage.querySelector('.waiting-line');
-          if (loadingSpinner) {
-              loadingSpinner.remove(); // Remove only the loading spinner
-          }
-      }
+    function removeLoadingAnimation() {
+        const loadingSpinner = incomingMessage.querySelector('.waiting-line');
+        if (loadingSpinner) {
+            loadingSpinner.remove(); // Remove only the loading spinner
+        }
+    }
 
-      if (completionRequest.stream) {
-          XWikiAiAPI.getCompletions(completionRequest, async (messageChunk) => {
-              const messageTextContainer = incomingMessage.querySelector('.message-text');
-              messageTextContainer.textContent += messageChunk.choices[0].delta.content;
-              removeLoadingAnimation(); // Clear loading after updating text to preserve content
-          })
-          .then(() => {
-              completionRequest.addMessage("assistant", incomingMessage.querySelector('.message-text').textContent);
-              return completionRequest;
-          })
-          .catch(err => {
-              console.error(err);
-              removeLoadingAnimation(); // Ensure to clear loading spinner in case of error
-          })
-      } else {
-          return XWikiAiAPI.getCompletions(completionRequest).then(async messageChunk => {
-              removeLoadingAnimation(); // Clear loading before showing the message
-              incomingMessage.querySelector('.message-text').textContent = messageChunk.choices[0].message.content;
-              completionRequest.addMessage("assistant", incomingMessage.querySelector('.message-text').textContent);
-          }).catch(err => {
-              console.error(err);
-              removeLoadingAnimation(); // Ensure to clear loading spinner in case of error
-          }); 
-      }
-  }
+    if (completionRequest.stream) {
+        let messageText = '';
+        XWikiAiAPI.getCompletions(completionRequest, async (messageChunk) => {
+            const messageTextContainer = incomingMessage.querySelector('.message-text');
+            messageText += messageChunk.choices[0].delta.content;
+            messageTextContainer.innerHTML = marked.parse(messageText);
+        })
+        .then(() => {
+            completionRequest.addMessage("assistant", incomingMessage.querySelector('.message-text').textContent);
+            return completionRequest;
+        })
+        .catch(err => {
+            console.error(err);
+        })
+    } else {
+        return XWikiAiAPI.getCompletions(completionRequest).then(async messageChunk => {
+            removeLoadingAnimation(); // Clear loading before showing the message
+            incomingMessage.querySelector('.message-text').innerHTML = marked.parse(messageChunk.choices[0].message.content);
+            completionRequest.addMessage("assistant", incomingMessage.querySelector('.message-text').textContent);
+        }).catch(err => {
+            console.error(err);
+            removeLoadingAnimation(); // Ensure to clear loading spinner in case of error
+        }); 
+    }
+}
 
   const wait = () => new Promise(resolve => setTimeout(resolve, 500));
 
