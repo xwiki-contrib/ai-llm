@@ -40,7 +40,7 @@
 #set ($columnsProperties = {
   'doc.title': {"link":"view"},
   'url': {},
-  'groupFormat': {},
+  'groupFormat': {"html": true},
   'doc.location': {"html":true},
   'doc.date': {},
   'doc.author': {"link":"author"},

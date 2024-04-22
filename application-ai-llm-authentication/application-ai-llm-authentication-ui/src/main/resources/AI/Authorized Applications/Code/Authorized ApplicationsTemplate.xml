@@ -66,7 +66,22 @@
         <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
       </groupFormat>
       <publicKey>
-        <customDisplay/>
+        <contenttype>PureText</contenttype>
+        <customDisplay>{{velocity}}
+#if ($type == 'view' || $type == 'search' || $type == 'rendered')
+  {{code language='none' source='script:value'/}}
+#elseif ($type == 'edit')
+  {{html clean="false"}}
+    $doc.displayEdit($field, $prefix, $object)
+  {{/html}}
+#elseif ($type == 'hidden')
+  {{html clean="false"}}
+    $doc.displayHidden($field, $prefix, $object)
+  {{/html}}
+#else
+  Unknown display mode.
+#end
+{{/velocity}}</customDisplay>
         <disabled>0</disabled>
         <editor>PureText</editor>
         <hint>The public key to verify the token signatures.</hint>
@@ -74,6 +89,7 @@
         <number>3</number>
         <picker>0</picker>
         <prettyName>Public Key</prettyName>
+        <restricted>0</restricted>
         <rows>5</rows>
         <size>40</size>
         <unmodifiable>0</unmodifiable>
