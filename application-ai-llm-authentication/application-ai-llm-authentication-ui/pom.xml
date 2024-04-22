@@ -47,6 +47,7 @@
       <groupId>org.xwiki.platform</groupId>
       <artifactId>xwiki-platform-test-page</artifactId>
       <version>${platform.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>
