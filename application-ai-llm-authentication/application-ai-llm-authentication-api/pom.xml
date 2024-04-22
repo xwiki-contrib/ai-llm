@@ -67,5 +67,10 @@
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-security-requiredrights-api</artifactId>
+      <version>${platform.version}</version>
+    </dependency>
   </dependencies>
 </project>
