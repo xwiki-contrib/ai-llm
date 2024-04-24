@@ -7,10 +7,6 @@
 
 ## Dependencies
 
-### Used by
-
- - [chat-pane](../pane)
-
 ### Depends on
 
 - ion-item
@@ -46,7 +42,6 @@ graph TD;
   ion-action-sheet --> ion-ripple-effect
   ion-alert --> ion-ripple-effect
   ion-alert --> ion-backdrop
-  chat-pane --> prompt-picker
   style prompt-picker fill:#f9f,stroke:#333,stroke-width:4px
 ```
 

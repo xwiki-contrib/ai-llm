@@ -34,6 +34,7 @@
     "url": "git+https://github.com/assister-ai/assister.git"
   },
   "dependencies": {
+    "@assister/chat": "^0.1.1",
     "@ionic/core": "latest"
   },
   "devDependencies": {

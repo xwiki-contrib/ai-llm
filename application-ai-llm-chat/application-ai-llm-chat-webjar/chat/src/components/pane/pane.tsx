@@ -112,7 +112,6 @@ export class Pane {
       return [
           <ion-header class="header">
             <slot name="header" />
-            <prompt-picker />
           </ion-header>,
           <chat-conversation ref={element => this.conversation = element}>
             <slot />

@@ -108,7 +108,6 @@ Type: `Promise<void>`
 - ion-content
 - [chat-settings](../settings)
 - ion-header
-- [prompt-picker](../prompt-picker)
 - [chat-conversation](../conversation)
 - ion-footer
 - [chat-input](../input)
@@ -123,7 +122,6 @@ graph TD;
   chat-pane --> ion-content
   chat-pane --> chat-settings
   chat-pane --> ion-header
-  chat-pane --> prompt-picker
   chat-pane --> chat-conversation
   chat-pane --> ion-footer
   chat-pane --> chat-input
@@ -165,10 +163,6 @@ graph TD;
   ion-alert --> ion-ripple-effect
   ion-alert --> ion-backdrop
   ion-toggle --> ion-icon
-  prompt-picker --> ion-item
-  prompt-picker --> ion-label
-  prompt-picker --> ion-select
-  prompt-picker --> ion-select-option
   chat-conversation --> ion-content
   chat-conversation --> ion-list
   chat-input --> ion-item
