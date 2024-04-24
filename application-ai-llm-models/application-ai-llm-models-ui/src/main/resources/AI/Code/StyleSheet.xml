@@ -202,7 +202,7 @@
 #chatUI .message-content {
   margin-top: 5px;
   font-family: system-ui;
-  white-space: pre-line;
+  white-space: normal;
   word-break: break-word;
 }
 

@@ -340,7 +340,7 @@
         const messageContent = document.createElement('pre');
         messageContent.classList.add('message-content');
         messageContent.id = `msg-content-${nbAssistMsg}`;
-        messageContent.textContent = assistantChat;
+        messageContent.innerHTML = marked.parse(assistantChat);
         div.appendChild(messageContent);
 
         const astMsgButton = document.createElement('div');
@@ -444,7 +444,7 @@
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec - T: ${settingsTemp}`;
         else
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec`;
-        document.querySelector('#msg-content-' + msgIdNum).textContent += chunkReply;
+        document.querySelector('#msg-content-' + msgIdNum).innerHTML = marked.parse(chunkReply);
     }
 
     /**
@@ -697,7 +697,7 @@
                         beginRep = false;
                     }
                     const elapsedTime = (Date.now() - startTime) / 1000;
-                    updateAssistantChat(nbAssistMsg, elapsedTime, reply, model);
+                    updateAssistantChat(nbAssistMsg, elapsedTime, completedReply, model);
                 }
 
             }
