@@ -2,7 +2,7 @@
  * A singleton object that provides methods to interact with the XWiki AI Chat API.
  */
 const XWikiAiAPI = (() => {
-    let baseURL = "http://localhost:8081/xwiki"; // Default base URL
+    let baseURL = "http://localhost:8080/xwiki"; // Default base URL
     let wikiName = 'xwiki'; // Default wiki name
     let apiKey = ''; // API key for authentication
     let temperature = 1;

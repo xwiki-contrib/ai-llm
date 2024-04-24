@@ -28,8 +28,10 @@ window.onload = () => {
         if (chatSettings && typeof chatSettings.getSettings === "function") {
             try {
                 const settings = await chatSettings.getSettings();
-                console.log(settings);
-                XWikiAiAPI.setBaseURL(settings.llmServerAddress || "http://localhost:8081/xwiki");
+                if (!settings.llmServerAddress){
+                    settings.llmServerAddress = XWikiAiAPI.getBaseURL();
+                }
+                XWikiAiAPI.setBaseURL(settings.llmServerAddress);
                 completionRequest.setModel(settings.selectedModel || "AI.Models.mixtral");
                 completionRequest.setTemperature(settings.temperature || 1);
                 completionRequest.setStream(settings.stream || false);

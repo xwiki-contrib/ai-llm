@@ -32,8 +32,7 @@
   <packaging>webjar</packaging>
   <properties>
     <!-- Name to display by the Extension Manager -->
-    <xwiki.extension.name>ChatUI</xwiki.extension.name>
-    <jstree.version>0.1</jstree.version>
+    <xwiki.extension.name>ChatUI-webjar</xwiki.extension.name>
   </properties>
     <dependencies>
       <dependency>
