@@ -46,6 +46,11 @@
             <artifactId>application-ai-llm-models-api</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.xwiki.contrib.llm</groupId>
+            <artifactId>application-ai-llm-chat-webjar</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
     </dependencies>
       <build>
     <plugins>
