@@ -13,4 +13,4 @@ For further information and documentation, see [this page](https://design.xwiki.
 * License: LGPL 2.1+
 * Translations: N/A 
 * Sonar Dashboard: N/A 
-* Continuous Integration Status: [![Build Status](https://ci.xwiki.org/job/XWiki%20Contrib/job/ai-llm/job/main/badge/icon)](https://ci.xwiki.org/job/XWiki%20Contrib/job/ai-llm/job/main/)
+* Continuous Integration Status: [![Build Status](https://ci.xwiki.org/job/XWiki%20Contrib/job/application-ai-llm/job/main/badge/icon)](https://ci.xwiki.org/job/XWiki%20Contrib/job/ai-llm/job/main/)
