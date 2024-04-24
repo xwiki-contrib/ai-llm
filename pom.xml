@@ -69,6 +69,7 @@
         <module>application-ai-llm-models</module>
         <module>application-ai-llm-index</module>
         <module>application-ai-llm-authentication</module>
+        <module>application-ai-llm-chat</module>
     </modules>
     <build>
         <extensions>
