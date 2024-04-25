@@ -228,10 +228,11 @@
       <async_enabled>0</async_enabled>
     </property>
     <property>
-      <content>{{html clean=false}}
-&lt;script src="/xwiki/webjars/wiki%3Axwiki/application-ai-llm-chat-webjar/0.3-SNAPSHOT/marked.min.js"&gt;&lt;/script&gt;
-&lt;script src="https://cdn.jsdelivr.net/npm/marked/marked.mins.js"&gt;&lt;/script&gt;
-{{/html}}</content>
+      <content>{{velocity}}
+{{html clean=false}}
+&lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'marked.min.js')"&gt;&lt;/script&gt;
+{{/html}}
+{{/velocity}}</content>
     </property>
     <property>
       <extensionPointId>org.xwiki.platform.html.head</extensionPointId>
