@@ -45,11 +45,10 @@ import org.json.JSONObject;
  */
 public class RAGChatRequestFilter extends AbstractChatRequestFilter
 {
-    private static final String SEARCH_RESULTS_STRING = "SYSTEM MESSAGE: Search results: %n";
+    private static final String SEARCH_RESULTS_STRING = "Search results: %n";
     private static final String SOURCE_STRING = "%s %n";
     private static final String CONTENT_CHUNK_STRING = "Content chunk: %n %s %n";
     private static final String SIMILARITY_SEARCH_ERROR_MSG = "There was an error during similarity search";
-    private static final String USER_MESSAGE_STRING = "\n\n User message: ";
     private static final String ERROR_LOG_FORMAT = "{}: {}";
 
 
@@ -113,13 +112,17 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     private ChatRequest addContext(ChatRequest request)
     {
-        String context = augmentRequest(request);
-        if (!request.getMessages().isEmpty()) {
-            ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
-            lastMessage.setContent(context + USER_MESSAGE_STRING + lastMessage.getContent());
-        }
-        return request;
+        String searchResults = augmentRequest(request);
+        String updatedContextPrompt = contextPrompt.replace("{{search_results}}", searchResults);
+        ChatMessage systemMessage = new ChatMessage("system", updatedContextPrompt);
+        // logger.info("System message: " + systemMessage.getContent());
+        List<ChatMessage> messages = new ArrayList<>(request.getMessages());
+        // logger.info("ALL MESSAGERS: " + messages);
+        messages.add(0, systemMessage);
+        
+        return new ChatRequest(messages, request.getParameters());
     }
+    
 
     private String augmentRequest(ChatRequest request)
     {
@@ -176,7 +179,6 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
                 contextBuilder.append(String.format(CONTENT_CHUNK_STRING, contentMsg));
             }
         }
-        contextBuilder.append(contextPrompt);
 
         return contextBuilder.toString();
     }

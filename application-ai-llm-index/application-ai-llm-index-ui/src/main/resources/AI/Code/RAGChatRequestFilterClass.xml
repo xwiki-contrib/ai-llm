@@ -81,14 +81,14 @@ and stringprop.id.name='id'</sql>
       <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
     </collections>
     <contextPrompt>
-      <contenttype>---</contenttype>
+      <contenttype>PureText</contenttype>
       <customDisplay/>
       <disabled>0</disabled>
-      <editor>---</editor>
-      <hint/>
+      <editor>PureText</editor>
+      <hint>Sets the system message. Use {{search_results}} anywhare in your prompt to inject the search results there.</hint>
       <name>contextPrompt</name>
       <number>3</number>
-      <picker>1</picker>
+      <picker>0</picker>
       <prettyName>Context prompt</prettyName>
       <restricted>0</restricted>
       <rows>5</rows>
