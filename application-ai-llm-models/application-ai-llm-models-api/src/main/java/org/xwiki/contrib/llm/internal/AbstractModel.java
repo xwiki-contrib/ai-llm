@@ -133,4 +133,12 @@ public abstract class AbstractModel implements WikiComponent
 
         return this.modelConfiguration.getAllowedGroups().stream().anyMatch(userGroups::contains);
     }
+
+    /**
+     * @return {@code true} if the model is valid, {@code false} otherwise.
+     */
+    public boolean isValid()
+    {
+        return getConfig() != null;
+    }
 }

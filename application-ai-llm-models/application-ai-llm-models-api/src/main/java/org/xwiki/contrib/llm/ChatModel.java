@@ -71,4 +71,9 @@ public interface ChatModel
      * @return {@code true} if the user has access to the model, {@code false} otherwise
      */
     boolean hasAccess(UserReference user);
+
+    /**
+     * @return if the model has a valid configuration
+     */
+    boolean isValid();
 }

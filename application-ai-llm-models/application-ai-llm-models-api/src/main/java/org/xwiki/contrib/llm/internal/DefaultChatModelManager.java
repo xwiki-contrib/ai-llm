@@ -88,6 +88,7 @@ public class DefaultChatModelManager implements ChatModelManager
 
             List<ChatModel> models = this.componentManagerProvider.get().getInstanceList(ChatModel.class);
             return models.stream()
+                .filter(ChatModel::isValid)
                 .filter(model -> model.hasAccess(userReference))
                 .map(ChatModel::getDescriptor)
                 .sorted(Comparator.comparing(ChatModelDescriptor::getName))
