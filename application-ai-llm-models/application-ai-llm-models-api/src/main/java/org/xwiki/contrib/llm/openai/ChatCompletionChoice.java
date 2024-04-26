@@ -25,20 +25,21 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
- * Represents a choice in a chat completion chunk.
+ * A chat completion choice.
  *
  * @param index the index of the choice
- * @param delta the delta message
- * @param finishReason the reason the chat completion finished
+ * @param message the generated chat message
+ * @param finishReason the reason the generation ended
  *
  * @version $Id$
  * @since 0.3
  */
 @Unstable
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record ChatCompletionChunkChoice(
+public record ChatCompletionChoice(
     Integer index,
-    ChatMessage delta,
-    String finishReason)
+    ChatMessage message,
+    String finishReason
+)
 {
 }

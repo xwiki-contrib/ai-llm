@@ -22,6 +22,9 @@ package org.xwiki.contrib.llm;
 import java.io.IOException;
 
 import org.apache.commons.lang3.function.FailableConsumer;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
+import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
+import org.xwiki.contrib.llm.openai.ChatCompletionResult;
 
 /**
  * Abstract implementation of {@link ChatRequestFilter} that just forwards the request to the next filter in the chain.
@@ -42,8 +45,8 @@ public abstract class AbstractChatRequestFilter implements ChatRequestFilter
     }
 
     @Override
-    public void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
-        throws IOException, RequestError
+    public void processStreaming(ChatCompletionRequest request,
+        FailableConsumer<ChatCompletionChunk, IOException> consumer) throws IOException, RequestError
     {
         if (this.next != null) {
             this.next.processStreaming(request, consumer);
@@ -51,7 +54,7 @@ public abstract class AbstractChatRequestFilter implements ChatRequestFilter
     }
 
     @Override
-    public ChatResponse process(ChatRequest request) throws IOException, RequestError
+    public ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError
     {
         return this.next != null ? this.next.process(request) : null;
     }

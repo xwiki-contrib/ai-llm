@@ -17,11 +17,17 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm;
+package org.xwiki.contrib.llm.openai;
+
+import java.util.List;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.xwiki.stability.Unstable;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
  * A chat message.
@@ -30,11 +36,16 @@ import org.xwiki.stability.Unstable;
  * @since 0.3
  */
 @Unstable
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ChatMessage
 {
     private final String role;
 
+    // Always include content in the JSON representation, even if it's null.
+    @JsonInclude()
     private String content;
+
+    private List<Context> context;
 
     /**
      * Creates a new chat message.
@@ -49,11 +60,25 @@ public class ChatMessage
     }
 
     /**
+     * Creates a new chat message.
+     *
+     * @param role the role of the message author, e.g., user, assistant, system or tool.
+     * @param content the content of the message
+     * @param context the context of the message
+     */
+    public ChatMessage(String role, String content, List<Context> context)
+    {
+        this.role = role;
+        this.content = content;
+        this.context = context;
+    }
+
+    /**
      * @return the role of the message author, e.g., user, assistant, system or tool.
      */
     public String getRole()
     {
-        return role;
+        return this.role;
     }
 
     /**
@@ -61,7 +86,25 @@ public class ChatMessage
      */
     public String getContent()
     {
-        return content;
+        return this.content;
+    }
+
+    /**
+     * @return the context of the message
+     */
+    public List<Context> getContext()
+    {
+        return this.context;
+    }
+
+    /**
+     * Sets the context of the message.
+     *
+     * @param context the context of the message
+     */
+    public void setContext(List<Context> context)
+    {
+        this.context = context;
     }
     
     /**
@@ -87,13 +130,16 @@ public class ChatMessage
 
         ChatMessage that = (ChatMessage) o;
 
-        return new EqualsBuilder().append(getRole(), that.getRole())
-            .append(getContent(), that.getContent()).isEquals();
+        return new EqualsBuilder()
+            .append(getRole(), that.getRole())
+            .append(getContent(), that.getContent())
+            .append(getContext(), that.getContext())
+            .isEquals();
     }
 
     @Override
     public int hashCode()
     {
-        return new HashCodeBuilder(17, 37).append(getRole()).append(getContent()).toHashCode();
+        return new HashCodeBuilder(17, 37).append(getRole()).append(getContent()).append(getContext()).toHashCode();
     }
 }

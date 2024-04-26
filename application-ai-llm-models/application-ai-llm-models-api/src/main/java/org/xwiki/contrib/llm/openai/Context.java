@@ -25,20 +25,23 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 /**
- * Represents a choice in a chat completion chunk.
+ * The context used for completing the chat.
  *
- * @param index the index of the choice
- * @param delta the delta message
- * @param finishReason the reason the chat completion finished
+ * @param documentId the unique identifier of the context document
+ * @param url the URL of the context document
+ * @param content the content of the context document
+ * @param similarityScore the similarity score between the conversation and the context document
  *
  * @version $Id$
  * @since 0.3
  */
-@Unstable
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record ChatCompletionChunkChoice(
-    Integer index,
-    ChatMessage delta,
-    String finishReason)
+@Unstable
+public record Context(
+    String documentId,
+    String url,
+    String content,
+    Double similarityScore
+)
 {
 }

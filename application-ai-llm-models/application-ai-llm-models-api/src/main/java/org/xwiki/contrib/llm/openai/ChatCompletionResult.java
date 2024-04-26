@@ -24,36 +24,26 @@ import java.util.List;
 import org.xwiki.stability.Unstable;
 
 /**
- * Represents a chunk of a streaming chat completion response.
+ * The result of a chat completion request.
  *
- * @param id the id of the chunk, each chunk of the request has the same id
- * @param object the object type, should be "chat.completion.chunk"
- * @param created the unix timestamp (in seconds) when the chat completion was created, each chunk of a request has
- * the same timestamp
+ * @param id the unique identifier of the completion
+ * @param object the type of the completion should be 'chat.completion'
+ * @param created the unix timestamp (in seconds) when the completion was created
  * @param model the model used to generate the completion
- * @param choices the chat completion choices
+ * @param choices the completion choices
+ * @param usage token usage information
  *
  * @version $Id$
  * @since 0.3
  */
 @Unstable
-public record ChatCompletionChunk(
+public record ChatCompletionResult(
     String id,
     String object,
     long created,
     String model,
-    List<ChatCompletionChunkChoice> choices)
+    List<ChatCompletionChoice> choices,
+    Usage usage
+)
 {
-    /**
-     * Creates a new chat completion chunk.
-     *
-     * @param id the id of the chunk
-     * @param created the unix timestamp (in seconds) when the chat completion was created
-     * @param model the model used to generate the completion
-     * @param choices the chat completion choices
-     */
-    public ChatCompletionChunk(String id, long created, String model, List<ChatCompletionChunkChoice> choices)
-    {
-        this(id, "chat.completion.chunk", created, model, choices);
-    }
 }

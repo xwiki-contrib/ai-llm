@@ -23,6 +23,9 @@ import java.io.IOException;
 
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.xwiki.component.annotation.Role;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
+import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
+import org.xwiki.contrib.llm.openai.ChatCompletionResult;
 import org.xwiki.stability.Unstable;
 
 /**
@@ -49,7 +52,7 @@ public interface ChatRequestFilter
      * @param request the request to process
      * @param consumer the consumer that will be called for every chunk that is received.
      */
-    void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
+    void processStreaming(ChatCompletionRequest request, FailableConsumer<ChatCompletionChunk, IOException> consumer)
         throws IOException, RequestError;
 
     /**
@@ -58,5 +61,5 @@ public interface ChatRequestFilter
      * @param request the request to process
      * @return the response
      */
-    ChatResponse process(ChatRequest request) throws IOException, RequestError;
+    ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError;
 }

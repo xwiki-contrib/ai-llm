@@ -24,19 +24,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.net.http.HttpResponse;
+import java.util.List;
 
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.contrib.llm.ChatRequest;
 import org.xwiki.contrib.llm.ChatRequestFilter;
-import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.RequestError;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunkChoice;
+import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
+import org.xwiki.contrib.llm.openai.ChatCompletionResult;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.theokanning.openai.completion.chat.ChatCompletionRequest;
-import com.theokanning.openai.completion.chat.ChatCompletionResult;
 
 /**
  * Chat model implementation that uses the OpenAI API.
@@ -52,10 +53,6 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
 
     private final RequestHelper requestHelper;
 
-    private final ChatRequestConverter chatRequestConverter;
-
-    private final ChatResponseConverter chatResponseConverter;
-
     /**
      * Initialize the model.
      *
@@ -67,8 +64,6 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
     {
         super(modelConfiguration, componentManager);
         this.requestHelper = componentManager.getInstance(RequestHelper.class);
-        this.chatRequestConverter = componentManager.getInstance(ChatRequestConverter.class);
-        this.chatResponseConverter = componentManager.getInstance(ChatResponseConverter.class);
     }
 
     @Override
@@ -78,16 +73,15 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
     }
 
     @Override
-    public void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
-        throws IOException, RequestError
+    public void processStreaming(ChatCompletionRequest request,
+        FailableConsumer<ChatCompletionChunk, IOException> consumer) throws IOException, RequestError
     {
         if (Boolean.TRUE.equals(this.getConfig().getCanStream())) {
-            ChatCompletionRequest chatCompletionRequest = this.chatRequestConverter.toOpenAI(request,
-                this.modelConfiguration.getModel());
-            chatCompletionRequest.setStream(true);
+            // Set the model to the model in the configuration
+            ChatCompletionRequest adaptedRequest = setModel(request, true);
 
             HttpResponse<InputStream> httpResponse = this.requestHelper.post(this.getConfig(), PATH,
-                chatCompletionRequest, HttpResponse.BodyHandlers.ofInputStream());
+                adaptedRequest, HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream body = httpResponse.body()) {
                 if (httpResponse.statusCode() == 200) {
                     ObjectMapper objectMapper = new ObjectMapper();
@@ -99,9 +93,14 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
                             return;
                         }
 
-                        ChatCompletionResult chatCompletionResult =
-                            objectMapper.readValue(chunk, ChatCompletionResult.class);
-                        consumer.accept(this.chatResponseConverter.fromOpenAIResponse(chatCompletionResult));
+                        ChatCompletionChunk chatCompletionResult =
+                            objectMapper.readValue(chunk, ChatCompletionChunk.class);
+                        // Replace the model by the model from the request
+                        ChatCompletionChunk newChunk = new ChatCompletionChunk(chatCompletionResult.id(),
+                            chatCompletionResult.object(), chatCompletionResult.created(), request.model(),
+                            chatCompletionResult.choices());
+
+                        consumer.accept(newChunk);
                     });
                 } else {
                     throw new IOException(String.format(RESPONSE_CODE_ERROR, httpResponse.statusCode()));
@@ -110,24 +109,35 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
                 // Ignore, this is expected when request is closed by the client.
             }
         } else {
-            consumer.accept(this.process(request));
+            ChatCompletionResult response = this.process(request);
+            List<ChatCompletionChunkChoice> choices = response.choices().stream()
+                .map(choice -> new ChatCompletionChunkChoice(choice.index(), choice.message(), choice.finishReason()))
+                .toList();
+            ChatCompletionChunk chunk = new ChatCompletionChunk(response.id(), response.object(), response.created(),
+                request.model(), choices);
+            consumer.accept(chunk);
         }
     }
 
-    @Override
-    public ChatResponse process(ChatRequest request) throws IOException, RequestError
+    private ChatCompletionRequest setModel(ChatCompletionRequest request, boolean stream)
     {
-        ChatCompletionRequest chatCompletionRequest = this.chatRequestConverter.toOpenAI(request,
-            this.modelConfiguration.getModel());
+        return ChatCompletionRequest.builder(request)
+            .setModel(this.modelConfiguration.getModel())
+            .setStream(stream)
+            .build();
+    }
 
+    @Override
+    public ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError
+    {
+        ChatCompletionRequest adaptedRequest = setModel(request, false);
         HttpResponse<InputStream> httpResponse = this.requestHelper.post(this.getConfig(),
-            PATH, chatCompletionRequest, HttpResponse.BodyHandlers.ofInputStream());
+            PATH, adaptedRequest, HttpResponse.BodyHandlers.ofInputStream());
         try (InputStream body = httpResponse.body()) {
             if (httpResponse.statusCode() == 200) {
                 ObjectMapper objectMapper = new ObjectMapper();
                 objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                return this.chatResponseConverter.fromOpenAIResponse(
-                    objectMapper.readValue(body, ChatCompletionResult.class));
+                return objectMapper.readValue(body, ChatCompletionResult.class);
             } else {
                 throw new IOException(String.format(RESPONSE_CODE_ERROR, httpResponse.statusCode()));
             }

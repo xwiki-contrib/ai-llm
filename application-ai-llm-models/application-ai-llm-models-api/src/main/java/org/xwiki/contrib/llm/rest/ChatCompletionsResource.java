@@ -26,10 +26,9 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Response;
 
+import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
-
-import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 
 /**
  * REST resource for listing models.

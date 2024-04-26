@@ -28,10 +28,11 @@ import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.ChatModel;
 import org.xwiki.contrib.llm.ChatModelDescriptor;
-import org.xwiki.contrib.llm.ChatRequest;
 import org.xwiki.contrib.llm.ChatRequestFilter;
-import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.RequestError;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
+import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
+import org.xwiki.contrib.llm.openai.ChatCompletionResult;
 
 /**
  * Chat model implementation that uses the {@link OpenAIChatModel} with the given {@link ChatRequestFilter} filter
@@ -81,14 +82,14 @@ public class FilteringOpenAIChatModel extends AbstractModel implements ChatModel
     }
 
     @Override
-    public void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
-        throws IOException, RequestError
+    public void processStreaming(ChatCompletionRequest request,
+        FailableConsumer<ChatCompletionChunk, IOException> consumer) throws IOException, RequestError
     {
         this.firstFilter.processStreaming(request, consumer);
     }
 
     @Override
-    public ChatResponse process(ChatRequest request) throws IOException, RequestError
+    public ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError
     {
         return this.firstFilter.process(request);
     }

@@ -1,5 +1,3 @@
-org.xwiki.contrib.llm.internal.ChatRequestConverter
-org.xwiki.contrib.llm.internal.ChatResponseConverter
 org.xwiki.contrib.llm.internal.DefaultChatModelManager
 org.xwiki.contrib.llm.internal.DefaultEmbeddingModelManager
 org.xwiki.contrib.llm.internal.DefaultGPTAPI

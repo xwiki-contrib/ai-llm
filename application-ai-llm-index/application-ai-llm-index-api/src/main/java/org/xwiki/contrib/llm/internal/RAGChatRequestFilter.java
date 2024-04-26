@@ -24,18 +24,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.slf4j.Logger;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
-import org.xwiki.contrib.llm.ChatMessage;
-import org.xwiki.contrib.llm.ChatRequest;
-import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.RequestError;
-import org.json.JSONArray;
-import org.json.JSONObject;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
+import org.xwiki.contrib.llm.openai.ChatCompletionChunkChoice;
+import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
+import org.xwiki.contrib.llm.openai.ChatCompletionResult;
+import org.xwiki.contrib.llm.openai.ChatMessage;
+import org.xwiki.contrib.llm.openai.Context;
 
 /**
  * A filter that adds context from the given collections to the request.
@@ -83,54 +85,77 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     }
 
     @Override
-    public void processStreaming(ChatRequest request, FailableConsumer<ChatResponse, IOException> consumer)
-            throws IOException, RequestError
+    public void processStreaming(ChatCompletionRequest request,
+        FailableConsumer<ChatCompletionChunk, IOException> consumer) throws IOException, RequestError
     {
         // First, modify the request with additional context as needed
-        ChatRequest modifiedRequest = addContext(request);
+        ChatCompletionRequest modifiedRequest = addContext(request);
     
         // Get the sources from the search results cache or perform the search
-        String sources = extractURLsAndformat(getSearchResults(request));
-    
-        // Create and send a custom ChatResponse with the sources
-        ChatResponse sourcesResponse = new ChatResponse(null, new ChatMessage("assistant", sources + "\n"));
+        List<List<String>> searchResults = getSearchResults(request);
+        String sources = extractURLsAndformat(searchResults);
+
+        long timestamp = System.currentTimeMillis() / 1000;
+
+        // Set the id to a random UUID
+        String id = UUID.randomUUID().toString();
+
+        // Create and send a custom ChatCompletionChunk with the sources
+        ChatMessage chatMessage = new ChatMessage("assistant", sources + "\n",
+            formatSearchResults(searchResults));
+        ChatCompletionChunkChoice choice = new ChatCompletionChunkChoice(0, chatMessage, null);
+        ChatCompletionChunk sourcesResponse = new ChatCompletionChunk(id, timestamp, request.model(), List.of(choice));
         consumer.accept(sourcesResponse);
-        
+
+        // Wrap the consumer to add the same timestamp and id to all responses
+        FailableConsumer<ChatCompletionChunk, IOException> wrappedConsumer = response -> {
+            ChatCompletionChunk wrappedResponse = new ChatCompletionChunk(id, timestamp, response.model(),
+                response.choices());
+            consumer.accept(wrappedResponse);
+        };
+
         // Now, use the super implementation with the modified request
-        super.processStreaming(modifiedRequest, consumer);
+        super.processStreaming(modifiedRequest, wrappedConsumer);
     }
     
 
     @Override
-    public ChatResponse process(ChatRequest request) throws IOException, RequestError
+    public ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError
     {
-        JSONArray searchResults = formatSearchResults(getSearchResults(request));
-        ChatRequest modifiedRequest = addContext(request);
-        ChatResponse response = super.process(modifiedRequest);
-        return new ChatResponse(response.getFinishReason(), response.getMessage(), searchResults);
+        List<Context> searchResults = formatSearchResults(getSearchResults(request));
+        ChatCompletionRequest modifiedRequest = addContext(request);
+        ChatCompletionResult response = super.process(modifiedRequest);
+        // Get the message from the response and add the context
+        if (!response.choices().isEmpty()) {
+            ChatMessage message = response.choices().get(0).message();
+            message.setContext(searchResults);
+        }
+        return response;
     }
 
-    private ChatRequest addContext(ChatRequest request)
+    private ChatCompletionRequest addContext(ChatCompletionRequest request)
     {
         String searchResults = augmentRequest(request);
-        String updatedContextPrompt = contextPrompt.replace("{{search_results}}", searchResults);
+        String updatedContextPrompt = this.contextPrompt.replace("{{search_results}}", searchResults);
         ChatMessage systemMessage = new ChatMessage("system", updatedContextPrompt);
         // logger.info("System message: " + systemMessage.getContent());
-        List<ChatMessage> messages = new ArrayList<>(request.getMessages());
+        List<ChatMessage> messages = new ArrayList<>(request.messages());
         // logger.info("ALL MESSAGERS: " + messages);
         messages.add(0, systemMessage);
-        
-        return new ChatRequest(messages, request.getParameters());
-    }
-    
 
-    private String augmentRequest(ChatRequest request)
+        return ChatCompletionRequest.builder(request)
+            .setMessages(messages)
+            .build();
+    }
+
+
+    private String augmentRequest(ChatCompletionRequest request)
     {
-        if (request.getMessages().isEmpty()) {
+        if (request.messages().isEmpty()) {
             return "No user message to augment.";
         }
 
-        ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
+        ChatMessage lastMessage = request.messages().get(request.messages().size() - 1);
         String message = lastMessage.getContent();
 
         // Check if search results are already cached
@@ -183,13 +208,13 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         return contextBuilder.toString();
     }
 
-    private List<List<String>> getSearchResults(ChatRequest request)
+    private List<List<String>> getSearchResults(ChatCompletionRequest request)
     {
-        if (request.getMessages().isEmpty()) {
+        if (request.messages().isEmpty()) {
             return Collections.emptyList();
         }
     
-        ChatMessage lastMessage = request.getMessages().get(request.getMessages().size() - 1);
+        ChatMessage lastMessage = request.messages().get(request.messages().size() - 1);
         String message = lastMessage.getContent();
     
         // Check if search results are already cached
@@ -215,28 +240,12 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         }
     }
     
-    private JSONArray formatSearchResults(List<List<String>> searchResults)
+    private List<Context> formatSearchResults(List<List<String>> searchResults)
     {
-        JSONArray formattedResults = new JSONArray();
-    
-        for (List<String> result : searchResults) {
-            if (result.size() == 4) {
-                String docId = result.get(0);
-                String url = result.get(1);
-                String content = result.get(2);
-                String similarityScore = result.get(3);
-    
-                JSONObject jsonResult = new JSONObject();
-                jsonResult.put("docId", docId);
-                jsonResult.put("url", url);
-                jsonResult.put("content", content);
-                jsonResult.put("similarityScore", similarityScore);
-    
-                formattedResults.put(jsonResult);
-            }
-        }
-    
-        return formattedResults;
+        return searchResults.stream()
+            .filter(result -> result.size() == 4)
+            .map(result -> new Context(result.get(0), result.get(1), result.get(2), Double.parseDouble(result.get(3))))
+            .toList();
     }
     
 

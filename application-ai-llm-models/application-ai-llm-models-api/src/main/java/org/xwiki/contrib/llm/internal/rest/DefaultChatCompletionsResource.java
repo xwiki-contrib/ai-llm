@@ -22,7 +22,6 @@ package org.xwiki.contrib.llm.internal.rest;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -32,20 +31,15 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
 
-import org.json.JSONArray;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.ChatClientConfigProvider;
-import org.xwiki.contrib.llm.ChatMessage;
 import org.xwiki.contrib.llm.ChatModel;
 import org.xwiki.contrib.llm.ChatModelManager;
-import org.xwiki.contrib.llm.ChatRequest;
-import org.xwiki.contrib.llm.ChatRequestParameters;
-import org.xwiki.contrib.llm.ChatResponse;
 import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.contrib.llm.RequestError;
 import org.xwiki.contrib.llm.internal.CORSUtils;
-import org.xwiki.contrib.llm.internal.ChatResponseConverter;
-import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
+import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
+import org.xwiki.contrib.llm.openai.ChatCompletionResult;
 import org.xwiki.contrib.llm.rest.ChatCompletionsResource;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.rest.XWikiRestException;
@@ -53,8 +47,6 @@ import org.xwiki.user.CurrentUserReference;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.theokanning.openai.completion.chat.ChatCompletionRequest;
-import com.theokanning.openai.completion.chat.ChatCompletionResult;
 
 /**
  * Default implementation of {@link ChatCompletionsResource}.
@@ -80,23 +72,18 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
     @Inject
     private ChatModelManager chatModelManager;
 
-    @Inject
-    private ChatResponseConverter chatResponseConverter;
-
     @Override
     public Response getCompletions(String origin, String wikiName, ChatCompletionRequest request)
     {
         try {
             String allowedOrigin = CORSUtils.matchOrigin(origin, configProvider, wikiName);
-            ChatModel model =
-                this.chatModelManager.getModel(request.getModel(), CurrentUserReference.INSTANCE, wikiName);
+            ChatModel model = this.chatModelManager.getModel(request.model(), CurrentUserReference.INSTANCE, wikiName);
 
-            ChatRequest chatRequest = getChatRequest(request);
 
-            if (model.supportsStreaming() && Boolean.TRUE.equals(request.getStream())) {
+            if (model.supportsStreaming() && Boolean.TRUE.equals(request.stream())) {
                 return Response.ok((StreamingOutput) output -> {
                     try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
-                        writeResponseStream(request, model, chatRequest, writer);
+                        writeResponseStream(request, model, writer);
                     }
                 }, MediaType.SERVER_SENT_EVENTS_TYPE)
                         .header(CORS_ALLOW_ORIGIN, allowedOrigin)
@@ -106,16 +93,12 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                         .header("Cache-Control", "no-cache")
                         .build();
             } else {
-                ChatResponse chatResponse = model.process(chatRequest);
-                JSONArray sources = chatResponse.getSources();
+                ChatCompletionResult chatResponse = model.process(request);
                 // Convert to OpenAI format
-                ChatCompletionResult openAIChatCompletionResult =
-                    this.chatResponseConverter.toOpenAIChatCompletionResult(chatResponse, request.getModel());
-                return Response.ok(openAIChatCompletionResult, MediaType.APPLICATION_JSON_TYPE)
+                return Response.ok(chatResponse, MediaType.APPLICATION_JSON_TYPE)
                                 .header(CORS_ALLOW_ORIGIN, allowedOrigin)
                                 .header(CORS_ALLOW_METHODS, CORS_METHODS)
                                 .header(CORS_ALLOW_HEADERS, CORS_HEADERS)
-                                .header("X-Sources", sources)
                                 .build();
             }
         } catch (GPTAPIException | RequestError | IOException e) {
@@ -134,16 +117,13 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
         }
     }
 
-    private void writeResponseStream(ChatCompletionRequest request, ChatModel model, ChatRequest chatRequest,
-        OutputStreamWriter writer) throws IOException
+    private void writeResponseStream(ChatCompletionRequest request, ChatModel model, OutputStreamWriter writer)
+        throws IOException
     {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.setSerializationInclusion(Include.NON_NULL);
         try {
-            model.processStreaming(chatRequest, chatResponse -> {
-                ChatCompletionChunk chunk =
-                    this.chatResponseConverter.toOpenAIChatCompletionChunk(chatResponse,
-                        request.getModel());
+            model.processStreaming(request, chunk -> {
                 writer.write(DATA_FORMAT.formatted(objectMapper.writeValueAsString(chunk)));
                 writer.flush();
             });
@@ -151,14 +131,5 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
             writer.write(DATA_FORMAT.formatted(objectMapper.writeValueAsString(e)));
             writer.flush();
         }
-    }
-
-    private ChatRequest getChatRequest(ChatCompletionRequest request)
-    {
-        List<ChatMessage> messages = request.getMessages().stream()
-            .map(m -> new ChatMessage(m.getRole(), m.getContent()))
-            .toList();
-        ChatRequestParameters parameters = new ChatRequestParameters(request.getTemperature());
-        return new ChatRequest(messages, parameters);
     }
 }
