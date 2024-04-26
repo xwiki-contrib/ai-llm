@@ -122,13 +122,16 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     @Override
     public ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError
     {
-        List<Context> searchResults = formatSearchResults(getSearchResults(request));
+        List<List<String>> rawResults = getSearchResults(request);
+        List<Context> searchResults = formatSearchResults(rawResults);
         ChatCompletionRequest modifiedRequest = addContext(request);
         ChatCompletionResult response = super.process(modifiedRequest);
         // Get the message from the response and add the context
         if (!response.choices().isEmpty()) {
             ChatMessage message = response.choices().get(0).message();
             message.setContext(searchResults);
+            // Add the sources to the content
+            message.setContent(extractURLsAndformat(rawResults) + "\n\n" + message.getContent());
         }
         return response;
     }
