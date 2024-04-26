@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.openai;
 
 import org.xwiki.stability.Unstable;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
@@ -36,6 +37,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
  */
 @Unstable
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+@JsonAutoDetect(creatorVisibility = JsonAutoDetect.Visibility.ANY)
 public record Usage(
     long promptTokens,
     long completionTokens,

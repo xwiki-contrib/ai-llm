@@ -23,6 +23,8 @@ import java.util.List;
 
 import org.xwiki.stability.Unstable;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+
 /**
  * The result of a chat completion request.
  *
@@ -37,6 +39,7 @@ import org.xwiki.stability.Unstable;
  * @since 0.3
  */
 @Unstable
+@JsonAutoDetect(creatorVisibility = JsonAutoDetect.Visibility.ANY)
 public record ChatCompletionResult(
     String id,
     String object,

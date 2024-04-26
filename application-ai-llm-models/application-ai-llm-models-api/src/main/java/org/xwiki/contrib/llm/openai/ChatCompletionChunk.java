@@ -23,6 +23,8 @@ import java.util.List;
 
 import org.xwiki.stability.Unstable;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+
 /**
  * Represents a chunk of a streaming chat completion response.
  *
@@ -37,6 +39,7 @@ import org.xwiki.stability.Unstable;
  * @since 0.3
  */
 @Unstable
+@JsonAutoDetect(creatorVisibility = JsonAutoDetect.Visibility.ANY)
 public record ChatCompletionChunk(
     String id,
     String object,

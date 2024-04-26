@@ -39,13 +39,20 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ChatMessage
 {
-    private final String role;
+    private String role;
 
     // Always include content in the JSON representation, even if it's null.
     @JsonInclude()
     private String content;
 
     private List<Context> context;
+
+    /**
+     * Creates a new chat message.
+     */
+    public ChatMessage()
+    {
+    }
 
     /**
      * Creates a new chat message.
@@ -79,6 +86,14 @@ public class ChatMessage
     public String getRole()
     {
         return this.role;
+    }
+
+    /**
+     * @param role the role of the message, user, assistant, system or tool.
+     */
+    public void setRole(String role)
+    {
+        this.role = role;
     }
 
     /**

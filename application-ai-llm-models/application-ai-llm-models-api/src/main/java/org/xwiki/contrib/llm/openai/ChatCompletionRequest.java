@@ -24,6 +24,10 @@ import java.util.Map;
 
 import org.xwiki.stability.Unstable;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+
 /**
  * A request to complete a chat message.
  *
@@ -48,6 +52,8 @@ import org.xwiki.stability.Unstable;
  * @since 0.3
  */
 @Unstable
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+@JsonAutoDetect(creatorVisibility = JsonAutoDetect.Visibility.ANY)
 public record ChatCompletionRequest(
     String model,
     List<ChatMessage> messages,
