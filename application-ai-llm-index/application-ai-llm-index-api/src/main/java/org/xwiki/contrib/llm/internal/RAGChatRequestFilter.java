@@ -22,11 +22,12 @@ package org.xwiki.contrib.llm.internal;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.slf4j.Logger;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
@@ -55,13 +56,10 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
 
     private final List<String> collections;
-    private CollectionManager collectionManager;
-    private Integer maxResults;
-    private String contextPrompt;
-    private Logger logger;
-
-    // Global state to hold search results
-    private Map<String, List<List<String>>> searchResultsCache = new ConcurrentHashMap<>();
+    private final CollectionManager collectionManager;
+    private final int maxResults;
+    private final String contextPrompt;
+    private final Logger logger;
 
     /**
      * Constructor.
@@ -79,7 +77,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     {
         this.collections = collections;
         this.collectionManager = collectionManager;
-        this.maxResults = maxResults;
+        this.maxResults = maxResults != null && maxResults > 0 ? maxResults : 10;
         this.contextPrompt = contextPrompt;
         this.logger = logger;
     }
@@ -88,11 +86,11 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     public void processStreaming(ChatCompletionRequest request,
         FailableConsumer<ChatCompletionChunk, IOException> consumer) throws IOException, RequestError
     {
-        // First, modify the request with additional context as needed
-        ChatCompletionRequest modifiedRequest = addContext(request);
-    
         // Get the sources from the search results cache or perform the search
-        List<List<String>> searchResults = getSearchResults(request);
+        List<Context> searchResults = getSearchResults(request);
+
+        // First, modify the request with additional context as needed
+        ChatCompletionRequest modifiedRequest = addContext(request, searchResults);
         String sources = extractURLsAndformat(searchResults);
 
         long timestamp = System.currentTimeMillis() / 1000;
@@ -101,8 +99,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         String id = UUID.randomUUID().toString();
 
         // Create and send a custom ChatCompletionChunk with the sources
-        ChatMessage chatMessage = new ChatMessage("assistant", sources + "\n",
-            formatSearchResults(searchResults));
+        ChatMessage chatMessage = new ChatMessage("assistant", sources + "\n", searchResults);
         ChatCompletionChunkChoice choice = new ChatCompletionChunkChoice(0, chatMessage, null);
         ChatCompletionChunk sourcesResponse = new ChatCompletionChunk(id, timestamp, request.model(), List.of(choice));
         consumer.accept(sourcesResponse);
@@ -122,23 +119,22 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     @Override
     public ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError
     {
-        List<List<String>> rawResults = getSearchResults(request);
-        List<Context> searchResults = formatSearchResults(rawResults);
-        ChatCompletionRequest modifiedRequest = addContext(request);
+        List<Context> searchResults = getSearchResults(request);
+        ChatCompletionRequest modifiedRequest = addContext(request, searchResults);
         ChatCompletionResult response = super.process(modifiedRequest);
         // Get the message from the response and add the context
         if (!response.choices().isEmpty()) {
             ChatMessage message = response.choices().get(0).message();
             message.setContext(searchResults);
             // Add the sources to the content
-            message.setContent(extractURLsAndformat(rawResults) + "\n\n" + message.getContent());
+            message.setContent(extractURLsAndformat(searchResults) + "\n\n" + message.getContent());
         }
         return response;
     }
 
-    private ChatCompletionRequest addContext(ChatCompletionRequest request)
+    private ChatCompletionRequest addContext(ChatCompletionRequest request, List<Context> context)
     {
-        String searchResults = augmentRequest(request);
+        String searchResults = buildContext(context);
         String updatedContextPrompt = this.contextPrompt.replace("{{search_results}}", searchResults);
         ChatMessage systemMessage = new ChatMessage("system", updatedContextPrompt);
         // logger.info("System message: " + systemMessage.getContent());
@@ -151,52 +147,19 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
             .build();
     }
 
-
-    private String augmentRequest(ChatCompletionRequest request)
-    {
-        if (request.messages().isEmpty()) {
-            return "No user message to augment.";
-        }
-
-        ChatMessage lastMessage = request.messages().get(request.messages().size() - 1);
-        String message = lastMessage.getContent();
-
-        // Check if search results are already cached
-        if (searchResultsCache.containsKey(message)) {
-            return buildContext(searchResultsCache.get(message));
-        }
-
-        // Perform solr similarity search on the last message
-        try {
-            // If max results is not set, default to 10
-            if (maxResults == null) {
-                maxResults = 10;
-            }
-            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, maxResults);
-            
-            // Cache the search results
-            searchResultsCache.put(message, searchResults);
-            
-            return buildContext(searchResults);
-        } catch (Exception e) {
-            logger.error(ERROR_LOG_FORMAT, SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
-            return SIMILARITY_SEARCH_ERROR_MSG;
-        }
-    }
-
-    private String buildContext(List<List<String>> searchResults)
+    private String buildContext(List<Context> searchResults)
     {
         if (searchResults.isEmpty()) {
             return "No similar content found.";
         }
 
         StringBuilder contextBuilder = new StringBuilder();
-        List<String> addedUrls = new ArrayList<>();
+        Set<String> addedUrls = new HashSet<>();
 
         contextBuilder.append(SEARCH_RESULTS_STRING);
-        for (List<String> result : searchResults) {
-            String sourceURL = result.get(1);
-            String contentMsg = result.get(2);
+        for (Context result : searchResults) {
+            String sourceURL = result.url();
+            String contentMsg = result.content();
 
             // Check if URL has already been added
             if (!addedUrls.contains(sourceURL)) {
@@ -211,7 +174,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         return contextBuilder.toString();
     }
 
-    private List<List<String>> getSearchResults(ChatCompletionRequest request)
+    private List<Context> getSearchResults(ChatCompletionRequest request)
     {
         if (request.messages().isEmpty()) {
             return Collections.emptyList();
@@ -219,46 +182,23 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     
         ChatMessage lastMessage = request.messages().get(request.messages().size() - 1);
         String message = lastMessage.getContent();
-    
-        // Check if search results are already cached
-        if (searchResultsCache.containsKey(message)) {
-            return searchResultsCache.get(message);
-        }
-    
+
         // Perform solr similarity search on the last message
         try {
-            // If max results is not set, default to 10
-            if (maxResults == null) {
-                maxResults = 10;
-            }
-            List<List<String>> searchResults = collectionManager.similaritySearch(message, collections, maxResults);
-            
-            // Cache the search results
-            searchResultsCache.put(message, searchResults);
-            
-            return searchResults;
+            return this.collectionManager.similaritySearch(message, this.collections, this.maxResults);
         } catch (Exception e) {
-            logger.error(ERROR_LOG_FORMAT, SIMILARITY_SEARCH_ERROR_MSG, e.getMessage());
+            this.logger.error(ERROR_LOG_FORMAT, SIMILARITY_SEARCH_ERROR_MSG, ExceptionUtils.getRootCauseMessage(e));
             return Collections.emptyList();
         }
     }
-    
-    private List<Context> formatSearchResults(List<List<String>> searchResults)
-    {
-        return searchResults.stream()
-            .filter(result -> result.size() == 4)
-            .map(result -> new Context(result.get(0), result.get(1), result.get(2), Double.parseDouble(result.get(3))))
-            .toList();
-    }
-    
 
-    private String extractURLsAndformat(List<List<String>> searchResults)
+    private String extractURLsAndformat(List<Context> searchResults)
     {
         StringBuilder sourcesBuilder = new StringBuilder();
         List<String> addedUrls = new ArrayList<>();
 
-        for (List<String> result : searchResults) {
-            String sourceURL = result.get(1);
+        for (Context result : searchResults) {
+            String sourceURL = result.url();
 
             // Check if URL has already been added
             if (!addedUrls.contains(sourceURL)) {

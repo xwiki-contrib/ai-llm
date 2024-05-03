@@ -54,7 +54,9 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
 
     private static final String FIELD_TYPE_KNN_VECTOR = "knn_vector";
 
-    private static final long CURRENT_VERSION = 121000000;
+    private static final long INITIAL_VERSION = 121000000;
+
+    private static final long CURRENT_VERSION = 121000001;
 
     @Override
     protected void createSchema() throws SolrException
@@ -64,7 +66,7 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
                           "vectorDimension", "384",
                           "similarityFunction", "cosine");
         this.addStringField(FIELD_DOC_ID, false, false);
-        this.addStringField(FIELD_COLLECTION, true, false);
+        this.addStringField(FIELD_COLLECTION, false, false);
         this.addStringField(FIELD_DOC_URL, false, false);
         this.addStringField(FIELD_LANGUAGE, false, false);
         this.addPIntField(FIELD_INDEX, false, false);
@@ -77,7 +79,9 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
     @Override
     protected void migrateSchema(long cversion) throws SolrException
     {
-        // No migration yet.
+        if (cversion == INITIAL_VERSION) {
+            this.setStringField(FIELD_COLLECTION, false, false);
+        }
     }
 
     @Override

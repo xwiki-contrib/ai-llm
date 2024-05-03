@@ -19,15 +19,30 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Provider;
+import javax.inject.Singleton;
+
+import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.solr.client.solrj.SolrServerException;
+import org.slf4j.Logger;
+import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.AuthorizationManager;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
+import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
@@ -40,16 +55,6 @@ import org.xwiki.user.group.GroupManager;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
-
-import org.xwiki.component.annotation.Component;
-
-import javax.inject.Inject;
-import javax.inject.Named;
-import javax.inject.Singleton;
-import javax.inject.Provider;
-import org.slf4j.Logger;
-
-import org.apache.solr.client.solrj.SolrServerException;
 /**
  * Implementation of a {@code CollectionManager} component.
  *
@@ -184,7 +189,7 @@ public class DefaultCollectionManager implements CollectionManager
     }
 
     @Override
-    public List<List<String>> search(String solrQuery, int limit, boolean includeVector) throws IndexException
+    public List<Context> search(String solrQuery, int limit, boolean includeVector) throws IndexException
     {
         try {
             return solrConnector.search(solrQuery, limit, includeVector);
@@ -194,39 +199,82 @@ public class DefaultCollectionManager implements CollectionManager
     }
 
     @Override
-    public List<List<String>> similaritySearch(String textQuery,
+    public List<Context> similaritySearch(String textQuery,
                                                 List<String> collections,
                                                 int limit) throws IndexException
     {
-        List<String> collectionsUserHasAccessTo = filterCollectionbasedOnUserAccess(collections);
-        if (collectionsUserHasAccessTo.isEmpty()) {
-            return new ArrayList<>();
+        Map<String, DefaultCollection> collectionMap = collections.stream()
+            .flatMap(name -> {
+                try {
+                    // Return both name and collection object
+                    return Stream.of(new AbstractMap.SimpleEntry<>(name, getCollection(name)));
+                } catch (IndexException e) {
+                    this.logger.warn("Failed to get collection [{}], excluding it from the similarity search: [{}]",
+                        name, ExceptionUtils.getRootCauseMessage(e));
+                    return Stream.empty();
+                }
+            })
+            .filter(entry -> hasAccess(entry.getValue()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        Map<String, AuthorizationManager> authorizationManagerMap = collectionMap.entrySet().stream()
+            .flatMap(entry -> {
+                try {
+                    return Stream.of(new AbstractMap.SimpleEntry<>(entry.getKey(),
+                        entry.getValue().getAuthorizationManager()));
+                } catch (IndexException e) {
+                    this.logger.warn("Failed to get authorization manager for collection [{}], excluding it from the"
+                            + " similarity search: [{}]", entry.getKey(), ExceptionUtils.getRootCauseMessage(e));
+                    return Stream.empty();
+                }
+            })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // Get the embedding model for each collection for which an authorization manager was found
+        Map<String, String> collectionEmbeddingModelMap = collectionMap.entrySet().stream()
+            .filter(entry -> authorizationManagerMap.containsKey(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getEmbeddingModel()));
+
+        if (collectionEmbeddingModelMap.isEmpty()) {
+            return List.of();
         }
 
-        Map<String, String> collectionEmbeddingModelMap = createCollectionEmbeddingModelMap(collectionsUserHasAccessTo);
-
         try {
-            return solrConnector.similaritySearch(textQuery, 
-                                                  collectionEmbeddingModelMap,
-                                                  limit
-                                                );
+            List<Context> results = solrConnector.similaritySearch(textQuery, collectionEmbeddingModelMap, limit);
+            return filterSearchResults(results, authorizationManagerMap);
         } catch (SolrServerException e) {
             throw new IndexException("Failed to perform similarity search", e);
         }
     }
 
-    private Map<String, String> createCollectionEmbeddingModelMap(List<String> collectionsUserHasAccessTo)
-    {  
-        Map<String, String> collectionEmbeddingModelMap = new HashMap<>();
-        for (String collection : collectionsUserHasAccessTo) {
-            try {
-                Collection collectionObj = this.getCollection(collection);
-                collectionEmbeddingModelMap.put(collection, collectionObj.getEmbeddingModel());
-            } catch (IndexException e) {
-                logger.error("Failed to get collection [{}]: [{}]", collection, e.getMessage());
-            }
-        }
-        return collectionEmbeddingModelMap;
+    private List<Context> filterSearchResults(List<Context> results,
+        Map<String, AuthorizationManager> authorizationManagerForCollection)
+    {
+        return results.stream()
+            // Group the stream by collection name to avoid multiple authorization checks for a single collection. An
+            // authorization check could, e.g., call an external service where the overhead per call is high.
+            .collect(Collectors.groupingBy(Context::collectionId))
+            .entrySet().stream()
+            // For each collection, filter out the results that the user does not have access to and combine
+            // everything into a single stream again.
+            .flatMap(entry -> {
+                String collectionName = entry.getKey();
+                AuthorizationManager authorizationManager = authorizationManagerForCollection.get(collectionName);
+                if (authorizationManager == null) {
+                    this.logger.warn("Authorization manager for collection [{}] not found, skipping",
+                        collectionName);
+                    return Stream.empty();
+                }
+                Set<String> documentIds = entry.getValue().stream()
+                    .map(Context::documentId)
+                    .collect(Collectors.toSet());
+                Map<String, Boolean> accessibleDocumentMap = authorizationManager.canView(documentIds);
+                return entry.getValue().stream()
+                    .filter(context -> accessibleDocumentMap.getOrDefault(context.documentId(), false));
+            })
+            // Sort the results by similarity score in descending order again as the sorting was lost during grouping.
+            .sorted(Comparator.comparingDouble(Context::similarityScore).reversed())
+            .toList();
     }
 
     @Override

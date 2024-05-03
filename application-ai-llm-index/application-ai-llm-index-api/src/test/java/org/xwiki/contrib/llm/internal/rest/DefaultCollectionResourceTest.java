@@ -22,12 +22,16 @@ package org.xwiki.contrib.llm.internal.rest;
 import java.util.List;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.ws.rs.WebApplicationException;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.xwiki.contrib.llm.AuthorizationManager;
+import org.xwiki.contrib.llm.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
@@ -50,26 +54,37 @@ import org.xwiki.security.authorization.Right;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
-import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupManager;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.InjectMockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.OldcoreTest;
 import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -109,6 +124,10 @@ class DefaultCollectionResourceTest
     private static final DocumentReference USER_REFERENCE =
         new DocumentReference(MAIN_WIKI, "XWiki", "User");
 
+    private static final String RIGHTS_CHECK_METHOD = "customRights";
+
+    private static final String AUTHORIZATION_PARAMETER_NAME = "param1";
+
     @InjectMockitoOldcore
     private MockitoOldcore oldcore;
 
@@ -124,6 +143,10 @@ class DefaultCollectionResourceTest
     @MockComponent
     private GroupManager groupManager;
 
+    @MockComponent
+    @Named("customRights")
+    private AuthorizationManagerBuilder customRightsAuthorizationManagerBuilder;
+
     @Mock
     private Query collectionsQuery;
 
@@ -132,6 +155,11 @@ class DefaultCollectionResourceTest
 
     @Inject
     private CollectionManager collectionManager;
+
+    @JsonAutoDetect(creatorVisibility = JsonAutoDetect.Visibility.ANY)
+    private record RightsCheckConfiguration(String param1)
+    {
+    }
 
     @BeforeEach
     void setUp() throws Exception
@@ -216,8 +244,7 @@ class DefaultCollectionResourceTest
         assertEquals(chunkingMaxSize, savedCollection.getChunkingMaxSize());
         assertEquals(chunkingMethod, savedCollection.getChunkingMethod());
         // Update a property directly in the collection.
-        String rightsCheckMethod = "customRights";
-        savedCollection.setRightsCheckMethod(rightsCheckMethod);
+        savedCollection.setRightsCheckMethod(RIGHTS_CHECK_METHOD);
         savedCollection.save();
 
         // Try updating just a single property.
@@ -227,9 +254,80 @@ class DefaultCollectionResourceTest
         JSONCollection updatedCollection = this.collectionResource.putCollection(WIKI_NAME, id, jsonCollection);
         // Verify that the update succeeded but other properties remain unchanged.
         assertEquals(updatedEmbeddingModel, updatedCollection.getEmbeddingModel());
-        assertEquals(rightsCheckMethod, updatedCollection.getRightsCheckMethod());
+        assertEquals(RIGHTS_CHECK_METHOD, updatedCollection.getRightsCheckMethod());
         assertEquals(chunkingMethod, updatedCollection.getChunkingMethod());
         assertEquals(chunkingMaxSize, updatedCollection.getChunkingMaxSize());
+    }
+
+    @Test
+    void putAuthorizationManagerParameters() throws XWikiException, XWikiRestException, IndexException
+    {
+        String id = "authorizationCollection";
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode rightsCheckMethodConfiguration = objectMapper.createObjectNode();
+        String authorizationParameter = "value1";
+        rightsCheckMethodConfiguration.put(AUTHORIZATION_PARAMETER_NAME, authorizationParameter);
+
+        JSONCollection jsonCollection = new JSONCollection();
+        jsonCollection.setID(id);
+        jsonCollection.setRightsCheckMethod(RIGHTS_CHECK_METHOD);
+        jsonCollection.setRightsCheckMethodConfiguration(rightsCheckMethodConfiguration);
+
+        doReturn(RightsCheckConfiguration.class)
+            .when(this.customRightsAuthorizationManagerBuilder).getConfigurationType();
+
+        // Create a document with the configuration class.
+        DocumentReference configurationClassReference =
+            new DocumentReference(WIKI_NAME, "AI", "AuthorizationConfiguration");
+        XWikiDocument configurationClassDocument = new XWikiDocument(configurationClassReference);
+        configurationClassDocument.getXClass().addTextField(AUTHORIZATION_PARAMETER_NAME, "Param1", 30);
+        this.oldcore.getSpyXWiki().saveDocument(configurationClassDocument, "Create configuration class",
+            this.oldcore.getXWikiContext());
+
+        when(this.customRightsAuthorizationManagerBuilder.getConfigurationClassReference())
+            .thenReturn(configurationClassReference);
+
+
+        when(this.customRightsAuthorizationManagerBuilder.getConfiguration(any()))
+            .thenAnswer(invocation -> {
+                BaseObject object = invocation.getArgument(0);
+                String param1 = object.getStringValue(AUTHORIZATION_PARAMETER_NAME);
+                return new RightsCheckConfiguration(param1);
+            });
+        doAnswer(invocation -> {
+            BaseObject object = invocation.getArgument(0);
+            RightsCheckConfiguration configuration = invocation.getArgument(1);
+            object.setStringValue(AUTHORIZATION_PARAMETER_NAME, configuration.param1());
+            return null;
+        }).when(this.customRightsAuthorizationManagerBuilder).setConfiguration(any(), any());
+
+        // Test creating the collection and verify the response.
+        JSONCollection createdCollection = this.collectionResource.putCollection(WIKI_NAME, id, jsonCollection);
+        assertEquals(id, createdCollection.getID());
+        assertEquals(RIGHTS_CHECK_METHOD, createdCollection.getRightsCheckMethod());
+        assertEquals(rightsCheckMethodConfiguration, createdCollection.getRightsCheckMethodConfiguration());
+
+        // Verify that the collection got actually created on the "server" side.
+        Collection savedCollection = getCollectionFromWiki(id);
+        assertEquals(RIGHTS_CHECK_METHOD, savedCollection.getRightsCheckMethod());
+        Object authorizationConfiguration = savedCollection.getAuthorizationConfiguration();
+        assertInstanceOf(RightsCheckConfiguration.class, authorizationConfiguration);
+        assertEquals(authorizationParameter, ((RightsCheckConfiguration) authorizationConfiguration).param1());
+
+        AuthorizationManager authorizationManager = mock();
+        when(this.customRightsAuthorizationManagerBuilder.build(any())).thenReturn(authorizationManager);
+
+        assertSame(authorizationManager, savedCollection.getAuthorizationManager());
+
+        // Get the argument passed to the builder.
+        ArgumentCaptor<BaseObject> configurationObjectCaptor = ArgumentCaptor.forClass(BaseObject.class);
+        verify(this.customRightsAuthorizationManagerBuilder, times(2))
+            .getConfiguration(configurationObjectCaptor.capture());
+        configurationObjectCaptor.getAllValues().forEach(object -> {
+            assertEquals(configurationClassReference, object.getXClassReference());
+            assertEquals(authorizationParameter, object.getStringValue(AUTHORIZATION_PARAMETER_NAME));
+        });
     }
 
     @Test

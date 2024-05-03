@@ -164,13 +164,6 @@ public interface Collection
      * @return A string representing the rights check method of the collection.
      */
     String getRightsCheckMethod();
-    
-    /**
-     * Gets the rights check method parameter associated with the collection.
-     * 
-     * @return A string representing the rights check method parameter of the collection.
-     */
-    String getRightsCheckMethodParam();
 
     /**
      * Sets the id of the collection.
@@ -248,14 +241,7 @@ public interface Collection
      * @param rightsCheckMethod A string representing the rights check method of the collection.
      */
     void setRightsCheckMethod(String rightsCheckMethod) throws IndexException;
-    
-    /**
-     * Sets the rights check method parameter associated with the collection.
-     * 
-     * @param rightsCheckMethodParam A string representing the rights check method parameter of the collection.
-     */
-    void setRightsCheckMethodParam(String rightsCheckMethodParam) throws IndexException;
-    
+
     /**
      * Retrieves a list of all documents in the collection.
      * 
@@ -295,4 +281,28 @@ public interface Collection
      *
      */
     void save() throws IndexException;
+
+    /**
+     * @return the authorization manager for this collection that needs to be used to check rights on any retrieved
+     * document
+     * @throws IndexException if the authorization manager cannot be built
+     */
+    AuthorizationManager getAuthorizationManager() throws IndexException;
+
+    /**
+     * @return the authorization configuration for this collection, the type of the object returned is determined by the
+     * selected rights check method. Can be {@code null} if the authorization method doesn't require any specific
+     * configuration.
+     */
+    Object getAuthorizationConfiguration() throws IndexException;
+
+    /**
+     * @return the type of the authorization configuration object returned by {@link #getAuthorizationConfiguration()}
+     */
+    Class<?> getAuthorizationConfigurationType() throws IndexException;
+
+    /**
+     * @param authorizationConfiguration the authorization configuration for this collection
+     */
+    void setAuthorizationConfiguration(Object authorizationConfiguration) throws IndexException;
 }

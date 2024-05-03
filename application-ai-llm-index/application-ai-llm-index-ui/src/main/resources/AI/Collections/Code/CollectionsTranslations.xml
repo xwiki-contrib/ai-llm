@@ -51,7 +51,6 @@ AI.Collections.Code.CollectionsClass_editGroups=Groups that can manage content
 AI.Collections.Code.CollectionsClass_adminGroups=Groups that can Manage Settings
 AI.Collections.Code.CollectionsClass_rightsCheckMethod=Rights check method
 AI.Collections.Code.CollectionsClass_rightsCheckMethod_rightsCheckJWT=JSON Web Token
-AI.Collections.Code.CollectionsClass_rightsCheckMethodParam=Rights check method parameter (URL)
 
 # Sheet keys
 collections.sheet.description=This page controls how Collections pages are displayed in both view and edit modes.
@@ -88,7 +87,6 @@ collections.livetable.queryGroups=Groups that can query
 collections.livetable.editGroups=Groups that can manage content
 collections.livetable.adminGroups=Groups that can Manage Settings
 collections.livetable.rightsCheckMethod=Rights check method
-collections.livetable.rightsCheckMethodParam=Rights check method parameter (URL)
 
 # Other keys
 collections.entry.name=Collections

@@ -219,7 +219,49 @@ and modelProp.id.name='model'</sql>
     </queryGroups>
     <rightsCheckMethod>
       <cache>0</cache>
-      <customDisplay/>
+      <customDisplay>{{velocity}}
+#if ($type == 'view' || $type == 'search' || $type == 'rendered')
+  #if ("$!value" != '')
+    #set ($entry = $services.collectionManager.getAuthorizationManagerDescriptorsMap().get($value))
+    #set ($localizationKey = "aiLLM.index.authorizationManager.${value}.name")
+    #if ($services.localization.get($localizationKey))
+      #set ($entryDisplayName = $services.localization.render($localizationKey))
+    #else
+      #set ($entryDisplayName = $value)
+    #end
+      (% data-ai-llm-rights-check-method="$services.rendering.escape($value, 'xwiki/2.1')"
+      #if ("$!entry" != '' &amp;&amp; "$!entry.configurationSheetReference()" != '')
+        data-ai-llm-rights-check-method-sheet="$services.rendering.escape($services.model.serialize($entry.configurationSheetReference()), 'xwiki/2.1')"
+      #end
+       %)$services.rendering.escape($entryDisplayName, 'xwiki/2.1')(%%)
+  #end
+#elseif ($type == 'edit')
+{{html clean="false"}}
+&lt;select name="$escapetool.xml("${object.getxWikiClass().name}_${object.number}_${name}")"
+ id="$escapetool.xml("${object.getxWikiClass().name}_${object.number}_${name}")"&gt;
+#foreach($entry in $services.collectionManager.getAuthorizationManagerDescriptorsMap().entrySet())
+  #set ($localizationKey = "aiLLM.index.authorizationManager.${entry.key}.name")
+  #if ($services.localization.get($localizationKey))
+    #set ($entryDisplayName = $services.localization.render($localizationKey))
+  #else
+    #set ($entryDisplayName = $entry.key)
+  #end
+  &lt;option value="$escapetool.xml($entry.key)"#if($entry.key.equalsIgnoreCase($value)) selected="selected"#end 
+  #if ("$!entry.value.configurationSheetReference()" != '')
+    data-ai-llm-rights-check-method-sheet="$escapetool.xml($services.model.serialize($entry.value.configurationSheetReference()))"
+  #end
+  &gt;$escapetool.xml($entryDisplayName)&lt;/option&gt;
+#end
+&lt;/select&gt;
+{{/html}}
+#elseif ($type == 'hidden')
+  {{html clean="false"}}
+    $doc.displayHidden($field, $prefix, $object)
+  {{/html}}
+#else
+  Unknown display mode.
+#end
+{{/velocity}}</customDisplay>
       <defaultValue/>
       <disabled>0</disabled>
       <displayType>select</displayType>
@@ -242,20 +284,6 @@ and modelProp.id.name='model'</sql>
       <values>rightsCheckJWT=JSON Web Token</values>
       <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
     </rightsCheckMethod>
-    <rightsCheckMethodParam>
-      <customDisplay/>
-      <disabled>0</disabled>
-      <hint/>
-      <name>rightsCheckMethodParam</name>
-      <number>13</number>
-      <picker>0</picker>
-      <prettyName>Rights check method parameter (URL)</prettyName>
-      <size>30</size>
-      <unmodifiable>0</unmodifiable>
-      <validationMessage/>
-      <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-    </rightsCheckMethodParam>
     <title>
       <customDisplay>{{include reference="AppWithinMinutes.Title"/}}</customDisplay>
       <disabled>0</disabled>

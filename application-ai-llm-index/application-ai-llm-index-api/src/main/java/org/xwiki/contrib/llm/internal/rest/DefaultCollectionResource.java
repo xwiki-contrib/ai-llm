@@ -32,6 +32,7 @@ import org.xwiki.contrib.llm.rest.CollectionResource;
 import org.xwiki.contrib.llm.rest.JSONCollection;
 import org.xwiki.rest.XWikiRestException;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xpn.xwiki.XWikiContext;
 
 /**
@@ -49,7 +50,11 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
     public JSONCollection getCollection(String wikiName, String collectionName)
         throws XWikiRestException
     {
-        return new JSONCollection(getInternalCollection(wikiName, collectionName));
+        try {
+            return new JSONCollection(getInternalCollection(wikiName, collectionName), new ObjectMapper());
+        } catch (IndexException e) {
+            throw convertException(collectionName, e, "retrieving");
+        }
     }
 
     @Override
@@ -69,9 +74,10 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
             }
 
             // Assign the new collection to the existing one
-            collection.applyTo(existingCollection);
+            ObjectMapper objectMapper = new ObjectMapper();
+            collection.applyTo(existingCollection, objectMapper);
 
-            return new JSONCollection(existingCollection);
+            return new JSONCollection(existingCollection, objectMapper);
         } catch (IndexException e) {
             throw convertException(collectionName, e, "updating");
         } finally {

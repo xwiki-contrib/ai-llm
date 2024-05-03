@@ -247,20 +247,6 @@ and modelProp.id.name='model'</sql>
         <values>rightsCheckJWT=JSON Web Token</values>
         <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
       </rightsCheckMethod>
-      <rightsCheckMethodParam>
-        <customDisplay/>
-        <disabled>0</disabled>
-        <hint/>
-        <name>rightsCheckMethodParam</name>
-        <number>11</number>
-        <picker>0</picker>
-        <prettyName>Rights check method parameter (URL)</prettyName>
-        <size>30</size>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
-      </rightsCheckMethodParam>
       <title>
         <customDisplay>{{include reference="AppWithinMinutes.Title"/}}</customDisplay>
         <disabled>0</disabled>
@@ -307,9 +293,6 @@ and modelProp.id.name='model'</sql>
     </property>
     <property>
       <rightsCheckMethod>rightsCheckJWT</rightsCheckMethod>
-    </property>
-    <property>
-      <rightsCheckMethodParam/>
     </property>
   </object>
 </xwikidoc>

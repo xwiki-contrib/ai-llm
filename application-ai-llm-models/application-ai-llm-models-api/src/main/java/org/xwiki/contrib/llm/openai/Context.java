@@ -19,6 +19,8 @@
  */
 package org.xwiki.contrib.llm.openai;
 
+import java.util.List;
+
 import org.xwiki.stability.Unstable;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
@@ -28,10 +30,12 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 /**
  * The context used for completing the chat.
  *
+ * @param collectionId the unique identifier of the collection containing the context document
  * @param documentId the unique identifier of the context document
  * @param url the URL of the context document
  * @param content the content of the context document
  * @param similarityScore the similarity score between the conversation and the context document
+ * @param vector (optional) the vector embedding of the context document
  *
  * @version $Id$
  * @since 0.3
@@ -40,10 +44,12 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 @JsonAutoDetect(creatorVisibility = JsonAutoDetect.Visibility.ANY)
 @Unstable
 public record Context(
+    String collectionId,
     String documentId,
     String url,
     String content,
-    Double similarityScore
+    Double similarityScore,
+    List<Float> vector
 )
 {
 }

@@ -54,6 +54,8 @@
   'forceSkinAction': true,
   'language': $xcontext.locale
 }))
+#set ($discard = $xwiki.jsx.use('AI.Collections.Code.CollectionsSheet'))
+#set ($discard = $xwiki.ssx.use('AI.Collections.Code.CollectionsSheet'))
 #set ($discard = $doc.use($object))
 #set ($editing = $xcontext.action == 'edit')
 #set ($obj = $doc.getObject('AI.Collections.Code.CollectionsClass'))
@@ -143,16 +145,20 @@
       &lt;/label&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('rightsCheckMethod')&lt;/dd&gt;
-    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
-        class="editableProperty"
-        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('rightsCheckMethodParam')))"
-        data-property-type="object"#end&gt;
-      &lt;label#if ($editing) for="AI.Collections.Code.CollectionsClass_0_rightsCheckMethodParam"#end&gt;
-        $escapetool.xml($doc.displayPrettyName('rightsCheckMethodParam', false, false))
-      &lt;/label&gt;
-    &lt;/dt&gt;
-    &lt;dd&gt;$doc.display('rightsCheckMethodParam')&lt;/dd&gt;
+    #if ("$!doc.getValue('rightsCheckMethod')" != '')
+      #set ($rightsCheckDescriptor = $services.collectionManager.getAuthorizationManagerDescriptorsMap().get($doc.getValue('rightsCheckMethod')))
+      #if ("$!rightsCheckDescriptor.configurationSheetReference()" != '')
+      #set ($object = $doc.getObject($rightsCheckDescriptor.configurationClassReference(), true))
+      &lt;div data-ai-llm-rights-check-method-configuration="$escapetool.xml($doc.getValue('rightsCheckMethod'))"&gt;
+      {{include reference="$services.rendering.escape($rightsCheckDescriptor.configurationSheetReference(), 'xwiki/2.1')" author="target" /}}
+      &lt;/div&gt;
+      #end
+    #end
   &lt;/dl&gt;
+  ## Save any added objects
+  &lt;div hidden&gt;
+    &lt;input type="hidden" name="objectPolicy" value="updateOrCreate" /&gt;
+  &lt;/div&gt;
 &lt;/div&gt;
 #if (!$doc.isNew() &amp;&amp; $hasEdit &amp;&amp; !$editing)
 &lt;form action=""&gt;
@@ -196,4 +202,313 @@
   #set($ok = $response.sendRedirect($newDocURL))
 #end
 {{/velocity}}</content>
+  <object>
+    <name>AI.Collections.Code.CollectionsSheet</name>
+    <number>0</number>
+    <className>XWiki.JavaScriptExtension</className>
+    <guid>1ecf8b4f-bdd7-4d05-b9ad-dd2d0093721b</guid>
+    <class>
+      <name>XWiki.JavaScriptExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>require(['jquery', 'xwiki-meta'], function($, xm) {
+    function updateOrLoadSheet() {
+        // The value is possibly already displayed, find an element with data-ai-llm-rights-check-method attribute
+        // We do this first as when the editable property is cancelled, the select element with a wrong value
+        // is still displayed but the viewer is already displayed.
+        const rightsCheckMethodElement = $('[data-ai-llm-rights-check-method]:visible');
+        if (rightsCheckMethodElement.length &gt; 0) {
+            // Get the name of the rights check method
+            const selectedValue = rightsCheckMethodElement.data('aiLlmRightsCheckMethod');
+            // Get the data-ai-llm-rights-check-method-sheet attribute if there is any
+            const sheetReference = rightsCheckMethodElement.data('aiLlmRightsCheckMethodSheet');
+            displaySheetBasedOnSelection(rightsCheckMethodElement, selectedValue, sheetReference);
+        } else {
+            // Get the rights check select element.
+            const rightsCheckSelect = document.getElementById('AI.Collections.Code.CollectionsClass_0_rightsCheckMethod');
+            if (rightsCheckSelect !== null) {
+                // Get the selected value
+                const selectedValue = rightsCheckSelect.value;
+                // Get the data-ai-llm-rights-check-method-sheet attribute from the selected option element using the dataset API if there is any
+                const sheetReference = rightsCheckSelect.options[rightsCheckSelect.selectedIndex].dataset.aiLlmRightsCheckMethodSheet;
+                displaySheetBasedOnSelection(rightsCheckSelect, selectedValue, sheetReference);
+
+                // Add an event listener to the select element to update the sheet when the value changes
+                rightsCheckSelect.addEventListener('change', updateOrLoadSheet);
+
+                // Listen to the xwiki:actions:cancel event on the parent dd element to update the sheet when the
+                // editing of the editable property is canceled.
+                $(rightsCheckSelect.closest('dd')).on('xwiki:actions:cancel', updateOrLoadSheet);
+            }
+        }
+    }
+
+    function displaySheetBasedOnSelection(element, selectedValue, sheetReference) {
+        // Check if we already display the settings with that sheet
+        // Find the element with data-ai-llm-rights-check-method-configuration="value" attribute
+        const configurationNameAttribute = 'data-ai-llm-rights-check-method-configuration';
+        const selectedConfigurationSelector = `[${configurationNameAttribute}="${CSS.escape(selectedValue)}"]`;
+        const rightsCheckConfiguration = document.querySelector(selectedConfigurationSelector);
+        if (rightsCheckConfiguration !== null &amp;&amp; rightsCheckConfiguration.hidden === false) {
+            // If it exists and isn't hidden, we don't need do anything
+        } else {
+            // Find all other elements with the configuration name attribute and hide them
+            const otherRightsCheckConfigurations = 
+                document.querySelectorAll(`[${configurationNameAttribute}]:not(${selectedConfigurationSelector})`);
+            otherRightsCheckConfigurations.forEach((element) =&gt; {
+                element.hidden = true;
+            });
+
+            if (rightsCheckConfiguration !== null) {
+                // If it exists and is hidden, we need to display it
+                rightsCheckConfiguration.hidden = false;
+            } else if (sheetReference !== undefined) {
+                // Load the sheet if there is any
+                const rightsCheckConfigurationElement = document.createElement('div');
+                rightsCheckConfigurationElement.setAttribute(configurationNameAttribute, selectedValue);
+
+                // Find the dd element that contains the passed element
+                const ddElement = element.closest('dd');
+
+                // Find the next (element) sibling that is not a dd element
+                let nextElement = ddElement.nextElementSibling;
+                while (nextElement !== null &amp;&amp; nextElement.tagName === 'DD') {
+                    nextElement = nextElement.nextElementSibling;
+                }
+
+                // Add the configuration after the dd element
+                ddElement.parentNode.insertBefore(rightsCheckConfigurationElement, nextElement);
+
+                // Load the current document with the sheet as sheet parameter
+                const documentReference = xm.documentReference;
+                const currentDocument = new XWiki.Document(documentReference);
+
+                // load the sheet with the edit action when the current action is the edit action
+                const action = document.getElementById('body').classList.contains('editbody') ? 'edit' : 'view';
+                const sheetURL = 
+                    currentDocument.getURL(action, `sheet=${encodeURIComponent(sheetReference)}&amp;xpage=plain`);
+                $.get(sheetURL, function (data) {
+                    rightsCheckConfigurationElement.innerHTML = data;
+                    $(document).trigger('xwiki:dom:updated', {'elements': [rightsCheckConfigurationElement]});
+                });
+            }
+        }
+    }
+
+    $(document).on('xwiki:dom:updated', updateOrLoadSheet);
+    $(updateOrLoadSheet);
+});</code>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse>0</parse>
+    </property>
+    <property>
+      <use>currentPage</use>
+    </property>
+  </object>
+  <object>
+    <name>AI.Collections.Code.CollectionsSheet</name>
+    <number>0</number>
+    <className>XWiki.StyleSheetExtension</className>
+    <guid>5f976ceb-a9ee-4519-b417-e95f7f327e07</guid>
+    <class>
+      <name>XWiki.StyleSheetExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <contentType>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>contentType</name>
+        <number>6</number>
+        <prettyName>Content Type</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>CSS|LESS</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </contentType>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>.xform dl div dt:first-of-type {
+  margin-top: floor(@font-size-base * 1.4);
+}</code>
+    </property>
+    <property>
+      <contentType>LESS</contentType>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse>0</parse>
+    </property>
+    <property>
+      <use>currentPage</use>
+    </property>
+  </object>
 </xwikidoc>

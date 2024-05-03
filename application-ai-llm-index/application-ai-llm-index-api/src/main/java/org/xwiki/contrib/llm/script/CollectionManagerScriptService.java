@@ -20,16 +20,28 @@
 package org.xwiki.contrib.llm.script;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
+import org.xwiki.contrib.llm.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.contrib.llm.openai.Context;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.EntityReference;
 import org.xwiki.script.service.ScriptService;
+
+import static java.util.Map.Entry;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * Provides CollectionManager related Script APIs.
@@ -43,6 +55,14 @@ public class CollectionManagerScriptService implements ScriptService
 {
     @Inject
     private CollectionManager collectionManager;
+
+    @Inject
+    @Named("context")
+    private Provider<ComponentManager> componentManagerProvider;
+
+    @Inject
+    @Named("current")
+    private DocumentReferenceResolver<EntityReference> documentReferenceResolver;
 
     /**
      * Creates a new collection.
@@ -110,7 +130,7 @@ public class CollectionManagerScriptService implements ScriptService
      * @param includeVector if true, includes the vector field in the results
      * @return the results of the search within the aillm core
      */
-    public List<List<String>> search(String solrQuery, int limit, boolean includeVector) throws IndexException
+    public List<Context> search(String solrQuery, int limit, boolean includeVector) throws IndexException
     {
         return this.collectionManager.search(solrQuery, limit, includeVector);
     }
@@ -121,7 +141,7 @@ public class CollectionManagerScriptService implements ScriptService
      * @param limit the maximum number of results to return
      * @return a list of document ids that are similar to the text query
      */
-    public List<List<String>> similaritySearch(String textQuery,
+    public List<Context> similaritySearch(String textQuery,
                                                 List<String> collections,
                                                 int limit) throws IndexException
     {
@@ -135,5 +155,34 @@ public class CollectionManagerScriptService implements ScriptService
     public List<String> filterCollectionbasedOnUserAccess(List<String> collections)
     {
         return this.collectionManager.filterCollectionbasedOnUserAccess(collections);
+    }
+
+    /**
+     * @return the map from authorization manager name to the descriptor of its configuration
+     */
+    public Map<String, AuthorizationManagerDescriptor> getAuthorizationManagerDescriptorsMap()
+        throws ComponentLookupException
+    {
+        Map<String, AuthorizationManagerBuilder> instanceMap =
+            this.componentManagerProvider.get().getInstanceMap(AuthorizationManagerBuilder.class);
+        return instanceMap.entrySet().stream()
+            .collect(toMap(
+                    Entry::getKey,
+                    e -> {
+                        DocumentReference configurationClassReference = null;
+                        if (e.getValue().getConfigurationClassReference() != null) {
+                            configurationClassReference =
+                                this.documentReferenceResolver.resolve(e.getValue().getConfigurationClassReference());
+                        }
+
+                        DocumentReference configurationSheetReference = null;
+                        if (e.getValue().getConfigurationSheetReference() != null) {
+                            configurationSheetReference =
+                                this.documentReferenceResolver.resolve(e.getValue().getConfigurationSheetReference());
+                        }
+
+                        return new AuthorizationManagerDescriptor(configurationClassReference,
+                            configurationSheetReference);
+                    }));
     }
 }

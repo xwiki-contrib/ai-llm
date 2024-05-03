@@ -21,7 +21,7 @@ package org.xwiki.contrib.llm;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,12 +33,12 @@ import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
-import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
+import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.search.solr.Solr;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.user.CurrentUserReference;
@@ -164,9 +164,9 @@ public class SolrConnector
      * @param includeVector if true, includes the vector in the results
      * @return a list of document details
      */
-    public List<List<String>> search(String solrQuery, int limit, boolean includeVector) throws SolrServerException
+    public List<Context> search(String solrQuery, int limit, boolean includeVector) throws SolrServerException
     {
-        List<List<String>> resultsList = new ArrayList<>();
+        List<Context> resultsList = List.of();
         try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             SolrQuery query = new SolrQuery();
             query.setQuery(solrQuery);
@@ -200,23 +200,18 @@ public class SolrConnector
      * @param limit the maximum number of results to return
      * @return a list of document details
      */
-    public List<List<String>> similaritySearch(String textQuery,
+    public List<Context> similaritySearch(String textQuery,
                                                Map<String, String> collectionEmbeddingModelMap,
                                                int limit) throws SolrServerException
     {
-        List<List<String>> resultsList = new ArrayList<>();
+        List<Context> resultsList = new ArrayList<>();
         
         try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             // split embeddingModelMap into sets of collections with the same embedding model
-            Map<String, List<String>> embeddingModelCollectionsMap = new HashMap<>();
-            for (Map.Entry<String, String> entry : collectionEmbeddingModelMap.entrySet()) {
-                String embeddingModel = entry.getValue();
-                String collection = entry.getKey();
-                if (!embeddingModelCollectionsMap.containsKey(embeddingModel)) {
-                    embeddingModelCollectionsMap.put(embeddingModel, new ArrayList<>());
-                }
-                embeddingModelCollectionsMap.get(embeddingModel).add(collection);
-            }
+            Map<String, List<String>> embeddingModelCollectionsMap = collectionEmbeddingModelMap.entrySet().stream()
+                // Group by value (embedding model) and collect keys (collections) into a list
+                .collect(Collectors.groupingBy(Map.Entry::getValue,
+                    Collectors.mapping(Map.Entry::getKey, Collectors.toList())));
 
             // perform similarity search for each set of collections with the same embedding model
             for (Map.Entry<String, List<String>> entry : embeddingModelCollectionsMap.entrySet()) {
@@ -232,7 +227,7 @@ public class SolrConnector
                 resultsList.addAll(collectResults(documents, false));
 
                 //order the resultsList in desc order of FIELD_SCORE
-                resultsList.sort((a, b) -> Double.compare(Double.parseDouble(b.get(3)), Double.parseDouble(a.get(3))));
+                resultsList.sort(Comparator.comparingDouble(Context::similarityScore).reversed());
 
                 //limit the resultsList to the specified limit
                 if (resultsList.size() > limit) {
@@ -276,21 +271,21 @@ public class SolrConnector
         return query;
     }
 
-    private List<List<String>> collectResults(SolrDocumentList documents, boolean includeVector)
+    private List<Context> collectResults(SolrDocumentList documents, boolean includeVector)
     {
-        List<List<String>> resultsList = new ArrayList<>();
-        for (SolrDocument document : documents) {
-            List<String> documentDetails = new ArrayList<>();
-            documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_ID)));
-            documentDetails.add(String.valueOf(document.getFieldValue(FIELD_DOC_URL)));
-            documentDetails.add(String.valueOf(document.getFieldValue(FIELD_CONTENT)));
-            documentDetails.add(String.valueOf(document.getFieldValue(FIELD_SCORE)));
-            if (includeVector) {
-                documentDetails.add(String.valueOf(document.getFieldValue(FIELD_VECTOR)));
-            }
-            resultsList.add(documentDetails);           
-        }
-        return resultsList;
+        //noinspection unchecked
+        return documents.stream()
+            .map(document -> new Context(
+                String.valueOf(document.getFieldValue(FIELD_COLLECTION)),
+                String.valueOf(document.getFieldValue(FIELD_DOC_ID)),
+                String.valueOf(document.getFieldValue(FIELD_DOC_URL)),
+                String.valueOf(document.getFieldValue(FIELD_CONTENT)),
+                document.getFieldValue(FIELD_SCORE) instanceof Number numericScore
+                    ? numericScore.doubleValue()
+                    : Double.parseDouble(String.valueOf(document.getFieldValue(FIELD_SCORE))),
+                includeVector ? (List<Float>) document.getFieldValue(FIELD_VECTOR) : null
+            ))
+            .toList();
     }
 
     /**

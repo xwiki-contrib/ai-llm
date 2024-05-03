@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm;
 import java.util.List;
 
 import org.xwiki.component.annotation.Role;
+import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
 
 /**
@@ -86,7 +87,7 @@ public interface CollectionManager
      * @param includeVector if true, the vector field of the document will be included in the results
      * @return the results of the search within the aillm core
      */
-    List<List<String>> search(String solrQuery, int limit, boolean includeVector) throws IndexException;
+    List<Context> search(String solrQuery, int limit, boolean includeVector) throws IndexException;
 
     /**
      * @param textQuery the text query
@@ -94,7 +95,7 @@ public interface CollectionManager
      * @param limit the maximum number of results to return
      * @return a list of document ids that are similar to the text query
      */
-    List<List<String>> similaritySearch(String textQuery, List<String> collections, int limit) throws IndexException;
+    List<Context> similaritySearch(String textQuery, List<String> collections, int limit) throws IndexException;
 
     /**
      * @param collections the collections to filter

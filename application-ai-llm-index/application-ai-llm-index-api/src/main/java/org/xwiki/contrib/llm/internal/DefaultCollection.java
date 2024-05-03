@@ -19,16 +19,23 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.lang.reflect.Type;
 import java.util.List;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Provider;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
+import org.xwiki.contrib.llm.AuthorizationManager;
+import org.xwiki.contrib.llm.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
@@ -42,6 +49,8 @@ import org.xwiki.query.QueryManager;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.BaseObject;
+
 /**
  * Implementation of a {@code Collection} component.
  *
@@ -60,7 +69,6 @@ public class DefaultCollection implements Collection
     private static final String ALLOW_GUESTS = "allowGuests";
     private static final String QUERY_GROUPS_FIELDNAME = "queryGroups";
     private static final String RIGHTS_CHECK_METHOD_FIELDNAME = "rightsCheckMethod";
-    private static final String RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME = "rightsCheckMethodParam";
     private static final String DOCUMENT_SPACE_FIELDNAME = "documentSpaces";
 
     @Inject
@@ -79,6 +87,10 @@ public class DefaultCollection implements Collection
 
     @Inject
     private Logger logger;
+
+    @Inject
+    @Named("context")
+    private Provider<ComponentManager> componentManagerProvider;
 
     /**
      * Initialize the collection.
@@ -154,12 +166,6 @@ public class DefaultCollection implements Collection
     public String getRightsCheckMethod()
     {
         return this.xWikiDocumentWrapper.getStringValue(RIGHTS_CHECK_METHOD_FIELDNAME);
-    }
-    
-    @Override
-    public String getRightsCheckMethodParam()
-    {
-        return this.xWikiDocumentWrapper.getStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME);
     }
 
     @Override
@@ -239,15 +245,7 @@ public class DefaultCollection implements Collection
             this.xWikiDocumentWrapper.setStringValue(RIGHTS_CHECK_METHOD_FIELDNAME, rightsCheckMethod);
         }
     }
-    
-    @Override
-    public void setRightsCheckMethodParam(String rightsCheckMethodParam) throws IndexException
-    {
-        if (rightsCheckMethodParam != null) {
-            this.xWikiDocumentWrapper.setStringValue(RIGHTS_CHECK_METHOD_PARAMETER_FIELDNAME, rightsCheckMethodParam);
-        }
-    }
-    
+
     @Override
     public void save() throws IndexException
     {
@@ -342,6 +340,76 @@ public class DefaultCollection implements Collection
         } catch (Exception e) {
             logger.error("Failed to remove document with id [{}]: [{}]", documentId, e.getMessage());
         }
+    }
+
+    @Override
+    public AuthorizationManager getAuthorizationManager() throws IndexException
+    {
+        AuthorizationManagerBuilder authorizationManagerBuilder = getAuthorizationManagerBuilder();
+        BaseObject configurationObject = this.xWikiDocumentWrapper.getXWikiDocument()
+                .getXObject(authorizationManagerBuilder.getConfigurationClassReference());
+        return authorizationManagerBuilder.build(configurationObject);
+    }
+
+    private AuthorizationManagerBuilder getAuthorizationManagerBuilder()
+        throws IndexException
+    {
+        AuthorizationManagerBuilder authorizationManagerBuilder;
+        try {
+            authorizationManagerBuilder =
+                this.componentManagerProvider.get().getInstance(AuthorizationManagerBuilder.class,
+                    this.getRightsCheckMethod());
+        } catch (ComponentLookupException e) {
+            throw new IndexException(
+                "Failed to get authorization manager builder [%s]".formatted(this.getRightsCheckMethod()), e);
+        }
+        return authorizationManagerBuilder;
+    }
+
+    @Override
+    public Object getAuthorizationConfiguration() throws IndexException
+    {
+        if (StringUtils.isNotBlank(this.getRightsCheckMethod())) {
+            AuthorizationManagerBuilder authorizationManagerBuilder = getAuthorizationManagerBuilder();
+
+            Type configurationType = authorizationManagerBuilder.getConfigurationType();
+            if (configurationType != null) {
+                BaseObject configurationObject = this.xWikiDocumentWrapper.getXWikiDocument()
+                    .getXObject(authorizationManagerBuilder.getConfigurationClassReference());
+
+                return authorizationManagerBuilder.getConfiguration(configurationObject);
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public void setAuthorizationConfiguration(Object authorizationConfiguration) throws IndexException
+    {
+        AuthorizationManagerBuilder authorizationManagerBuilder = getAuthorizationManagerBuilder();
+
+        Class<?> configurationType = authorizationManagerBuilder.getConfigurationType();
+        if (configurationType != null) {
+            // Verify that the configuration object is of the correct type
+            if (!configurationType.isInstance(authorizationConfiguration)) {
+                throw new IndexException(
+                    "Authorization configuration object is not of the correct type [%s]".formatted(configurationType));
+            }
+
+            BaseObject configurationObject = this.xWikiDocumentWrapper.getClonedXWikiDocument()
+                    .getXObject(authorizationManagerBuilder.getConfigurationClassReference(), true,
+                        this.contextProvider.get());
+
+            authorizationManagerBuilder.setConfiguration(configurationObject, authorizationConfiguration);
+        }
+    }
+
+    @Override
+    public Class<?> getAuthorizationConfigurationType() throws IndexException
+    {
+        AuthorizationManagerBuilder authorizationManagerBuilder = getAuthorizationManagerBuilder();
+        return authorizationManagerBuilder.getConfigurationType();
     }
 
     private void removeDocumentFromVectorDB(Document document)

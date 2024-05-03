@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.rest;
 
 import java.util.List;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.xwiki.contrib.llm.Collection;
@@ -28,6 +29,9 @@ import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.stability.Unstable;
 import org.xwiki.text.XWikiToStringBuilder;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
@@ -52,7 +56,8 @@ public class JSONCollection
     private boolean allowGuests;
     private String queryGroups;
     private String rightsCheckMethod;
-    private String rightsCheckMethodParam;
+
+    private JsonNode rightsCheckMethodConfiguration;
 
     /**
      * Default constructor.
@@ -65,8 +70,9 @@ public class JSONCollection
      * Construct a collection from a {@link Collection}.
      *
      * @param collection the collection to construct from
+     * @param objectMapper the object mapper to use to serialize the authorization configuration
      */
-    public JSONCollection(Collection collection)
+    public JSONCollection(Collection collection, ObjectMapper objectMapper) throws IndexException
     {
         this.id = collection.getID();
         this.title = collection.getTitle();
@@ -78,15 +84,20 @@ public class JSONCollection
         this.allowGuests = collection.getAllowGuests();
         this.queryGroups = collection.getQueryGroups();
         this.rightsCheckMethod = collection.getRightsCheckMethod();
-        this.rightsCheckMethodParam = collection.getRightsCheckMethodParam();
+
+        Object authorizationConfiguration = collection.getAuthorizationConfiguration();
+        if (authorizationConfiguration != null) {
+            this.rightsCheckMethodConfiguration = objectMapper.valueToTree(authorizationConfiguration);
+        }
     }
 
     /**
      * Applies the non-null properties of this collection to a {@link Collection}.
      *
      * @param collection the collection to apply to
+     * @param objectMapper the object mapper to use to deserialize the authorization configuration
      */
-    public void applyTo(Collection collection) throws IndexException
+    public void applyTo(Collection collection, ObjectMapper objectMapper) throws IndexException
     {
         applyTitle(collection);
         applyEmbeddingModel(collection);
@@ -97,7 +108,14 @@ public class JSONCollection
         applyAllowGuests(collection);
         applyQueryGroups(collection);
         applyRightsCheckMethod(collection);
-        applyRightsCheckMethodParam(collection);
+        if (StringUtils.isNotBlank(collection.getRightsCheckMethod())) {
+            try {
+                collection.setAuthorizationConfiguration(objectMapper.treeToValue(this.rightsCheckMethodConfiguration,
+                    collection.getAuthorizationConfigurationType()));
+            } catch (JsonProcessingException e) {
+                throw new IndexException("Error deserializing authorization configuration.", e);
+            }
+        }
         collection.save();
     }
 
@@ -162,11 +180,20 @@ public class JSONCollection
         }
     }
 
-    private void applyRightsCheckMethodParam(Collection collection) throws IndexException
+    /**
+     * @return the rights check method configuration as a JSON node
+     */
+    public JsonNode getRightsCheckMethodConfiguration()
     {
-        if (this.rightsCheckMethodParam != null) {
-            collection.setRightsCheckMethodParam(this.rightsCheckMethodParam);
-        }
+        return this.rightsCheckMethodConfiguration;
+    }
+
+    /**
+     * @param rightsCheckMethodConfiguration the rights check method configuration as a JSON node
+     */
+    public void setRightsCheckMethodConfiguration(JsonNode rightsCheckMethodConfiguration)
+    {
+        this.rightsCheckMethodConfiguration = rightsCheckMethodConfiguration;
     }
 
     /**
@@ -250,14 +277,6 @@ public class JSONCollection
     }
 
     /**
-     * @return optional parameter used by the rights check method
-     */
-    public String getRightsCheckMethodParam()
-    {
-        return this.rightsCheckMethodParam;
-    }
-
-    /**
      * @param id the name of the collection
      */
     public void setID(String id)
@@ -338,14 +357,6 @@ public class JSONCollection
         this.rightsCheckMethod = rightsCheckMethod;
     }
 
-    /**
-     * @param rightsCheckMethodParam optional parameter used by the rights check method
-     */
-    public void setRightsCheckMethodParam(String rightsCheckMethodParam)
-    {
-        this.rightsCheckMethodParam = rightsCheckMethodParam;
-    }
-
     @Override
     public boolean equals(Object o)
     {
@@ -370,7 +381,6 @@ public class JSONCollection
             .append(getAllowGuests(), that.getAllowGuests())
             .append(getQueryGroups(), that.getQueryGroups())
             .append(getRightsCheckMethod(), that.getRightsCheckMethod())
-            .append(getRightsCheckMethodParam(), that.getRightsCheckMethodParam())
             .isEquals();
     }
 
@@ -387,7 +397,6 @@ public class JSONCollection
             .append(getAllowGuests())
             .append(getQueryGroups())
             .append(getRightsCheckMethod())
-            .append(getRightsCheckMethodParam())
             .toHashCode();
     }
 
@@ -405,7 +414,6 @@ public class JSONCollection
             .append("allowGuests", this.allowGuests)
             .append("queryGroups", this.queryGroups)
             .append("rightsCheckMethod", this.rightsCheckMethod)
-            .append("rightsCheckMethodParam", this.rightsCheckMethodParam)
             .toString();
     }
 }
