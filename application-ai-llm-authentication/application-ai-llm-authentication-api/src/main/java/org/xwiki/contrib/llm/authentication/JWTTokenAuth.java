@@ -21,7 +21,6 @@ package org.xwiki.contrib.llm.authentication;
 
 import java.security.Principal;
 import java.text.ParseException;
-import java.util.Date;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -29,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.xwiki.classloader.ClassLoaderManager;
 import org.xwiki.contrib.llm.authentication.internal.AuthorizedApplication;
 import org.xwiki.contrib.llm.authentication.internal.AuthorizedApplicationManager;
+import org.xwiki.contrib.llm.authentication.internal.ClaimValidator;
 import org.xwiki.contrib.llm.authentication.internal.JWTTokenAuthenticatorConfiguration;
 import org.xwiki.contrib.llm.authentication.internal.JWTTokenAuthenticatorUserStore;
 import org.xwiki.model.reference.DocumentReference;
@@ -68,6 +68,8 @@ public class JWTTokenAuth implements XWikiAuthService
         Utils.getComponent(AuthorizedApplicationManager.class);
 
     private final JWTTokenAuthenticatorUserStore userStore = Utils.getComponent(JWTTokenAuthenticatorUserStore.class);
+
+    private final ClaimValidator claimValidator = Utils.getComponent(ClaimValidator.class);
 
     /**
      * Default constructor.
@@ -142,10 +144,7 @@ public class JWTTokenAuth implements XWikiAuthService
                         "Invalid token signature.");
                 }
 
-                if (new Date().after(claims.getExpirationTime())) {
-                    throw new XWikiException(XWikiException.MODULE_XWIKI_APP, XWikiException.ERROR_XWIKI_ACCESS_DENIED,
-                        "Token expired.");
-                }
+                this.claimValidator.validateClaims(claims, context);
 
                 DocumentReference userReference = this.userStore.updateUser(application, claims);
 

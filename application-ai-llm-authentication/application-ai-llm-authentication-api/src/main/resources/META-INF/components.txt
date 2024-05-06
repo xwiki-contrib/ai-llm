@@ -1,5 +1,6 @@
 org.xwiki.contrib.llm.authentication.internal.AuthorizedApplicationManager
 org.xwiki.contrib.llm.authentication.internal.AuthorizedApplicationRequiredRightsAnalyzer
+org.xwiki.contrib.llm.authentication.internal.ClaimValidator
 org.xwiki.contrib.llm.authentication.internal.Ed25519PEMReader
 org.xwiki.contrib.llm.authentication.internal.JWTTokenAuthenticatorConfiguration
 org.xwiki.contrib.llm.authentication.internal.JWTTokenAuthenticatorUserClassDocumentInitializer

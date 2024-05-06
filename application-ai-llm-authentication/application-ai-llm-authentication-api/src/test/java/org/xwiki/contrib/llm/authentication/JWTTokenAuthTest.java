@@ -21,12 +21,15 @@ package org.xwiki.contrib.llm.authentication;
 
 import java.lang.reflect.Field;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -36,9 +39,11 @@ import org.xwiki.classloader.NamespaceURLClassLoader;
 import org.xwiki.component.util.ReflectionUtils;
 import org.xwiki.contrib.llm.authentication.internal.AuthorizedApplication;
 import org.xwiki.contrib.llm.authentication.internal.AuthorizedApplicationManager;
+import org.xwiki.contrib.llm.authentication.internal.ClaimValidator;
 import org.xwiki.contrib.llm.authentication.internal.JWTTokenAuthenticatorConfiguration;
 import org.xwiki.contrib.llm.authentication.internal.JWTTokenAuthenticatorUserStore;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.test.mockito.MockitoComponentManager;
@@ -75,6 +80,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @ComponentTest
+@ComponentList(ClaimValidator.class)
 class JWTTokenAuthTest
 {
     private static final String USERNAME = "username";
@@ -90,6 +96,12 @@ class JWTTokenAuthTest
     private static final String BEARER_PREFIX = "Bearer ";
 
     private static final String APPLICATION_NAME = "Test Application";
+
+    private static final String AUDIENCE = "https://localhost/";
+
+    private record TestCase(JWTClaimsSet claimsSet, String expectedErrorMessage)
+    {
+    }
 
     @Mock
     private XWikiRequest request;
@@ -158,6 +170,11 @@ class JWTTokenAuthTest
         Utils.setComponentManager(componentManager);
         when(this.configuration.getAuthenticator()).thenReturn(TestAuthService.class.getName());
         when(this.context.getRequest()).thenReturn(this.request);
+
+        // Mock the request URL
+        when(this.request.getScheme()).thenReturn("https");
+        when(this.request.getServerName()).thenReturn("localhost");
+        when(this.request.getServerPort()).thenReturn(-1);
     }
 
     @ParameterizedTest
@@ -206,22 +223,55 @@ class JWTTokenAuthTest
         verify(authService, never()).checkAuth(this.context);
     }
 
-    @Test
-    void checkAuthWithExpiredToken()
+    private static Stream<TestCase> provideTestCases()
+    {
+        return Stream.of(
+            new TestCase(
+                getJwtClaimsSet(System.currentTimeMillis() - 1000), "Error number 9001 in 11: Token expired."
+            ),
+            new TestCase(getJwtClaimsSet(System.currentTimeMillis() + 1000 * 60 * 60 * 26),
+                "Error number 9001 in 11: The token must not be valid for more than 24 hours."
+            ),
+            new TestCase(new JWTClaimsSet.Builder(getJwtClaimsSet())
+                .issueTime(Date.from(Instant.now().plusSeconds(3600)))
+                .build(), "Error number 9001 in 11: Token issued in the future."
+            ),
+            new TestCase(
+                new JWTClaimsSet.Builder(getJwtClaimsSet())
+                    .audience("https://www.example.com")
+                    .build(),
+                "Error number 9001 in 11: The wiki's URL [https://localhost/] is not in the provided audience"
+            ),
+            new TestCase(
+                new JWTClaimsSet.Builder(getJwtClaimsSet())
+                    .notBeforeTime(Date.from(Instant.now().plusSeconds(3600)))
+                    .build(),
+                "Error number 9001 in 11: Token isn't valid yet."
+            ),
+            new TestCase(
+                new JWTClaimsSet.Builder(getJwtClaimsSet())
+                    .expirationTime(null)
+                    .build(),
+                "Error number 9001 in 11: No expiration time specified."
+            )
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideTestCases")
+    void checkAuthWithInvalidClaims(TestCase testCase)
         throws XWikiException, NoSuchFieldException, IllegalAccessException, JOSEException
     {
         JWTTokenAuth jwtTokenAuth = new JWTTokenAuth();
         OctetKeyPair keyPair = generateKeyPair();
         // Generate a token that expires in the past
-        long expirationTime = System.currentTimeMillis() - 1000;
-        when(this.request.getHeader(AUTHORIZATION))
-            .thenReturn(BEARER_PREFIX + getToken(getJwtClaimsSet(expirationTime), keyPair));
+        when(this.request.getHeader(AUTHORIZATION)).thenReturn(BEARER_PREFIX + getToken(testCase.claimsSet, keyPair));
         AuthorizedApplication application = new AuthorizedApplication(mock(), ISSUER, APPLICATION_NAME, "",
             keyPair.toPublicJWK());
         when(this.authorizedApplicationManager.getApplication(ISSUER)).thenReturn(Optional.of(application));
         XWikiAuthService authService = getAuthService(jwtTokenAuth);
         XWikiException exception = assertThrows(XWikiException.class, () -> jwtTokenAuth.checkAuth(this.context));
-        assertEquals("Error number 9001 in 11: Token expired.", exception.getMessage());
+        assertEquals(testCase.expectedErrorMessage, exception.getMessage());
         verify(authService, never()).checkAuth(this.context);
     }
 
@@ -279,6 +329,7 @@ class JWTTokenAuthTest
             .issuer(JWTTokenAuthTest.ISSUER)
             .subject("subject")
             .expirationTime(new Date(expirationTime))
+            .audience(AUDIENCE)
             .build();
     }
 
@@ -346,4 +397,5 @@ class JWTTokenAuthTest
         authServiceField.setAccessible(true);
         return ((TestAuthService) authServiceField.get(jwtTokenAuth)).getMock();
     }
+
 }
