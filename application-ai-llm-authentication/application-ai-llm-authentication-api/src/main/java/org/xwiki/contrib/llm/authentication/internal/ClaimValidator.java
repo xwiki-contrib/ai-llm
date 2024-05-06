@@ -90,21 +90,26 @@ public class ClaimValidator
         }
 
         // Verify that the token isn't valid for more than 25 hours (24 hours plus an hour of slack).
-        if (now.plus(Duration.ofHours(25)).isBefore(expirationTime.toInstant())) {
+        Duration maximumAge = Duration.ofHours(25);
+        if (now.plus(maximumAge).isBefore(expirationTime.toInstant())) {
             throw new XWikiException(XWikiException.MODULE_XWIKI_APP, XWikiException.ERROR_XWIKI_ACCESS_DENIED,
                 "The token must not be valid for more than 24 hours.");
         }
 
         // Check that the token hasn't been issued more than 30 seconds in the future
         if (claims.getIssueTime() != null && now.plusSeconds(30).isBefore(claims.getIssueTime().toInstant())) {
-            throw new XWikiException(XWikiException.MODULE_XWIKI_APP,
-                XWikiException.ERROR_XWIKI_ACCESS_DENIED,
+            throw new XWikiException(XWikiException.MODULE_XWIKI_APP, XWikiException.ERROR_XWIKI_ACCESS_DENIED,
                 "Token issued in the future.");
         }
 
+        // The token isn't older than 25 hours (24 hours plus some slack)
+        if (claims.getIssueTime() != null && now.minus(maximumAge).isAfter(claims.getIssueTime().toInstant())) {
+            throw new XWikiException(XWikiException.MODULE_XWIKI_APP, XWikiException.ERROR_XWIKI_ACCESS_DENIED,
+                "The token is more than 24 hours old.");
+        }
+
         if (claims.getNotBeforeTime() != null && now.plusSeconds(30).isBefore(claims.getNotBeforeTime().toInstant())) {
-            throw new XWikiException(XWikiException.MODULE_XWIKI_APP,
-                XWikiException.ERROR_XWIKI_ACCESS_DENIED,
+            throw new XWikiException(XWikiException.MODULE_XWIKI_APP, XWikiException.ERROR_XWIKI_ACCESS_DENIED,
                 "Token isn't valid yet.");
         }
     }

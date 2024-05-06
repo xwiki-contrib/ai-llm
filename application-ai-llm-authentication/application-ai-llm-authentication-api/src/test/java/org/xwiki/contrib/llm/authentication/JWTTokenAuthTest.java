@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.authentication;
 
 import java.lang.reflect.Field;
 import java.security.Principal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
@@ -253,6 +254,12 @@ class JWTTokenAuthTest
                     .expirationTime(null)
                     .build(),
                 "Error number 9001 in 11: No expiration time specified."
+            ),
+            new TestCase(
+                new JWTClaimsSet.Builder(getJwtClaimsSet())
+                    .issueTime(Date.from(Instant.now().minus(Duration.ofHours(26))))
+                    .build(),
+                "Error number 9001 in 11: The token is more than 24 hours old."
             )
         );
     }
