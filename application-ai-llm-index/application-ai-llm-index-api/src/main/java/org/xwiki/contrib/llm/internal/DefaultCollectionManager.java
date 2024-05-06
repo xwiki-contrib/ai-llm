@@ -37,7 +37,7 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.contrib.llm.AuthorizationManager;
+import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;

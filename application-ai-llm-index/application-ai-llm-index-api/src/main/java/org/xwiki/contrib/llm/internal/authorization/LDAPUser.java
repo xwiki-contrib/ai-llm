@@ -17,34 +17,22 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.internal;
+package org.xwiki.contrib.llm.internal.authorization;
 
-import java.net.http.HttpClient;
-import java.time.Duration;
-
-import javax.inject.Singleton;
-
-import org.xwiki.component.annotation.Component;
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 
 /**
- * A simple factory for HTTP clients, mainly to help with testing.
+ * Represents a user that authorized using LDAP.
+ *
+ * @param uid the user id
+ * @param dn the distinguished name
  *
  * @version $Id$
- * @since 0.3
  */
-@Component(roles = HttpClientFactory.class)
-@Singleton
-public class HttpClientFactory
+@JsonAutoDetect(creatorVisibility = JsonAutoDetect.Visibility.ANY)
+public record LDAPUser(
+    String uid,
+    String dn
+)
 {
-    /**
-     * @return a new HTTP client
-     */
-    public HttpClient createHttpClient()
-    {
-        return HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_2)
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .connectTimeout(Duration.ofSeconds(20))
-            .build();
-    }
 }

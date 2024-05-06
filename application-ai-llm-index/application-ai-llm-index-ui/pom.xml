@@ -43,5 +43,11 @@
             <artifactId>application-ai-llm-index-api</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.xwiki.contrib.llm</groupId>
+            <artifactId>application-ai-llm-models-ui</artifactId>
+            <type>xar</type>
+            <version>${project.parent.version}</version>
+        </dependency>
     </dependencies>
 </project>

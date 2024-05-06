@@ -30,7 +30,7 @@ import javax.inject.Singleton;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.contrib.llm.AuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;

@@ -52,6 +52,10 @@ AI.Collections.Code.CollectionsClass_adminGroups=Groups that can Manage Settings
 AI.Collections.Code.CollectionsClass_rightsCheckMethod=Rights check method
 AI.Collections.Code.CollectionsClass_rightsCheckMethod_rightsCheckJWT=JSON Web Token
 
+# External authentication
+AI.Collections.Code.ExternalAuthorizationConfigurationClass_url=URL of the external authorization API
+AI.Collections.Code.ExternalAuthorizationConfigurationClass_url.hint=On every query, a POST request with the following contents is submitted to this URL: an array document_ids of document ids as strings, a string that contains the user's name in XWiki in the form wiki:XWiki.Username, a object ldap_user with properties uid and dn if the user is connected to an LDAP account, an array jwt_users with objects with issuer and subject fields if the user is connected to one or several authorized applications, and an array  oidc_users if the users is connected to one or several OpenID Connect providers. If you need to pass additional parameters like the collection name you can specify them as URL parameters.
+
 # Sheet keys
 collections.sheet.description=This page controls how Collections pages are displayed in both view and edit modes.
 collections.sheet.noObject=The current page doesn't have the expected Collections object.

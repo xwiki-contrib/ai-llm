@@ -17,23 +17,22 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm;
+package org.xwiki.contrib.llm.authorization;
 
-import java.util.Map;
-import java.util.Set;
+import org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationManagerBuilder;
+import org.xwiki.stability.Unstable;
+
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 
 /**
- * Authorization manager.
+ * Configuration for {@link ExternalAuthorizationManagerBuilder}.
  *
+ * @param url the URL of the external authorization API
  * @version $Id$
- * @since 0.1
+ * @since 0.3
  */
-public interface AuthorizationManager
+@Unstable
+@JsonAutoDetect(creatorVisibility = JsonAutoDetect.Visibility.ANY)
+public record ExternalAuthorizationConfiguration(String url)
 {
-    /**
-     * Check if the current user can view the given documents.
-     * @param documentIds the document ids to check
-     * @return a map of document ids to whether the user can view them
-     */
-    Map<String, Boolean> canView(Set<String> documentIds);
 }

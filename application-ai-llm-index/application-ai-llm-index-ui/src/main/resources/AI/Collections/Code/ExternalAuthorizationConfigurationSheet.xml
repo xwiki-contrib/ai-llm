@@ -1,0 +1,61 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="AI.Collections.Code.ExternalAuthorizationConfigurationSheet" locale="">
+  <web>AI.Collections.Code</web>
+  <name>ExternalAuthorizationConfigurationSheet</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title>ExternalAuthorizationConfigurationSheet</title>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content>{{velocity}}
+#set ($object = $doc.getObject('AI.Collections.Code.ExternalAuthorizationConfigurationClass', true))
+#set ($editing = $xcontext.action == 'edit')
+#set ($discard = $doc.use($object))
+{{html clean="false"}}&lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('url')))"
+        data-object-policy="updateOrCreate"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Collections.Code.ExternalAuthorizationConfigurationClass_0_url"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('url', false, false))
+      &lt;/label&gt;
+      &lt;span class="xHint"&gt;$escapetool.xml($services.localization.render('AI.Collections.Code.ExternalAuthorizationConfigurationClass_url.hint'))&lt;/span&gt;
+    &lt;/dt&gt;
+{{/html}}
+
+{{html clean="false"}}&lt;dd&gt;{{/html}}
+
+$doc.display('url')
+
+{{html clean="false"}}&lt;/dd&gt;{{/html}}
+{{/velocity}}</content>
+</xwikidoc>

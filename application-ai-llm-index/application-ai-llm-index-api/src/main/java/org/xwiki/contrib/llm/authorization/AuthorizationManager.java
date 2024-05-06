@@ -17,34 +17,23 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.internal;
+package org.xwiki.contrib.llm.authorization;
 
-import java.net.http.HttpClient;
-import java.time.Duration;
-
-import javax.inject.Singleton;
-
-import org.xwiki.component.annotation.Component;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * A simple factory for HTTP clients, mainly to help with testing.
+ * Authorization manager.
  *
  * @version $Id$
- * @since 0.3
+ * @since 0.1
  */
-@Component(roles = HttpClientFactory.class)
-@Singleton
-public class HttpClientFactory
+public interface AuthorizationManager
 {
     /**
-     * @return a new HTTP client
+     * Check if the current user can view the given documents.
+     * @param documentIds the document ids to check
+     * @return a map of document ids to whether the user can view them
      */
-    public HttpClient createHttpClient()
-    {
-        return HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_2)
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .connectTimeout(Duration.ofSeconds(20))
-            .build();
-    }
+    Map<String, Boolean> canView(Set<String> documentIds);
 }

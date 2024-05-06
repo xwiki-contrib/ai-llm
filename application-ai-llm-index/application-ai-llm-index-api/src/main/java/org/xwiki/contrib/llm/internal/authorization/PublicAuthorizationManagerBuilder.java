@@ -17,7 +17,7 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.internal;
+package org.xwiki.contrib.llm.internal.authorization;
 
 import java.util.stream.Collectors;
 
@@ -25,8 +25,8 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 import org.xwiki.component.annotation.Component;
-import org.xwiki.contrib.llm.AuthorizationManager;
-import org.xwiki.contrib.llm.AuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.authorization.AuthorizationManager;
+import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.model.reference.EntityReference;
 

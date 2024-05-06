@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm;
 import java.util.List;
 
 import org.xwiki.component.annotation.Role;
+import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.model.reference.LocalDocumentReference;
 
 /**

@@ -9,7 +9,9 @@ org.xwiki.contrib.llm.internal.DefaultCollection
 org.xwiki.contrib.llm.internal.DefaultDocument
 org.xwiki.contrib.llm.internal.RAGChatRequestFilterBuilder
 org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer
-org.xwiki.contrib.llm.internal.PublicAuthorizationManagerBuilder
+org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationManagerBuilder
+org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationRequestBuilder
+org.xwiki.contrib.llm.internal.authorization.PublicAuthorizationManagerBuilder
 org.xwiki.contrib.llm.script.CollectionManagerScriptService
 org.xwiki.contrib.llm.IndexWorker
 org.xwiki.contrib.llm.Migrator

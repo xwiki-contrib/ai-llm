@@ -17,9 +17,11 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm;
+package org.xwiki.contrib.llm.authorization;
 
 import org.xwiki.component.annotation.Role;
+import org.xwiki.contrib.llm.Collection;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.stability.Unstable;
 
