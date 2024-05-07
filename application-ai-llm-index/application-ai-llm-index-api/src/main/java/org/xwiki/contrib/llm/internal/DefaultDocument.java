@@ -20,24 +20,24 @@
 
 package org.xwiki.contrib.llm.internal;
 
-import org.xwiki.component.annotation.Component;
-import org.xwiki.component.annotation.InstantiationStrategy;
-import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
-import org.xwiki.contrib.llm.Chunk;
-import org.xwiki.contrib.llm.Document;
-import org.xwiki.contrib.llm.IndexException;
-import org.xwiki.contrib.llm.ChunkingUtils;
-
-import com.xpn.xwiki.XWikiContext;
-import com.xpn.xwiki.XWikiException;
-import com.xpn.xwiki.doc.XWikiDocument;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
+
+import org.xwiki.component.annotation.Component;
+import org.xwiki.component.annotation.InstantiationStrategy;
+import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
+import org.xwiki.contrib.llm.Chunk;
+import org.xwiki.contrib.llm.ChunkingUtils;
+import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.IndexException;
+
+import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiDocument;
 
 /**
  * Implementation of a {@code Document} component.
@@ -64,10 +64,10 @@ public class DefaultDocument implements Document
     @Inject 
     protected Provider<XWikiContext> contextProvider;
 
+    protected XWikiDocumentWrapper xwikiDocumentWrapper;
+
     @Inject
     private ChunkingUtils chunkingUtils;
-
-    private XWikiDocumentWrapper xwikiDocumentWrapper;
 
     /**
      * Initializes the Document with empty fields.

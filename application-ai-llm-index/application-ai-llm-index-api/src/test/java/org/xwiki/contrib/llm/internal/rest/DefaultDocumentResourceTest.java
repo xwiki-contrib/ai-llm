@@ -26,12 +26,12 @@ import javax.ws.rs.WebApplicationException;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.xwiki.contrib.llm.ChunkingUtils;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
-import org.xwiki.contrib.llm.ChunkingUtils;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.internal.CurrentUserCollection;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
@@ -47,7 +47,6 @@ import org.xwiki.security.authorization.Right;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
-import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupManager;
 
 import com.xpn.xwiki.test.MockitoOldcore;
@@ -56,6 +55,7 @@ import com.xpn.xwiki.test.junit5.mockito.OldcoreTest;
 import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -205,7 +205,7 @@ class DefaultDocumentResourceTest
     }
 
     @Test
-    void putNewDocument() throws XWikiRestException
+    void putNewDocument() throws XWikiRestException, IndexException
     {
         JSONDocument document = new JSONDocument();
         document.setId("wrongId");
@@ -219,6 +219,14 @@ class DefaultDocumentResourceTest
         assertEquals(documentID, result.getId());
         assertEquals(CONTENT, result.getContent());
         assertEquals(LANGUAGE, result.getLanguage());
+        assertEquals(MIME_TYPE, result.getMimetype());
+
+        // Verify that the document has actually been saved.
+        this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
+        Document savedDocument = this.collectionManager.getCollection(COLLECTION_NAME).getDocument(documentID);
+        assertNotNull(savedDocument);
+        assertEquals(CONTENT, savedDocument.getContent());
+        assertEquals(LANGUAGE, savedDocument.getLanguage());
         assertEquals(MIME_TYPE, result.getMimetype());
     }
 

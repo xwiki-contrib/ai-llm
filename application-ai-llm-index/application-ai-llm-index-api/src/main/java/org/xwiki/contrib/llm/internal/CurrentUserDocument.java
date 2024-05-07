@@ -49,14 +49,16 @@ public class CurrentUserDocument extends DefaultDocument
     @Override
     public void save() throws IndexException
     {
-        XWikiDocument document = getXWikiDocument();
         XWikiContext context = this.contextProvider.get();
+        XWikiDocument clonedXWikiDocument = this.xwikiDocumentWrapper.getClonedXWikiDocument();
         try {
-            this.authorizationManager.checkAccess(Right.EDIT, document.getDocumentReference());
-            // Check saving on a clone to avoid side effects.
-            context.getWiki().checkSavingDocument(context.getUserReference(), document.clone(), context);
+            this.authorizationManager.checkAccess(Right.EDIT, clonedXWikiDocument.getDocumentReference());
+            // Check saving. This could modify the document.
+            context.getWiki().checkSavingDocument(context.getUserReference(), clonedXWikiDocument, context);
         } catch (XWikiException | AccessDeniedException e) {
-            throw new IndexException(String.format("Failed to save document [%s]", document), e);
+            throw new IndexException(String.format("Failed to save document [%s]", this.getID()), e);
         }
+
+        super.save();
     }
 }
