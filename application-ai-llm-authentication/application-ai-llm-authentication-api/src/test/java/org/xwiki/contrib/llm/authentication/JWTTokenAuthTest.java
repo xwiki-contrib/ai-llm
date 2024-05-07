@@ -327,7 +327,7 @@ class JWTTokenAuthTest
 
     private static JWTClaimsSet getJwtClaimsSet()
     {
-        return getJwtClaimsSet(System.currentTimeMillis() + 1000);
+        return getJwtClaimsSet(System.currentTimeMillis() + 3600 * 1000);
     }
 
     private static JWTClaimsSet getJwtClaimsSet(long expirationTime)

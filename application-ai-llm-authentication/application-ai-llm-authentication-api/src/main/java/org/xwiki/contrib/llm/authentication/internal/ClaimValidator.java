@@ -83,8 +83,7 @@ public class ClaimValidator
                 "No expiration time specified.");
         }
 
-        // Get an instant from a date as Instant.now() doesn't work as expected in tests.
-        Instant now = (new Date()).toInstant();
+        Instant now = Instant.now();
         if (now.isAfter(expirationTime.toInstant())) {
             throw new XWikiException(XWikiException.MODULE_XWIKI_APP, XWikiException.ERROR_XWIKI_ACCESS_DENIED,
                 "Token expired.");
