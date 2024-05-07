@@ -126,6 +126,10 @@
     </property>
     <property>
       <code>define("xwiki-llm", ['jquery', 'xwiki-events-bridge'], function ($) {
+    // Set Markdown options
+    marked.use({
+      breaks: true
+    });
     var initDone = false;
     var nbAssistMsg = 0;
     var context = new Array();
