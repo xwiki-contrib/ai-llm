@@ -36,17 +36,18 @@
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>false</hidden>
-  <content>[[Chat&gt;&gt;AI.Code.TestUI]]
+  <content>{{display reference="AI.Code.TestUI" /}}
 
-[[Settings&gt;&gt;XWiki.XWikiPreferences||queryString="editor=globaladmin&amp;section=AI%20LLM%20Application"]]
+{{velocity}}
+#if ($hasGlobalAdmin)
+== Administration ==
 
-[[Collections]]
-
-[[Documents]]
-
-[[Prompt database&gt;&gt;AI.PromptDB.WebHome]]
-
-[[Models]]</content>
+* [[Settings&gt;&gt;XWiki.XWikiPreferences||queryString="editor=globaladmin&amp;section=AI%20LLM%20Application"]] - configure the servers that provide chat and embedding models.
+* [[Models]] - configure the available models
+* [[Prompt database&gt;&gt;AI.PromptDB.WebHome]] - configure prompts that can be selected in the chat
+* [[Collections]] - configure collections that can be selected as context for the models, requires the [[index for the LLM application extension&gt;&gt;https://extensions.xwiki.org/xwiki/bin/view/Extension/LLM%20Application/Index%20for%20the%20LLM%20Application/]]
+#end
+{{/velocity}}</content>
   <object>
     <name>AI.WebHome</name>
     <number>0</number>

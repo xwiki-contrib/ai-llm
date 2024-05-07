@@ -27,7 +27,7 @@
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>xwiki:AI.Models.WebHome</parent>
+  <parent>AI.Models.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
@@ -41,7 +41,7 @@
     <name>AI.Models.WebPreferences</name>
     <number>0</number>
     <className>XWiki.XWikiGlobalRights</className>
-    <guid>d95ce6a7-5049-4909-93cc-f6fbb5ae03ca</guid>
+    <guid>0bab88ab-0fb1-45a8-8783-10e3a2245bf8</guid>
     <class>
       <name>XWiki.XWikiGlobalRights</name>
       <customClass/>
@@ -111,13 +111,13 @@
       <allow>1</allow>
     </property>
     <property>
-      <groups/>
+      <groups>XWiki.XWikiAdminGroup</groups>
     </property>
     <property>
-      <levels>admin</levels>
+      <levels>view,comment,edit,script,delete,admin</levels>
     </property>
     <property>
-      <users>xwiki:XWiki.paul</users>
+      <users/>
     </property>
   </object>
 </xwikidoc>

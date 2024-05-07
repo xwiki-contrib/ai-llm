@@ -54,6 +54,7 @@ import static java.util.stream.Collectors.toMap;
 public class CollectionManagerScriptService implements ScriptService
 {
     @Inject
+    @Named("currentUser")
     private CollectionManager collectionManager;
 
     @Inject

@@ -160,46 +160,89 @@
     &lt;input type="hidden" name="objectPolicy" value="updateOrCreate" /&gt;
   &lt;/div&gt;
 &lt;/div&gt;
-#if (!$doc.isNew() &amp;&amp; $hasEdit &amp;&amp; !$editing)
-&lt;form action=""&gt;
-  &lt;dl&gt;
-    &lt;dt&gt;
-      &lt;label&gt;
-        Add new document
-      &lt;/label&gt;
-    &lt;/dt&gt;
-    &lt;dd&gt;
-    &lt;input type="text" id="documentId" name="documentId"&gt;
-    &lt;input class="btn btn-primary" type="submit" value="Add Document"&gt;
-    &lt;/dd&gt;
-  &lt;/dl&gt;
-&lt;/form&gt;
-#end
 {{/html}}
 
+#if (!$doc.isNew())
+  (% id="HDocuments" %)
+  == {{translation key="collections.sheet.documents" /}} ==
+
+  #if ($hasEdit &amp;&amp; !$editing)
+    {{html clean="false"}}
+    &lt;form action=""&gt;
+      &lt;dl&gt;
+        &lt;dt&gt;
+          &lt;label for="documentId"&gt;
+            $escapetool.xml($services.localization.render('collections.sheet.addDocumentLabel'))
+          &lt;/label&gt;
+        &lt;/dt&gt;
+        &lt;dd&gt;
+        &lt;input type="text" id="documentId" name="documentId"&gt;
+        &lt;input type="hidden" name="form_token" value="$services.csrf.getToken()" /&gt;
+        &lt;input class="btn btn-primary" type="submit"
+          value="$escapetool.xml($services.localization.render('collections.sheet.addDocumentButton'))"&gt;
+        &lt;/dd&gt;
+      &lt;/dl&gt;
+    &lt;/form&gt;
+    {{/html}}
+
+  #end
 ####
 ##Create new document script
-#if ("$!{request.documentId}" != "")
-  #set($cm = $services.collectionManager)
-  #set($crtCollectionId = $doc.getObject("AI.Collections.Code.CollectionsClass").getProperty('id').value)
-  #set($collection =  $cm.getCollection($crtCollectionId))
-  #set($newDoc = $collection.newDocument($request.documentId))
-  #set($ok = $newDoc.save())
-  #set($documentsSpaceStringName = "$!{doc}")
-  #set($documentsSpaceName = $documentsSpaceStringName.replace('WebHome','Documents.WebHome'))
-  #set($documentsSpace = $xwiki.getDocument($documentsSpaceName))
-  #if ($documentsSpace.isNew())
-    #set($ok = $documentsSpace.setContent($crtCollectionId))
-    #set($ok = $documentsSpace.setTitle("Documents"))
-    #set($docsObj = $documentsSpace.getObject("XWiki.DocumentSheetBinding",true))
-    #set($ok = $docsObj.set('sheet','xwiki:AI.Documents.WebHome'))
-    #set($ok = $documentsSpace.save())
+  #if ("$!{request.documentId}" != "" &amp;&amp; $services.csrf.isTokenValid($request.form_token))
+    #set($cm = $services.collectionManager)
+    #try("documentCreationException")
+      #set($crtCollectionId = $doc.getObject("AI.Collections.Code.CollectionsClass").getProperty('id').value)
+      #set($collection =  $cm.getCollection($crtCollectionId))
+      #set($newDoc = $collection.newDocument($request.documentId))
+      #set($ok = $newDoc.save())
+    #end
+    #if ("$!{documentCreationException}" != "")
+      {{error}}
+        $services.rendering.escape($exceptiontool.getRootCauseMessage($documentCreationException), 'xwiki/2.1')
+      {{/error}}
+
+    #else
+      #set($documentsSpaceStringName = "$!{doc}")
+      #set($documentsSpaceName = $documentsSpaceStringName.replace('WebHome','Documents.WebHome'))
+      #set($documentsSpace = $xwiki.getDocument($documentsSpaceName))
+      #if ($documentsSpace.isNew())
+        #set($ok = $documentsSpace.setContent($crtCollectionId))
+        #set($ok = $documentsSpace.setTitle("Documents"))
+        #set($docsObj = $documentsSpace.getObject("XWiki.DocumentSheetBinding",true))
+        #set($ok = $docsObj.set('sheet','xwiki:AI.Documents.WebHome'))
+        #set($ok = $documentsSpace.save())
+      #end
+      ####
+      ## Redirect to it
+      #set($newXDoc = $newDoc.getXWikiDocument())
+      #set($newDocURL = $newXDoc.getURL('edit', $xcontext.getContext()))
+      #set($ok = $response.sendRedirect($newDocURL))
+    #end
   #end
-  ####
-  ## Redirect to it
-  #set($newXDoc = $newDoc.getXWikiDocument())
-  #set($newDocURL = $newXDoc.getURL('edit', $xcontext.getContext()))
-  #set($ok = $response.sendRedirect($newDocURL))
+  #set ($columnsProperties = {
+    'doc.title': {"link":"view"},
+    'collection': {'type': 'hidden'},
+    'language': {},
+    'doc.location': {"html":true},
+    'doc.date': {},
+    'doc.author': {"link":"author"},
+    '_actions': {"sortable":false,"filterable":false,"html":true,"actions":["edit","delete"]}
+  })
+  #set ($options = {
+    'className': 'AI.Documents.Code.DocumentsClass',
+    'translationPrefix': 'documents.livetable.',
+    'tagCloud': true,
+    'rowCount': 15,
+    'maxPages': 10,
+    'selectedColumn': 'doc.title',
+    'defaultOrder': 'asc',
+    'outputOnlyHtml': true,
+    "extraParams" : "&amp;collection=$!{obj.getProperty('id').value}"
+  })
+  #set ($columns = ['doc.title', 'collection', 'language', 'doc.location', 'doc.date', 'doc.author', '_actions'])
+  {{html clean="false"}}
+  #livetable('documents' $columns $columnsProperties $options)
+  {{/html}}
 #end
 {{/velocity}}</content>
   <object>

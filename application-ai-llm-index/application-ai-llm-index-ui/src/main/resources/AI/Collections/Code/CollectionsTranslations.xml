@@ -60,6 +60,9 @@ AI.Collections.Code.ExternalAuthorizationConfigurationClass_url.hint=On every qu
 collections.sheet.description=This page controls how Collections pages are displayed in both view and edit modes.
 collections.sheet.noObject=The current page doesn't have the expected Collections object.
 collections.sheet.noFields=The Collections application doesn't have any fields to display.
+collections.sheet.documents=Documents
+collections.sheet.addDocumentLabel=Add new document
+collections.sheet.addDocumentButton=Add Document
 
 # Live table generic keys
 collections.livetable.doc.title=Page Title

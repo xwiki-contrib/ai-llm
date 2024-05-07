@@ -111,13 +111,13 @@
       <allow>1</allow>
     </property>
     <property>
-      <groups/>
+      <groups>XWiki.XWikiAdminGroup</groups>
     </property>
     <property>
-      <levels>admin</levels>
+      <levels>view,comment,edit,script,delete,admin</levels>
     </property>
     <property>
-      <users>xwiki:XWiki.paul</users>
+      <users/>
     </property>
   </object>
 </xwikidoc>
