@@ -1,3 +1,22 @@
+/*
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
 package org.xwiki.contrib.llm.internal.authorization;
 
 import java.io.IOException;
@@ -7,6 +26,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Flow;
 
@@ -23,6 +43,9 @@ import org.xwiki.test.junit5.mockito.MockComponent;
 
 import com.xpn.xwiki.objects.BaseObject;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -99,8 +122,13 @@ class ExternalAuthorizationManagerBuilderTest
         ArgumentCaptor<ByteBuffer> bufferCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
         verify(bufferSubscriber).onNext(bufferCaptor.capture());
         ByteBuffer buffer = bufferCaptor.getValue();
-        assertEquals("{\"document_ids\":[\"document1\",\"document2\"],\"xwiki_username\":\"%s\"}".formatted(testUser),
-            StandardCharsets.UTF_8.decode(buffer).toString());
+        // The document ids can be in any order.
+        List<String> expectedResponseJSON = List.of(
+            "{\"document_ids\":[\"document1\",\"document2\"],\"xwiki_username\":\"%s\"}".formatted(testUser),
+            "{\"document_ids\":[\"document2\",\"document1\"],\"xwiki_username\":\"%s\"}".formatted(testUser)
+        );
+        assertThat(StandardCharsets.UTF_8.decode(buffer).toString(), either(equalTo(expectedResponseJSON.get(0)))
+                .or(equalTo(expectedResponseJSON.get(1))));
     }
 
     @Test
