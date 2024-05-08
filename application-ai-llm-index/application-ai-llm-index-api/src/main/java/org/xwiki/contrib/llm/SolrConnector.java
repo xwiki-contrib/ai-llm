@@ -136,7 +136,7 @@ public class SolrConnector
     public void deleteChunksByDocId(String docId)
     {
         try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
-            client.deleteByQuery("docId:" + docId);
+            client.deleteByQuery("docId:" + this.solrUtils.toCompleteFilterQueryString(docId));
             client.commit();
         } catch (Exception e) {
             this.logger.error("Failed to delete chunks of document with id [{}]", docId, e);

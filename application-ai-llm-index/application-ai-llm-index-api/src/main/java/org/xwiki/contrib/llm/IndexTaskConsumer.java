@@ -27,14 +27,12 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.index.TaskConsumer;
-import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.EntityReference;
-import org.xwiki.model.reference.SpaceReference;
-import org.xwiki.model.reference.SpaceReferenceResolver;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
@@ -50,10 +48,6 @@ import com.xpn.xwiki.objects.BaseObject;
 @Named("indexing")
 public class IndexTaskConsumer implements TaskConsumer
 {
-    @Inject
-    @Named("current")
-    private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
-
     @Inject
     private CollectionManager collectionManager;
 
@@ -72,13 +66,11 @@ public class IndexTaskConsumer implements TaskConsumer
         try {
             XWikiDocument xdocument = contextProvider.get().getWiki()
                                         .getDocument(documentReference, contextProvider.get());
-            EntityReference documentClassReference = getObjectReference();
-            BaseObject documentObject = xdocument.getXObject(documentClassReference);
-    
+            BaseObject documentObject = xdocument.getXObject(Document.XCLASS_REFERENCE);
+
             String docID = documentObject.getStringValue("id");
             String docCollection = documentObject.getStringValue("collection");
-    
-    
+
             this.logger.info("Processing document: {}", docID);
             Collection collection = collectionManager.getCollection(docCollection);
             Document document = collection.getDocument(docID);
@@ -87,24 +79,23 @@ public class IndexTaskConsumer implements TaskConsumer
             logger.info("Chunks: {}", chunks);
             for (Chunk chunk : chunks) {
                 logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
-                chunk.computeEmbeddings(collection.getEmbeddingModel(), xdocument.getAuthors().getContentAuthor());
-                solrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
+                tryStoringChunk(chunk, collection, xdocument, docID);
             }
         } catch (Exception e) {
             logger.error("Error while processing document [{}]: [{}]", documentReference, e.getMessage());
         }
     }
 
-    //get XObject reference for the document XClass
-    private EntityReference getObjectReference()
+    private void tryStoringChunk(Chunk chunk, Collection collection, XWikiDocument xdocument, String docID)
+        throws SolrServerException
     {
-        SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(Document.XCLASS_SPACE_STRING);
-
-        EntityReference collectionClassRef = new EntityReference(Document.XCLASS_NAME,
-                                    EntityType.DOCUMENT,
-                                    spaceRef
-                                );
-        return new EntityReference(Document.XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
+        try {
+            chunk.computeEmbeddings(collection.getEmbeddingModel(), xdocument.getAuthors().getContentAuthor());
+            solrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
+        } catch (IndexException e) {
+            this.logger.warn("Error while processing chunk [{}] of document [{}]: [{}]", chunk.getChunkIndex(),
+                docID, ExceptionUtils.getRootCauseMessage(e));
+        }
     }
 
     //generate unique id for chunks

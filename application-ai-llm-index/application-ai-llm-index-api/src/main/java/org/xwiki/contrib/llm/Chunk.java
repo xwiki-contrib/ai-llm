@@ -258,15 +258,9 @@ public class Chunk
      * @param embeddingModelID the embedding model ID
      * @param userReference the user reference
      */
-    public void computeEmbeddings(String embeddingModelID, UserReference userReference)
+    public void computeEmbeddings(String embeddingModelID, UserReference userReference) throws IndexException
     {
-        try {
-            this.embeddings = embeddingsUtils.computeEmbeddings(this.content, embeddingModelID, userReference);
-        } catch (Exception e) {
-            logger.error("Failure to compute embeddings for chunk [{}] of document [{}]: [{}]",
-                         this.chunkIndex, this.documentID, e.getMessage());
-            this.embeddings = new double[0];
-        }
+        this.embeddings = this.embeddingsUtils.computeEmbeddings(this.content, embeddingModelID, userReference);
     }
 
 }

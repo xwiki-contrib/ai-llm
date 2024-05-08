@@ -20,19 +20,23 @@
 package org.xwiki.contrib.llm;
 
 import java.util.Arrays;
-import java.util.stream.IntStream;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.phase.Initializable;
+import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.user.UserReference;
 
-import com.robrua.nlp.bert.Bert;
 import com.xpn.xwiki.XWikiContext;
+
+import io.github.resilience4j.core.IntervalFunction;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
 
 /**
  * Utility class used in chunking the documents.
@@ -41,19 +45,15 @@ import com.xpn.xwiki.XWikiContext;
  */
 @Component(roles = EmbeddingsUtils.class)
 @Singleton
-public class EmbeddingsUtils
+public class EmbeddingsUtils implements Initializable
 {
-
-    private static final int EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA = 384;
-
-    @Inject 
+    @Inject
     private Provider<XWikiContext> contextProvider;
 
     @Inject 
     private EmbeddingModelManager embeddingModelManager;
 
-    @Inject
-    private Logger logger;
+    private RetryRegistry retryRegistry;
 
     /**
      * Compute embeddings for given text.
@@ -63,36 +63,32 @@ public class EmbeddingsUtils
      * @param userReference the user reference
      * @return the embeddings as double array
      */
-    public double[] computeEmbeddings(String text, String modelId, UserReference userReference)
+    public double[] computeEmbeddings(String text, String modelId, UserReference userReference) throws IndexException
     {
         try {
             XWikiContext context = this.contextProvider.get();
             WikiReference wikiReference = context.getWikiReference();
             EmbeddingModel embeddingModel = embeddingModelManager.getModel(wikiReference, modelId, userReference);
-    
-            double[] embeddingsFull = embeddingModel.embed(text);
-            return Arrays.copyOf(embeddingsFull, EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA);
+
+            Retry retry = this.retryRegistry.retry(modelId);
+            double[] embeddingsFull = retry.executeCallable(() -> embeddingModel.embed(text));
+            return Arrays.copyOf(embeddingsFull, AiLLMSolrCoreInitializer.NUMBER_OF_DIMENSIONS);
         } catch (Exception e) {
-            logger.error("Failed to compute embeddings using the specified model: [{}] Using fallback model.",
-                         e.getMessage());
-        }
-    
-        try (Bert bert = Bert.load("com/robrua/nlp/easy-bert/bert-multi-cased-L-12-H-768-A-12")) {
-            float[] embeddingsFull = bert.embedSequence(text);
-            return Arrays.copyOf(convertToDoubleArray(embeddingsFull), EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA);
-        } catch (Exception e) {
-            logger.error("Failed to compute embeddings using the fallback model: [{}]", e.getMessage());
-            return new double[0];
+            throw new IndexException("Failed to compute embeddings for text [" + text + "]", e);
         }
     }
-    
-    private double[] convertToDoubleArray(float[] floatArray)
+
+    @Override
+    public void initialize()
     {
-        int length = Math.min(floatArray.length, EMBEDDINGS_SIZE_FROM_SOLR_SCHEMA);
-        return IntStream.range(0, length)
-                        .mapToDouble(i -> floatArray[i])
-                        .toArray();
+        // Retry on rate-limited requests with exponential backoff
+        IntervalFunction intervalFunction = IntervalFunction.ofExponentialBackoff(1000, 2);
+        RetryConfig config = RetryConfig.custom()
+            .maxAttempts(3)
+            .intervalFunction(intervalFunction)
+            .retryOnException(e -> e instanceof RequestError requestError && requestError.getCode() == 429)
+            .build();
+
+        this.retryRegistry = RetryRegistry.of(config);
     }
-    
-    
 }
