@@ -20,15 +20,15 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AIScript.WebHome" locale="">
-  <web>AIScript</web>
+<xwikidoc version="1.5" reference="AI.Code.WebHome" locale="">
+  <web>AI.Code</web>
   <name>WebHome</name>
   <language/>
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
   <author>xwiki:XWiki.Admin</author>
-  <parent>WebHome</parent>
+  <parent>AI.WebHome</parent>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
   <title/>
