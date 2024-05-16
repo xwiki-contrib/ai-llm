@@ -29,7 +29,7 @@
     </parent>
     <artifactId>application-ai-llm-index-api</artifactId>
     <name>INDEX - API</name>
-    <description>APIs needed for the knwoledge index.</description>
+    <description>APIs needed for the knowledge index.</description>
     <properties>
         <xwiki.extension.name>LLM Index API (BETA)</xwiki.extension.name>
         <xwiki.jacoco.instructionRatio>0.33</xwiki.jacoco.instructionRatio>
