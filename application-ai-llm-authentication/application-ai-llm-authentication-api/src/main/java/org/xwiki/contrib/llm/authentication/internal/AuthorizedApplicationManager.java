@@ -101,12 +101,13 @@ public class AuthorizedApplicationManager
         List<String> results = List.of();
         try {
             results = this.queryManager.createQuery(
-                    "from doc.object(" + AUTHORIZED_APPLICATION_CLASS + ") as app where app.url = :issuer", Query.XWQL)
+                    "from doc.object(\'" + AUTHORIZED_APPLICATION_CLASS + "\') as app where app.url = :issuer",
+                     Query.XWQL)
                 .bindValue("issuer", issuer)
                 .execute();
         } catch (QueryException e) {
             this.logger.error("Failed to query for authorized applications.", e);
-        }
+        }       
 
         return results.stream()
             .map(result -> this.currentDocumentReferenceResolver.resolve(result))
