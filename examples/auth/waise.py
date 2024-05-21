@@ -6,7 +6,6 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
 app = Flask(__name__)
-# CORS(app)  # Enable CORS
 CORS(app, origins=[
     "http://appa.local:5000",
     "http://appb.local:5002",
@@ -14,7 +13,7 @@ CORS(app, origins=[
 ])
 
 # Load the public key for JWT validation
-def load_public_key_from_file(filename="./public_key.pem"):
+def load_public_key_from_file(filename="./public.pem"):
     with open(filename, "rb") as key_file:
         return serialization.load_pem_public_key(
             key_file.read(),
@@ -29,7 +28,7 @@ def chat():
     token = request.headers.get('Authorization').split()[1]
     try:
         # Decode the JWT using the public key
-        payload = jwt.decode(token, PUBLIC_KEY, algorithms=['RS256'])
+        payload = jwt.decode(token, PUBLIC_KEY, algorithms=['EdDSA'], audience='http://waise.local:5001')
         user_id = payload['sub']
         
         # Forward the request to AppB

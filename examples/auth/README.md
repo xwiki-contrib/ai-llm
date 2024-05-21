@@ -68,7 +68,7 @@ conda activate testauth
 ```
 
 ```bash
-pip install requests flask flask-cors jwt PyJWT cryptography
+pip install requests flask flask-cors PyJWT cryptography
 ```
 
 ## Generate a privet-public key pair
@@ -76,14 +76,14 @@ pip install requests flask flask-cors jwt PyJWT cryptography
 You can generate a new RSA private key using the `openssl` command line tool with the following command:
 
 ```bash
-openssl genpkey -algorithm RSA -out private_key.pem
+openssl genpkey -algorithm ed25519 -outform PEM -out private.pem
 ```
 This will generate a new RSA private key and save it in a file called `private_key.pem`.
 
 Once you have the private key, you can extract the public key from it using:
 
 ```bash
-openssl rsa -pubout -in private_key.pem -out public_key.pem
+openssl pkey -in private.pem -pubout -outform PEM -out public.pem
 ```
 
 ## Execute run.py
@@ -91,7 +91,7 @@ openssl rsa -pubout -in private_key.pem -out public_key.pem
 Run the three back-end servers with one command:
 
 ```sh
-python3 run_servers.py
+python3 run.py
 ```
 
 This will start the back-end servers for AppA ( http://appa.local:5000 ) , waise ( http://waise.local:5001 ), AppB ( http://appb.local:5002 ) 
@@ -99,7 +99,7 @@ This will start the back-end servers for AppA ( http://appa.local:5000 ) , waise
 We also need to server the front end, so open another terminal and navigate to the same directory (application-ai-llm/examples/auth). From there you can run:
 
 ```sh
-python3 -m http.server appafe.local 3000
+python3 -m http.server 3000 --bind appafe.local
 ```
 
 To test the interaction open http://appafe.local:3000 in your browser (recommended Firefox as Chrome has stricter rules regarding https)

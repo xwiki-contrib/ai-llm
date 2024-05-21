@@ -14,6 +14,7 @@ function authenticate() {
             .then(response => response.json())
             .then(data => {
                 sessionStorage.setItem('jwt', data.jwt); // Store JWT in session
+                XWikiAiAPI.setApiKey(data.jwt);
                 document.getElementById('auth-status').innerText = 'Authenticated';
             });
     } else {
@@ -24,7 +25,6 @@ function authenticate() {
 function sendMessage() {
     var message = document.getElementById('message').value;
     var jwt = sessionStorage.getItem('jwt');
-
     fetch('http://waise.local:5001/chat', {
         method: 'POST',
         headers: {
@@ -54,6 +54,13 @@ fetch('http://appa.local:5000/echo_headers', {
 
 
 </script>
+<script src="[your xwiki domain]/xwiki/webjars/wiki%3Axwiki/application-ai-llm-chat-webjar/[LLM Application version]/marked.min.js"></script>
+<script src="[your xwiki domain]/xwiki/webjars/wiki%3Axwiki/application-ai-llm-chat-webjar/0.3-SNAPSHOT/purify.min.js"></script>
+<script src="[your xwiki domain]/xwiki/webjars/wiki%3Axwiki/application-ai-llm-chat-webjar/[LLM Application version]/aillm.js"></script>
+<script id="chat-loader" data-base-url="[your xwiki domain]/xwiki" src="[your xwiki domain]/xwiki/webjars/wiki%3Axwiki/application-ai-llm-chat-webjar/[LLM Application version]/chatUILoader.js"></script>
+<script type="module" src="[your xwiki domain]/xwiki/webjars/wiki%3Axwiki/application-ai-llm-chat-webjar/[LLM Application version]/dist/chat/chat.esm.js"></script>
+<link rel="stylesheet" href="[your xwikidomain]/xwiki/webjars/wiki%3Axwiki/application-ai-llm-chat-webjar/[LLM Application version]/chatUI.css">
+<link rel="stylesheet" href="[your xwiki domain]/xwiki/webjars/wiki%3Axwiki/application-ai-llm-chat-webjar/[LLM Application version]/dist/chat/chat.css">
 </head>
 <body>
 <h2>AppA Authentication</h2>
