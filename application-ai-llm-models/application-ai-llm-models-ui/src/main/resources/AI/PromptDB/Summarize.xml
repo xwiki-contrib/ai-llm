@@ -24,7 +24,7 @@
   <web>AI.PromptDB</web>
   <name>Summarize</name>
   <language/>
-  <defaultLanguage/>
+  <defaultLanguage>en</defaultLanguage>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
   <parent>AI.PromptDB.WebHome</parent>
@@ -35,7 +35,7 @@
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
-  <hidden>true</hidden>
+  <hidden>false</hidden>
   <content>Your task is to summarize the user text in the way asked. You have to use the user content information only.</content>
   <object>
     <name>AI.PromptDB.Summarize</name>

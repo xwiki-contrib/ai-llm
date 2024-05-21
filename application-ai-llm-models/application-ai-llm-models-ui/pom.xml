@@ -61,6 +61,16 @@
           <visibleTechnicalPages>
             <visibleTechnicalPage>.*/AI/WebHome\.xml</visibleTechnicalPage>
           </visibleTechnicalPages>
+          <contentPages>
+            <contentPage>.*/AI/Models/Ada-002.xml</contentPage>
+            <contentPage>.*/AI/Models/bert.xml</contentPage>
+            <contentPage>.*/AI/Models/GPT3.5-turbo.xml</contentPage>
+            <contentPage>.*/AI/Models/GPT4.xml</contentPage>
+            <contentPage>.*/AI/Models/mixtral.xml</contentPage>
+            <contentPage>.*/AI/PromptDB/Free Pompt.xml</contentPage>
+            <contentPage>.*/AI/PromptDB/Summarize.xml</contentPage>
+            <contentPage>.*/AI/PromptDB/Translate.xml</contentPage>
+          </contentPages>
         </configuration>
       </plugin>
     </plugins>
