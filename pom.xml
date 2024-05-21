@@ -32,14 +32,14 @@
     <description>
         Provide LLM Artificial Intelligence for XWiki content creation and editing, boosting user efficiency and productivity.
     </description>
-    <version>0.3-SNAPSHOT</version>
+    <version>0.3</version>
     <packaging>pom</packaging>
     <name>LLM AI Application</name>
     <scm>
         <connection>scm:git:git://github.com/xwiki-contrib/application-ai-llm.git</connection>
         <developerConnection>scm:git:git@github.com:xwiki-contrib/application-ai-llm.git</developerConnection>
         <url>https://github.com/xwiki-contrib/application-ai-llm/tree/main</url>
-        <tag>HEAD</tag>
+        <tag>application-ai-llm-0.3</tag>
     </scm>
     <developers>
         <developer>
