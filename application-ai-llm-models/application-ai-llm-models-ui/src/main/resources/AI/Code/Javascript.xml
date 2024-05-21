@@ -344,7 +344,7 @@
         const messageContent = document.createElement('pre');
         messageContent.classList.add('message-content');
         messageContent.id = `msg-content-${nbAssistMsg}`;
-        messageContent.innerHTML = marked.parse(assistantChat);
+        messageContent.innerHTML = DOMPurify.sanitize(marked.parse(assistantChat), {FORBID_TAGS: ['style'], FORBID_ATTR: ['src']});
         div.appendChild(messageContent);
 
         const astMsgButton = document.createElement('div');
@@ -448,7 +448,7 @@
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec - T: ${settingsTemp}`;
         else
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec`;
-        document.querySelector('#msg-content-' + msgIdNum).innerHTML = marked.parse(chunkReply);
+        document.querySelector('#msg-content-' + msgIdNum).innerHTML = DOMPurify.sanitize(marked.parse(chunkReply), {FORBID_TAGS: ['style'], FORBID_ATTR: ['src']});
     }
 
     /**
@@ -689,7 +689,7 @@
                 const message = JSON.parse(jsonMessage);
                 let reply = '';
                 // Extract the generated reply from the response
-                if (message.choices.length > 0) {
+                if (message.choices.length &gt; 0) {
                     reply = message.choices[0].delta.content;
                 }
 
@@ -1485,7 +1485,8 @@
     }
 
     return { init, includeInDoc, handleButtonClick, getCheck, initPromptMenu, getPrompts };
-});</code>
+});
+</code>
     </property>
     <property>
       <name/>

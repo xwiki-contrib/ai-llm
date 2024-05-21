@@ -230,6 +230,7 @@
     <property>
       <content>{{velocity}}
 {{html clean=false}}
+&lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'purify.min.js')"&gt;&lt;/script&gt;
 &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'marked.min.js')"&gt;&lt;/script&gt;
 {{/html}}
 {{/velocity}}</content>

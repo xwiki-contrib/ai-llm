@@ -69,7 +69,7 @@ window.onload = () => {
                 // Check if we have any choices
                 if (messageChunk.choices.length > 0) {
                     messageText += messageChunk.choices[0].delta.content;
-                    messageTextContainer.innerHTML = marked.parse(messageText);
+                    messageTextContainer.innerHTML = DOMPurify.sanitize(marked.parse(messageText), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
                 }
             })
             .then(() => {
@@ -82,7 +82,7 @@ window.onload = () => {
         } else {
             return XWikiAiAPI.getCompletions(completionRequest).then(async messageChunk => {
                 removeLoadingAnimation(); // Clear loading before showing the message
-                incomingMessage.querySelector('.message-text').innerHTML = marked.parse(messageChunk.choices[0].message.content);
+                incomingMessage.querySelector('.message-text').innerHTML = DOMPurify.sanitize(marked.parse(messageChunk.choices[0].message.content), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
                 completionRequest.addMessage("assistant", incomingMessage.querySelector('.message-text').textContent);
             }).catch(err => {
                 console.error(err);

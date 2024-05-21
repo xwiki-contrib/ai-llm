@@ -121,6 +121,7 @@
                   <include>chatUI.css</include>
                   <include>chatUILoader.js</include>
                   <include>marked.min.js</include>
+                  <include>purify.min.js</include>
                 </includes>
               </resource>
             </resources>
