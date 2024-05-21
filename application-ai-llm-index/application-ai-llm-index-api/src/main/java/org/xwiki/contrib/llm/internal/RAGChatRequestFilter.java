@@ -142,8 +142,8 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         // logger.info("ALL MESSAGERS: " + messages);
         messages.add(0, systemMessage);
 
-        return ChatCompletionRequest.builder(request)
-            .setMessages(messages)
+        return request.but()
+            .messages(messages)
             .build();
     }
 

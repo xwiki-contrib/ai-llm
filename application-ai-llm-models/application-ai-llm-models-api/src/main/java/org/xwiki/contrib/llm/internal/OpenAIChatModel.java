@@ -35,6 +35,7 @@ import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
 import org.xwiki.contrib.llm.openai.ChatCompletionChunkChoice;
 import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
 import org.xwiki.contrib.llm.openai.ChatCompletionResult;
+import org.xwiki.contrib.llm.openai.StreamOptions;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -96,10 +97,7 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
                         ChatCompletionChunk chatCompletionResult =
                             objectMapper.readValue(chunk, ChatCompletionChunk.class);
                         // Replace the model by the model from the request
-                        ChatCompletionChunk newChunk = new ChatCompletionChunk(chatCompletionResult.id(),
-                            chatCompletionResult.object(), chatCompletionResult.created(), request.model(),
-                            chatCompletionResult.choices());
-
+                        ChatCompletionChunk newChunk = chatCompletionResult.but().model(request.model()).build();
                         consumer.accept(newChunk);
                     });
                 } else {
@@ -113,18 +111,30 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
             List<ChatCompletionChunkChoice> choices = response.choices().stream()
                 .map(choice -> new ChatCompletionChunkChoice(choice.index(), choice.message(), choice.finishReason()))
                 .toList();
-            ChatCompletionChunk chunk = new ChatCompletionChunk(response.id(), response.object(), response.created(),
-                request.model(), choices);
+            ChatCompletionChunk chunk = ChatCompletionChunk.builder()
+                .id(response.id())
+                .model(request.model())
+                .created(response.created())
+                .choices(choices)
+                .usage(response.usage())
+                .build();
             consumer.accept(chunk);
         }
     }
 
     private ChatCompletionRequest setModel(ChatCompletionRequest request, boolean stream)
     {
-        return ChatCompletionRequest.builder(request)
-            .setModel(this.modelConfiguration.getModel())
-            .setStream(stream)
-            .build();
+        ChatCompletionRequest.Builder builder = request.but()
+            .model(this.modelConfiguration.getModel())
+            .stream(stream);
+        if (stream) {
+            // Default usage information to true as it just makes a lot of sense to have it.
+            builder.streamOptions(new StreamOptions(true));
+        } else {
+            // Remove streaming options as they should only be set when stream is set to true.
+            builder.streamOptions(null);
+        }
+        return builder.build();
     }
 
     @Override

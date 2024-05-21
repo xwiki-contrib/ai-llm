@@ -66,8 +66,11 @@ window.onload = () => {
             let messageText = '';
             XWikiAiAPI.getCompletions(completionRequest, async (messageChunk) => {
                 const messageTextContainer = incomingMessage.querySelector('.message-text');
-                messageText += messageChunk.choices[0].delta.content;
-                messageTextContainer.innerHTML = marked.parse(messageText);
+                // Check if we have any choices
+                if (messageChunk.choices.length > 0) {
+                    messageText += messageChunk.choices[0].delta.content;
+                    messageTextContainer.innerHTML = marked.parse(messageText);
+                }
             })
             .then(() => {
                 completionRequest.addMessage("assistant", incomingMessage.querySelector('.message-text').textContent);

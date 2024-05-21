@@ -689,7 +689,7 @@
                 const message = JSON.parse(jsonMessage);
                 let reply = '';
                 // Extract the generated reply from the response
-                if (message.choices[0].finish_reason !== 'stop') {
+                if (message.choices.length > 0) {
                     reply = message.choices[0].delta.content;
                 }
 

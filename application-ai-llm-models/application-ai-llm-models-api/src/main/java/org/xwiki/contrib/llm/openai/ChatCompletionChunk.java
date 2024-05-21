@@ -29,12 +29,12 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
  * Represents a chunk of a streaming chat completion response.
  *
  * @param id the id of the chunk, each chunk of the request has the same id
- * @param object the object type, should be "chat.completion.chunk"
+ * @param object the object type, this should be "chat.completion.chunk"
  * @param created the unix timestamp (in seconds) when the chat completion was created, each chunk of a request has
- * the same timestamp
+ *     the same timestamp
  * @param model the model used to generate the completion
  * @param choices the chat completion choices
- *
+ * @param usage token usage information, usually only provided on the last chunk of the stream
  * @version $Id$
  * @since 0.3
  */
@@ -45,7 +45,8 @@ public record ChatCompletionChunk(
     String object,
     long created,
     String model,
-    List<ChatCompletionChunkChoice> choices)
+    List<ChatCompletionChunkChoice> choices,
+    Usage usage)
 {
     /**
      * Creates a new chat completion chunk.
@@ -57,6 +58,113 @@ public record ChatCompletionChunk(
      */
     public ChatCompletionChunk(String id, long created, String model, List<ChatCompletionChunkChoice> choices)
     {
-        this(id, "chat.completion.chunk", created, model, choices);
+        this(id, created, model, choices, null);
+    }
+
+    /**
+     * Creates a new chat completion chunk.
+     *
+     * @param id the id of the chunk
+     * @param created the unix timestamp (in seconds) when the chat completion was created
+     * @param model the model used to generate the completion
+     * @param choices the chat completion choices
+     * @param usage token usage information, usually only provided on the last chunk of the stream
+     */
+    public ChatCompletionChunk(String id, long created, String model, List<ChatCompletionChunkChoice> choices,
+        Usage usage)
+    {
+        this(id, "chat.completion.chunk", created, model, choices, usage);
+    }
+
+    /**
+     * @return a new, empty builder for a chat completion chunk
+     */
+    public static Builder builder()
+    {
+        return new Builder();
+    }
+
+    /**
+     * @return a builder for a chat completion chunk that is initialized from the current chunk
+     */
+    public Builder but()
+    {
+        return new Builder()
+            .id(this.id).created(this.created).model(this.model).choices(this.choices).usage(this.usage);
+    }
+
+    /**
+     * Builder for a chat completion chunk.
+     */
+    public static class Builder
+    {
+        private String id;
+
+        private long created;
+
+        private String model;
+
+        private List<ChatCompletionChunkChoice> choices;
+
+        private Usage usage;
+
+        /**
+         * @param id the id of the chunk, each chunk of the request has the same id
+         * @return the updated builder
+         */
+        public Builder id(String id)
+        {
+            this.id = id;
+            return this;
+        }
+
+        /**
+         * @param created the unix timestamp (in seconds) when the chat completion was created, each chunk of a
+         *     request has the same timestamp
+         * @return the updated builder
+         */
+        public Builder created(long created)
+        {
+            this.created = created;
+            return this;
+        }
+
+        /**
+         * @param model the model used to generate the completion
+         * @return the updated builder
+         */
+        public Builder model(String model)
+        {
+            this.model = model;
+            return this;
+        }
+
+        /**
+         * @param choices the chat completion choices
+         * @return the updated builder
+         */
+        public Builder choices(List<ChatCompletionChunkChoice> choices)
+        {
+            this.choices = choices;
+            return this;
+        }
+
+        /**
+         * @param usage token usage information, usually only provided on the last chunk of the stream
+         * @return the updated builder
+         */
+        public Builder usage(Usage usage)
+        {
+            this.usage = usage;
+            return this;
+        }
+
+        /**
+         * @return the chat completion chunk built from the specified parameters
+         */
+        public ChatCompletionChunk build()
+        {
+            return new ChatCompletionChunk(this.id, this.created, this.model, this.choices, this.usage);
+        }
     }
 }
