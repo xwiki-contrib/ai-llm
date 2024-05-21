@@ -144,9 +144,6 @@
     </property>
     <property>
       <code>
-#chatUI{
-  height:90vh
-}
 #chatUI .user-message {
   position: relative;
   float: right;
