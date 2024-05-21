@@ -71,6 +71,41 @@
             <contentPage>.*/AI/PromptDB/Summarize.xml</contentPage>
             <contentPage>.*/AI/PromptDB/Translate.xml</contentPage>
           </contentPages>
+          <!-- Example models and prompts are demo content that can be customized or deleted. -->
+          <entries>
+            <entry>
+              <document>AI.Models.Ada-002</document>
+              <type>demo</type>
+            </entry>
+            <entry>
+              <document>AI.Models.bert</document>
+              <type>demo</type>
+            </entry>
+            <entry>
+              <document>AI.Models.GPT3.5-turbo</document>
+              <type>demo</type>
+            </entry>
+            <entry>
+              <document>AI.Models.GPT4</document>
+              <type>demo</type>
+            </entry>
+            <entry>
+              <document>AI.Models.mixtral</document>
+              <type>demo</type>
+            </entry>
+            <entry>
+              <document>AI.PromptDB.Free Pompt</document>
+              <type>demo</type>
+            </entry>
+            <entry>
+              <document>AI.PromptDB.Summarize</document>
+              <type>demo</type>
+            </entry>
+            <entry>
+              <document>AI.PromptDB.Translate</document>
+              <type>demo</type>
+            </entry>
+          </entries>
         </configuration>
       </plugin>
     </plugins>
