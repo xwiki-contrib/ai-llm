@@ -52,6 +52,9 @@
                 &lt;div class="stacked-items"&gt;
                     &lt;nav class="stacked-items"&gt;
                         #set($placeholder = $services.localization.render('llm.ui.featureMenuPlaceholder'))
+                        #set ($discard = $xwiki.linkx.use($services.webjars.url('selectize.js',
+                            'css/selectize.bootstrap3.css'), {'type': 'text/css', 'rel': 'stylesheet'}))
+                        #set ($discard = $xwiki.ssfx.use('uicomponents/suggest/xwiki.selectize.css', true))
                         #set ($discard = $xwiki.jsfx.use('uicomponents/suggest/suggestPropertyValues.js',
                         {'forceSkinAction': true, 'language': $xcontext.locale}))
                         #set ($discard = $xwiki.jsx.use('AI.Code.LoadPromptMenuJQuery'))
@@ -96,10 +99,12 @@
         llm.init();
     });
 &lt;/script&gt;
-#getRequiredSkinExtensions($requiredSkinExtensions)
-## We use the X-XWIKI-HTML-HEAD custom HTTP header to return the required JavaScript and CSS resources. Note that the
-## HTML of the UI element is returned in the response body.
-#set ($discard = $response.setHeader('X-XWIKI-HTML-HEAD', $requiredSkinExtensions))
+#if ($xcontext.action == 'get')
+    #getRequiredSkinExtensions($requiredSkinExtensions)
+    ## We use the X-XWIKI-HTML-HEAD custom HTTP header to return the required JavaScript and CSS resources. Note that the
+    ## HTML of the UI element is returned in the response body.
+    #set ($discard = $response.setHeader('X-XWIKI-HTML-HEAD', $requiredSkinExtensions))
+#end
 {{/html}}
 {{/velocity}}</content>
   <object>
