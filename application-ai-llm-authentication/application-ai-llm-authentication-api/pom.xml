@@ -29,9 +29,10 @@
   </parent>
   <artifactId>application-ai-llm-authentication-api</artifactId>
   <name>LLM - Authentication - API</name>
-  <description>APIs needed for user authentication in the LLM App.</description>
+  <description>APIs needed for the token-based authenticator for the LLM Application.</description>
   <properties>
     <xwiki.extension.name>LLM Authentication API (BETA)</xwiki.extension.name>
+    <xwiki.extension.category>api</xwiki.extension.category>
     <xwiki.jacoco.instructionRatio>0.77</xwiki.jacoco.instructionRatio>
   </properties>
   <dependencies>

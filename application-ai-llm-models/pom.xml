@@ -29,6 +29,7 @@
   </parent>
 
   <artifactId>application-ai-llm-models</artifactId>
+  <name>LLM - Models</name>
   <description>Modules for defining, extending and accessing different LLMs.</description>
   <packaging>pom</packaging>
 

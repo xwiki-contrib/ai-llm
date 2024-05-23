@@ -28,17 +28,16 @@
         <version>0.4-SNAPSHOT</version>
     </parent>
     <artifactId>application-ai-llm-index-api</artifactId>
-    <name>INDEX - API</name>
-    <description>APIs needed for the knowledge index.</description>
+    <name>LLM - Index - API</name>
+    <description>APIs needed for the knowledge index in the LLM Application.</description>
     <properties>
         <xwiki.extension.name>LLM Index API (BETA)</xwiki.extension.name>
+        <xwiki.extension.category>api</xwiki.extension.category>
         <xwiki.jacoco.instructionRatio>0.33</xwiki.jacoco.instructionRatio>
         <xwiki.extension.features>
           org.xwiki.contrib.llm:application-llm-index-api
         </xwiki.extension.features>
-        <!-- Needs to be installed on root to be able to use ExecutionContextInitializer. -->
         <xwiki.extension.namespaces>{root}</xwiki.extension.namespaces>
-        <maven.checksum.policy>ignore</maven.checksum.policy> <!-- Ignore checksums for now. -->
     </properties>
     <dependencies>
         <dependency>

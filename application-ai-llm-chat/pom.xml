@@ -29,7 +29,8 @@
   </parent>
 
   <artifactId>application-ai-llm-chat</artifactId>
-  <description>Modules for managing the knowledge index used for retrieval-augmented generation.</description>
+  <name>LLM - Chat</name>
+  <description>Modules for that chat user interface for the LLM.</description>
   <packaging>pom</packaging>
 
   <modules>

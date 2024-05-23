@@ -28,7 +28,7 @@
         <version>0.4-SNAPSHOT</version>
     </parent>
     <artifactId>application-ai-llm-models-api</artifactId>
-    <name>LLM - API</name>
+    <name>LLM - Models - API</name>
     <description>APIs needed for the LLM Application</description>
     <properties>
         <xwiki.extension.name>LLM Models API (BETA)</xwiki.extension.name>

@@ -30,9 +30,12 @@
 
    <artifactId>application-ai-llm-chat-webjar</artifactId>
   <packaging>webjar</packaging>
+  <name>LLM - Chat - WebJar</name>
+  <description>Resources for the chat UI of the LLM Application.</description>
   <properties>
     <!-- Name to display by the Extension Manager -->
-    <xwiki.extension.name>ChatUI-webjar</xwiki.extension.name>
+    <xwiki.extension.name>LLM Chat WebJar</xwiki.extension.name>
+    <xwiki.extension.category>other</xwiki.extension.category>
   </properties>
     <dependencies>
       <dependency>

@@ -29,6 +29,7 @@
   </parent>
 
   <artifactId>application-ai-llm-index</artifactId>
+  <name>LLM - Index</name>
   <description>Modules for managing the knowledge index used for retrieval-augmented generation.</description>
   <packaging>pom</packaging>
 

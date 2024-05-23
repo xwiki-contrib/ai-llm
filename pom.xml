@@ -30,11 +30,11 @@
     <groupId>org.xwiki.contrib.llm</groupId>
     <artifactId>application-ai-llm</artifactId>
     <description>
-        Provide LLM Artificial Intelligence for XWiki content creation and editing, boosting user efficiency and productivity.
+      Integrate artificial intelligence in the form of Large Language Models (LLMs) into the XWiki platform.
     </description>
     <version>0.4-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>LLM AI Application</name>
+    <name>LLM</name>
     <scm>
         <connection>scm:git:git://github.com/xwiki-contrib/application-ai-llm.git</connection>
         <developerConnection>scm:git:git@github.com:xwiki-contrib/application-ai-llm.git</developerConnection>

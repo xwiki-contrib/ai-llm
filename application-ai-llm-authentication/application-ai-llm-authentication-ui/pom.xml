@@ -29,7 +29,7 @@
   </parent>
   <artifactId>application-ai-llm-authentication-ui</artifactId>
   <description>
-    Token-based authentication for the LLM Application.
+    Token-based authenticator for the LLM Application to authenticate external users.
   </description>
   <name>LLM - Authentication - UI</name>
   <packaging>xar</packaging>
