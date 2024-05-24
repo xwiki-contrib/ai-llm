@@ -150,18 +150,18 @@
           });
           await translationPromise;
           var formURL = modal.data('input').formURL;
+          var editor = modal.data('input').editor; // Access the editor instance
           $.get(formURL).done(function(html) {
             modalBody.html(html);
             require(['xwiki-llm'], function(llm) {
               llm.init();
-              const editorElement = document.querySelector('#xwikicontent');
               const chatContent = document.querySelector('#chatContent');
               chatContent.addEventListener('click', async function(event) {
                 const msgID = await llm.handleButtonClick(event);
-                if(msgID.indexOf('include') !== -1){
-                  llm.includeInDoc(msgID).then((textToInsert)=&gt;{
-                    const editor = CKEDITOR.instances[editorElement.getAttribute('id')];
-                    editor.insertText(textToInsert);
+                if (msgID.indexOf('include') !== -1) {
+                  llm.includeInDoc(msgID).then((htmlToInsert) =&gt; {
+                    // Assuming htmlToInsert is already HTML content
+                    editor.insertHtml(htmlToInsert); // Insert HTML content
                   });
                 }
               });
@@ -178,7 +178,6 @@
     }
   });
 });
-
 
 (function() {
   'use strict';
@@ -262,18 +261,20 @@
           require(['llmActionModal'], function(llmActionModal) {
             llmActionModal({
               formURL: llmConfig.llmchat,
-              localization: editor.localization
+              localization: editor.localization,
+              editor: editor // Pass the editor instance
             }).done(function(formData) {
               // do something here
             }).always(function() {
               editor.fire('afterCommandExec', {name: command.name, command: command});
             });
-          }, editor); // Pass editor as an additional argument
+          });
         }
       });
     },
   });
-})();</code>
+})();
+</code>
     </property>
     <property>
       <name>CKEditor Plugin JSX</name>
