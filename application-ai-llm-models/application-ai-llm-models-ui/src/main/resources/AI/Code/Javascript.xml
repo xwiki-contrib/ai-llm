@@ -489,7 +489,7 @@
         return new Promise((resolve, reject) =&gt; {
             const numericID = msgID.replace("include-button-", "");
             const numMsg = parseInt(numericID);
-            const text = document.querySelector('#msg-content-' + numMsg).textContent;
+            const text = document.getElementById('msg-content-' + numMsg).innerHTML;
             resolve(text);
         });
     }
