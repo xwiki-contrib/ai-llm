@@ -482,7 +482,7 @@
     /**
      * 
      * @param {string} msgID The assistant message HTML ID to include.
-     * @return {Promise&lt;string&gt;} A promise containing the text to include in the edited document. 
+     * @return {Promise&lt;string&gt;} A promise containing the HTML to include in the edited document.
      *
      */
     function includeInDoc(msgID) {
