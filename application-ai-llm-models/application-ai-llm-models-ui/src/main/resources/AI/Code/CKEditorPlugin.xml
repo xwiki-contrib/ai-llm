@@ -160,7 +160,6 @@
                 const msgID = await llm.handleButtonClick(event);
                 if (msgID.indexOf('include') !== -1) {
                   llm.includeInDoc(msgID).then((htmlToInsert) =&gt; {
-                    // Assuming htmlToInsert is already HTML content
                     editor.insertHtml(htmlToInsert); // Insert HTML content
                   });
                 }
