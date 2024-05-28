@@ -45,9 +45,14 @@ import com.xpn.xwiki.objects.BaseObject;
  */
 @Component
 @Singleton
-@Named("indexing")
+@Named(IndexTaskConsumer.NAME)
 public class IndexTaskConsumer implements TaskConsumer
 {
+    /**
+     * The name of the task consumer.
+     */
+    public static final String NAME = "indexing";
+
     @Inject
     private CollectionManager collectionManager;
 
@@ -64,25 +69,25 @@ public class IndexTaskConsumer implements TaskConsumer
     public void consume(DocumentReference documentReference, String version)
     {
         try {
-            XWikiDocument xdocument = contextProvider.get().getWiki()
-                                        .getDocument(documentReference, contextProvider.get());
+            XWikiDocument xdocument = this.contextProvider.get().getWiki()
+                                        .getDocument(documentReference, this.contextProvider.get());
             BaseObject documentObject = xdocument.getXObject(Document.XCLASS_REFERENCE);
 
             String docID = documentObject.getStringValue("id");
             String docCollection = documentObject.getStringValue("collection");
 
             this.logger.info("Processing document: {}", docID);
-            Collection collection = collectionManager.getCollection(docCollection);
+            Collection collection = this.collectionManager.getCollection(docCollection);
             Document document = collection.getDocument(docID);
-            solrConnector.deleteChunksByDocId(docID);
+            this.solrConnector.deleteChunksByDocId(docID);
             List<Chunk> chunks = document.chunkDocument();
-            logger.info("Chunks: {}", chunks);
+            this.logger.info("Chunks: {}", chunks);
             for (Chunk chunk : chunks) {
-                logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
+                this.logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
                 tryStoringChunk(chunk, collection, xdocument, docID);
             }
         } catch (Exception e) {
-            logger.error("Error while processing document [{}]: [{}]", documentReference, e.getMessage());
+            this.logger.error("Error while processing document [{}]: [{}]", documentReference, e.getMessage());
         }
     }
 
@@ -91,7 +96,7 @@ public class IndexTaskConsumer implements TaskConsumer
     {
         try {
             chunk.computeEmbeddings(collection.getEmbeddingModel(), xdocument.getAuthors().getContentAuthor());
-            solrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
+            this.solrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
         } catch (IndexException e) {
             this.logger.warn("Error while processing chunk [{}] of document [{}]: [{}]", chunk.getChunkIndex(),
                 docID, ExceptionUtils.getRootCauseMessage(e));

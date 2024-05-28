@@ -19,30 +19,21 @@
  */
 package org.xwiki.contrib.llm;
 
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.Arrays;
-import java.util.List;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
-
-import org.xwiki.observation.EventListener;
-import org.xwiki.observation.event.Event;
-import org.xwiki.model.EntityType;
-import org.xwiki.model.reference.EntityReference;
-import org.xwiki.model.reference.SpaceReference;
-import org.xwiki.model.reference.SpaceReferenceResolver;
-
-import com.xpn.xwiki.doc.XWikiDocument;
-import com.xpn.xwiki.objects.BaseObject;
 
 import org.slf4j.Logger;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.index.TaskManager;
+import org.xwiki.observation.AbstractEventListener;
+import org.xwiki.observation.event.Event;
+import org.xwiki.observation.remote.RemoteObservationManagerContext;
+
+import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.BaseObject;
 
 /**
  * This class is responsible for handling the document queue,
@@ -51,11 +42,15 @@ import org.xwiki.index.TaskManager;
  * @version $Id$
  */
 @Component
-@Named("IndexWorker")
+@Named(IndexWorker.NAME)
 @Singleton
-public class IndexWorker implements EventListener
+public class IndexWorker extends AbstractEventListener
 {
- 
+    /**
+     * The name of the event listener.
+     */
+    public static final String NAME = "org.xwiki.contrib.llm.IndexWorker";
+
     @Inject
     private Logger logger;
 
@@ -63,77 +58,40 @@ public class IndexWorker implements EventListener
     private TaskManager taskManager;
 
     @Inject
-    @Named("current")
-    private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
+    private RemoteObservationManagerContext remoteObservationManagerContext;
 
-    private boolean isProcessing;
-    
-    @Override public String getName()
+    /**
+     * Default constructor.
+     */
+    public IndexWorker()
     {
-        return "IndexWorker";
-    }
-    
-    @Override public List<Event> getEvents()
-    {
-        return Arrays.<Event>asList(new DocumentCreatedEvent(), new DocumentUpdatedEvent());
+        super(NAME, new DocumentCreatedEvent(), new DocumentUpdatedEvent());
     }
 
     @Override public void onEvent(Event event, Object source, Object data)
     {
+        // Index documents only on a single node of the cluster.
+        if (this.remoteObservationManagerContext.isRemoteState()) {
+            return;
+        }
+
         XWikiDocument xdocument = (XWikiDocument) source;
-        EntityReference documentClassReference = getObjectReference();
-        BaseObject documentObject = xdocument.getXObject(documentClassReference);
+        BaseObject documentObject = xdocument.getXObject(Document.XCLASS_REFERENCE);
 
         if (documentObject != null && !xdocument.getDocumentReference().getName().equals("DocumentsTemplate")) {
-            try {
-                //Add document to the queue
-                Queue<XWikiDocument> queue = new LinkedList<>();
-                queue.add(xdocument);
-
-                if (!isProcessing && !queue.isEmpty()) {
-                    isProcessing = true;
-                    processDocumentQueue(queue);
-                    isProcessing = false;
-                }
-
-            } catch (Exception e) {
-                this.logger.error("Failure in indexWorker listener", e);
-            }
-
+            addTaskForDocument(xdocument);
         }
     }
 
-    private void processDocumentQueue(Queue<XWikiDocument> queue)
+    private void addTaskForDocument(XWikiDocument document)
     {
-        // while queue is not empty, take next document in line and add it to the task manager
-        while (!queue.isEmpty()) {
-            try {
-                XWikiDocument nextInLine = queue.poll();
-                if (nextInLine != null) {
-                    String wikiId = nextInLine.getDocumentReference().getWikiReference().getName();
-                    long documentId = nextInLine.getId();
-                    String taskType = "indexing";
+        try {
+            String wikiId = document.getDocumentReference().getWikiReference().getName();
+            long documentId = document.getId();
 
-                    this.taskManager.addTask(wikiId, documentId, taskType);
-                }
-            } catch (Exception e) {
-                this.logger.error("Failure to process document in indexWorker", e);
-            }
+            this.taskManager.addTask(wikiId, documentId, IndexTaskConsumer.NAME);
+        } catch (Exception e) {
+            this.logger.error("Failure to process document in indexWorker", e);
         }
     }
-
-    //get XObject reference for the document XClass
-    private EntityReference getObjectReference()
-    {
-        SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(Document.XCLASS_SPACE_STRING);
-
-        EntityReference collectionClassRef = new EntityReference(Document.XCLASS_NAME,
-                                    EntityType.DOCUMENT,
-                                    spaceRef
-                                );
-        return new EntityReference(Document.XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
-    }
-
-
-
 }
