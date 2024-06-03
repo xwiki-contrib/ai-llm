@@ -50,20 +50,62 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
      */
     public static final int NUMBER_OF_DIMENSIONS = 1024;
 
-    private static final String FIELD_COLLECTION = "collection";
-    private static final String FIELD_DOC_ID = "docId";
-    private static final String FIELD_DOC_URL = "docURL";
-    private static final String FIELD_LANGUAGE = "language";
-    private static final String FIELD_INDEX = "index";
-    private static final String FIELD_POS_FIRST_CHAR = "posFirstChar";
-    private static final String FIELD_POS_LAST_CHAR = "posLastChar";
-    private static final String FIELD_CONTENT = "content";
+    /**
+     * The name of the field that stores the wiki of the chunk.
+     */
+    public static final String FIELD_WIKI = "wiki";
 
-    private static final String FIELD_VECTOR = "vector";
+    /**
+     * The name of the field that stores the collection of the chunk.
+     */
+    public static final String FIELD_COLLECTION = "collection";
+
+    /**
+     * The name of the field that stores the document id this chunk is part of.
+     */
+    public static final String FIELD_DOC_ID = "docId";
+
+    /**
+     * The name of the field that stores the URL of the document.
+     */
+    public static final String FIELD_DOC_URL = "docURL";
+
+    /**
+     * The name of the field that stores the language of the chunk.
+     */
+    public static final String FIELD_LANGUAGE = "language";
+
+    /**
+     * The name of the field that stores the index of the chunk, i.e., the how-many-th chunk of the document this is.
+     */
+    public static final String FIELD_INDEX = "index";
+
+    /**
+     * The name of the field that stores the position of the first character of the chunk in the document.
+     */
+    public static final String FIELD_POS_FIRST_CHAR = "posFirstChar";
+
+    /**
+     * The name of the field that stores the position of the last character of the chunk in the document.
+     */
+    public static final String FIELD_POS_LAST_CHAR = "posLastChar";
+
+    /**
+     * The name of the field that stores the content of the chunk.
+     */
+    public static final String FIELD_CONTENT = "content";
+
+    /**
+     * The name of the field that stores the vector embedding of the chunk.
+     */
+    public static final String FIELD_VECTOR = "vector";
 
     private static final String FIELD_TYPE_KNN_VECTOR = "knn_vector";
 
-    private static final long CURRENT_VERSION = 121000002;
+    // Last version that required a re-index, after that there are currently only field additions
+    private static final long REINDEX_VERSION = 121000002;
+
+    private static final long CURRENT_VERSION = 121000003;
 
     private static final String SOLR_DENSE_VECTOR_FIELD = "solr.DenseVectorField";
 
@@ -89,12 +131,13 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
         this.addPIntField(FIELD_POS_LAST_CHAR, false, false);
         this.addTextGeneralField(FIELD_CONTENT, false, false);
         this.addField(FIELD_VECTOR, FIELD_TYPE_KNN_VECTOR, false, false);
+        migrateSchema(REINDEX_VERSION);
     }
 
     @Override
     protected void migrateSchema(long cversion) throws SolrException
     {
-        if (cversion < CURRENT_VERSION) {
+        if (cversion < REINDEX_VERSION) {
             this.setFieldType(FIELD_TYPE_KNN_VECTOR,
                 SOLR_DENSE_VECTOR_FIELD,
                 false,
@@ -107,6 +150,10 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
             } catch (SolrServerException | IOException e) {
                 throw new SolrException("Failed to clean the index after changing the collection field.", e);
             }
+        }
+
+        if (cversion < CURRENT_VERSION) {
+            this.addStringField(FIELD_WIKI, false, false);
         }
     }
 

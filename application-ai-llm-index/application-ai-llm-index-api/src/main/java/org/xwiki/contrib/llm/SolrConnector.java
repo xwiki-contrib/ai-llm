@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.solr.client.solrj.SolrClient;
@@ -44,6 +45,8 @@ import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.user.CurrentUserReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xpn.xwiki.XWikiContext;
+
 /**
  * Connects to the Solr server.
  *
@@ -54,16 +57,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class SolrConnector
 {
     private static final String FIELD_ID = "id";
-    private static final String FIELD_COLLECTION = "collection";
-    private static final String FIELD_DOC_ID = "docId";
-    private static final String FIELD_DOC_URL = "docURL";
-    private static final String FIELD_LANGUAGE = "language";
-    private static final String FIELD_INDEX = "index";
-    private static final String FIELD_POS_FIRST_CHAR = "posFirstChar";
-    private static final String FIELD_POS_LAST_CHAR = "posLastChar";
-    private static final String FIELD_CONTENT = "content";
-    private static final String FIELD_VECTOR = "vector";
     private static final String FIELD_SCORE = "score";
+
+    private static final String SOLR_SEPARATOR = ":";
 
     @Inject
     private Logger logger;
@@ -77,6 +73,9 @@ public class SolrConnector
     @Inject
     private Solr solr;
 
+    @Inject
+    private Provider<XWikiContext> contextProvider;
+
     /**
      * Connects to the Solr server and stores a chunk.
      * If a chunk with the same id exists, it will be updated.
@@ -89,22 +88,23 @@ public class SolrConnector
         try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             SolrInputDocument solrDocument = new SolrInputDocument();
             solrDocument.addField(FIELD_ID, id);
-            solrDocument.addField(FIELD_DOC_ID, chunk.getDocumentID());
-            solrDocument.addField(FIELD_COLLECTION, chunk.getCollection());
-            solrDocument.addField(FIELD_DOC_URL, chunk.getDocumentURL());
-            solrDocument.addField(FIELD_LANGUAGE, chunk.getLanguage());
-            solrDocument.addField(FIELD_INDEX, chunk.getChunkIndex());
-            solrDocument.addField(FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
-            solrDocument.addField(FIELD_POS_LAST_CHAR, chunk.getPosLastChar());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_WIKI, chunk.getWiki());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_DOC_ID, chunk.getDocumentID());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_COLLECTION, chunk.getCollection());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_DOC_URL, chunk.getDocumentURL());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_LANGUAGE, chunk.getLanguage());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_INDEX, chunk.getChunkIndex());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR, chunk.getPosLastChar());
             ObjectMapper mapper = new ObjectMapper();
             String content = mapper.writeValueAsString(chunk.getContent());
 
-            solrDocument.addField(FIELD_CONTENT, content);
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, content);
             double[] embeddings = chunk.getEmbeddings();
             List<Float> embeddingsList = Arrays.stream(embeddings)
                                             .mapToObj(d -> (float) d)
-                                            .collect(Collectors.toList());
-            solrDocument.setField(FIELD_VECTOR, embeddingsList);
+                                            .toList();
+            solrDocument.setField(AiLLMSolrCoreInitializer.FIELD_VECTOR, embeddingsList);
             client.add(solrDocument);
             client.commit();
             
@@ -130,17 +130,40 @@ public class SolrConnector
 
     /**
      * Connects to the Solr server and deletes all chunks of a document.
-     * 
-     * @param docId the id of the document
+     *
+     * @param wiki the wiki in which the document is stored
+     * @param collectionId the id of the collection the document is part of
+     * @param documentId the id of the document
      */
-    public void deleteChunksByDocId(String docId)
+    public void deleteChunksByDocId(String wiki, String collectionId, String documentId)
     {
+        String query = buildQuery(wiki, collectionId, documentId);
         try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
-            client.deleteByQuery("docId:" + this.solrUtils.toCompleteFilterQueryString(docId));
+            client.deleteByQuery(query);
             client.commit();
         } catch (Exception e) {
-            this.logger.error("Failed to delete chunks of document with id [{}]", docId, e);
+            this.logger.error("Failed to delete chunks of document [{}] in collection [{}] in wiki [{}]",
+                documentId, collectionId, wiki, e);
         }
+    }
+
+    private String buildQuery(String wiki, String collectionId, String documentId)
+    {
+        return String.join(" AND ",
+            buildWikiQuery(wiki),
+              AiLLMSolrCoreInitializer.FIELD_COLLECTION + SOLR_SEPARATOR
+                  + this.solrUtils.toCompleteFilterQueryString(collectionId),
+              AiLLMSolrCoreInitializer.FIELD_DOC_ID + SOLR_SEPARATOR
+                  + this.solrUtils.toCompleteFilterQueryString(documentId)
+          );
+    }
+
+    private String buildWikiQuery(String wiki)
+    {
+        return "((" + AiLLMSolrCoreInitializer.FIELD_WIKI + SOLR_SEPARATOR
+            + this.solrUtils.toCompleteFilterQueryString(wiki)
+            // Also match documents with empty wiki field as before version 0.4, no wiki field was stored.
+            + ") OR (*:* AND -" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":*))";
     }
 
     /**
@@ -171,16 +194,17 @@ public class SolrConnector
             SolrQuery query = new SolrQuery();
             query.setQuery(solrQuery);
             query.setFields(FIELD_ID,
-                            FIELD_DOC_ID,
-                            FIELD_COLLECTION,
-                            FIELD_DOC_URL,
-                            FIELD_LANGUAGE,
-                            FIELD_INDEX,
-                            FIELD_POS_FIRST_CHAR,
-                            FIELD_POS_LAST_CHAR,
-                            FIELD_CONTENT,
+                            AiLLMSolrCoreInitializer.FIELD_DOC_ID,
+                            AiLLMSolrCoreInitializer.FIELD_COLLECTION,
+                            AiLLMSolrCoreInitializer.FIELD_WIKI,
+                            AiLLMSolrCoreInitializer.FIELD_DOC_URL,
+                            AiLLMSolrCoreInitializer.FIELD_LANGUAGE,
+                            AiLLMSolrCoreInitializer.FIELD_INDEX,
+                            AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR,
+                            AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR,
+                            AiLLMSolrCoreInitializer.FIELD_CONTENT,
                             FIELD_SCORE,
-                            FIELD_VECTOR
+                            AiLLMSolrCoreInitializer.FIELD_VECTOR
                             );
             query.setRows(limit);
             QueryResponse response = client.query(query);
@@ -244,29 +268,29 @@ public class SolrConnector
     private SolrQuery prepareQuery(String embeddingsAsString, List<String> collections, int limit)
     {
         SolrQuery query = new SolrQuery();
+        query.addFilterQuery(buildWikiQuery(this.contextProvider.get().getWikiId()));
         query.setQuery(String.format("{!knn f=vector topK=%s}%s", limit, embeddingsAsString));
 
         // Constructing the filter query from the collections list
         if (collections != null && !collections.isEmpty()) {
             String filterQuery = collections.stream()
-                                    .map(collection -> FIELD_COLLECTION
-                                                    + ":\""
+                                    .map(collection -> AiLLMSolrCoreInitializer.FIELD_COLLECTION
+                                                    + SOLR_SEPARATOR
                                                     + solrUtils.toCompleteFilterQueryString(collection)
-                                                    + "\""
                                         )
                                     .collect(Collectors.joining(" OR "));
             query.addFilterQuery(filterQuery);
         }
 
         query.setFields(FIELD_ID,
-                        FIELD_DOC_ID,
-                        FIELD_COLLECTION,
-                        FIELD_DOC_URL,
-                        FIELD_LANGUAGE,
-                        FIELD_INDEX,
-                        FIELD_POS_FIRST_CHAR,
-                        FIELD_POS_LAST_CHAR,
-                        FIELD_CONTENT,
+                        AiLLMSolrCoreInitializer.FIELD_DOC_ID,
+                        AiLLMSolrCoreInitializer.FIELD_COLLECTION,
+                        AiLLMSolrCoreInitializer.FIELD_DOC_URL,
+                        AiLLMSolrCoreInitializer.FIELD_LANGUAGE,
+                        AiLLMSolrCoreInitializer.FIELD_INDEX,
+                        AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR,
+                        AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR,
+                        AiLLMSolrCoreInitializer.FIELD_CONTENT,
                         FIELD_SCORE);
         return query;
     }
@@ -276,14 +300,14 @@ public class SolrConnector
         //noinspection unchecked
         return documents.stream()
             .map(document -> new Context(
-                String.valueOf(document.getFieldValue(FIELD_COLLECTION)),
-                String.valueOf(document.getFieldValue(FIELD_DOC_ID)),
-                String.valueOf(document.getFieldValue(FIELD_DOC_URL)),
-                String.valueOf(document.getFieldValue(FIELD_CONTENT)),
+                String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_COLLECTION)),
+                String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_DOC_ID)),
+                String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_DOC_URL)),
+                String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_CONTENT)),
                 document.getFieldValue(FIELD_SCORE) instanceof Number numericScore
                     ? numericScore.doubleValue()
                     : Double.parseDouble(String.valueOf(document.getFieldValue(FIELD_SCORE))),
-                includeVector ? (List<Float>) document.getFieldValue(FIELD_VECTOR) : null
+                includeVector ? (List<Float>) document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_VECTOR) : null
             ))
             .toList();
     }

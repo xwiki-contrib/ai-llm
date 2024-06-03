@@ -32,6 +32,8 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.model.reference.SpaceReferenceResolver;
 
+import com.xpn.xwiki.XWikiContext;
+
 /**
  * Utility class used in chunking the documents.
  * 
@@ -58,6 +60,9 @@ public class ChunkingUtils
 
     @Inject
     private Logger logger;
+
+    @Inject
+    private Provider<XWikiContext> contextProvider;
     
     /**
      * This method is responsible for splitting the document into chunks.
@@ -91,6 +96,8 @@ public class ChunkingUtils
         int start = 0;
         int end;
         int chunkIndex = 0;
+
+        XWikiContext context = this.contextProvider.get();
     
         while (start + offset < content.length()) {
             // Find the next index to end the chunk
@@ -106,6 +113,7 @@ public class ChunkingUtils
                             document.getLanguage(),
                             start, end, chunkContent);
             chunk.setChunkIndex(chunkIndex);
+            chunk.setWiki(context.getWikiId());
             chunks.put(chunkIndex, chunk);
     
             // Prepare for the next iteration

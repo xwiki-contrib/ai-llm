@@ -415,7 +415,8 @@ public class DefaultCollection implements Collection
     private void removeDocumentFromVectorDB(Document document)
     {
         try {
-            solrConnector.deleteChunksByDocId(document.getID());
+            String wiki = document.getXWikiDocument().getDocumentReference().getWikiReference().getName();
+            solrConnector.deleteChunksByDocId(wiki, document.getCollection(), document.getID());
         } catch (Exception e) {
             logger.error("Failed to remove document [{}] from vector database: [{}]",
                                  document, e.getMessage());

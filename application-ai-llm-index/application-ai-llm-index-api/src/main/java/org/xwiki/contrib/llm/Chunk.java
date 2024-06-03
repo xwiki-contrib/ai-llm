@@ -36,6 +36,7 @@ import org.xwiki.user.UserReference;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class Chunk
 {
+    private String wiki;
     private String documentID;
     private String documentURL;
     private String language;
@@ -80,6 +81,22 @@ public class Chunk
         this.posLastChar = posLastChar;
         this.content = content;
         this.embeddings = null;
+    }
+
+    /**
+     * @return the wiki of the chunk
+     */
+    public String getWiki()
+    {
+        return this.wiki;
+    }
+
+    /**
+     * @param wiki the wiki of the chunk
+     */
+    public void setWiki(String wiki)
+    {
+        this.wiki = wiki;
     }
 
     /**

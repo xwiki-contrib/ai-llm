@@ -21,12 +21,14 @@
 package org.xwiki.contrib.llm;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.slf4j.Logger;
@@ -79,7 +81,8 @@ public class IndexTaskConsumer implements TaskConsumer
             this.logger.info("Processing document: {}", docID);
             Collection collection = this.collectionManager.getCollection(docCollection);
             Document document = collection.getDocument(docID);
-            this.solrConnector.deleteChunksByDocId(docID);
+            this.solrConnector.deleteChunksByDocId(documentReference.getWikiReference().getName(), docCollection,
+                docID);
             List<Chunk> chunks = document.chunkDocument();
             this.logger.info("Chunks: {}", chunks);
             for (Chunk chunk : chunks) {
@@ -96,7 +99,7 @@ public class IndexTaskConsumer implements TaskConsumer
     {
         try {
             chunk.computeEmbeddings(collection.getEmbeddingModel(), xdocument.getAuthors().getContentAuthor());
-            this.solrConnector.storeChunk(chunk, generateChunkID(chunk.getDocumentID(), chunk.getChunkIndex()));
+            this.solrConnector.storeChunk(chunk, generateChunkID(chunk));
         } catch (IndexException e) {
             this.logger.warn("Error while processing chunk [{}] of document [{}]: [{}]", chunk.getChunkIndex(),
                 docID, ExceptionUtils.getRootCauseMessage(e));
@@ -104,10 +107,15 @@ public class IndexTaskConsumer implements TaskConsumer
     }
 
     //generate unique id for chunks
-    private String generateChunkID(String docID, int chunkIndex)
+    private String generateChunkID(Chunk chunk)
     {
-        return docID + "_" + chunkIndex;
+        String separator = "_";
+        List<String> parts = List.of(chunk.getWiki(), chunk.getCollection(), chunk.getDocumentID(),
+            String.valueOf(chunk.getChunkIndex()));
+        // Use URL encoding escaping to avoid having the separator in any of the parts
+        return parts.stream()
+            .map(part -> StringUtils.replaceEach(part, new String[] {separator, "%"}, new String[] {"%5F", "%25"}))
+            .collect(Collectors.joining(separator));
     }
-
 }
 

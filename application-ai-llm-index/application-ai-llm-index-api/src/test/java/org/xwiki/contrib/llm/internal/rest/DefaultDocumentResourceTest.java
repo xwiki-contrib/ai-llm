@@ -177,7 +177,7 @@ class DefaultDocumentResourceTest
         // Delete it.
         this.documentResource.deleteDocument(WIKI_NAME, COLLECTION_NAME, DOCUMENT_ID);
 
-        verify(this.solrConnector).deleteChunksByDocId(DOCUMENT_ID);
+        verify(this.solrConnector).deleteChunksByDocId(WIKI_NAME, COLLECTION_NAME, DOCUMENT_ID);
 
         // Verify that it doesn't exist.
         WebApplicationException exception =
