@@ -203,32 +203,9 @@ public class DefaultCollectionManager implements CollectionManager
                                                 List<String> collections,
                                                 int limit) throws IndexException
     {
-        Map<String, DefaultCollection> collectionMap = collections.stream()
-            .flatMap(name -> {
-                try {
-                    // Return both name and collection object
-                    return Stream.of(new AbstractMap.SimpleEntry<>(name, getCollection(name)));
-                } catch (IndexException e) {
-                    this.logger.warn("Failed to get collection [{}], excluding it from the similarity search: [{}]",
-                        name, ExceptionUtils.getRootCauseMessage(e));
-                    return Stream.empty();
-                }
-            })
-            .filter(entry -> hasAccess(entry.getValue()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, DefaultCollection> collectionMap = getAccessibleCollections(collections);
 
-        Map<String, AuthorizationManager> authorizationManagerMap = collectionMap.entrySet().stream()
-            .flatMap(entry -> {
-                try {
-                    return Stream.of(new AbstractMap.SimpleEntry<>(entry.getKey(),
-                        entry.getValue().getAuthorizationManager()));
-                } catch (IndexException e) {
-                    this.logger.warn("Failed to get authorization manager for collection [{}], excluding it from the"
-                            + " similarity search: [{}]", entry.getKey(), ExceptionUtils.getRootCauseMessage(e));
-                    return Stream.empty();
-                }
-            })
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, AuthorizationManager> authorizationManagerMap = getAuthorizationManagerMap(collectionMap);
 
         // Get the embedding model for each collection for which an authorization manager was found
         Map<String, String> collectionEmbeddingModelMap = collectionMap.entrySet().stream()
@@ -245,6 +222,39 @@ public class DefaultCollectionManager implements CollectionManager
         } catch (SolrServerException e) {
             throw new IndexException("Failed to perform similarity search", e);
         }
+    }
+
+    private Map<String, AuthorizationManager> getAuthorizationManagerMap(Map<String, DefaultCollection> collectionMap)
+    {
+        return collectionMap.entrySet().stream()
+            .flatMap(entry -> {
+                try {
+                    return Stream.of(new AbstractMap.SimpleEntry<>(entry.getKey(),
+                        entry.getValue().getAuthorizationManager()));
+                } catch (IndexException e) {
+                    this.logger.warn("Failed to get authorization manager for collection [{}], excluding it from the"
+                        + " similarity search: [{}]", entry.getKey(), ExceptionUtils.getRootCauseMessage(e));
+                    return Stream.empty();
+                }
+            })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private Map<String, DefaultCollection> getAccessibleCollections(List<String> collections)
+    {
+        return collections.stream()
+            .flatMap(name -> {
+                try {
+                    // Return both name and collection object
+                    return Stream.of(new AbstractMap.SimpleEntry<>(name, getCollection(name)));
+                } catch (IndexException e) {
+                    this.logger.warn("Failed to get collection [{}], excluding it from the similarity search: [{}]",
+                        name, ExceptionUtils.getRootCauseMessage(e));
+                    return Stream.empty();
+                }
+            })
+            .filter(entry -> hasAccess(entry.getValue()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private List<Context> filterSearchResults(List<Context> results,
