@@ -56,6 +56,9 @@ public class DefaultChatModelManager implements ChatModelManager
     @Inject
     private Provider<XWikiContext> contextProvider;
 
+    @Inject
+    private ModelComponentFixer modelComponentFixer;
+
     @Override
     public ChatModel getModel(String name, UserReference userReference, String wikiId) throws GPTAPIException
     {
@@ -63,7 +66,7 @@ public class DefaultChatModelManager implements ChatModelManager
         String currentWiki = context.getWikiId();
         try {
             context.setWikiId(wikiId);
-            ChatModel result = this.componentManagerProvider.get().getInstance(ChatModel.class, name);
+            ChatModel result = getChatModelComponent(name);
             if (!result.hasAccess(userReference)) {
                 throw new GPTAPIException(
                     String.format("User [%s] does not have access to chat model [%s] in wiki [%s].",
@@ -78,6 +81,14 @@ public class DefaultChatModelManager implements ChatModelManager
         }
     }
 
+    private ChatModel getChatModelComponent(String name) throws ComponentLookupException
+    {
+        if (!this.componentManagerProvider.get().hasComponent(ChatModel.class, name)) {
+            this.modelComponentFixer.fixComponents();
+        }
+        return this.componentManagerProvider.get().getInstance(ChatModel.class, name);
+    }
+
     @Override
     public List<ChatModelDescriptor> getModels(UserReference userReference, String wikiId) throws GPTAPIException
     {
@@ -87,6 +98,10 @@ public class DefaultChatModelManager implements ChatModelManager
             context.setWikiId(wikiId);
 
             List<ChatModel> models = this.componentManagerProvider.get().getInstanceList(ChatModel.class);
+            if (models.isEmpty()) {
+                this.modelComponentFixer.fixComponents();
+                models = this.componentManagerProvider.get().getInstanceList(ChatModel.class);
+            }
             return models.stream()
                 .filter(ChatModel::isValid)
                 .filter(model -> model.hasAccess(userReference))

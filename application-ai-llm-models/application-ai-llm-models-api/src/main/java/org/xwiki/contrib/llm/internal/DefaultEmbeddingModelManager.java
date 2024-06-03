@@ -58,6 +58,9 @@ public class DefaultEmbeddingModelManager implements EmbeddingModelManager
     @Inject
     private Provider<XWikiContext> contextProvider;
 
+    @Inject
+    private ModelComponentFixer modelComponentFixer;
+
     @Override
     public EmbeddingModel getModel(WikiReference wiki, String id, UserReference userReference) throws GPTAPIException
     {
@@ -65,7 +68,7 @@ public class DefaultEmbeddingModelManager implements EmbeddingModelManager
         String currentWiki = context.getWikiId();
         try {
             context.setWikiReference(wiki);
-            EmbeddingModel result = this.componentManagerProvider.get().getInstance(EmbeddingModel.class, id);
+            EmbeddingModel result = getInstance(id);
             if (!result.hasAccess(userReference)) {
                 throw new GPTAPIException(
                     String.format("User [%s] does not have access to embedding model [%s] in wiki [%s].",
@@ -80,6 +83,15 @@ public class DefaultEmbeddingModelManager implements EmbeddingModelManager
         }
     }
 
+    private EmbeddingModel getInstance(String id) throws ComponentLookupException
+    {
+        if (!this.componentManagerProvider.get().hasComponent(EmbeddingModel.class, id)) {
+            this.modelComponentFixer.fixComponents();
+        }
+
+        return this.componentManagerProvider.get().getInstance(EmbeddingModel.class, id);
+    }
+
     @Override
     public List<EmbeddingModelDescriptor> getModelDescriptors(WikiReference wiki, UserReference userReference)
         throws GPTAPIException
@@ -90,6 +102,10 @@ public class DefaultEmbeddingModelManager implements EmbeddingModelManager
             context.setWikiReference(wiki);
 
             List<EmbeddingModel> models = this.componentManagerProvider.get().getInstanceList(EmbeddingModel.class);
+            if (models.isEmpty()) {
+                this.modelComponentFixer.fixComponents();
+                models = this.componentManagerProvider.get().getInstanceList(EmbeddingModel.class);
+            }
             return models.stream()
                 .filter(model -> model.hasAccess(userReference))
                 .map(EmbeddingModel::getDescriptor)

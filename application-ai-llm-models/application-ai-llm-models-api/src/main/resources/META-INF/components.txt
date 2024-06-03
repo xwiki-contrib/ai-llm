@@ -6,6 +6,7 @@ org.xwiki.contrib.llm.internal.DefaultChatClientConfigProvider
 org.xwiki.contrib.llm.internal.DefaultGPTAPIPromptDBProvider
 org.xwiki.contrib.llm.internal.ModelWikiObjectComponentBuilder
 org.xwiki.contrib.llm.internal.HttpClientFactory
+org.xwiki.contrib.llm.internal.ModelComponentFixer
 org.xwiki.contrib.llm.internal.RequestHelper
 org.xwiki.contrib.llm.internal.rest.DefaultChatCompletionsResource
 org.xwiki.contrib.llm.internal.rest.DefaultModelsResource
