@@ -70,7 +70,9 @@ public class EmbeddingsUtils implements Initializable
             WikiReference wikiReference = context.getWikiReference();
             EmbeddingModel embeddingModel = embeddingModelManager.getModel(wikiReference, modelId, userReference);
 
-            Retry retry = this.retryRegistry.retry(modelId);
+            // Make sure that the same model on different wikis has different retry objects.
+            String retryId = wikiReference.getName() + ":" + modelId;
+            Retry retry = this.retryRegistry.retry(retryId);
             double[] embeddingsFull = retry.executeCallable(() -> embeddingModel.embed(text));
             return Arrays.copyOf(embeddingsFull, AiLLMSolrCoreInitializer.NUMBER_OF_DIMENSIONS);
         } catch (Exception e) {

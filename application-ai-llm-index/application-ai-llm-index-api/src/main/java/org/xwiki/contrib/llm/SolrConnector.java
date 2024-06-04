@@ -44,7 +44,6 @@ import org.xwiki.search.solr.Solr;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.user.CurrentUserReference;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xpn.xwiki.XWikiContext;
 
 /**
@@ -96,15 +95,16 @@ public class SolrConnector
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_INDEX, chunk.getChunkIndex());
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR, chunk.getPosLastChar());
-            ObjectMapper mapper = new ObjectMapper();
-            String content = mapper.writeValueAsString(chunk.getContent());
-
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, content);
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE, chunk.getErrorMessage());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, chunk.getContent());
             double[] embeddings = chunk.getEmbeddings();
-            List<Float> embeddingsList = Arrays.stream(embeddings)
-                                            .mapToObj(d -> (float) d)
-                                            .toList();
-            solrDocument.setField(AiLLMSolrCoreInitializer.FIELD_VECTOR, embeddingsList);
+            // The embeddings could be null if we got an error and want to store the error.
+            if (embeddings != null) {
+                List<Float> embeddingsList = Arrays.stream(embeddings)
+                    .mapToObj(d -> (float) d)
+                    .toList();
+                solrDocument.setField(AiLLMSolrCoreInitializer.FIELD_VECTOR, embeddingsList);
+            }
             client.add(solrDocument);
             client.commit();
             
@@ -163,7 +163,7 @@ public class SolrConnector
         return "((" + AiLLMSolrCoreInitializer.FIELD_WIKI + SOLR_SEPARATOR
             + this.solrUtils.toCompleteFilterQueryString(wiki)
             // Also match documents with empty wiki field as before version 0.4, no wiki field was stored.
-            + ") OR (*:* AND -" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":*))";
+            + ") OR (*:* AND -" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":[* TO *]))";
     }
 
     /**

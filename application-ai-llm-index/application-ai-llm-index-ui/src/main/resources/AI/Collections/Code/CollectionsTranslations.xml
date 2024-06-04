@@ -61,6 +61,7 @@ collections.sheet.description=This page controls how Collections pages are displ
 collections.sheet.noObject=The current page doesn't have the expected Collections object.
 collections.sheet.noFields=The Collections application doesn't have any fields to display.
 collections.sheet.documents=Documents
+collections.sheet.chunks=Indexed Chunks
 collections.sheet.addDocumentLabel=Add new document
 collections.sheet.addDocumentButton=Add Document
 

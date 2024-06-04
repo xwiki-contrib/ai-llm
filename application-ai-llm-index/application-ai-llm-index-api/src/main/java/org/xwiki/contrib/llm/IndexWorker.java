@@ -28,9 +28,8 @@ import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.index.TaskManager;
-import org.xwiki.observation.AbstractEventListener;
+import org.xwiki.observation.event.AbstractLocalEventListener;
 import org.xwiki.observation.event.Event;
-import org.xwiki.observation.remote.RemoteObservationManagerContext;
 
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
@@ -44,7 +43,7 @@ import com.xpn.xwiki.objects.BaseObject;
 @Component
 @Named(IndexWorker.NAME)
 @Singleton
-public class IndexWorker extends AbstractEventListener
+public class IndexWorker extends AbstractLocalEventListener
 {
     /**
      * The name of the event listener.
@@ -57,9 +56,6 @@ public class IndexWorker extends AbstractEventListener
     @Inject
     private TaskManager taskManager;
 
-    @Inject
-    private RemoteObservationManagerContext remoteObservationManagerContext;
-
     /**
      * Default constructor.
      */
@@ -68,13 +64,9 @@ public class IndexWorker extends AbstractEventListener
         super(NAME, new DocumentCreatedEvent(), new DocumentUpdatedEvent());
     }
 
-    @Override public void onEvent(Event event, Object source, Object data)
+    @Override
+    public void processLocalEvent(Event event, Object source, Object data)
     {
-        // Index documents only on a single node of the cluster.
-        if (this.remoteObservationManagerContext.isRemoteState()) {
-            return;
-        }
-
         XWikiDocument xdocument = (XWikiDocument) source;
         BaseObject documentObject = xdocument.getXObject(Document.XCLASS_REFERENCE);
 

@@ -99,11 +99,13 @@ public class IndexTaskConsumer implements TaskConsumer
     {
         try {
             chunk.computeEmbeddings(collection.getEmbeddingModel(), xdocument.getAuthors().getContentAuthor());
-            this.solrConnector.storeChunk(chunk, generateChunkID(chunk));
         } catch (IndexException e) {
-            this.logger.warn("Error while processing chunk [{}] of document [{}]: [{}]", chunk.getChunkIndex(),
+            this.logger.warn("Error while embedding chunk [{}] of document [{}]: [{}]", chunk.getChunkIndex(),
                 docID, ExceptionUtils.getRootCauseMessage(e));
+
+            chunk.setErrorMessage("Error computing the embedding: %s".formatted(ExceptionUtils.getRootCauseMessage(e)));
         }
+        this.solrConnector.storeChunk(chunk, generateChunkID(chunk));
     }
 
     //generate unique id for chunks

@@ -100,12 +100,20 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
      */
     public static final String FIELD_VECTOR = "vector";
 
+    /**
+     * The name of the field that stores the error message if there is any.
+     */
+    public static final String FIELD_ERROR_MESSAGE = "errorMessage";
+
     private static final String FIELD_TYPE_KNN_VECTOR = "knn_vector";
 
     // Last version that required a re-index, after that there are currently only field additions
     private static final long REINDEX_VERSION = 121000002;
 
-    private static final long CURRENT_VERSION = 121000003;
+    // The version that introduces the wiki field
+    private static final long WIKI_FIELD_VERSION = 121000003;
+
+    private static final long CURRENT_VERSION = 121000004;
 
     private static final String SOLR_DENSE_VECTOR_FIELD = "solr.DenseVectorField";
 
@@ -152,8 +160,12 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
             }
         }
 
-        if (cversion < CURRENT_VERSION) {
+        if (cversion < WIKI_FIELD_VERSION) {
             this.addStringField(FIELD_WIKI, false, false);
+        }
+
+        if (cversion < CURRENT_VERSION) {
+            this.addStringField(FIELD_ERROR_MESSAGE, false, false);
         }
     }
 
