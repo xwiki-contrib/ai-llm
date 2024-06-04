@@ -37,6 +37,7 @@ const XWikiAiAPI = (() => {
     const handleStreamedResponse = async (response, onMessageChunk, signal) => {
         let accumulatedChunks = '';
         const reader = response.body.getReader();
+        let usageData = null;
     
         while (true) {
             const { done, value } = await reader.read();
@@ -55,6 +56,9 @@ const XWikiAiAPI = (() => {
                     if (message.choices.length > 0 && message.choices[0].delta && message.choices[0].delta.content !== null) {
                         onMessageChunk(message);
                     }
+                    if (message.usage) {
+                        usageData = message.usage;
+                    }
                 });
             }
     
@@ -69,8 +73,14 @@ const XWikiAiAPI = (() => {
             if (message.choices.length > 0 && message.choices[0].delta && message.choices[0].delta.content !== null) {
                 onMessageChunk(message);
             }
+            if (message.usage) {
+                usageData = message.usage;
+            }
         }
+    
+        return usageData;
     };
+    
     
 
     /**
@@ -160,36 +170,47 @@ const XWikiAiAPI = (() => {
             }
         },
 
-      /**
-       * Sends a ChatCompletionRequest to get chat completions with streaming support.
-       * 
-       * @param {ChatCompletionRequest} request - The completion request.
-       * @param {Function} onMessageChunk - The callback to call for each message chunk.
-       * @return {Promise} A promise that resolves when the stream is fully processed.
-       */
-      getCompletions: async (request, onMessageChunk, signal) => {
-        if (!(request instanceof ChatCompletionRequest)) {
-            throw new Error("The request must be an instance of ChatCompletionRequest");
-        }
-        try {
-            const response = await fetch(`${baseURL}/rest/wikis/${encodeWikiName()}/aiLLM/v1/chat/completions?media=json`, fetchOptions('POST', request.toJSON(), signal));
-            if (!response.ok) {
-                throw new Error(`Network response was not ok: ${response.statusText}`);
+        /**
+         * Sends a ChatCompletionRequest to get chat completions with streaming support.
+         * 
+         * @param {ChatCompletionRequest} request - The completion request.
+         * @param {Function} onMessageChunk - The callback to call for each message chunk.
+         * @return {Promise} A promise that resolves when the stream is fully processed.
+         */
+        getCompletions: async (request, onMessageCallback = null, signal = null) => {
+            if (!(request instanceof ChatCompletionRequest)) {
+                throw new Error("The request must be an instance of ChatCompletionRequest");
             }
-            if (request.stream) {
-                return await handleStreamedResponse(response, onMessageChunk, signal);
-            } else {
-                return await response.json();
+            try {
+                const response = await fetch(`${baseURL}/rest/wikis/${encodeWikiName()}/aiLLM/v1/chat/completions?media=json`, fetchOptions('POST', request.toJSON(), signal));
+                if (!response.ok) {
+                    throw new Error(`Network response was not ok: ${response.statusText}`);
+                }
+                if (request.stream) {
+                    try {
+                        return await handleStreamedResponse(response, onMessageCallback, signal);
+                    } catch (error) {
+                        // If streaming fails, handle as non-streaming response
+                        const data = await response.json();
+                        error.response = data;
+                        throw error;
+                    }
+                } else {
+                    const data = await response.json();
+                    if (onMessageCallback) {
+                        onMessageCallback(data);
+                    }
+                    return data;
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('Fetch aborted');
+                } else {
+                    console.error('Failed to get chat completions:', error);
+                }
+                throw error;
             }
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                console.log('Fetch aborted');
-            } else {
-                console.error('Failed to get chat completions:', error);
-            }
-            throw error;
-        }
-    },
+        },
 
         /**
          * Set the available settings as an array of strings.

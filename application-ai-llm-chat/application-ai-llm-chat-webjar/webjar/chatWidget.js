@@ -8,7 +8,8 @@ let conversationHistory = [];
 let userSettings = {
     model: '',
     temperature: 1,
-    stream: true
+    stream: true,
+    settingsCollapsed: false
 };
 let chatHistory;
 let chatInput;
@@ -230,7 +231,7 @@ function sendMessage() {
     );
 
     // Display the assistant message container in the chat history
-    const assistantMessageElement = displayAssistantMessage('');
+    const assistantMessageElement = displayAssistantMessage('', modelSelect.options[modelSelect.selectedIndex].text, 0);
 
     // Show the waiting animation
     showWaitingAnimation();
@@ -252,6 +253,13 @@ function sendMessage() {
 // Handle streaming request
 function handleStreamingRequest(request, signal, assistantMessageElement) {
     let messageText = '';
+    const startTime = new Date().getTime();
+    let updateTimer;
+
+    updateTimer = setInterval(() => {
+        updateResponseTime(startTime, assistantMessageElement.previousElementSibling);
+    }, 100);
+
     XWikiAiAPI.getCompletions(request, messageChunk => {
         if (messageChunk.choices.length > 0 && messageChunk.choices[0].delta.content !== null) {
             messageText += messageChunk.choices[0].delta.content;
@@ -259,43 +267,110 @@ function handleStreamingRequest(request, signal, assistantMessageElement) {
             removeWaitingAnimation();
         }
     }, signal)
-        .then(() => {
-            conversationHistory.push({ role: 'assistant', content: assistantMessageElement.textContent });
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-            saveConversationHistory();
+        .then((usageData) => {
+            if (messageText !== '') {
+                conversationHistory.push({ role: 'assistant', content: assistantMessageElement.textContent });
+                saveConversationHistory();
+            }
+            clearInterval(updateTimer);
+
+            if (usageData) {
+                displayUsageInfo(assistantMessageElement.previousElementSibling, usageData, startTime);
+            }
         })
-        .catch(handleRequestError)
+        .catch(error => {
+            handleRequestError(error, updateTimer);
+        })
         .finally(() => {
             changeBtnState(true);
         });
 }
+
+// Display usage information
+function displayUsageInfo(assistantLabel, usageData, startTime) {
+    const responseTime = endTimer(startTime);
+    assistantLabel.innerHTML = `<strong>Assistant (${modelSelect.options[modelSelect.selectedIndex].text})</strong><em> - &Delta;T ${responseTime.toFixed(1)}s </em>`;
+
+    const usageSpan = document.createElement('span');
+    usageSpan.classList.add('usage');
+    usageSpan.innerHTML = '<em> - tokens<span class="usage-info">(&#128202;)</span></em>';
+    assistantLabel.appendChild(usageSpan);
+
+    const usageInfo = document.createElement('div');
+    usageInfo.classList.add('usage-info-box');
+    usageInfo.innerHTML = `
+        <p>Prompt tokens: ${usageData.prompt_tokens}</p>
+        <p>Completion tokens: ${usageData.completion_tokens}</p>
+        <p>Total tokens: ${usageData.total_tokens}</p>
+    `;
+    usageSpan.appendChild(usageInfo);
+}
+
 
 // Handle non-streaming request
 function handleNonStreamingRequest(request, signal, assistantMessageElement) {
+    const startTime = new Date().getTime();
+
     XWikiAiAPI.getCompletions(request, null, signal)
         .then(response => {
-            const assistantMessage = response.choices[0].message.content;
-            assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(assistantMessage), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
-            conversationHistory.push({ role: 'assistant', content: assistantMessage });
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-            removeWaitingAnimation();
-            saveConversationHistory();
+            handleNonStreamingResponse(response, startTime, assistantMessageElement);
         })
-        .catch(handleRequestError)
+        .catch(error => {
+            handleRequestError(error);
+        })
         .finally(() => {
             changeBtnState(true);
         });
 }
 
+// Handle non-streaming response
+function handleNonStreamingResponse(response, startTime, assistantMessageElement) {
+    const endTime = new Date().getTime();
+    const responseTime = (endTime - startTime) / 1000;
+
+    const assistantMessage = response.choices[0].message.content;
+    assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(assistantMessage), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
+    conversationHistory.push({ role: 'assistant', content: assistantMessage });
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    removeWaitingAnimation();
+    saveConversationHistory();
+
+    const assistantLabel = assistantMessageElement.previousElementSibling;
+    assistantLabel.innerHTML = `<strong>Assistant (${modelSelect.options[modelSelect.selectedIndex].text})</strong> - <em>&Delta;T ${responseTime.toFixed(1)}s </em>`;
+    if (response.usage) {
+        const usageSpan = document.createElement('span');
+        usageSpan.classList.add('usage');
+        usageSpan.innerHTML = ' - <em>tokens</em><span class="usage-info">(&#128202;)</span>';
+        assistantLabel.appendChild(usageSpan);
+
+        const usageInfo = document.createElement('div');
+        usageInfo.classList.add('usage-info-box');
+        usageInfo.innerHTML = `
+            <p>Prompt tokens: ${response.usage.prompt_tokens}</p>
+            <p>Completion tokens: ${response.usage.completion_tokens}</p>
+            <p>Total tokens: ${response.usage.total_tokens}</p>
+        `;
+        usageSpan.appendChild(usageInfo);
+    }
+    assistantLabel.innerHTML += ':';
+}
+
+function endTimer(startTime) {
+    const endTime = new Date().getTime();
+    const responseTime = (endTime - startTime) / 1000;
+    return responseTime;
+}
+
 // Handle request error
-function handleRequestError(error) {
+function handleRequestError(error, updateTimer) {
     if (error.name === 'AbortError') {
         console.log('Request aborted');
     } else {
-        console.error(error);
+        console.error('Failed to get chat completions:', error);
         displayErrorMessage('An error occurred. Please try again.');
     }
     removeWaitingAnimation();
+    clearInterval(updateTimer);
 }
 
 // Stop the current request
@@ -330,13 +405,18 @@ function displayUserMessage(message) {
 }
 
 // Display assistant message in the chat history
-function displayAssistantMessage(message) {
+function displayAssistantMessage(message, modelName = '', responseTime = null) {
     const messageElement = document.createElement('div');
     messageElement.classList.add('assistant');
 
     const assistantLabel = document.createElement('div');
     assistantLabel.classList.add('msg-info');
-    assistantLabel.textContent = 'Assistant:';
+
+    if (modelName && responseTime !== null) {
+        assistantLabel.innerHTML = `<strong>Assistant (${modelName})</strong><em> - &Delta;T ${responseTime.toFixed(1)}s:</em>`;
+    } else {
+        assistantLabel.innerHTML = '<strong>Assistant:</strong>';
+    }
 
     const assistantMessageContent = document.createElement('div');
     assistantMessageContent.classList.add('message-text');
@@ -349,6 +429,15 @@ function displayAssistantMessage(message) {
     chatHistory.scrollTop = chatHistory.scrollHeight;
 
     return assistantMessageContent;
+}
+
+
+
+// Update the response time in the assistant label
+function updateResponseTime(startTime, assistantLabel) {
+    const currentTime = new Date().getTime();
+    const elapsedTime = (currentTime - startTime) / 1000;
+    assistantLabel.innerHTML = `<strong>Assistant (${modelSelect.options[modelSelect.selectedIndex].text})</strong> - &Delta;T ${elapsedTime.toFixed(1)}s:`;
 }
 
 // Display error message in the chat history
@@ -382,8 +471,17 @@ function loadUserSettings() {
         modelSelect.value = userSettings.model;
         temperatureInput.value = userSettings.temperature;
         streamCheckbox.checked = userSettings.stream;
+
+        // Apply the collapsed state to the settings section
+        const settingsWrapper = document.querySelector('.settings-wrapper');
+        if (userSettings.settingsCollapsed) {
+            settingsWrapper.classList.add('collapsed');
+        } else {
+            settingsWrapper.classList.remove('collapsed');
+        }
     }
 }
+
 
 // Save conversation history to local storage
 function saveConversationHistory() {
@@ -406,13 +504,17 @@ function loadLastConversation() {
                 displayAssistantMessage(message.content);
             }
         });
-    }
+}
 }
 
 // Toggle settings visibility
 function toggleSettings() {
-    document.querySelector('.settings-wrapper').classList.toggle('collapsed');
+    const settingsWrapper = document.querySelector('.settings-wrapper');
+    settingsWrapper.classList.toggle('collapsed');
+    userSettings.settingsCollapsed = settingsWrapper.classList.contains('collapsed');
+    saveUserSettings();
 }
+
 
 // Call the initialization function when the DOM content is loaded
 document.addEventListener('DOMContentLoaded', initializeChatWidget);

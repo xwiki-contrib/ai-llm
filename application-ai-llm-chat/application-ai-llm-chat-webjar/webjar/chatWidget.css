@@ -209,7 +209,6 @@ button#new-conv {
 }
 
 #chat-history .msg-info {
-    font-weight: bold;
     margin-bottom: 5px;
 }
 
@@ -236,7 +235,7 @@ button#new-conv {
 }
 
 #chat-history .dot {
-    width: 3%;
+    width: 4%;
     height: 90%;
     background-color: #C9C9C9;
     border-radius: 50%;
@@ -286,4 +285,33 @@ button#new-conv {
         bottom: 10px;
         right: 10px;
     }
+}
+
+/* Usage info */
+.usage {
+    font-size: 0.8em;
+    font-weight: normal;
+    position: relative;
+    display: inline-block;
+}
+
+.usage-info {
+    cursor: pointer;
+}
+
+.usage-info-box {
+    display: none;
+    position: absolute;
+    background-color: #f9f9f9;
+    border: 1px solid #ccc;
+    padding: 5px;
+    font-size: 0.8em;
+    z-index: 3002;
+    top: 100%;
+    right: 0;
+    white-space: nowrap;
+}
+
+.usage:hover .usage-info-box {
+    display: block;
 }
