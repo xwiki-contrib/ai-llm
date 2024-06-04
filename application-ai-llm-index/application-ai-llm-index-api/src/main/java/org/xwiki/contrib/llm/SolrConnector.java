@@ -44,7 +44,6 @@ import org.xwiki.search.solr.Solr;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.user.CurrentUserReference;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xpn.xwiki.XWikiContext;
 
 /**
@@ -97,10 +96,7 @@ public class SolrConnector
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR, chunk.getPosLastChar());
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE, chunk.getErrorMessage());
-            ObjectMapper mapper = new ObjectMapper();
-            String content = mapper.writeValueAsString(chunk.getContent());
-
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, content);
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, chunk.getContent());
             double[] embeddings = chunk.getEmbeddings();
             List<Float> embeddingsList = Arrays.stream(embeddings)
                                             .mapToObj(d -> (float) d)
