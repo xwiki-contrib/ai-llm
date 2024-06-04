@@ -98,10 +98,13 @@ public class SolrConnector
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE, chunk.getErrorMessage());
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, chunk.getContent());
             double[] embeddings = chunk.getEmbeddings();
-            List<Float> embeddingsList = Arrays.stream(embeddings)
-                                            .mapToObj(d -> (float) d)
-                                            .toList();
-            solrDocument.setField(AiLLMSolrCoreInitializer.FIELD_VECTOR, embeddingsList);
+            // The embeddings could be null if we got an error and want to store the error.
+            if (embeddings != null) {
+                List<Float> embeddingsList = Arrays.stream(embeddings)
+                    .mapToObj(d -> (float) d)
+                    .toList();
+                solrDocument.setField(AiLLMSolrCoreInitializer.FIELD_VECTOR, embeddingsList);
+            }
             client.add(solrDocument);
             client.commit();
             
