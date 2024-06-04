@@ -85,10 +85,7 @@ public class OpenAIEmbeddingModel extends AbstractModel implements EmbeddingMode
                 throw new RequestError(httpResponse.statusCode(), error.error.getMessage());
             }
 
-            OpenAiResponse<Embedding> openAiResponse = objectMapper.readValue(httpResponse.body(),
-                new TypeReference<OpenAiResponse<Embedding>>()
-                {
-                });
+            OpenAiResponse<Embedding> openAiResponse = readEmbeddingResponse(objectMapper, httpResponse);
 
             if (openAiResponse.data != null) {
                 return openAiResponse.data.stream()
@@ -100,6 +97,22 @@ public class OpenAIEmbeddingModel extends AbstractModel implements EmbeddingMode
             }
         } catch (IOException e) {
             throw new RequestError(500, e.getMessage());
+        }
+    }
+
+    private static OpenAiResponse<Embedding> readEmbeddingResponse(ObjectMapper objectMapper,
+        HttpResponse<InputStream> httpResponse) throws IOException
+    {
+        try {
+            return objectMapper.readValue(httpResponse.body(),
+                new TypeReference<OpenAiResponse<Embedding>>()
+                {
+                });
+        } catch (IOException e) {
+            // If parsing the response failed, it is possible that in fact, it was an error response.
+            // Try reading the error response and throw an exception with the error.
+            OpenAiError error = objectMapper.readValue(httpResponse.body(), OpenAiError.class);
+            throw new IOException(error.error.getMessage());
         }
     }
 
