@@ -8,6 +8,7 @@ const XWikiAiAPI = (() => {
     let temperature = 1;
     let stream = false;
     let chatUISettings = [];
+    let apiKeyChangeCallback = null;
 
     /**
      * Generates the fetch options for a request.
@@ -16,13 +17,14 @@ const XWikiAiAPI = (() => {
      * @param {Object|null} body - The body of the request, if any.
      * @return {Object} The fetch options.
      */
-    const fetchOptions = (method, body = null) => ({
+    const fetchOptions = (method, body = null, signal = null) => ({
         method,
         headers: {
             'Content-Type': 'application/json',
             ...(apiKey && { 'Authorization': `Bearer ${apiKey}` })
         },
-        ...(body && { body: JSON.stringify(body) })
+        ...(body && { body: JSON.stringify(body) }),
+        ...(signal && { signal })
     });
 
     /**
@@ -32,35 +34,44 @@ const XWikiAiAPI = (() => {
      * @param {Function} onMessageChunk - The callback to call for each message chunk.
      * @return {Promise} A promise that resolves with the accumulated content values.
      */
-    const handleStreamedResponse = async (response, onMessageChunk) => {
+    const handleStreamedResponse = async (response, onMessageChunk, signal) => {
         let accumulatedChunks = '';
         const reader = response.body.getReader();
+    
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             const chunkText = new TextDecoder().decode(value);
             accumulatedChunks += chunkText;
-
-            // Process accumulated chunks
+    
             let lastIndexOfData = accumulatedChunks.lastIndexOf('data: ');
             if (lastIndexOfData !== -1) {
                 let completeData = accumulatedChunks.substring(0, lastIndexOfData);
                 accumulatedChunks = accumulatedChunks.substring(lastIndexOfData);
-
+    
                 let jsonMessages = completeData.split('data: ').filter(Boolean).map(msg => 'data: ' + msg);
                 jsonMessages.forEach(msg => {
-                    // Optionally, process each JSON message as it arrives
-                    if (onMessageChunk) onMessageChunk(JSON.parse(msg.replace(/^data: /, '').trim()));
+                    const message = JSON.parse(msg.replace(/^data: /, '').trim());
+                    if (message.choices.length > 0 && message.choices[0].delta && message.choices[0].delta.content !== null) {
+                        onMessageChunk(message);
+                    }
                 });
             }
+    
+            // Check if the signal is aborted
+            if (signal && signal.aborted) {
+                throw new DOMException('Aborted', 'AbortError');
+            }
         }
-
-        // Handle the final chunk
+    
         if (accumulatedChunks) {
-            if (onMessageChunk) onMessageChunk(JSON.parse(accumulatedChunks.replace(/^data: /, '').trim()));
+            const message = JSON.parse(accumulatedChunks.replace(/^data: /, '').trim());
+            if (message.choices.length > 0 && message.choices[0].delta && message.choices[0].delta.content !== null) {
+                onMessageChunk(message);
+            }
         }
     };
-
+    
 
     /**
      * Encodes the wiki name for use in URLs.
@@ -88,6 +99,13 @@ const XWikiAiAPI = (() => {
             baseURL = url;
         },
 
+        /** 
+         * Get API key
+         *  */
+        getApiKey: () => {
+            return apiKey;
+        },
+
         /**
          * Sets the API key for authentication.
          * 
@@ -95,6 +113,10 @@ const XWikiAiAPI = (() => {
          */
         setApiKey: (key) => {
             apiKey = key;
+            // Call the apiKeyChangeCallback if it exists
+            if (apiKeyChangeCallback) {
+                apiKeyChangeCallback(key);
+            }
         },
 
         /**
@@ -145,27 +167,29 @@ const XWikiAiAPI = (() => {
        * @param {Function} onMessageChunk - The callback to call for each message chunk.
        * @return {Promise} A promise that resolves when the stream is fully processed.
        */
-        getCompletions: async (request, onMessageChunk) => {
-            if (!(request instanceof ChatCompletionRequest)) {
-                throw new Error("The request must be an instance of ChatCompletionRequest");
+      getCompletions: async (request, onMessageChunk, signal) => {
+        if (!(request instanceof ChatCompletionRequest)) {
+            throw new Error("The request must be an instance of ChatCompletionRequest");
+        }
+        try {
+            const response = await fetch(`${baseURL}/rest/wikis/${encodeWikiName()}/aiLLM/v1/chat/completions?media=json`, fetchOptions('POST', request.toJSON(), signal));
+            if (!response.ok) {
+                throw new Error(`Network response was not ok: ${response.statusText}`);
             }
-            try {
-                const response = await fetch(`${baseURL}/rest/wikis/${encodeWikiName()}/aiLLM/v1/chat/completions?media=json`, fetchOptions('POST', request.toJSON()));
-                if (!response.ok) {
-                    throw new Error(`Network response was not ok: ${response.statusText}`);
-                }
-                if (request.stream) {
-                    // Handle streaming response
-                    return await handleStreamedResponse(response, onMessageChunk);
-                } else {
-                    // Non-streaming response
-                    return await response.json();
-                }
-            } catch (error) {
+            if (request.stream) {
+                return await handleStreamedResponse(response, onMessageChunk, signal);
+            } else {
+                return await response.json();
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('Fetch aborted');
+            } else {
                 console.error('Failed to get chat completions:', error);
-                throw error;
             }
-        },
+            throw error;
+        }
+    },
 
         /**
          * Set the available settings as an array of strings.
@@ -183,6 +207,25 @@ const XWikiAiAPI = (() => {
          * */
         getChatUISettings: () => {
             return chatUISettings;
+        },
+
+        /**
+         * Registers a callback function to be called when the API key changes.
+         * 
+         * @param {Function} callback - The callback function to be called when the API key changes.
+         */
+        onApiKeyChange: (callback) => {
+            // Store the callback function
+            apiKeyChangeCallback = callback;
+
+            // Return an object with a method to update the API key
+            return {
+                updateApiKey: (newApiKey) => {
+                    apiKey = newApiKey;
+                    // Call the registered callback function
+                    apiKeyChangeCallback();
+                }
+            };
         }
     };
 })();

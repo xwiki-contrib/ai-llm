@@ -35,7 +35,7 @@
   <properties>
     <!-- Name to display by the Extension Manager -->
     <xwiki.extension.name>LLM Chat WebJar</xwiki.extension.name>
-    <xwiki.extension.category>other</xwiki.extension.category>
+    <xwiki.extension.category>webjar</xwiki.extension.category>
   </properties>
     <dependencies>
       <dependency>
@@ -58,56 +58,9 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>com.github.eirslett</groupId>
-        <artifactId>frontend-maven-plugin</artifactId>
-        <version>1.11.2</version>
-        <configuration>
-          <workingDirectory>chat</workingDirectory>
-          <nodeVersion>v21.6.2</nodeVersion>
-        </configuration>
-        <executions>
-          <execution>
-            <id>install node and npm</id>
-            <goals>
-              <goal>install-node-and-npm</goal>
-            </goals>
-          </execution>
-          <execution>
-            <id>npm install</id>
-            <goals>
-              <goal>npm</goal>
-            </goals>
-          </execution>
-          <execution>
-            <id>npm run build</id>
-            <goals>
-              <goal>npm</goal>
-            </goals>
-            <configuration>
-              <arguments>run build</arguments>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
       <artifactId>maven-resources-plugin</artifactId>
       <version>3.2.0</version>
       <executions>
-        <execution>
-          <id>copy-stencil-output-dist</id>
-          <phase>prepare-package</phase>
-          <goals>
-            <goal>copy-resources</goal>
-          </goals>
-          <configuration>
-            <outputDirectory>${webjar.outputDirectory}/dist/chat/</outputDirectory>
-            <resources>
-              <resource>
-                <directory>chat/dist/chat</directory>
-              </resource>
-            </resources>
-          </configuration>
-        </execution>
         <execution>
           <id>copy-resource-lib-and-load</id>
           <phase>prepare-package</phase>
@@ -121,8 +74,8 @@
                 <directory>webjar</directory>
                 <includes>
                   <include>aillm.js</include>
-                  <include>chatUI.css</include>
-                  <include>chatUILoader.js</include>
+                  <include>chatWidget.js</include>
+                  <include>chatWidget.css</include>
                   <include>marked.min.js</include>
                   <include>purify.min.js</include>
                 </includes>
