@@ -243,6 +243,38 @@
   {{html clean="false"}}
   #livetable('documents' $columns $columnsProperties $options)
   {{/html}}
+
+  (% id="HIndexedChunks" %)
+  == {{translation key="collections.sheet.chunks" /}} ==
+
+  {{liveData id="indexedChunks"
+      properties="id,collection,document,index,errorMessage,url,language,content,firstChar,lastChar"
+      sort="document:asc,index:asc"
+      source="llmIndexChunks"
+  }}
+    $jsontool.serialize(
+      {
+        'query': {
+          'filters': [
+            {
+              'property': 'collection',
+              'constraints': [
+                {'operator': 'equals', 'value': $!{obj.getProperty('id').value}}
+              ]
+            }
+          ]
+        },
+        'meta': {
+          'propertyDescriptors': [
+            {
+              'id': 'collection',
+              'visible': false
+            }
+          ]
+        }
+      }
+    )
+  {{/liveData}}
 #end
 {{/velocity}}</content>
   <object>

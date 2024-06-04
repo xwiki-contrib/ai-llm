@@ -56,6 +56,11 @@
             <version>${platform.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-livedata-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <dependency>
             <groupId>com.tdunning</groupId>
             <artifactId>json</artifactId>
             <version>1.8</version>

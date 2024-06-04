@@ -96,6 +96,7 @@ public class SolrConnector
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_INDEX, chunk.getChunkIndex());
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
             solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR, chunk.getPosLastChar());
+            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE, chunk.getErrorMessage());
             ObjectMapper mapper = new ObjectMapper();
             String content = mapper.writeValueAsString(chunk.getContent());
 
@@ -163,7 +164,7 @@ public class SolrConnector
         return "((" + AiLLMSolrCoreInitializer.FIELD_WIKI + SOLR_SEPARATOR
             + this.solrUtils.toCompleteFilterQueryString(wiki)
             // Also match documents with empty wiki field as before version 0.4, no wiki field was stored.
-            + ") OR (*:* AND -" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":*))";
+            + ") OR (*:* AND -" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":[* TO *]))";
     }
 
     /**

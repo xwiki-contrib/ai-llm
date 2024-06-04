@@ -46,6 +46,7 @@ public class Chunk
     private int posLastChar;
     private String content;
     private double[] embeddings;
+    private String errorMessage;
 
     @Inject
     private Logger logger;
@@ -97,6 +98,24 @@ public class Chunk
     public void setWiki(String wiki)
     {
         this.wiki = wiki;
+    }
+
+    /**
+     * @return the error message if computing or embedding the chunk failed, the embedding should be empty when the
+     * error message is set
+     */
+    public String getErrorMessage()
+    {
+        return this.errorMessage;
+    }
+
+    /**
+     * @param errorMessage the error message if computing or embedding the chunk failed, the embedding should be empty
+     * when the error message is set
+     */
+    public void setErrorMessage(String errorMessage)
+    {
+        this.errorMessage = errorMessage;
     }
 
     /**

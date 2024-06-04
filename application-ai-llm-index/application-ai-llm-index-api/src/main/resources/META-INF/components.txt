@@ -12,6 +12,13 @@ org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer
 org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationManagerBuilder
 org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationRequestBuilder
 org.xwiki.contrib.llm.internal.authorization.PublicAuthorizationManagerBuilder
+org.xwiki.contrib.llm.internal.livedata.DefaultLLMIndexPropertiesProvider
+org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksEntryStore
+org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksLiveDataConfigurationResolver
+org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksLiveDataSource
+org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksPropertyStore
+org.xwiki.contrib.llm.internal.livedata.NumberLLMIndexProperty
+org.xwiki.contrib.llm.internal.livedata.TextLLMIndexProperty
 org.xwiki.contrib.llm.script.CollectionManagerScriptService
 org.xwiki.contrib.llm.IndexWorker
 org.xwiki.contrib.llm.Migrator
