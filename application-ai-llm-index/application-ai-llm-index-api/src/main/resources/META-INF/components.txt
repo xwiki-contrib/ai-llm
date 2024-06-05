@@ -17,6 +17,7 @@ org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksEntryStore
 org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksLiveDataConfigurationResolver
 org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksLiveDataSource
 org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksPropertyStore
+org.xwiki.contrib.llm.internal.livedata.LongTextLLMIndexProperty
 org.xwiki.contrib.llm.internal.livedata.NumberLLMIndexProperty
 org.xwiki.contrib.llm.internal.livedata.TextLLMIndexProperty
 org.xwiki.contrib.llm.script.CollectionManagerScriptService

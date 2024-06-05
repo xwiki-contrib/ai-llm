@@ -58,6 +58,10 @@ public class DefaultLLMIndexPropertiesProvider implements Provider<Map<String, L
     @Named("text")
     private Provider<LLMIndexProperty> textPropertyProvider;
 
+    @Inject
+    @Named("longText")
+    private Provider<LLMIndexProperty> longTextPropertyProvider;
+
     @Override
     public Map<String, LLMIndexProperty> get()
     {
@@ -73,13 +77,16 @@ public class DefaultLLMIndexPropertiesProvider implements Provider<Map<String, L
                 entry("document", AiLLMSolrCoreInitializer.FIELD_DOC_ID),
                 entry("url", AiLLMSolrCoreInitializer.FIELD_DOC_URL),
                 entry("language", AiLLMSolrCoreInitializer.FIELD_LANGUAGE),
-                entry("content", AiLLMSolrCoreInitializer.FIELD_CONTENT),
                 entry("errorMessage", AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE)
             ).map(entry -> {
                 LLMIndexProperty property = this.textPropertyProvider.get();
                 property.initialize(entry.getKey(), entry.getValue());
                 return property;
             });
+
+        LLMIndexProperty contentProperty = this.longTextPropertyProvider.get();
+        contentProperty.initialize("content", AiLLMSolrCoreInitializer.FIELD_CONTENT);
+        Stream<LLMIndexProperty> longTextProperties = Stream.of(contentProperty);
 
         Stream<LLMIndexProperty> numberProperties = Stream.of(
                 entry("index", AiLLMSolrCoreInitializer.FIELD_INDEX),
@@ -93,7 +100,8 @@ public class DefaultLLMIndexPropertiesProvider implements Provider<Map<String, L
                 }
             );
 
-        this.properties = Stream.concat(textProperties, numberProperties)
+        this.properties = Stream.of(textProperties, longTextProperties, numberProperties)
+            .flatMap(Function.identity())
             .collect(Collectors.toMap(LLMIndexProperty::getId, Function.identity()));
     }
 }
