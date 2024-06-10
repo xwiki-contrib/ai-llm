@@ -45,6 +45,7 @@ import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
+import org.xwiki.user.UserReference;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -410,6 +411,12 @@ public class DefaultCollection implements Collection
     {
         AuthorizationManagerBuilder authorizationManagerBuilder = getAuthorizationManagerBuilder();
         return authorizationManagerBuilder.getConfigurationType();
+    }
+
+    @Override
+    public UserReference getAuthor()
+    {
+        return this.xWikiDocumentWrapper.getXWikiDocument().getAuthors().getEffectiveMetadataAuthor();
     }
 
     private void removeDocumentFromVectorDB(Document document)

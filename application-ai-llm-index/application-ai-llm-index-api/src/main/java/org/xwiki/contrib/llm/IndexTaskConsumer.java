@@ -20,19 +20,14 @@
 
 package org.xwiki.contrib.llm;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.solr.client.solrj.SolrServerException;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.internal.DocumentIndexer;
 import org.xwiki.index.TaskConsumer;
 import org.xwiki.model.reference.DocumentReference;
 
@@ -56,10 +51,7 @@ public class IndexTaskConsumer implements TaskConsumer
     public static final String NAME = "indexing";
 
     @Inject
-    private CollectionManager collectionManager;
-
-    @Inject
-    private SolrConnector solrConnector;
+    private DocumentIndexer documentIndexer;
 
     @Inject
     private Logger logger;
@@ -77,47 +69,13 @@ public class IndexTaskConsumer implements TaskConsumer
 
             String docID = documentObject.getStringValue("id");
             String docCollection = documentObject.getStringValue("collection");
+            String wiki = xdocument.getDocumentReference().getWikiReference().getName();
 
             this.logger.info("Processing document: {}", docID);
-            Collection collection = this.collectionManager.getCollection(docCollection);
-            Document document = collection.getDocument(docID);
-            this.solrConnector.deleteChunksByDocId(documentReference.getWikiReference().getName(), docCollection,
-                docID);
-            List<Chunk> chunks = document.chunkDocument();
-            this.logger.info("Chunks: {}", chunks);
-            for (Chunk chunk : chunks) {
-                this.logger.info("Chunks: docID {}, chunk index {}", chunk.getDocumentID(), chunk.getChunkIndex());
-                tryStoringChunk(chunk, collection, xdocument, docID);
-            }
+            this.documentIndexer.indexDocument(wiki, docCollection, docID);
         } catch (Exception e) {
             this.logger.error("Error while processing document [{}]: [{}]", documentReference, e.getMessage());
         }
-    }
-
-    private void tryStoringChunk(Chunk chunk, Collection collection, XWikiDocument xdocument, String docID)
-        throws SolrServerException
-    {
-        try {
-            chunk.computeEmbeddings(collection.getEmbeddingModel(), xdocument.getAuthors().getContentAuthor());
-        } catch (IndexException e) {
-            this.logger.warn("Error while embedding chunk [{}] of document [{}]: [{}]", chunk.getChunkIndex(),
-                docID, ExceptionUtils.getRootCauseMessage(e));
-
-            chunk.setErrorMessage("Error computing the embedding: %s".formatted(ExceptionUtils.getRootCauseMessage(e)));
-        }
-        this.solrConnector.storeChunk(chunk, generateChunkID(chunk));
-    }
-
-    //generate unique id for chunks
-    private String generateChunkID(Chunk chunk)
-    {
-        String separator = "_";
-        List<String> parts = List.of(chunk.getWiki(), chunk.getCollection(), chunk.getDocumentID(),
-            String.valueOf(chunk.getChunkIndex()));
-        // Use URL encoding escaping to avoid having the separator in any of the parts
-        return parts.stream()
-            .map(part -> StringUtils.replaceEach(part, new String[] {separator, "%"}, new String[] {"%5F", "%25"}))
-            .collect(Collectors.joining(separator));
     }
 }
 

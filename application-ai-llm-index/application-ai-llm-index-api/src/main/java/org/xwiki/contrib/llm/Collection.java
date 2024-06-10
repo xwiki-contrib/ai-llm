@@ -24,6 +24,8 @@ import java.util.List;
 import org.xwiki.component.annotation.Role;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.model.reference.LocalDocumentReference;
+import org.xwiki.user.GuestUserReference;
+import org.xwiki.user.UserReference;
 
 /**
  * Represents a collection of documents within the AI-LLM indexing system.
@@ -282,6 +284,15 @@ public interface Collection
      *
      */
     void save() throws IndexException;
+
+    /**
+     * @return get the user who last updated the collection for checking rights
+     * @since 0.4
+     */
+    default UserReference getAuthor()
+    {
+        return GuestUserReference.INSTANCE;
+    }
 
     /**
      * @return the authorization manager for this collection that needs to be used to check rights on any retrieved
