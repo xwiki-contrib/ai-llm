@@ -50,7 +50,7 @@ AI.Collections.Code.CollectionsClass_queryGroups=Groups that can query
 AI.Collections.Code.CollectionsClass_editGroups=Groups that can manage content
 AI.Collections.Code.CollectionsClass_adminGroups=Groups that can Manage Settings
 AI.Collections.Code.CollectionsClass_rightsCheckMethod=Rights check method
-AI.Collections.Code.CollectionsClass_rightsCheckMethod_rightsCheckJWT=JSON Web Token
+AI.Collections.Code.CollectionsClass_documentStore=Document Store
 
 # External authentication
 AI.Collections.Code.ExternalAuthorizationConfigurationClass_url=URL of the external authorization API
@@ -95,13 +95,13 @@ collections.livetable.queryGroups=Groups that can query
 collections.livetable.editGroups=Groups that can manage content
 collections.livetable.adminGroups=Groups that can Manage Settings
 collections.livetable.rightsCheckMethod=Rights check method
+collections.livetable.documentStore=Document Store
 
 # Other keys
 collections.entry.name=Collections
 
 # Deprecated keys
-collections.dataSpace.title=Data
-</content>
+collections.dataSpace.title=Data</content>
   <object>
     <name>AI.Collections.Code.CollectionsTranslations</name>
     <number>0</number>

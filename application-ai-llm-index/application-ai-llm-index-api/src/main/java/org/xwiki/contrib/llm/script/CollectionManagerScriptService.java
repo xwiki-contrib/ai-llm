@@ -28,8 +28,10 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.descriptor.ComponentDescriptor;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
@@ -185,5 +187,16 @@ public class CollectionManagerScriptService implements ScriptService
                         return new AuthorizationManagerDescriptor(configurationClassReference,
                             configurationSheetReference);
                     }));
+    }
+
+    /**
+     * @return the possible values for the {@code documentStore} property of a collection
+     */
+    public List<String> getDocumentStoreValues()
+    {
+        return this.componentManagerProvider.get().getComponentDescriptorList(DocumentStore.class)
+            .stream()
+            .map(ComponentDescriptor::getRoleHint)
+            .toList();
     }
 }
