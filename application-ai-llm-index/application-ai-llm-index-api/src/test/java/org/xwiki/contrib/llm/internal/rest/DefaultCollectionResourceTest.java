@@ -26,23 +26,24 @@ import javax.inject.Named;
 import javax.ws.rs.WebApplicationException;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.xwiki.contrib.llm.authorization.AuthorizationManager;
-import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
+import org.xwiki.contrib.llm.authorization.AuthorizationManager;
+import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.internal.CurrentUserCollection;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
-import org.xwiki.contrib.llm.internal.CurrentUserDocument;
 import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.DefaultCollectionManager;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
+import org.xwiki.contrib.llm.internal.InternalDocumentStore;
 import org.xwiki.contrib.llm.rest.JSONCollection;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.SpaceReference;
@@ -54,6 +55,8 @@ import org.xwiki.security.authorization.Right;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.user.CurrentUserReference;
+import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupManager;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
@@ -75,6 +78,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -95,11 +99,11 @@ import static org.mockito.Mockito.when;
 @OldcoreTest
 @ComponentList({
     DefaultCollectionManager.class,
+    InternalDocumentStore.class,
     CurrentUserCollectionManager.class,
     DefaultCollection.class,
     CurrentUserCollection.class,
     DefaultDocument.class,
-    CurrentUserDocument.class
 })
 
 @ReferenceComponentList
@@ -186,6 +190,12 @@ class DefaultCollectionResourceTest
         // Mock the checking calls to avoid issues with loading the ObservationManager.
         doNothing().when(this.oldcore.getSpyXWiki()).checkSavingDocument(any(), any(), any());
         doNothing().when(this.oldcore.getSpyXWiki()).checkDeletingDocument(any(), any(), any());
+
+        this.oldcore.getXWikiContext().setUserReference(USER_REFERENCE);
+
+        UserReferenceSerializer<DocumentReference> userReferenceSerializer =
+            this.oldcore.getMocker().getInstance(UserReferenceSerializer.TYPE_DOCUMENT_REFERENCE, "document");
+        when(userReferenceSerializer.serialize(CurrentUserReference.INSTANCE)).thenReturn(USER_REFERENCE);
     }
 
     @Test
@@ -219,7 +229,7 @@ class DefaultCollectionResourceTest
     }
 
     @Test
-    void putCollection() throws XWikiRestException, IndexException, XWikiException
+    void putCollection() throws XWikiRestException, IndexException
     {
         String id = "newcollection";
         String chunkingMethod = "none";
@@ -380,9 +390,24 @@ class DefaultCollectionResourceTest
         String doc1 = "doc1";
         String doc2 = "doc2";
         List<Object> documentList = List.of(doc1, doc2);
-        when(this.documentsQuery.execute()).thenReturn(documentList);
 
-        when(this.oldcore.getMockContextualAuthorizationManager().hasAccess(eq(Right.VIEW),
+        // Mock offset and limit support on the query. Store offset/limit when they are set.
+        MutableInt offset = new MutableInt();
+        MutableInt limit = new MutableInt();
+        when(this.documentsQuery.setLimit(anyInt())).then(invocation -> {
+            limit.setValue(invocation.getArgument(0));
+            return this.documentsQuery;
+        });
+        when(this.documentsQuery.setOffset(anyInt())).then(invocation -> {
+            offset.setValue(invocation.getArgument(0));
+            return this.documentsQuery;
+        });
+        when(this.documentsQuery.execute()).thenAnswer(invocation -> documentList.stream()
+            .skip(offset.getValue())
+            .limit(limit.getValue() > 0 ? limit.getValue() : Long.MAX_VALUE)
+            .toList());
+
+        when(this.oldcore.getMockAuthorizationManager().hasAccess(eq(Right.VIEW), eq(USER_REFERENCE),
                 argThat(entityReference -> COLLECTION_1_DOCUMENTS_SPACE.equals(entityReference.getParent()))))
             .thenReturn(true);
 
@@ -399,7 +424,7 @@ class DefaultCollectionResourceTest
         List<Object> documentList = List.of(accessibleDoc, inaccessibleDoc);
         when(this.documentsQuery.execute()).thenReturn(documentList);
 
-        when(this.oldcore.getMockContextualAuthorizationManager().hasAccess(eq(Right.VIEW),
+        when(this.oldcore.getMockAuthorizationManager().hasAccess(eq(Right.VIEW), eq(USER_REFERENCE),
                 argThat(entityReference -> DigestUtils.sha256Hex(accessibleDoc).equals(entityReference.getName())
                     && COLLECTION_1_DOCUMENTS_SPACE.equals(entityReference.getParent()))))
                 .thenReturn(true);

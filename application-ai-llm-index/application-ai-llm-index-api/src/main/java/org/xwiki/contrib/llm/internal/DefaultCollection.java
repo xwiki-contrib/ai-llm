@@ -26,25 +26,18 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
 
-import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
+import org.xwiki.contrib.llm.Collection;
+import org.xwiki.contrib.llm.DocumentStore;
+import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
-import org.xwiki.contrib.llm.Collection;
-import org.xwiki.contrib.llm.Document;
-import org.xwiki.contrib.llm.IndexException;
-import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.SpaceReference;
-import org.xwiki.query.Query;
-import org.xwiki.query.QueryException;
-import org.xwiki.query.QueryManager;
 import org.xwiki.user.UserReference;
 
 import com.xpn.xwiki.XWikiContext;
@@ -72,22 +65,12 @@ public class DefaultCollection implements Collection
     private static final String RIGHTS_CHECK_METHOD_FIELDNAME = "rightsCheckMethod";
     private static final String DOCUMENT_SPACE_FIELDNAME = "documentSpaces";
 
+    private static final String DOCUMENT_STORE_FIELDNAME = "documentStore";
+
     @Inject
     protected Provider<XWikiContext> contextProvider;
 
     private XWikiDocumentWrapper xWikiDocumentWrapper;
-
-    @Inject
-    private QueryManager queryManager;
-
-    @Inject
-    private Provider<DefaultDocument> documentProvider;
-
-    @Inject
-    private SolrConnector solrConnector;
-
-    @Inject
-    private Logger logger;
 
     @Inject
     @Named("context")
@@ -144,7 +127,38 @@ public class DefaultCollection implements Collection
     {
         return this.xWikiDocumentWrapper.getIntValue(CHUNKING_OVERLAP_OFFSET_FIELDNAME);
     }
-    
+
+    @Override
+    public String getDocumentStoreHint()
+    {
+        String result = this.xWikiDocumentWrapper.getStringValue(DOCUMENT_STORE_FIELDNAME);
+        if (StringUtils.isBlank(result)) {
+            result = "internal";
+        }
+
+        return result;
+    }
+
+    @Override
+    public DocumentStore getDocumentStore() throws IndexException
+    {
+        return getDocumentStoreInternal(null);
+    }
+
+    protected DocumentStore getDocumentStoreInternal(UserReference userReference) throws IndexException
+    {
+        String storeId = this.getDocumentStoreHint();
+
+        ComponentManager componentManager = this.componentManagerProvider.get();
+        try {
+            DocumentStore result = componentManager.getInstance(DocumentStore.class, storeId);
+            result.initialize(this, userReference);
+            return result;
+        } catch (ComponentLookupException e) {
+            throw new IndexException("Failed to lookup document store [" + storeId + "]", e);
+        }
+    }
+
     @Override
     public List<String> getDocumentSpaces()
     {
@@ -257,91 +271,6 @@ public class DefaultCollection implements Collection
             throw new IndexException(String.format("Error saving collection [%s].", this.getID()), e);
         }
     }
-    
-    @Override
-    public List<String> getDocuments()
-    {
-        List<String> documents = null;
-        String documentClass = Document.XCLASS_SPACE_STRING + "." + Document.XCLASS_NAME;
-        String templateDoc = Document.XCLASS_SPACE_STRING + ".DocumentsTemplate";
-        String hql = "select prop.value from XWikiDocument doc, BaseObject obj,"
-                    + "StringProperty prop, StringProperty collectionProp "
-                    + "where doc.fullName=obj.name "
-                    + "and obj.className='" + documentClass
-                    + "' and doc.fullName <> '" + templateDoc
-                    + "' and obj.id = prop.id.id "
-                    + "and prop.id.name = 'id' "
-                    + "and obj.id = collectionProp.id.id "
-                    + "and collectionProp.id.name = 'collection' "
-                    + "and collectionProp.value = '" + this.getID() + "'";
-         
-        try {
-            Query query = queryManager.createQuery(hql, Query.HQL);
-            documents = query.execute();
-            return documents;
-        } catch (QueryException e) {
-            this.logger.error("Failed retrieving document list, [{}]", e.getMessage());
-        }
-        return documents;
-    }
-    
-    @Override
-    public Document getDocument(String documentId) throws IndexException
-    {
-        XWikiContext context = contextProvider.get();
-        DocumentReference documentReference = getDocumentReference(documentId);
-        try {
-            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
-            if (!xwikiDoc.isNew()) {
-                DefaultDocument document = this.documentProvider.get();
-                document.initialize(xwikiDoc);
-                return document;
-            } else {
-                return null;
-            }
-        } catch (XWikiException e) {
-            throw new IndexException("Failed to get document [" + documentId + "]", e);
-        }
-    }
-    
-    @Override
-    public Document newDocument(String documentId) throws IndexException
-    {
-        if (documentId == null) {
-            throw new IndexException("Document ID cannot be null");
-        }
-        XWikiContext context = contextProvider.get();
-        DocumentReference documentReference = getDocumentReference(documentId);
-        try {
-            XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
-            DefaultDocument document = this.documentProvider.get();
-            document.initialize(xwikiDoc);
-            document.setID(documentId);
-            document.setTitle(documentId);
-            document.setCollection(this.getID());
-            return document;
-        } catch (XWikiException e) {
-            throw new IndexException("Failed to create document [" + documentId + "]", e);
-        }
-    }
-    
-    @Override
-    public void removeDocument(String documentId,
-                                 boolean removeFromVectorDB,
-                                 boolean removeFromStorage) throws IndexException
-    {
-        try {
-            Document document = this.getDocument(documentId);
-            if (removeFromVectorDB) {
-                removeDocumentFromVectorDB(document);
-            }
-            if (removeFromStorage) {
-                removeDocumentFromStorage(document);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to remove document with id [{}]: [{}]", documentId, e.getMessage());
-        }
-    }
 
     @Override
     public AuthorizationManager getAuthorizationManager() throws IndexException
@@ -419,33 +348,10 @@ public class DefaultCollection implements Collection
         return this.xWikiDocumentWrapper.getXWikiDocument().getAuthors().getEffectiveMetadataAuthor();
     }
 
-    private void removeDocumentFromVectorDB(Document document)
+    @Override
+    public DocumentReference getDocumentReference()
     {
-        try {
-            String wiki = document.getXWikiDocument().getDocumentReference().getWikiReference().getName();
-            solrConnector.deleteChunksByDocId(wiki, document.getCollection(), document.getID());
-        } catch (Exception e) {
-            logger.error("Failed to remove document [{}] from vector database: [{}]",
-                                 document, e.getMessage());
-        }
-    }
-
-    private void removeDocumentFromStorage(Document document)
-    {
-        try {
-            XWikiContext context = this.contextProvider.get();
-            context.getWiki().deleteDocument(document.getXWikiDocument(), context);
-        } catch (XWikiException e) {
-            logger.error("Failed to remove document [{}] from storage: [{}]",
-                                 document, e.getMessage());
-        }
-    }
-    
-    DocumentReference getDocumentReference(String id)
-    {
-        SpaceReference lastSpaceReference = this.xWikiDocumentWrapper.getDocumentReference().getLastSpaceReference();
-        SpaceReference documentReference = new SpaceReference("Documents", lastSpaceReference);
-        return new DocumentReference(DigestUtils.sha256Hex(id), documentReference);
+        return this.xWikiDocumentWrapper.getDocumentReference();
     }
 
     XWikiDocument getCollectionDocument()

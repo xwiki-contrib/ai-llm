@@ -27,10 +27,12 @@ import javax.ws.rs.core.Response;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.rest.DocumentResource;
 import org.xwiki.contrib.llm.rest.JSONDocument;
 import org.xwiki.rest.XWikiRestException;
+import org.xwiki.security.authorization.AccessDeniedException;
 
 /**
  * Default implementation of {@link DocumentResource}.
@@ -46,12 +48,13 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
     public JSONDocument getDocument(String wikiName, String collectionName, String documentID) throws XWikiRestException
     {
         try {
-            Document document = getInternalCollection(wikiName, collectionName).getDocument(documentID);
+            Collection collection = getInternalCollection(wikiName, collectionName);
+            Document document = collection.getDocumentStore().getDocument(documentID);
             if (document == null) {
                 throw new WebApplicationException(Response.Status.NOT_FOUND);
             }
             return new JSONDocument(document);
-        } catch (IndexException e) {
+        } catch (IndexException | AccessDeniedException e) {
             throw convertDocumentException(collectionName, documentID, "retrieving", e);
         }
     }
@@ -61,12 +64,13 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
     {
         try {
             Collection collection = getInternalCollection(wikiName, collectionName);
-            Document document = collection.getDocument(documentID);
+            DocumentStore documentStore = collection.getDocumentStore();
+            Document document = documentStore.getDocument(documentID);
             if (document == null) {
                 throw new WebApplicationException(Response.Status.NOT_FOUND);
             }
-            collection.removeDocument(documentID, true, true);
-        } catch (IndexException e) {
+            documentStore.deleteDocument(document);
+        } catch (IndexException | AccessDeniedException e) {
             throw convertDocumentException(collectionName, documentID, "deleting", e);
         }
     }
@@ -77,16 +81,16 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
     {
         try {
             Collection collection = getInternalCollection(wikiName, collectionName);
-            Document existingDocument = collection.getDocument(documentID);
+            Document existingDocument = collection.getDocumentStore().getDocument(documentID);
             if (existingDocument == null) {
-                existingDocument = collection.newDocument(documentID);
+                existingDocument = collection.getDocumentStore().createDocument(documentID);
             }
 
             // Assign the new document to the existing one
             document.applyTo(existingDocument);
-            existingDocument.save();
+            collection.getDocumentStore().saveDocument(existingDocument);
             return new JSONDocument(existingDocument);
-        } catch (IndexException e) {
+        } catch (IndexException | AccessDeniedException e) {
             throw convertDocumentException(collectionName, documentID, "updating", e);
         }
     }

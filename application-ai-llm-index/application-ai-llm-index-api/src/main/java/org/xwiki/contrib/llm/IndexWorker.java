@@ -25,8 +25,10 @@ import javax.inject.Singleton;
 
 import org.slf4j.Logger;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
+import org.xwiki.bridge.event.DocumentDeletedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.internal.DefaultDocument;
 import org.xwiki.index.TaskManager;
 import org.xwiki.observation.event.AbstractLocalEventListener;
 import org.xwiki.observation.event.Event;
@@ -56,12 +58,15 @@ public class IndexWorker extends AbstractLocalEventListener
     @Inject
     private TaskManager taskManager;
 
+    @Inject
+    private SolrConnector solrConnector;
+
     /**
      * Default constructor.
      */
     public IndexWorker()
     {
-        super(NAME, new DocumentCreatedEvent(), new DocumentUpdatedEvent());
+        super(NAME, new DocumentCreatedEvent(), new DocumentUpdatedEvent(), new DocumentDeletedEvent());
     }
 
     @Override
@@ -72,6 +77,16 @@ public class IndexWorker extends AbstractLocalEventListener
 
         if (documentObject != null && !xdocument.getDocumentReference().getName().equals("DocumentsTemplate")) {
             addTaskForDocument(xdocument);
+        } else {
+            // Check if the document was an internal document before the change like a deletion - delete it
+            // from Solr. We do this directly as TaskManager doesn't support tasks for deleted documents.
+            BaseObject xObject = xdocument.getOriginalDocument().getXObject(Document.XCLASS_REFERENCE);
+            if (xObject != null) {
+                String id = xObject.getStringValue(DefaultDocument.ID_KEY);
+                String collection = xObject.getStringValue(DefaultDocument.PARENT_COLLECTION);
+                String wiki = xdocument.getDocumentReference().getWikiReference().getName();
+                this.solrConnector.deleteChunksByDocId(wiki, collection, id);
+            }
         }
     }
 

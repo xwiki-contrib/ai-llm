@@ -20,7 +20,6 @@
 package org.xwiki.contrib.llm.internal.rest;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -108,10 +107,10 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
         throws XWikiRestException
     {
         Collection collection = getInternalCollection(wikiName, collectionName);
-        return collection.getDocuments().stream()
-            // TODO: Use real pagination and do not load all documents in memory
-            .skip(start)
-            .limit(number > -1 ? number : Integer.MAX_VALUE)
-            .collect(Collectors.toList());
+        try {
+            return collection.getDocumentStore().getDocumentNames(start, number);
+        } catch (IndexException e) {
+            throw new XWikiRestException("Failed to list documents", e);
+        }
     }
 }

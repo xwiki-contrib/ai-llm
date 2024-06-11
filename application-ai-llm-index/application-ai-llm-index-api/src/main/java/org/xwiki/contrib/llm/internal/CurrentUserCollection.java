@@ -19,22 +19,17 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import javax.inject.Inject;
-import javax.inject.Provider;
 
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
-import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
-import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.security.authorization.AuthorizationException;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.user.CurrentUserReference;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -53,70 +48,10 @@ public class CurrentUserCollection extends DefaultCollection
     @Inject
     private ContextualAuthorizationManager contextualAuthorizationManager;
 
-    @Inject
-    private Provider<CurrentUserDocument> currentUserDocumentProvider;
-
     @Override
-    public List<String> getDocuments()
+    public DocumentStore getDocumentStore() throws IndexException
     {
-        return super.getDocuments().stream()
-            .filter(documentId -> {
-                DocumentReference documentReference = super.getDocumentReference(documentId);
-                return this.contextualAuthorizationManager.hasAccess(Right.VIEW, documentReference);
-            })
-            .collect(Collectors.toList());
-    }
-
-    @Override
-    public Document newDocument(String documentId) throws IndexException
-    {
-        DocumentReference documentReference = super.getDocumentReference(documentId);
-
-        try {
-            this.contextualAuthorizationManager.checkAccess(Right.EDIT, documentReference);
-            CurrentUserDocument result = this.currentUserDocumentProvider.get();
-            result.initialize(super.newDocument(documentId).getXWikiDocument());
-            return result;
-        } catch (AccessDeniedException e) {
-            throw new IndexException(String.format("Access denied for creating document [%s]", documentId), e);
-        }
-    }
-
-    @Override
-    public Document getDocument(String documentId) throws IndexException
-    {
-        DocumentReference documentReference = super.getDocumentReference(documentId);
-
-        try {
-            this.contextualAuthorizationManager.checkAccess(Right.VIEW, documentReference);
-            Document document = super.getDocument(documentId);
-            if (document == null) {
-                return null;
-            }
-            CurrentUserDocument result = this.currentUserDocumentProvider.get();
-            result.initialize(document.getXWikiDocument());
-            return result;
-        } catch (AccessDeniedException e) {
-            throw new IndexException(String.format("Access denied to document [%s]", documentId), e);
-        }
-    }
-
-    @Override
-    public void removeDocument(String documentId, boolean removeFromVectorDB, boolean removeFromStorage)
-        throws IndexException
-    {
-        DocumentReference documentReference = super.getDocumentReference(documentId);
-        XWikiContext context = this.contextProvider.get();
-
-        try {
-            this.contextualAuthorizationManager.checkAccess(Right.DELETE, documentReference);
-            XWikiDocument document = context.getWiki().getDocument(documentReference, context);
-            // Ensure we're not modifying the potentially shared document instance.
-            context.getWiki().checkDeletingDocument(context.getUserReference(), document.clone(), context);
-            super.removeDocument(documentId, removeFromVectorDB, removeFromStorage);
-        } catch (XWikiException | AccessDeniedException e) {
-            throw new IndexException(String.format("Access denied for deleting document [%s]", documentId), e);
-        }
+        return getDocumentStoreInternal(CurrentUserReference.INSTANCE);
     }
 
     @Override

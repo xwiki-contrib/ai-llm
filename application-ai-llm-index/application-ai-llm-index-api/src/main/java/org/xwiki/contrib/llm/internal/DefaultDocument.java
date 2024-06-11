@@ -36,7 +36,6 @@ import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
 
 import com.xpn.xwiki.XWikiContext;
-import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 
 /**
@@ -54,12 +53,30 @@ import com.xpn.xwiki.doc.XWikiDocument;
  */
 public class DefaultDocument implements Document
 {
-    
-    private static final String ID_KEY = "id";
-    private static final String PARENT_COLLECTION = "collection";
-    private static final String LANG_KEY = "language";
-    private static final String URL_KEY = "URL";
-    private static final String MIMETYPE_KEY = "mimetype";
+    /**
+     * The name of the "id" property.
+     */
+    public static final String ID_KEY = "id";
+
+    /**
+     * The name of the "collection" property.
+     */
+    public static final String PARENT_COLLECTION = "collection";
+
+    /**
+     * The name of the language property.
+     */
+    public static final String LANG_KEY = "language";
+
+    /**
+     * The name of the URL property.
+     */
+    public static final String URL_KEY = "URL";
+
+    /**
+     * The name of the MIME type property.
+     */
+    public static final String MIMETYPE_KEY = "mimetype";
 
     @Inject 
     protected Provider<XWikiContext> contextProvider;
@@ -79,9 +96,9 @@ public class DefaultDocument implements Document
     }
 
     @Override
-    public XWikiDocument getXWikiDocument()
+    public XWikiDocument getXWikiDocument() throws IndexException
     {
-        return this.xwikiDocumentWrapper.getXWikiDocument();
+        return this.xwikiDocumentWrapper.getClonedXWikiDocument();
     }
 
     @Override
@@ -168,18 +185,6 @@ public class DefaultDocument implements Document
         this.xwikiDocumentWrapper.setContent(content);
     }
 
-    @Override
-    public void save() throws IndexException
-    {
-        try {
-            XWikiContext context = this.contextProvider.get();
-            XWikiDocument document = this.xwikiDocumentWrapper.getClonedXWikiDocument();
-            context.getWiki().saveDocument(document, context);
-        } catch (XWikiException e) {
-            throw new IndexException(String.format("Failed to save document with id [%s]: ", this.getID()), e);
-        }
-    }
-    
     @Override
     public List<Chunk> chunkDocument()
     {

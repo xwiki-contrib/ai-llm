@@ -74,7 +74,7 @@ public abstract class AbstractCollectionResource extends XWikiResource
         }
     }
 
-    protected WebApplicationException convertException(String collectionName, IndexException e, String verb)
+    protected WebApplicationException convertException(String collectionName, Exception e, String verb)
     {
         Throwable rootCause = ExceptionUtils.getRootCause(e);
         if (rootCause instanceof AccessDeniedException) {
@@ -86,7 +86,7 @@ public abstract class AbstractCollectionResource extends XWikiResource
     }
 
     protected WebApplicationException convertDocumentException(String collectionName, String documentID,
-        String verb, IndexException e)
+        String verb, Exception e)
     {
         Throwable rootCause = ExceptionUtils.getRootCause(e);
         if (rootCause instanceof AccessDeniedException) {

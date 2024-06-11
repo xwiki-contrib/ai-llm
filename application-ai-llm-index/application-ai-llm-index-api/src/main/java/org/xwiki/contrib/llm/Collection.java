@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.xwiki.component.annotation.Role;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.LocalDocumentReference;
 import org.xwiki.user.GuestUserReference;
 import org.xwiki.user.UserReference;
@@ -141,8 +142,20 @@ public interface Collection
     int getChunkingOverlapOffset();
     
     /**
+     * @return the name of the document store to use
+     * @since 0.4
+     */
+    String getDocumentStoreHint();
+
+    /**
+     * @return the document store that can be used to retrieve documents of this collection
+     * @throws IndexException if the document store cannot be built
+     */
+    DocumentStore getDocumentStore() throws IndexException;
+
+    /**
      * Gets the list of spaces for the documents in the collection.
-     * 
+     *
      * @return A list of spaces.
      */
     List<String> getDocumentSpaces();
@@ -246,40 +259,6 @@ public interface Collection
     void setRightsCheckMethod(String rightsCheckMethod) throws IndexException;
 
     /**
-     * Retrieves a list of all documents in the collection.
-     * 
-     * @return A list of documents.
-     */
-    List<String> getDocuments();
-    
-    /**
-     * Retrieves a specific document by its ID from the collection.
-     * 
-     * @param documentId The unique identifier of the document.
-     * @return The document with the specified ID, or null if not found.
-     */
-    Document newDocument(String documentId) throws IndexException;
-    
-    /**
-     * Retrieves a specific document by its ID from the collection.
-     * 
-     * @param documentId The unique identifier of the document.
-     * @return The document with the specified ID, or null if not found.
-     */
-    Document getDocument(String documentId) throws IndexException;
-    
-    /**
-     * Removes a document from the collection.
-     * 
-     * @param documentId The document to remove.
-     * @param removeFromVectorDB Whether to remove the document from the vector database.
-     * @param removeFromStorage Whether to remove the document from the storage.
-     */
-    void removeDocument(String documentId,
-                         boolean removeFromVectorDB, 
-                         boolean removeFromStorage) throws IndexException;
-    
-    /**
      * Saves the collection.
      *
      */
@@ -293,6 +272,12 @@ public interface Collection
     {
         return GuestUserReference.INSTANCE;
     }
+
+    /**
+     * @return the wiki where the collection is stored
+     * @since 0.4
+     */
+    DocumentReference getDocumentReference();
 
     /**
      * @return the authorization manager for this collection that needs to be used to check rights on any retrieved

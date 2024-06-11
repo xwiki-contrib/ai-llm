@@ -37,6 +37,7 @@ import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
+import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.user.UserReference;
 
 import com.xpn.xwiki.XWikiContext;
@@ -79,7 +80,7 @@ public class DocumentIndexer
 
         try {
             Collection collectionObj = this.collectionManager.getCollection(collection);
-            Document documentObj = collectionObj.getDocument(document);
+            Document documentObj = collectionObj.getDocumentStore().getDocument(document);
             this.solrConnector.deleteChunksByDocId(wiki, collection, document);
             List<Chunk> chunks = documentObj.chunkDocument();
             for (Chunk chunk : chunks) {
@@ -87,6 +88,8 @@ public class DocumentIndexer
             }
         } catch (SolrServerException e) {
             throw new IndexException("Error while storing chunks", e);
+        } catch (AccessDeniedException e) {
+            throw new IndexException("Access denied while getting document for chunking", e);
         } finally {
             context.setWikiId(previousWiki);
         }

@@ -28,17 +28,17 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.xwiki.contrib.llm.ChunkingUtils;
+import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.Document;
-import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.internal.CurrentUserCollection;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
-import org.xwiki.contrib.llm.internal.CurrentUserDocument;
 import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.DefaultCollectionManager;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
+import org.xwiki.contrib.llm.internal.InternalDocumentStore;
 import org.xwiki.contrib.llm.rest.JSONDocument;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.rest.XWikiRestException;
@@ -47,6 +47,8 @@ import org.xwiki.security.authorization.Right;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.user.CurrentUserReference;
+import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupManager;
 
 import com.xpn.xwiki.test.MockitoOldcore;
@@ -61,8 +63,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * Integration tests for {@link DefaultDocumentResource}.
@@ -76,7 +78,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
     DefaultCollection.class,
     CurrentUserCollection.class,
     DefaultDocument.class,
-    CurrentUserDocument.class
+    InternalDocumentStore.class
 })
 @ReferenceComponentList
 class DefaultDocumentResourceTest
@@ -127,16 +129,26 @@ class DefaultDocumentResourceTest
     {
         this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
         this.collectionManager.createCollection(COLLECTION_NAME).save();
-        Document internalDocument = this.collectionManager.getCollection(COLLECTION_NAME).newDocument(DOCUMENT_ID);
+        Collection collection = this.collectionManager.getCollection(COLLECTION_NAME);
+        Document internalDocument = collection.getDocumentStore().createDocument(DOCUMENT_ID);
         internalDocument.setContent(CONTENT);
         internalDocument.setLanguage(LANGUAGE);
         internalDocument.setMimetype(MIME_TYPE);
-        internalDocument.save();
+        collection.getDocumentStore().saveDocument(internalDocument);
         this.oldcore.getXWikiContext().setWikiId(MAIN_WIKI);
 
         // Do nothing when checking for saving or deletion.
         doNothing().when(this.oldcore.getSpyXWiki()).checkSavingDocument(any(), any(), any(), anyBoolean(), any());
         doNothing().when(this.oldcore.getSpyXWiki()).checkDeletingDocument(any(), any(), any());
+
+
+        // Set the current user reference and serialize the current user reference to it.
+        this.oldcore.getXWikiContext().setUserReference(USER_REFERENCE);
+
+        UserReferenceSerializer<DocumentReference> userReferenceSerializer =
+            this.oldcore.getMocker().getInstance(UserReferenceSerializer.TYPE_DOCUMENT_REFERENCE, "document");
+        when(userReferenceSerializer.serialize(CurrentUserReference.INSTANCE)).thenReturn(USER_REFERENCE);
+
     }
 
     @Test
@@ -150,7 +162,7 @@ class DefaultDocumentResourceTest
     }
 
     @Test
-    void getDocumentNotFound() throws XWikiRestException
+    void getDocumentNotFound()
     {
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
@@ -162,8 +174,8 @@ class DefaultDocumentResourceTest
     void getDocumentNotAccessible() throws AccessDeniedException
     {
         doThrow(new AccessDeniedException(Right.VIEW, USER_REFERENCE, DOCUMENT_REFERENCE))
-            .when(this.oldcore.getMockContextualAuthorizationManager())
-            .checkAccess(Right.VIEW, DOCUMENT_REFERENCE);
+            .when(this.oldcore.getMockAuthorizationManager())
+            .checkAccess(Right.VIEW, USER_REFERENCE, DOCUMENT_REFERENCE);
 
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
@@ -177,8 +189,6 @@ class DefaultDocumentResourceTest
         // Delete it.
         this.documentResource.deleteDocument(WIKI_NAME, COLLECTION_NAME, DOCUMENT_ID);
 
-        verify(this.solrConnector).deleteChunksByDocId(WIKI_NAME, COLLECTION_NAME, DOCUMENT_ID);
-
         // Verify that it doesn't exist.
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
@@ -190,8 +200,8 @@ class DefaultDocumentResourceTest
     void deleteDocumentDenied() throws AccessDeniedException, XWikiRestException
     {
         doThrow(new AccessDeniedException(Right.DELETE, USER_REFERENCE, DOCUMENT_REFERENCE))
-            .when(this.oldcore.getMockContextualAuthorizationManager())
-            .checkAccess(Right.DELETE, DOCUMENT_REFERENCE);
+            .when(this.oldcore.getMockAuthorizationManager())
+            .checkAccess(Right.DELETE, USER_REFERENCE, DOCUMENT_REFERENCE);
 
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
@@ -205,7 +215,7 @@ class DefaultDocumentResourceTest
     }
 
     @Test
-    void putNewDocument() throws XWikiRestException, IndexException
+    void putNewDocument() throws Exception
     {
         JSONDocument document = new JSONDocument();
         document.setId("wrongId");
@@ -223,7 +233,8 @@ class DefaultDocumentResourceTest
 
         // Verify that the document has actually been saved.
         this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
-        Document savedDocument = this.collectionManager.getCollection(COLLECTION_NAME).getDocument(documentID);
+        Collection collection = this.collectionManager.getCollection(COLLECTION_NAME);
+        Document savedDocument = collection.getDocumentStore().getDocument(documentID);
         assertNotNull(savedDocument);
         assertEquals(CONTENT, savedDocument.getContent());
         assertEquals(LANGUAGE, savedDocument.getLanguage());
@@ -246,14 +257,14 @@ class DefaultDocumentResourceTest
     }
 
     @Test
-    void updateDeniedExisting() throws XWikiRestException, AccessDeniedException
+    void updateDeniedExisting() throws AccessDeniedException
     {
         JSONDocument document = new JSONDocument();
         document.setContent(CONTENT);
 
         doThrow(new AccessDeniedException(Right.EDIT, USER_REFERENCE, DOCUMENT_REFERENCE))
-            .when(this.oldcore.getMockContextualAuthorizationManager())
-            .checkAccess(Right.EDIT, DOCUMENT_REFERENCE);
+            .when(this.oldcore.getMockAuthorizationManager())
+            .checkAccess(Right.EDIT, USER_REFERENCE, DOCUMENT_REFERENCE);
 
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,
@@ -271,8 +282,8 @@ class DefaultDocumentResourceTest
         document.setContent(CONTENT);
 
         doThrow(new AccessDeniedException(Right.EDIT, USER_REFERENCE, documentReference))
-            .when(this.oldcore.getMockContextualAuthorizationManager())
-            .checkAccess(Right.EDIT, documentReference);
+            .when(this.oldcore.getMockAuthorizationManager())
+            .checkAccess(Right.EDIT, USER_REFERENCE, documentReference);
 
         WebApplicationException exception =
             assertThrows(WebApplicationException.class,

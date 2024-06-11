@@ -55,7 +55,7 @@ public interface Document
      * 
      * @return the document's XWikiDocument
      */
-    XWikiDocument getXWikiDocument();
+    XWikiDocument getXWikiDocument() throws IndexException;
 
     /**
      * Retrieves the unique identifier of the document.
@@ -154,11 +154,6 @@ public interface Document
      * @param content The new content
      */
     void setContent(String content) throws IndexException;
-
-    /**
-     * Saves the document.
-     */
-    void save() throws IndexException;
 
     /**
      * Process the document and chunk it into smaller pieces.

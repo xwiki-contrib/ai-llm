@@ -37,6 +37,7 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
@@ -155,10 +156,9 @@ public class DefaultCollectionManager implements CollectionManager
         try {
             Collection collection = getCollection(id);
             if (deleteDocuments) {
-                for (String docID : collection.getDocuments()) {
-                    collection.removeDocument(docID, 
-                        true,
-                        true);
+                DocumentStore documentStore = collection.getDocumentStore();
+                for (String docID : documentStore.getDocumentNames(0, -1)) {
+                    documentStore.deleteDocument(documentStore.getDocument(docID));
                 }
             }
             XWikiContext context = contextProvider.get();
