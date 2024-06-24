@@ -42,3 +42,4 @@ nbproject
 .sonar-ide.properties
 .clover
 *~
+*.pem

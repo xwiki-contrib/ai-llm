@@ -74,7 +74,22 @@ llm.quickaction.hint=Insert content using Generative AI.
 llm.chat.client.config.name=Chat client name
 llm.chat.client.config.URL=Chat client origin URL
 llm.chat.client.config.label=Chat client origin configuration
-llm.chat.client.config.label.hint=Origin of the embedded chat client ex: http://localhost:3000</content>
+llm.chat.client.config.label.hint=Origin of the embedded chat client ex: http://localhost:3000
+
+# Class fields
+AI.Code.ChatWidgetConfigClass_isEnabled=Enable chat widget
+
+# Sheet keys
+chatwidgetconfig.sheet.description=This page controls how ChatWidgetConfig pages are displayed in both view and edit modes.
+chatwidgetconfig.sheet.noObject=The current page doesn't have the expected ChatWidgetConfig object.
+chatwidgetconfig.sheet.noFields=The ChatWidgetConfig application doesn't have any fields to display.
+
+# Other keys
+chatwidgetconfig.entry.name=ChatWidgetConfig
+
+# Deprecated keys
+chatwidgetconfig.dataSpace.title=Data
+</content>
   <object>
     <name>AI.Code.Translation</name>
     <number>0</number>
