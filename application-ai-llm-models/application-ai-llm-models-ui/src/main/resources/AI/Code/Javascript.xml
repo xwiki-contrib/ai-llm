@@ -861,6 +861,9 @@
                     chatContent.innerHTML += errorMessagePrint("An error occured: " + data.error.message);
                 } else {
                     const content = data.choices[0].message.content;
+                    const memory = data.choices[0].message;
+                    console.debug("LLM memory before response:");
+                    console.debug(data.choices[0].message.memory)
                     updateChat(chatContent, content, model, elapsedTime, userText);
 
                 }

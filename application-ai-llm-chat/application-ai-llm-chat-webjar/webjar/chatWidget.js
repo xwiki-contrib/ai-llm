@@ -329,6 +329,8 @@ function handleNonStreamingResponse(response, startTime, assistantMessageElement
     const responseTime = (endTime - startTime) / 1000;
 
     const assistantMessage = response.choices[0].message.content;
+    const llmMemory = response.choices[0].message.memory;
+    console.debug('LLM memory before response:', llmMemory);
     assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(assistantMessage), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
     conversationHistory.push({ role: 'assistant', content: assistantMessage });
     chatHistory.scrollTop = chatHistory.scrollHeight;

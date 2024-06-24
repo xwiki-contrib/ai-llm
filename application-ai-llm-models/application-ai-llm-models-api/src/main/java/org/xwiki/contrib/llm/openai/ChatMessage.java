@@ -47,6 +47,9 @@ public class ChatMessage
 
     private List<Context> context;
 
+    @JsonInclude()
+    private String memory;
+
     /**
      * Creates a new chat message.
      */
@@ -78,6 +81,22 @@ public class ChatMessage
         this.role = role;
         this.content = content;
         this.context = context;
+    }
+
+    /**
+     * Creates a new chat message.
+     *
+     * @param role the role of the message author, e.g., user, assistant, system or tool.
+     * @param content the content of the message
+     * @param context the context of the message
+     * @param memory full memory of the LLM based on which the response was generated
+     */
+    public ChatMessage(String role, String content, List<Context> context, String memory)
+    {
+        this.role = role;
+        this.content = content;
+        this.context = context;
+        this.memory = memory;
     }
 
     /**
@@ -130,6 +149,24 @@ public class ChatMessage
     public void setContent(String content)
     {
         this.content = content;
+    }
+    
+    /**
+     * @return the memory associated with this message
+     */
+    public String getMemory()
+    {
+        return this.memory;
+    }
+
+    /**
+     * Sets the memory associated with this message.
+     *
+     * @param memory the memory to set
+     */
+    public void setMemory(String memory)
+    {
+        this.memory = memory;
     }
 
     @Override

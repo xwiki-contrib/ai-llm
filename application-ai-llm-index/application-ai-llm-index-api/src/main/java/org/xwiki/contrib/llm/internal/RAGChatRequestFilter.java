@@ -53,8 +53,10 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     private static final String CONTENT_CHUNK_STRING = "Content chunk: %n %s %n";
     private static final String SIMILARITY_SEARCH_ERROR_MSG = "There was an error during similarity search";
     private static final String ERROR_LOG_FORMAT = "{}: {}";
-
-
+    private static final String NL = "\n";
+    private static final String NL2 = "\n\n";
+    
+    
     private final List<String> collections;
     private final CollectionManager collectionManager;
     private final int maxResults;
@@ -99,7 +101,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         String id = UUID.randomUUID().toString();
 
         // Create and send a custom ChatCompletionChunk with the sources
-        ChatMessage chatMessage = new ChatMessage("assistant", sources + "\n", searchResults);
+        ChatMessage chatMessage = new ChatMessage("assistant", sources + NL, searchResults);
         ChatCompletionChunkChoice choice = new ChatCompletionChunkChoice(0, chatMessage, null);
         ChatCompletionChunk sourcesResponse = new ChatCompletionChunk(id, timestamp, request.model(), List.of(choice));
         consumer.accept(sourcesResponse);
@@ -121,15 +123,28 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     {
         List<Context> searchResults = getSearchResults(request);
         ChatCompletionRequest modifiedRequest = addContext(request, searchResults);
+        String llmCurrentMemoryState = formatMessages(modifiedRequest.messages());
         ChatCompletionResult response = super.process(modifiedRequest);
         // Get the message from the response and add the context
         if (!response.choices().isEmpty()) {
             ChatMessage message = response.choices().get(0).message();
             message.setContext(searchResults);
+            // Add full memory to the message
+            message.setMemory(llmCurrentMemoryState);
             // Add the sources to the content
-            message.setContent(extractURLsAndformat(searchResults) + "\n\n" + message.getContent());
+            message.setContent(extractURLsAndformat(searchResults) + NL2 + message.getContent());
         }
         return response;
+    }
+
+    private String formatMessages(List<ChatMessage> messages)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (ChatMessage message : messages) {
+            sb.append("Role: ").append(message.getRole()).append(NL);
+            sb.append("Content: ").append(message.getContent()).append(NL2);
+        }
+        return sb.toString();
     }
 
     private ChatCompletionRequest addContext(ChatCompletionRequest request, List<Context> context)
@@ -137,9 +152,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         String searchResults = buildContext(context);
         String updatedContextPrompt = this.contextPrompt.replace("{{search_results}}", searchResults);
         ChatMessage systemMessage = new ChatMessage("system", updatedContextPrompt);
-        // logger.info("System message: " + systemMessage.getContent());
         List<ChatMessage> messages = new ArrayList<>(request.messages());
-        // logger.info("ALL MESSAGERS: " + messages);
         messages.add(0, systemMessage);
 
         return request.but()
