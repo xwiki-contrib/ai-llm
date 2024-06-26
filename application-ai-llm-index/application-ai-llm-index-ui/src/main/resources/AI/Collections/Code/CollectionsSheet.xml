@@ -204,8 +204,10 @@
     #try("documentCreationException")
       #set($crtCollectionId = $doc.getObject("AI.Collections.Code.CollectionsClass").getProperty('id').value)
       #set($collection =  $cm.getCollection($crtCollectionId))
-      #set($newDoc = $collection.newDocument($request.documentId))
-      #set($ok = $newDoc.save())
+      #set($documentStore = $collection.getDocumentStore())
+      #set($ok = $documentStore.initilize($collection, $xcontext.getUserReference()))
+      #set($newDoc = $documentStore.createDocument($request.documentId))
+      #set($ok = $documentStore.saveDocument($newDoc))
     #end
     #if ("$!{documentCreationException}" != "")
       {{error}}
