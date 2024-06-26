@@ -293,7 +293,7 @@ and stringprop.id.name='id'</sql>
       <groups>XWiki.XWikiAdminGroup,XWiki.XWikiAllGroup</groups>
     </property>
     <property>
-      <model>bert-embeddings</model>
+      <model>all-minilm-l6-v2</model>
     </property>
     <property>
       <serverName>LocalAI</serverName>
