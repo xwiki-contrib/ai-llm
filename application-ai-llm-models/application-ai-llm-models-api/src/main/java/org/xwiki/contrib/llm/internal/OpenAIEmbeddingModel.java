@@ -128,4 +128,10 @@ public class OpenAIEmbeddingModel extends AbstractModel implements EmbeddingMode
     {
         return EmbeddingModel.class;
     }
+
+    @Override
+    public int getMaximumParallelism()
+    {
+        return this.modelConfiguration.getMaximumParallelism();
+    }
 }

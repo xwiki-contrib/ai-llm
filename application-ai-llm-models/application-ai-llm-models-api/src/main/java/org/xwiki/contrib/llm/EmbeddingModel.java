@@ -58,4 +58,12 @@ public interface EmbeddingModel
      * @return {@code true} if the user has access to the model, {@code false} otherwise
      */
     boolean hasAccess(UserReference user);
+
+    /**
+     * @return the maximum number of texts that can be embedded at the same time
+     */
+    default int getMaximumParallelism()
+    {
+        return 1;
+    }
 }

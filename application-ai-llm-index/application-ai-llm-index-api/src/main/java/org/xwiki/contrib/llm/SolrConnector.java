@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -30,6 +31,7 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -41,6 +43,7 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.search.solr.Solr;
+import org.xwiki.search.solr.SolrException;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.user.CurrentUserReference;
 
@@ -59,6 +62,8 @@ public class SolrConnector
     private static final String FIELD_SCORE = "score";
 
     private static final String SOLR_SEPARATOR = ":";
+
+    private static final String AND = " AND ";
 
     @Inject
     private Logger logger;
@@ -85,32 +90,52 @@ public class SolrConnector
     public void storeChunk(Chunk chunk, String id) throws SolrServerException
     {
         try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
-            SolrInputDocument solrDocument = new SolrInputDocument();
-            solrDocument.addField(FIELD_ID, id);
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_WIKI, chunk.getWiki());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_DOC_ID, chunk.getDocumentID());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_COLLECTION, chunk.getCollection());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_DOC_URL, chunk.getDocumentURL());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_LANGUAGE, chunk.getLanguage());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_INDEX, chunk.getChunkIndex());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR, chunk.getPosLastChar());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE, chunk.getErrorMessage());
-            solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, chunk.getContent());
-            double[] embeddings = chunk.getEmbeddings();
-            // The embeddings could be null if we got an error and want to store the error.
-            if (embeddings != null) {
-                List<Float> embeddingsList = Arrays.stream(embeddings)
-                    .mapToObj(d -> (float) d)
-                    .toList();
-                solrDocument.setField(AiLLMSolrCoreInitializer.FIELD_VECTOR, embeddingsList);
-            }
+            SolrInputDocument solrDocument = getSolrDocument(chunk);
             client.add(solrDocument);
             client.commit();
             
         } catch (Exception e) {
             this.logger.error("Failed to store chunk with id [{}]", id, e);
         }
+    }
+
+    /**
+     * Connects to the Solr server and stores a list of chunks.
+     *
+     * @param chunks the list of chunks to be stored
+     */
+    public void storeChunks(List<Chunk> chunks) throws SolrServerException, IOException, SolrException
+    {
+        try (SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
+            List<SolrInputDocument> solrDocuments = chunks.stream().map(this::getSolrDocument).toList();
+            client.add(solrDocuments);
+            client.commit();
+        }
+    }
+
+    private SolrInputDocument getSolrDocument(Chunk chunk)
+    {
+        SolrInputDocument solrDocument = new SolrInputDocument();
+        solrDocument.addField(FIELD_ID, generateChunkID(chunk));
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_WIKI, chunk.getWiki());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_DOC_ID, chunk.getDocumentID());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_COLLECTION, chunk.getCollection());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_DOC_URL, chunk.getDocumentURL());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_LANGUAGE, chunk.getLanguage());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_INDEX, chunk.getChunkIndex());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR, chunk.getPosLastChar());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE, chunk.getErrorMessage());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, chunk.getContent());
+        double[] embeddings = chunk.getEmbeddings();
+        // The embeddings could be null if we got an error and want to store the error.
+        if (embeddings != null) {
+            List<Float> embeddingsList = Arrays.stream(embeddings)
+                .mapToObj(d -> (float) d)
+                .toList();
+            solrDocument.setField(AiLLMSolrCoreInitializer.FIELD_VECTOR, embeddingsList);
+        }
+        return solrDocument;
     }
 
     /**
@@ -149,7 +174,7 @@ public class SolrConnector
 
     private String buildQuery(String wiki, String collectionId, String documentId)
     {
-        return String.join(" AND ",
+        return String.join(AND,
             buildWikiQuery(wiki),
               AiLLMSolrCoreInitializer.FIELD_COLLECTION + SOLR_SEPARATOR
                   + this.solrUtils.toCompleteFilterQueryString(collectionId),
@@ -332,4 +357,14 @@ public class SolrConnector
         return sb.toString();
     }
 
+    private String generateChunkID(Chunk chunk)
+    {
+        String separator = "_";
+        List<String> parts = List.of(chunk.getWiki(), chunk.getCollection(), chunk.getDocumentID(),
+            String.valueOf(chunk.getChunkIndex()));
+        // Use URL encoding escaping to avoid having the separator in any of the parts
+        return parts.stream()
+            .map(part -> StringUtils.replaceEach(part, new String[] { separator, "%" }, new String[] { "%5F", "%25" }))
+            .collect(Collectors.joining(separator));
+    }
 }

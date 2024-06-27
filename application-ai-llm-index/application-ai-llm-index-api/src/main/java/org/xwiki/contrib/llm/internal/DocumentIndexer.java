@@ -20,21 +20,19 @@
 package org.xwiki.contrib.llm.internal;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.solr.client.solrj.SolrServerException;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.Chunk;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.EmbeddingsUtils;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.security.authorization.AccessDeniedException;
@@ -64,6 +62,9 @@ public class DocumentIndexer
     @Inject
     private Provider<XWikiContext> contextProvider;
 
+    @Inject
+    private EmbeddingsUtils embeddingsUtils;
+
     /**
      * Index a document by chunking it and storing the chunks in Solr.
      *
@@ -83,11 +84,16 @@ public class DocumentIndexer
             Document documentObj = collectionObj.getDocumentStore().getDocument(document);
             this.solrConnector.deleteChunksByDocId(wiki, collection, document);
             List<Chunk> chunks = documentObj.chunkDocument();
-            for (Chunk chunk : chunks) {
-                tryStoringChunk(chunk, collectionObj, collectionObj.getAuthor(), document);
+            String embeddingModel = collectionObj.getEmbeddingModel();
+            UserReference author = collectionObj.getAuthor();
+            int maximumParallelism = this.embeddingsUtils.getMaximumNumberOfTexts(embeddingModel, author);
+
+            // Group chunks into groups of size maximumParallelism
+            for (int i = 0; i < chunks.size(); i += maximumParallelism) {
+                int end = Math.min(i + maximumParallelism, chunks.size());
+                List<Chunk> chunkGroup = chunks.subList(i, end);
+                embedAndStoreChunks(document, chunkGroup, embeddingModel, author, i, end);
             }
-        } catch (SolrServerException e) {
-            throw new IndexException("Error while storing chunks", e);
         } catch (AccessDeniedException e) {
             throw new IndexException("Access denied while getting document for chunking", e);
         } finally {
@@ -95,28 +101,28 @@ public class DocumentIndexer
         }
     }
 
-    private void tryStoringChunk(Chunk chunk, Collection collection, UserReference author, String docID)
-        throws SolrServerException
+    private void embedAndStoreChunks(String document, List<Chunk> chunkGroup, String embeddingModel,
+        UserReference author, int firstChunkIndex, int lastChunkIndex) throws IndexException
     {
         try {
-            chunk.computeEmbeddings(collection.getEmbeddingModel(), author);
+            List<String> texts = chunkGroup.stream().map(Chunk::getContent).toList();
+            List<double[]> embeddings = this.embeddingsUtils.computeEmbeddings(texts, embeddingModel, author);
+            for (int j = 0; j < chunkGroup.size(); j++) {
+                chunkGroup.get(j).setEmbeddings(embeddings.get(j));
+            }
         } catch (IndexException e) {
-            this.logger.warn("Error while embedding chunk [{}] of document [{}]: [{}]", chunk.getChunkIndex(),
-                docID, ExceptionUtils.getRootCauseMessage(e));
-
-            chunk.setErrorMessage("Error computing the embedding: %s".formatted(ExceptionUtils.getRootCauseMessage(e)));
+            String rootCauseMessage = ExceptionUtils.getRootCauseMessage(e);
+            this.logger.warn("Error while embedding chunks [{}-{}] of document [{}]: [{}]", firstChunkIndex,
+                lastChunkIndex, document, rootCauseMessage);
+            String errorMessage = "Error computing the embedding: %s".formatted(rootCauseMessage);
+            chunkGroup.forEach(chunk -> chunk.setErrorMessage(errorMessage));
         }
-        this.solrConnector.storeChunk(chunk, generateChunkID(chunk));
-    }
 
-    private String generateChunkID(Chunk chunk)
-    {
-        String separator = "_";
-        List<String> parts = List.of(chunk.getWiki(), chunk.getCollection(), chunk.getDocumentID(),
-            String.valueOf(chunk.getChunkIndex()));
-        // Use URL encoding escaping to avoid having the separator in any of the parts
-        return parts.stream()
-            .map(part -> StringUtils.replaceEach(part, new String[] { separator, "%" }, new String[] { "%5F", "%25" }))
-            .collect(Collectors.joining(separator));
+        try {
+            this.solrConnector.storeChunks(chunkGroup);
+        } catch (Exception e) {
+            // Storing in Solr shouldn't fail, if this fails it doesn't make sense to continue embedding chunks.
+            throw new IndexException("Error while storing chunks in Solr", e);
+        }
     }
 }

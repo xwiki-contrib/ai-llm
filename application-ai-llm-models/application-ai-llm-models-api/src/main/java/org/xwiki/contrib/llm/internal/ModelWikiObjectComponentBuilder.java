@@ -99,6 +99,11 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
     private static final String DIMENSIONS_FIELD = "dimensions";
 
     /**
+     * The name of the field containing the maximum number of embedding requests to put in a single request.
+     */
+    private static final String MAXIMUM_PARALLELISM_FIELD = "maximumParallelism";
+
+    /**
      * The value indicating that guests are allowed to access the model.
      */
     private static final String ALLOW_GUESTS = "allowGuests";
@@ -210,6 +215,7 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
         modelConfiguration.setModel(xObject.getStringValue(MODEL_FIELD));
         modelConfiguration.setDimensions(xObject.getIntValue(DIMENSIONS_FIELD));
         modelConfiguration.setContextSize(xObject.getIntValue(CONTEXT_SIZE_FIELD));
+        modelConfiguration.setMaximumParallelism(xObject.getIntValue(MAXIMUM_PARALLELISM_FIELD, 100));
         modelConfiguration.setId(this.localEntityReferenceSerializer.serialize(xObject.getDocumentReference()));
         modelConfiguration.setName(xObject.getOwnerDocument().getTitle());
         modelConfiguration.setObjectReference(xObject.getReference());

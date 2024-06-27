@@ -289,6 +289,14 @@ public class Chunk
     }
 
     /**
+     * @param embeddings the embeddings as double array
+     */
+    public void setEmbeddings(double[] embeddings)
+    {
+        this.embeddings = embeddings;
+    }
+
+    /**
      * Compute embeddings for current chunk.
      *
      * @param embeddingModelID the embedding model ID

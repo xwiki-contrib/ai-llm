@@ -44,6 +44,8 @@ AI.Models.Code.ModelsClass_type_emb=Embeddings model
 AI.Models.Code.ModelsClass_model=Model id
 AI.Models.Code.ModelsClass_dimensions=Number of Dimensions
 AI.Models.Code.ModelsClass_contextSize=Context size
+AI.Models.Code.ModelsClass_maximumParallelism=Maximum parallelism
+AI.Models.Code.ModelsClass_maximumParallelism_hint=The maximum number of texts that are submitted in a single request to the embedding model. The default is 100 when not set. This value is ignored for chat models.
 AI.Models.Code.ModelsClass_groups=Group
 
 # Sheet keys

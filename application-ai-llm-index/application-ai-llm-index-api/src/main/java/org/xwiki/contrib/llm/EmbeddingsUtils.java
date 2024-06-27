@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm;
 
 import java.util.Arrays;
+import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -65,18 +66,60 @@ public class EmbeddingsUtils implements Initializable
      */
     public double[] computeEmbeddings(String text, String modelId, UserReference userReference) throws IndexException
     {
+        return computeEmbeddings(List.of(text), modelId, userReference).get(0);
+    }
+
+    /**
+     * Compute embeddings for given texts.
+     *
+     * @param texts the texts to compute embeddings for
+     * @param modelId the model id
+     * @param userReference the user reference
+     * @return the embeddings as list of double arrays
+     * @throws IndexException if an error occurs while computing the embeddings
+     */
+    public List<double[]> computeEmbeddings(List<String> texts, String modelId, UserReference userReference)
+        throws IndexException
+    {
         try {
             XWikiContext context = this.contextProvider.get();
             WikiReference wikiReference = context.getWikiReference();
-            EmbeddingModel embeddingModel = embeddingModelManager.getModel(wikiReference, modelId, userReference);
+            EmbeddingModel embeddingModel = this.embeddingModelManager.getModel(wikiReference, modelId, userReference);
 
             // Make sure that the same model on different wikis has different retry objects.
             String retryId = wikiReference.getName() + ":" + modelId;
             Retry retry = this.retryRegistry.retry(retryId);
-            double[] embeddingsFull = retry.executeCallable(() -> embeddingModel.embed(text));
-            return Arrays.copyOf(embeddingsFull, AiLLMSolrCoreInitializer.NUMBER_OF_DIMENSIONS);
+            List<double[]> embeddingsFull;
+            if (texts.size() == 1) {
+                embeddingsFull = retry.executeCallable(() -> List.of(embeddingModel.embed(texts.get(0))));
+            } else {
+                embeddingsFull = retry.executeCallable(() -> embeddingModel.embed(texts));
+            }
+            return embeddingsFull.stream()
+                .map(embeddings -> Arrays.copyOf(embeddings, AiLLMSolrCoreInitializer.NUMBER_OF_DIMENSIONS))
+                .toList();
         } catch (Exception e) {
-            throw new IndexException("Failed to compute embeddings for text [" + text + "]", e);
+            throw new IndexException("Failed to compute embeddings for texts [" + texts + "]", e);
+        }
+    }
+
+    /**
+     * Get the maximum number of texts that can be processed in parallel by the model.
+     *
+     * @param modelId the model id
+     * @param userReference the user reference for which the model shall be loaded
+     * @return the maximum number of texts that can be processed in parallel
+     * @throws IndexException if an error occurs while loading the model
+     */
+    public int getMaximumNumberOfTexts(String modelId, UserReference userReference) throws IndexException
+    {
+        XWikiContext context = this.contextProvider.get();
+        WikiReference wikiReference = context.getWikiReference();
+        try {
+            EmbeddingModel embeddingModel = this.embeddingModelManager.getModel(wikiReference, modelId, userReference);
+            return embeddingModel.getMaximumParallelism();
+        } catch (GPTAPIException e) {
+            throw new IndexException("Failed to get the model [" + modelId + "]", e);
         }
     }
 

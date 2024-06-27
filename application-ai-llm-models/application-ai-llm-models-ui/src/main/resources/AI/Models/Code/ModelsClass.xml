@@ -54,7 +54,7 @@
       <displayType/>
       <hint/>
       <name>allowGuests</name>
-      <number>7</number>
+      <number>8</number>
       <prettyName>Allow guests to access the model</prettyName>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
@@ -100,7 +100,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>groups</name>
-      <number>6</number>
+      <number>7</number>
       <picker>0</picker>
       <prettyName>Group</prettyName>
       <relationalStorage>0</relationalStorage>
@@ -114,6 +114,20 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
     </groups>
+    <maximumParallelism>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>The maximum number of embedding requests to send in a single request. The default is 100. This value is ignored for chat models.</hint>
+      <name>maximumParallelism</name>
+      <number>6</number>
+      <numberType>long</numberType>
+      <prettyName>Maximum Parallelism</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+    </maximumParallelism>
     <model>
       <customDisplay/>
       <disabled>0</disabled>

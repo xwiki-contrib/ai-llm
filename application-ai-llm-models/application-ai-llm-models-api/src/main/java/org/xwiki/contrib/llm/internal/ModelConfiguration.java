@@ -45,6 +45,8 @@ public class ModelConfiguration
 
     private int contextSize;
 
+    private int maximumParallelism;
+
     private boolean allowGuests;
 
     private List<DocumentReference> allowedGroups;
@@ -99,6 +101,14 @@ public class ModelConfiguration
     public int getContextSize()
     {
         return this.contextSize;
+    }
+
+    /**
+     * @return the maximum number of embedding requests to put in a single request
+     */
+    public int getMaximumParallelism()
+    {
+        return this.maximumParallelism;
     }
 
     /**
@@ -179,6 +189,14 @@ public class ModelConfiguration
     public void setContextSize(int contextSize)
     {
         this.contextSize = contextSize;
+    }
+
+    /**
+     * @param maximumParallelism the maximum number of embedding requests to put in a single request
+     */
+    public void setMaximumParallelism(int maximumParallelism)
+    {
+        this.maximumParallelism = maximumParallelism;
     }
 
     /**
