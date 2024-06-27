@@ -39,6 +39,7 @@ import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
 import org.xwiki.contrib.llm.openai.ChatCompletionResult;
 import org.xwiki.contrib.llm.openai.ChatMessage;
 import org.xwiki.contrib.llm.openai.Context;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * A filter that adds context from the given collections to the request.
@@ -48,6 +49,14 @@ import org.xwiki.contrib.llm.openai.Context;
  */
 public class RAGChatRequestFilter extends AbstractChatRequestFilter
 {
+    private static final String KEYWARD_STRING = "{{search_results}}";
+    private static final String DEFAULT_CONTEXT_PROMPT = "You are an AI assistant.\n"
+        + "Use the following information to help answer the user's question:\n"
+        + "=====================\n"
+        + KEYWARD_STRING
+        + "\n=====================\n"
+        + "If the information is not relevant, inform the user and rely on your general knowledge to answer.\n"
+        + "The answer must be written in the language of the user's question formatted using markdown syntax.\n";
     private static final String SEARCH_RESULTS_STRING = "Search results: %n";
     private static final String SOURCE_STRING = "%s %n";
     private static final String CONTENT_CHUNK_STRING = "Content chunk: %n %s %n";
@@ -150,11 +159,19 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     private ChatCompletionRequest addContext(ChatCompletionRequest request, List<Context> context)
     {
         String searchResults = buildContext(context);
-        String updatedContextPrompt = this.contextPrompt.replace("{{search_results}}", searchResults);
+        String effectivePrompt = StringUtils.isBlank(this.contextPrompt) ? DEFAULT_CONTEXT_PROMPT : this.contextPrompt;
+        String updatedContextPrompt;
+        
+        if (effectivePrompt.contains(KEYWARD_STRING)) {
+            updatedContextPrompt = effectivePrompt.replace(KEYWARD_STRING, searchResults);
+        } else {
+            updatedContextPrompt = effectivePrompt + "\n\nRelevant information:\n" + searchResults;
+        }
+        
         ChatMessage systemMessage = new ChatMessage("system", updatedContextPrompt);
         List<ChatMessage> messages = new ArrayList<>(request.messages());
         messages.add(0, systemMessage);
-
+    
         return request.but()
             .messages(messages)
             .build();
