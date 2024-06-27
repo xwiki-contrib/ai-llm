@@ -31,16 +31,19 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.descriptor.ComponentDescriptor;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.contrib.llm.DocumentStore;
-import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.contrib.llm.IndexTaskConsumer;
+import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.openai.Context;
+import org.xwiki.index.TaskManager;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.script.service.ScriptService;
+import org.xwiki.stability.Unstable;
 
 import static java.util.Map.Entry;
 import static java.util.stream.Collectors.toMap;
@@ -66,6 +69,9 @@ public class CollectionManagerScriptService implements ScriptService
     @Inject
     @Named("current")
     private DocumentReferenceResolver<EntityReference> documentReferenceResolver;
+
+    @Inject
+    private TaskManager taskManager;
 
     /**
      * Creates a new collection.
@@ -198,5 +204,15 @@ public class CollectionManagerScriptService implements ScriptService
             .stream()
             .map(ComponentDescriptor::getRoleHint)
             .toList();
+    }
+
+    /**
+     * @return the size of the document indexing queue
+     * @since 0.4
+     */
+    @Unstable
+    public long getDocumentIndexingQueueSize()
+    {
+        return this.taskManager.getQueueSize(IndexTaskConsumer.NAME);
     }
 }

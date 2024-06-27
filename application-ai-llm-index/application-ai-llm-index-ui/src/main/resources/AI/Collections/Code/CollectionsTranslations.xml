@@ -99,6 +99,8 @@ collections.livetable.documentStore=Document Store
 
 # Other keys
 collections.entry.name=Collections
+collections.indexingStatus=Indexing Status
+collections.documentQueueSize=There are currently {0} documents in the document indexing queue.
 
 # Deprecated keys
 collections.dataSpace.title=Data</content>

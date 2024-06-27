@@ -57,6 +57,13 @@
 })
 #set ($columns = ['doc.title', 'id', 'documentSpaces', 'doc.location', 'doc.date', 'doc.author', '_actions'])
 #livetable('collections' $columns $columnsProperties $options)
+{{/velocity}}
+
+(% id="HIndexingStatus" %)
+== {{translation key="collections.indexingStatus"/}} ==
+
+{{velocity}}
+{{translation key="collections.documentQueueSize" parameters="$services.collectionManager.getDocumentIndexingQueueSize()"/}}
 {{/velocity}}</content>
   <object>
     <name>AI.Collections.WebHome</name>
