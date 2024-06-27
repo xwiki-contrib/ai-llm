@@ -111,10 +111,12 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
         // Create and send a custom ChatCompletionChunk with the sources
         ChatMessage chatMessage = new ChatMessage("assistant", sources + NL, searchResults);
+
         ChatCompletionChunkChoice choice = new ChatCompletionChunkChoice(0, chatMessage, null);
         ChatCompletionChunk sourcesResponse = new ChatCompletionChunk(id, timestamp, request.model(), List.of(choice));
+        String llmCurrentMemoryState = formatMessages(modifiedRequest.messages());
+        chatMessage.setMemory(llmCurrentMemoryState);
         consumer.accept(sourcesResponse);
-
         // Wrap the consumer to add the same timestamp and id to all responses
         FailableConsumer<ChatCompletionChunk, IOException> wrappedConsumer = response -> {
             ChatCompletionChunk wrappedResponse = new ChatCompletionChunk(id, timestamp, response.model(),

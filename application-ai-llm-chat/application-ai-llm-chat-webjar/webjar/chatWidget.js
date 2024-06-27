@@ -264,6 +264,9 @@ function handleStreamingRequest(request, signal, assistantMessageElement) {
         if (messageChunk.choices.length > 0 && messageChunk.choices[0].delta.content !== null) {
             messageText += messageChunk.choices[0].delta.content;
             assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(messageText), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
+            if (messageChunk.choices[0].delta.memory) {
+                console.debug('LLM memory before response:', messageChunk.choices[0].delta.memory);
+            }
             removeWaitingAnimation();
         }
     }, signal)
