@@ -85,7 +85,7 @@ and stringprop.id.name='id'</sql>
       <customDisplay/>
       <disabled>0</disabled>
       <editor>PureText</editor>
-      <hint>Sets the system message. Use {{search_results}} anywhare in your prompt to inject the search results there.</hint>
+      <hint>Sets the system message. Use the keyword {{search_results}} anywhare in your prompt to inject the search results there. If the keyword is missing the search results will be automatically added at the end. If Property is empty a default prompt will be used.</hint>
       <name>contextPrompt</name>
       <number>3</number>
       <picker>0</picker>
