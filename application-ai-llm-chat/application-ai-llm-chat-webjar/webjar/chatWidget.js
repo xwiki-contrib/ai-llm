@@ -34,8 +34,7 @@ if (scriptTag && scriptTag.dataset.baseUrl) {
     XWikiAiAPI.setWikiName('xwiki');
 } else {
     // Fallback to a default URL or log an error
-    console.error('Base URL not provided. Please set the data-base-url attribute on the script tag.');
-    // Set a default URL
+    console.warn('Base URL not provided. Falling back on default value [http://localhost:8080/xwiki]', );
     XWikiAiAPI.setBaseURL('http://localhost:8080/xwiki');
 }
 
