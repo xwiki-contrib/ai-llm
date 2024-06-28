@@ -517,7 +517,7 @@
   &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'purify.min.js')"&gt;&lt;/script&gt;
   &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'marked.min.js')"&gt;&lt;/script&gt;
   &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'aillm.js')"&gt;&lt;/script&gt;
-  &lt;script id="chat-widget" data-base-url="http://localhost:8082/xwiki" src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'chatWidget.js')"&gt;&lt;/script&gt;
+  &lt;script id="chat-widget" data-base-url="$!{baseUrl}" src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'chatWidget.js')"&gt;&lt;/script&gt;
   &lt;link rel="stylesheet" href="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'chatWidget.css')"&gt;
   {{/html}}
 #end
