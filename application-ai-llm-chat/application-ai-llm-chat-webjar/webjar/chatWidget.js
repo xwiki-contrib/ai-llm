@@ -31,15 +31,20 @@ const scriptTag = document.getElementById('chat-widget');
 if (scriptTag && scriptTag.dataset.baseUrl) {
     // Set the base URL using the data-base-url attribute
     XWikiAiAPI.setBaseURL(scriptTag.dataset.baseUrl);
-    XWikiAiAPI.setWikiName('xwiki');
 } else {
     // Fallback to a default URL or log an error
     console.warn('Base URL not provided. Falling back on default value [http://localhost:8080/xwiki]', );
     XWikiAiAPI.setBaseURL('http://localhost:8080/xwiki');
 }
 
-// Now you can use XWikiAiAPI.getBaseURL() with confidence
-console.log('Base URL:', XWikiAiAPI.getBaseURL());
+// Set the wiki name
+if (scriptTag && scriptTag.dataset.wikiName) {
+    XWikiAiAPI.setWikiName(scriptTag.dataset.wikiName);
+} else {
+    // Set default wiki name to 'xwiki' if not provided
+    XWikiAiAPI.setWikiName('xwiki');
+}
+
 
 // Create the chat widget HTML dynamically
 function createChatWidget() {
