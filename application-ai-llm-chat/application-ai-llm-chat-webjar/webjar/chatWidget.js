@@ -24,9 +24,23 @@ let settingsContainer;
 let settingsToggle;
 let newConvButton;
 
-// Set base URL and wiki name for XWikiAiAPI
-XWikiAiAPI.setBaseURL('http://localhost:8082/xwiki');
-XWikiAiAPI.setWikiName('xwiki');
+// Get the script tag
+const scriptTag = document.getElementById('chat-widget');
+
+// Check if the script tag exists and has the data-base-url attribute
+if (scriptTag && scriptTag.dataset.baseUrl) {
+    // Set the base URL using the data-base-url attribute
+    XWikiAiAPI.setBaseURL(scriptTag.dataset.baseUrl);
+    XWikiAiAPI.setWikiName('xwiki');
+} else {
+    // Fallback to a default URL or log an error
+    console.error('Base URL not provided. Please set the data-base-url attribute on the script tag.');
+    // Set a default URL
+    XWikiAiAPI.setBaseURL('http://localhost:8080/xwiki');
+}
+
+// Now you can use XWikiAiAPI.getBaseURL() with confidence
+console.log('Base URL:', XWikiAiAPI.getBaseURL());
 
 // Create the chat widget HTML dynamically
 function createChatWidget() {
