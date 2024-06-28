@@ -702,6 +702,9 @@
                     }
                     const elapsedTime = (Date.now() - startTime) / 1000;
                     updateAssistantChat(nbAssistMsg, elapsedTime, completedReply, model);
+                    if (message.choices[0].delta.memory) {
+                        console.debug('LLM memory before response:', message.choices[0].delta.memory);
+                    }
                 }
 
             }
@@ -1437,6 +1440,8 @@
      */
     function initModelMenu(modelList) {
         const modelMenu = document.querySelector('#model-menu');
+        const storedModel = getSelectedModel();
+
         modelList.forEach(element =&gt; {
             const optionElement = document.createElement('option');
             optionElement.value = element.id;
@@ -1444,8 +1449,37 @@
             optionElement.setAttribute('data-streaming', element.can_stream);
             optionElement.setAttribute('data-context-length', element.context_length);
             modelMenu.appendChild(optionElement);
+
+            // Set as selected if it matches the stored model
+            if (storedModel &amp;&amp; element.id === storedModel) {
+                optionElement.selected = true;
+            }
         });
 
+        // If no stored model or stored model not found, select the first option
+        if (!storedModel || !modelMenu.querySelector(`option[value="${storedModel}"]`)) {
+            modelMenu.selectedIndex = 0;
+        }
+
+        // Add event listener to save selected model when changed
+        modelMenu.addEventListener('change', function() {
+            saveSelectedModel(this.value);
+        });
+    }
+
+    /**
+     * Save selected model to local storage
+     * @param {String} modelId contains the id of the passed model
+     */
+    function saveSelectedModel(modelId) {
+        localStorage.setItem('xwiki-llm-selectedModel', modelId);
+    }
+
+    /**
+     * @return {String} Retrievs the model id from local storage
+     */
+    function getSelectedModel() {
+        return localStorage.getItem('xwiki-llm-selectedModel');
     }
 
     /**
