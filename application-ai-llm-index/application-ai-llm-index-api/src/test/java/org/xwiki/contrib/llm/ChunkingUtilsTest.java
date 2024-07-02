@@ -31,6 +31,8 @@ import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 
+import com.xpn.xwiki.XWikiContext;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -42,6 +44,10 @@ import static org.mockito.Mockito.when;
 @ComponentTest
 class ChunkingUtilsTest
 {
+    private static final String WIKI = "mywiki";
+
+    private static final String DOCUMENT_ID = "My Document";
+
     private static final String TEST_CONTENT = """
         = Heading 1 =
         
@@ -78,6 +84,12 @@ class ChunkingUtilsTest
     @MockComponent
     private Provider<Chunk> chunkProvider;
 
+    @Mock
+    private XWikiContext xWikiContext;
+
+    @MockComponent
+    private Provider<XWikiContext> contextProvider;
+
     @BeforeEach
     void setUp() throws Exception
     {
@@ -85,8 +97,12 @@ class ChunkingUtilsTest
         // Setup the mock objects
         when(this.mockDocument.getCollection()).thenReturn(collectionName);
         when(this.mockDocument.getContent()).thenReturn(TEST_CONTENT);
+        when(this.mockDocument.getID()).thenReturn(DOCUMENT_ID);
         when(this.collectionManager.getCollection(collectionName)).thenReturn(this.mockCollection);
         when(this.chunkProvider.get()).thenAnswer(invocation -> new Chunk());
+
+        when(this.contextProvider.get()).thenReturn(this.xWikiContext);
+        when(this.xWikiContext.getWikiId()).thenReturn(WIKI);
     }
 
     @Test
