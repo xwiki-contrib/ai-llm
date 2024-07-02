@@ -105,6 +105,11 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
      */
     public static final String FIELD_ERROR_MESSAGE = "errorMessage";
 
+    /**
+     * The name of the field that stores the hint of the store of the collection.
+     */
+    public static final String FIELD_STORE_HINT = "storeHint";
+
     private static final String FIELD_TYPE_KNN_VECTOR = "knn_vector";
 
     // Last version that required a re-index, after that there are currently only field additions
@@ -113,7 +118,9 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
     // The version that introduces the wiki field
     private static final long WIKI_FIELD_VERSION = 121000003;
 
-    private static final long CURRENT_VERSION = 121000004;
+    private static final long ERROR_MESSAGE_FILED_VERSION = 121000004;
+
+    private static final long CURRENT_VERSION = 121000005;
 
     private static final String SOLR_DENSE_VECTOR_FIELD = "solr.DenseVectorField";
 
@@ -164,8 +171,12 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
             this.addStringField(FIELD_WIKI, false, false);
         }
 
-        if (cversion < CURRENT_VERSION) {
+        if (cversion < ERROR_MESSAGE_FILED_VERSION) {
             this.addStringField(FIELD_ERROR_MESSAGE, false, false);
+        }
+
+        if (cversion < CURRENT_VERSION) {
+            this.addStringField(FIELD_STORE_HINT, false, false);
         }
     }
 

@@ -19,8 +19,14 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
@@ -36,6 +42,7 @@ import org.xwiki.user.UserReference;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class Chunk
 {
+    private String id;
     private String wiki;
     private String documentID;
     private String documentURL;
@@ -47,6 +54,7 @@ public class Chunk
     private String content;
     private double[] embeddings;
     private String errorMessage;
+    private String storeHint;
 
     @Inject
     private Logger logger;
@@ -98,6 +106,22 @@ public class Chunk
     public void setWiki(String wiki)
     {
         this.wiki = wiki;
+    }
+
+    /**
+     * @return the hint of the store of the collection this chunk is part of
+     */
+    public String getStoreHint()
+    {
+        return this.storeHint;
+    }
+
+    /**
+     * @param storeHint the hint of the store of the collection this chunk is part of
+     */
+    public void setStoreHint(String storeHint)
+    {
+        this.storeHint = storeHint;
     }
 
     /**
@@ -307,4 +331,78 @@ public class Chunk
         this.embeddings = this.embeddingsUtils.computeEmbeddings(this.content, embeddingModelID, userReference);
     }
 
+    /**
+     * Compute and set the ID of the chunk.
+     */
+    public void computeId()
+    {
+        String separator = "_";
+        List<String> parts = List.of(getWiki(), getCollection(), getDocumentID(), String.valueOf(getChunkIndex()));
+        // Use URL encoding escaping to avoid having the separator in any of the parts
+        this.id = parts.stream()
+            .map(part -> StringUtils.replaceEach(part, new String[] { separator, "%" }, new String[] { "%5F", "%25" }))
+            .collect(Collectors.joining(separator));
+    }
+
+    /**
+     * @return the ID of the chunk
+     */
+    public String getId()
+    {
+        return this.id;
+    }
+
+    /**
+     * @param id the ID of the chunk
+     */
+    public void setId(String id)
+    {
+        this.id = id;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) {
+            return true;
+        }
+
+        if (!(o instanceof Chunk chunk)) {
+            return false;
+        }
+
+        return new EqualsBuilder().append(getChunkIndex(), chunk.getChunkIndex())
+            .append(getPosFirstChar(), chunk.getPosFirstChar())
+            .append(getPosLastChar(), chunk.getPosLastChar())
+            .append(getId(), chunk.getId())
+            .append(getWiki(), chunk.getWiki())
+            .append(getDocumentID(), chunk.getDocumentID())
+            .append(getDocumentURL(), chunk.getDocumentURL())
+            .append(getLanguage(), chunk.getLanguage())
+            .append(getCollection(), chunk.getCollection())
+            .append(getContent(), chunk.getContent())
+            .append(getEmbeddings(), chunk.getEmbeddings())
+            .append(getErrorMessage(), chunk.getErrorMessage())
+            .append(getStoreHint(), chunk.getStoreHint())
+            .isEquals();
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return new HashCodeBuilder(17, 37).append(getId())
+            .append(getWiki())
+            .append(getDocumentID())
+            .append(getDocumentURL())
+            .append(getLanguage())
+            .append(getCollection())
+            .append(getChunkIndex())
+            .append(getPosFirstChar())
+            .append(getPosLastChar())
+            .append(getContent())
+            .append(getEmbeddings())
+            .append(getErrorMessage())
+            .append(getStoreHint())
+            .toHashCode();
+    }
 }

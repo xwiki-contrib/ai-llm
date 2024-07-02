@@ -19,12 +19,14 @@
  */
 package org.xwiki.contrib.llm;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -76,14 +78,23 @@ public class ChunkingUtils
         Collection collection;
         try {
             collection = collectionManager.getCollection(document.getCollection());
-            return chunkDocumentBasedOnCharacters(collection, document);
+            return chunkDocument(collection, document).stream()
+                .collect(Collectors.toMap(Chunk::getChunkIndex, Function.identity()));
         } catch (IndexException e) {
             logger.error("Error while chunking the document [{}]: [{}]", document, e.getMessage());
         }
-        return new HashMap<>();
+        return Map.of();
     }
 
-    private Map<Integer, Chunk> chunkDocumentBasedOnCharacters(Collection collection, Document document)
+    /**
+     * Split the document of the given collection into chunks.
+     *
+     * @param collection the collection the document is part of
+     * @param document the document whose content shall be chunked
+     * @return a list of chunks
+     * @throws IndexException if an error occurs while chunking the document or the chunking configuration is invalid
+     */
+    public List<Chunk> chunkDocument(Collection collection, Document document)
         throws IndexException
     {
         int maxChunkSize = collection.getChunkingMaxSize();
@@ -95,8 +106,8 @@ public class ChunkingUtils
         String content = document.getContent();
 
         // Initialize the chunks map
-        Map<Integer, Chunk> chunks = new HashMap<>();
-    
+        List<Chunk> result = new ArrayList<>();
+
         int start = 0;
         int end;
         int chunkIndex = 0;
@@ -127,7 +138,9 @@ public class ChunkingUtils
                             start, end, chunkContent);
             chunk.setChunkIndex(chunkIndex);
             chunk.setWiki(context.getWikiId());
-            chunks.put(chunkIndex, chunk);
+            chunk.setStoreHint(collection.getDocumentStoreHint());
+            chunk.computeId();
+            result.add(chunk);
     
             // Prepare for the next iteration
             if (end < content.length() && offset > 0) {
@@ -140,7 +153,7 @@ public class ChunkingUtils
             chunkIndex++;
         }
     
-        return chunks;
+        return result;
     }
 
     private static void validateChunkSizeAndOffset(int maxChunkSize, int offset) throws IndexException

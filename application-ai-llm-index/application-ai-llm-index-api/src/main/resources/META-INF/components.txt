@@ -10,9 +10,16 @@ org.xwiki.contrib.llm.internal.InternalDocumentStore
 org.xwiki.contrib.llm.internal.RAGChatRequestFilterBuilder
 org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer
 org.xwiki.contrib.llm.internal.DocumentIndexer
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentCollectionIndexingTaskConsumer
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocument
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocumentIndexingTaskConsumer
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreHelper
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreEventListener
 org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationManagerBuilder
 org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationRequestBuilder
 org.xwiki.contrib.llm.internal.authorization.PublicAuthorizationManagerBuilder
+org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBuilder
 org.xwiki.contrib.llm.internal.livedata.DefaultLLMIndexPropertiesProvider
 org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksEntryStore
 org.xwiki.contrib.llm.internal.livedata.LLMIndexChunksLiveDataConfigurationResolver

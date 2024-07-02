@@ -138,6 +138,15 @@
     &lt;dd&gt;$doc.display('documentStore')&lt;/dd&gt;
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('documentSpaces')))"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Collections.Code.CollectionsClass_0_documentSpaces"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('documentSpaces', false, false))
+      &lt;/label&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('documentSpaces')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
         data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('queryGroups')))"
         data-property-type="object"#end&gt;
       &lt;label#if ($editing) for="AI.Collections.Code.CollectionsClass_0_queryGroups"#end&gt;

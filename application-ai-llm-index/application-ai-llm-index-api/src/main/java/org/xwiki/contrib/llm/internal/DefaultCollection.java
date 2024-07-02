@@ -54,7 +54,20 @@ import com.xpn.xwiki.objects.BaseObject;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class DefaultCollection implements Collection
 {
-    private static final String ID_FIELDNAME = "id";
+    /**
+     * The field in the XObject that stores the document store.
+     */
+    public static final String DOCUMENT_STORE_FIELDNAME = "documentStore";
+
+    /**
+     * The field in the XObject that stores the id of the collection.
+     */
+    public static final String ID_FIELDNAME = "id";
+
+    /**
+     * The field in the XObject that stores the list of document spaces.
+     */
+    public static final String DOCUMENT_SPACE_FIELDNAME = "documentSpaces";
     private static final String EMBEDDINGMODEL_FIELDNAME = "embeddingModel";
     private static final String CHUNKING_METHOD_FIELDNAME = "chunkingMethod";
     private static final String CHUNKING_LLM_MODEL_FIELDNAME = "chunkingLLMmodel";
@@ -63,9 +76,7 @@ public class DefaultCollection implements Collection
     private static final String ALLOW_GUESTS = "allowGuests";
     private static final String QUERY_GROUPS_FIELDNAME = "queryGroups";
     private static final String RIGHTS_CHECK_METHOD_FIELDNAME = "rightsCheckMethod";
-    private static final String DOCUMENT_SPACE_FIELDNAME = "documentSpaces";
 
-    private static final String DOCUMENT_STORE_FIELDNAME = "documentStore";
 
     @Inject
     protected Provider<XWikiContext> contextProvider;

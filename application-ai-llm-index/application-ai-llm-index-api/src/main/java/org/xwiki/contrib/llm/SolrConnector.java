@@ -31,11 +31,11 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.slf4j.Logger;
@@ -65,6 +65,16 @@ public class SolrConnector
 
     private static final String AND = " AND ";
 
+    private static final String OR_DELIMITER = " OR ";
+
+    private static final String RANGE_START = "[";
+
+    private static final String TO = " TO ";
+
+    private static final String PARENTHESIS_OPEN = "(";
+
+    private static final String PARENTHESIS_CLOSE = ")";
+
     @Inject
     private Logger logger;
 
@@ -79,6 +89,9 @@ public class SolrConnector
 
     @Inject
     private Provider<XWikiContext> contextProvider;
+
+    @Inject
+    private Provider<Chunk> chunkProvider;
 
     /**
      * Connects to the Solr server and stores a chunk.
@@ -116,7 +129,9 @@ public class SolrConnector
     private SolrInputDocument getSolrDocument(Chunk chunk)
     {
         SolrInputDocument solrDocument = new SolrInputDocument();
-        solrDocument.addField(FIELD_ID, generateChunkID(chunk));
+        // Ensure that the ID is correct.
+        chunk.computeId();
+        solrDocument.addField(FIELD_ID, chunk.getId());
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_WIKI, chunk.getWiki());
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_DOC_ID, chunk.getDocumentID());
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_COLLECTION, chunk.getCollection());
@@ -126,6 +141,7 @@ public class SolrConnector
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR, chunk.getPosFirstChar());
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR, chunk.getPosLastChar());
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE, chunk.getErrorMessage());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_STORE_HINT, chunk.getStoreHint());
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, chunk.getContent());
         double[] embeddings = chunk.getEmbeddings();
         // The embeddings could be null if we got an error and want to store the error.
@@ -163,12 +179,221 @@ public class SolrConnector
     public void deleteChunksByDocId(String wiki, String collectionId, String documentId)
     {
         String query = buildQuery(wiki, collectionId, documentId);
-        try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
-            client.deleteByQuery(query);
-            client.commit();
+        try {
+            deleteChunksByQuery(query);
         } catch (Exception e) {
             this.logger.error("Failed to delete chunks of document [{}] in collection [{}] in wiki [{}]",
                 documentId, collectionId, wiki, e);
+        }
+    }
+
+    /**
+     * Delete all chunks with the given store hint and document id.
+     *
+     * @param storeHint the hint of the store for which chunks shall be deleted
+     * @param documentId the document id for which chunks shall bee deleted
+     */
+    public void deleteChunksByStoreHintAndDocId(String storeHint, String documentId)
+    {
+        String query = AiLLMSolrCoreInitializer.FIELD_STORE_HINT + SOLR_SEPARATOR
+            + this.solrUtils.toCompleteFilterQueryString(storeHint)
+            + AND
+            + AiLLMSolrCoreInitializer.FIELD_DOC_ID + SOLR_SEPARATOR
+            + this.solrUtils.toCompleteFilterQueryString(documentId);
+        try {
+            deleteChunksByQuery(query);
+        } catch (Exception e) {
+            this.logger.error("Failed to delete chunks of document [{}] with store hint [{}]",
+                documentId, storeHint, e);
+        }
+    }
+
+    /**
+     * Delete chunks that match the specified query from the wiki and collection.
+     *
+     * @param wiki the wiki to delete the chunks from
+     * @param collectionId the collection to delete the chunks from
+     * @param query the query that matches the chunks to delete
+     */
+    public void deleteChunksByQuery(String wiki, String collectionId, String query)
+    {
+        String fullQuery = String.join(AND,
+            buildWikiQuery(wiki),
+            AiLLMSolrCoreInitializer.FIELD_COLLECTION + SOLR_SEPARATOR
+                + this.solrUtils.toCompleteFilterQueryString(collectionId),
+            PARENTHESIS_OPEN + query + PARENTHESIS_CLOSE
+        );
+        try {
+            deleteChunksByQuery(fullQuery);
+        } catch (Exception e) {
+            this.logger.error("Failed to delete chunks in collection [{}] in wiki [{}] with query [{}]",
+                collectionId, wiki, query, e);
+        }
+    }
+
+    /**
+     * Get a range of chunks of a document.
+     *
+     * @param wiki the wiki to get the chunks from
+     * @param collectionId the collection to get the chunks from
+     * @param documentId the document to get the chunks from
+     * @param startChunk the index of the first chunk to return
+     * @param endChunk the index after the last chunk to return
+     * @return the specified chunks
+     */
+    public List<Chunk> getChunks(String wiki, String collectionId, String documentId, int startChunk, int endChunk)
+    {
+        String filterQuery = buildQuery(wiki, collectionId, documentId);
+        String queryString =
+            AiLLMSolrCoreInitializer.FIELD_INDEX + SOLR_SEPARATOR + RANGE_START + startChunk + TO + endChunk + "]";
+        SolrQuery query = new SolrQuery();
+        query.addFilterQuery(filterQuery);
+        query.addFilterQuery(queryString);
+        query.setRows(endChunk - startChunk);
+
+        try (SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
+            QueryResponse response = client.query(query);
+            SolrDocumentList documents = response.getResults();
+            return documents.stream()
+                .map(this::toChunk)
+                .toList();
+        } catch (Exception e) {
+            this.logger.error("Failed to get chunks [{}, {}] of document [{}] in collection [{}] in wiki [{}]",
+                startChunk, endChunk, documentId, collectionId, wiki, e);
+            return List.of();
+        }
+    }
+
+    private Chunk toChunk(SolrDocument solrDocument)
+    {
+        Chunk result = this.chunkProvider.get();
+        result.initialize(
+            (String) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_DOC_ID),
+            (String) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_COLLECTION),
+            (String) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_DOC_URL),
+            (String) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_LANGUAGE),
+            (Integer) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_POS_FIRST_CHAR),
+            (Integer) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR),
+            (String) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_CONTENT)
+        );
+        result.setWiki((String) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_WIKI));
+        result.setChunkIndex((Integer) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_INDEX));
+        result.setErrorMessage((String) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE));
+        result.setStoreHint((String) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_STORE_HINT));
+        result.setId((String) solrDocument.getFieldValue(FIELD_ID));
+        List<?> vectorField = (List<?>) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_VECTOR);
+        if (vectorField != null) {
+            result.setEmbeddings(vectorField.stream()
+                .map(String.class::cast)
+                .mapToDouble(Double::parseDouble)
+                .toArray());
+        }
+        return result;
+    }
+
+    /**
+     * Delete chunks of a document starting with a specific index.
+     *
+     * @param wiki the wiki in which the document is stored
+     * @param collectionId the id of the collection the document is part of
+     * @param documentId the id of the document
+     * @param startChunk the index of the first chunk to delete
+     */
+    public void deleteChunksByIndex(String wiki, String collectionId, String documentId, int startChunk)
+    {
+        String documentQuery = buildQuery(wiki, collectionId, documentId);
+        String indexQuery = AiLLMSolrCoreInitializer.FIELD_INDEX + SOLR_SEPARATOR + RANGE_START + startChunk + " TO *]";
+        String query = documentQuery + AND + indexQuery;
+        try {
+            deleteChunksByQuery(query);
+        } catch (Exception e) {
+            this.logger.error(
+                "Failed to delete chunks starting with index [{}] of document [{}] in collection [{}] in wiki [{}]",
+                startChunk, documentId, collectionId, wiki, e);
+        }
+    }
+
+    /**
+     * Delete chunks of a document with a specified range of indexes.
+     *
+     * @param wiki the wiki in which the document is stored
+     * @param collectionId the id of the collection the document is part of
+     * @param documentId the id of the document
+     * @param startChunk the index of the first chunk to delete
+     * @param endChunk the index of the first chunk to not delete anymore
+     */
+    public void deleteChunksByIndex(String wiki, String collectionId, String documentId, int startChunk, int endChunk)
+    {
+        String documentQuery = buildQuery(wiki, collectionId, documentId);
+        String indexQuery =
+            AiLLMSolrCoreInitializer.FIELD_INDEX + SOLR_SEPARATOR + RANGE_START + startChunk + TO + endChunk + "}";
+        String query = documentQuery + AND + indexQuery;
+        try {
+            deleteChunksByQuery(query);
+        } catch (Exception e) {
+            this.logger.error("Failed to delete chunks [{}] - [{}] of document [{}] in collection [{}] in wiki [{}]",
+                startChunk, endChunk, documentId, collectionId, wiki, e);
+        }
+    }
+
+    private void deleteChunksByQuery(String query) throws IOException, SolrServerException, SolrException
+    {
+        try (SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
+            client.deleteByQuery(query);
+            client.commit();
+        }
+    }
+
+    /**
+     * Filter the given document ids to only return those for which at least one chunk has been indexed.
+     *
+     * @param wiki the wiki of the documents
+     * @param collectionId the collection of the documents
+     * @param documentIds the ids of the documents to check
+     * @return the document ids that have already been indexed, or an empty list if the query failed
+     */
+    public List<String> filterExistingDocuments(String wiki, String collectionId, List<String> documentIds)
+    {
+        SolrQuery query = new SolrQuery();
+        query.addFilterQuery(buildWikiQuery(wiki));
+        query.addFilterQuery(AiLLMSolrCoreInitializer.FIELD_COLLECTION + SOLR_SEPARATOR
+            + this.solrUtils.toCompleteFilterQueryString(collectionId));
+        // Only check for chunk 0 to avoid duplicates.
+        query.addFilterQuery(AiLLMSolrCoreInitializer.FIELD_INDEX + SOLR_SEPARATOR + "0");
+        query.setFields(AiLLMSolrCoreInitializer.FIELD_DOC_ID);
+        query.setRows(documentIds.size());
+        query.setQuery(AiLLMSolrCoreInitializer.FIELD_DOC_ID + SOLR_SEPARATOR
+            + documentIds.stream()
+                .map(this.solrUtils::toCompleteFilterQueryString)
+                .collect(Collectors.joining(OR_DELIMITER, PARENTHESIS_OPEN, PARENTHESIS_CLOSE)));
+
+        try (SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
+            QueryResponse response = client.query(query);
+            SolrDocumentList documents = response.getResults();
+            return documents.stream()
+                .map(document -> String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_DOC_ID)))
+                .toList();
+        } catch (Exception e) {
+            this.logger.error("Failed to filter existing documents in collection [{}] in wiki [{}]",
+                collectionId, wiki, e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Connects to the Solr server and deletes all chunks of a collection.
+     *
+     * @param wiki the wiki in which the collection is stored
+     * @param collectionId the id of the collection to delete
+     */
+    public void deleteChunksByCollection(String wiki, String collectionId)
+    {
+        String query = buildWikiQuery(wiki) + AND + AiLLMSolrCoreInitializer.FIELD_COLLECTION + SOLR_SEPARATOR
+            + this.solrUtils.toCompleteFilterQueryString(collectionId);
+        try {
+            deleteChunksByQuery(query);
+        } catch (Exception e) {
+            this.logger.error("Failed to delete chunks of collection [{}] in wiki [{}]", collectionId, wiki, e);
         }
     }
 
@@ -196,9 +421,8 @@ public class SolrConnector
      */
     public void clearIndexCore() throws SolrServerException
     {
-        try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
-            client.deleteByQuery("*:*");
-            client.commit();
+        try {
+            deleteChunksByQuery("*:*");
         } catch (Exception e) {
             throw new SolrServerException("Failed to clear index core", e);
         }
@@ -303,7 +527,7 @@ public class SolrConnector
                                                     + SOLR_SEPARATOR
                                                     + solrUtils.toCompleteFilterQueryString(collection)
                                         )
-                                    .collect(Collectors.joining(" OR "));
+                                    .collect(Collectors.joining(OR_DELIMITER));
             query.addFilterQuery(filterQuery);
         }
 
@@ -346,7 +570,7 @@ public class SolrConnector
     private String arrayToString(double[] array)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("[");
+        sb.append(RANGE_START);
         for (int i = 0; i < array.length; i++) {
             if (i > 0) {
                 sb.append(", ");
@@ -355,16 +579,5 @@ public class SolrConnector
         }
         sb.append("]");
         return sb.toString();
-    }
-
-    private String generateChunkID(Chunk chunk)
-    {
-        String separator = "_";
-        List<String> parts = List.of(chunk.getWiki(), chunk.getCollection(), chunk.getDocumentID(),
-            String.valueOf(chunk.getChunkIndex()));
-        // Use URL encoding escaping to avoid having the separator in any of the parts
-        return parts.stream()
-            .map(part -> StringUtils.replaceEach(part, new String[] { separator, "%" }, new String[] { "%5F", "%25" }))
-            .collect(Collectors.joining(separator));
     }
 }
