@@ -31,7 +31,7 @@
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title/>
+  <title>CollectionsTemplate</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
@@ -59,7 +59,7 @@
         <displayType/>
         <hint/>
         <name>allowGuests</name>
-        <number>8</number>
+        <number>10</number>
         <prettyName>Allow guests to query collection</prettyName>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
@@ -71,7 +71,7 @@
         <disabled>0</disabled>
         <hint/>
         <name>chunkingMaxSize</name>
-        <number>5</number>
+        <number>7</number>
         <numberType>integer</numberType>
         <prettyName>Chunking max size</prettyName>
         <size>30</size>
@@ -83,7 +83,7 @@
       <chunkingMethod>
         <cache>0</cache>
         <customDisplay/>
-        <defaultValue/>
+        <defaultValue>maxChars</defaultValue>
         <disabled>0</disabled>
         <displayType>select</displayType>
         <freeText/>
@@ -102,7 +102,7 @@
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
         <validationRegExp/>
-        <values>sectionChunking=Section-based chunking|maxChars=Max characters chunking</values>
+        <values>maxChars=Max characters chunking</values>
         <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
       </chunkingMethod>
       <chunkingOverlapOffset>
@@ -110,7 +110,7 @@
         <disabled>0</disabled>
         <hint/>
         <name>chunkingOverlapOffset</name>
-        <number>6</number>
+        <number>8</number>
         <numberType>long</numberType>
         <prettyName>Chunking overlap offset</prettyName>
         <size>30</size>
@@ -132,7 +132,7 @@
         <largeStorage>0</largeStorage>
         <multiSelect>1</multiSelect>
         <name>documentSpaces</name>
-        <number>7</number>
+        <number>9</number>
         <picker>1</picker>
         <prettyName>Document spaces</prettyName>
         <relationalStorage>1</relationalStorage>
@@ -147,6 +147,55 @@
         <valueField/>
         <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
       </documentSpaces>
+      <documentStore>
+        <customDisplay>{{velocity}}
+#if ($type == 'view' || $type == 'search' || $type == 'rendered')
+  #if ("$!value" == '')
+    #set ($value = 'internal')
+  #end
+  #set ($localizationKey = "aiLLM.index.documentStore.${value}.name")
+  #if ($services.localization.get($localizationKey))
+    #set ($entryDisplayName = $services.localization.render($localizationKey))
+  #else
+    #set ($entryDisplayName = $value)
+  #end
+  $services.rendering.escape($entryDisplayName, 'xwiki/2.1')
+#elseif ($type == 'edit')
+{{html clean="false"}}
+&lt;select name="$escapetool.xml("${object.getxWikiClass().name}_${object.number}_${name}")"
+ id="$escapetool.xml("${object.getxWikiClass().name}_${object.number}_${name}")"&gt;
+#foreach($possibleValue in $services.collectionManager.getDocumentStoreValues())
+  #set ($localizationKey = "aiLLM.index.documentStore.${possibleValue}.name")
+  #if ($services.localization.get($localizationKey))
+    #set ($entryDisplayName = $services.localization.render($localizationKey))
+  #else
+    #set ($entryDisplayName = $possibleValue)
+  #end
+  &lt;option value="$escapetool.xml($possibleValue)"#if($possibleValue.equalsIgnoreCase($value)) selected="selected"#end 
+  &gt;$escapetool.xml($entryDisplayName)&lt;/option&gt;
+#end
+&lt;/select&gt;
+{{/html}}
+#elseif ($type == 'hidden')
+  {{html clean="false"}}
+    $doc.displayHidden($field, $prefix, $object)
+  {{/html}}
+#else
+  Unknown display mode.
+#end
+{{/velocity}}</customDisplay>
+        <disabled>0</disabled>
+        <hint/>
+        <name>documentStore</name>
+        <number>11</number>
+        <picker>0</picker>
+        <prettyName>Document Store</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </documentStore>
       <embeddingModel>
         <cache>0</cache>
         <classname/>
@@ -208,7 +257,7 @@ and modelProp.id.name='model'</sql>
         <largeStorage>0</largeStorage>
         <multiSelect>1</multiSelect>
         <name>queryGroups</name>
-        <number>9</number>
+        <number>11</number>
         <picker>0</picker>
         <prettyName>Groups that can query</prettyName>
         <relationalStorage>0</relationalStorage>
@@ -224,7 +273,49 @@ and modelProp.id.name='model'</sql>
       </queryGroups>
       <rightsCheckMethod>
         <cache>0</cache>
-        <customDisplay/>
+        <customDisplay>{{velocity}}
+#if ($type == 'view' || $type == 'search' || $type == 'rendered')
+  #if ("$!value" != '')
+    #set ($entry = $services.collectionManager.getAuthorizationManagerDescriptorsMap().get($value))
+    #set ($localizationKey = "aiLLM.index.authorizationManager.${value}.name")
+    #if ($services.localization.get($localizationKey))
+      #set ($entryDisplayName = $services.localization.render($localizationKey))
+    #else
+      #set ($entryDisplayName = $value)
+    #end
+      (% data-ai-llm-rights-check-method="$services.rendering.escape($value, 'xwiki/2.1')"
+      #if ("$!entry" != '' &amp;&amp; "$!entry.configurationSheetReference()" != '')
+        data-ai-llm-rights-check-method-sheet="$services.rendering.escape($services.model.serialize($entry.configurationSheetReference()), 'xwiki/2.1')"
+      #end
+       %)$services.rendering.escape($entryDisplayName, 'xwiki/2.1')(%%)
+  #end
+#elseif ($type == 'edit')
+{{html clean="false"}}
+&lt;select name="$escapetool.xml("${object.getxWikiClass().name}_${object.number}_${name}")"
+ id="$escapetool.xml("${object.getxWikiClass().name}_${object.number}_${name}")"&gt;
+#foreach($entry in $services.collectionManager.getAuthorizationManagerDescriptorsMap().entrySet())
+  #set ($localizationKey = "aiLLM.index.authorizationManager.${entry.key}.name")
+  #if ($services.localization.get($localizationKey))
+    #set ($entryDisplayName = $services.localization.render($localizationKey))
+  #else
+    #set ($entryDisplayName = $entry.key)
+  #end
+  &lt;option value="$escapetool.xml($entry.key)"#if($entry.key.equalsIgnoreCase($value)) selected="selected"#end 
+  #if ("$!entry.value.configurationSheetReference()" != '')
+    data-ai-llm-rights-check-method-sheet="$escapetool.xml($services.model.serialize($entry.value.configurationSheetReference()))"
+  #end
+  &gt;$escapetool.xml($entryDisplayName)&lt;/option&gt;
+#end
+&lt;/select&gt;
+{{/html}}
+#elseif ($type == 'hidden')
+  {{html clean="false"}}
+    $doc.displayHidden($field, $prefix, $object)
+  {{/html}}
+#else
+  Unknown display mode.
+#end
+{{/velocity}}</customDisplay>
         <defaultValue/>
         <disabled>0</disabled>
         <displayType>select</displayType>
@@ -233,7 +324,7 @@ and modelProp.id.name='model'</sql>
         <largeStorage>0</largeStorage>
         <multiSelect>0</multiSelect>
         <name>rightsCheckMethod</name>
-        <number>10</number>
+        <number>12</number>
         <picker>0</picker>
         <prettyName>Rights check method</prettyName>
         <relationalStorage>1</relationalStorage>
@@ -262,16 +353,13 @@ and modelProp.id.name='model'</sql>
       </title>
     </class>
     <property>
-      <adminGroups/>
-    </property>
-    <property>
       <allowGuests>0</allowGuests>
     </property>
     <property>
-      <chunkingMaxSize>1000</chunkingMaxSize>
+      <chunkingMaxSize>3000</chunkingMaxSize>
     </property>
     <property>
-      <chunkingMethod/>
+      <chunkingMethod>maxChars</chunkingMethod>
     </property>
     <property>
       <chunkingOverlapOffset>15</chunkingOverlapOffset>
@@ -280,10 +368,10 @@ and modelProp.id.name='model'</sql>
       <documentSpaces/>
     </property>
     <property>
-      <editGroups/>
+      <documentStore>internal</documentStore>
     </property>
     <property>
-      <embeddingModel/>
+      <embeddingModel>AI.Models.Default</embeddingModel>
     </property>
     <property>
       <id/>
@@ -292,7 +380,7 @@ and modelProp.id.name='model'</sql>
       <queryGroups>XWiki.XWikiAllGroup</queryGroups>
     </property>
     <property>
-      <rightsCheckMethod>rightsCheckJWT</rightsCheckMethod>
+      <rightsCheckMethod>public</rightsCheckMethod>
     </property>
   </object>
 </xwikidoc>

@@ -88,7 +88,7 @@ public class EmbeddingsUtils implements Initializable
     public List<double[]> computeEmbeddings(List<String> texts, String modelId, UserReference userReference)
         throws IndexException
     {
-        if (DEFAULT_MODEL.equals(modelId)) {
+        if (DEFAULT_MODEL.equals(modelId) || modelId == null || modelId.isBlank()) {
             return computeDefaultEmbeddings(texts);
         } else {
             return computeModelEmbeddings(texts, modelId, userReference);
