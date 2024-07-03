@@ -26,7 +26,7 @@ import javax.inject.Named;
 import javax.inject.Provider;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.tika.utils.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
