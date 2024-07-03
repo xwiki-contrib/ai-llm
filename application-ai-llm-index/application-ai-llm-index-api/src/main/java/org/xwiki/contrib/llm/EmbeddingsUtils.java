@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -39,6 +40,8 @@ import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
 
+import com.robrua.nlp.bert.Bert;
+
 /**
  * Utility class used in chunking the documents.
  * 
@@ -48,6 +51,8 @@ import io.github.resilience4j.retry.RetryRegistry;
 @Singleton
 public class EmbeddingsUtils implements Initializable
 {
+    private static final String DEFAULT_MODEL = "AI.Models.Default";
+
     @Inject
     private Provider<XWikiContext> contextProvider;
 
@@ -55,6 +60,8 @@ public class EmbeddingsUtils implements Initializable
     private EmbeddingModelManager embeddingModelManager;
 
     private RetryRegistry retryRegistry;
+
+    private Bert bert;
 
     /**
      * Compute embeddings for given text.
@@ -70,7 +77,64 @@ public class EmbeddingsUtils implements Initializable
     }
 
     /**
-     * Compute embeddings for given texts.
+     * Compute embeddings for given texts using either the default BERT model or a specified model.
+     *
+     * @param texts the texts to compute embeddings for
+     * @param modelId the model id, use "default" for the built-in BERT model
+     * @param userReference the user reference
+     * @return the embeddings as list of double arrays
+     * @throws IndexException if an error occurs while computing the embeddings
+     */
+    public List<double[]> computeEmbeddings(List<String> texts, String modelId, UserReference userReference)
+        throws IndexException
+    {
+        if (DEFAULT_MODEL.equals(modelId)) {
+            return computeDefaultEmbeddings(texts);
+        } else {
+            return computeModelEmbeddings(texts, modelId, userReference);
+        }
+    }
+
+    /**
+     * Compute embeddings using the default BERT model.
+     *
+     * @param texts the texts to compute embeddings for
+     * @return the embeddings as list of double arrays
+     * @throws IndexException if an error occurs while computing the embeddings
+     */
+    private List<double[]> computeDefaultEmbeddings(List<String> texts) throws IndexException
+    {
+        try {
+            if (bert == null) {
+                bert = Bert.load("com/robrua/nlp/easy-bert/bert-multi-cased-L-12-H-768-A-12");
+            }
+            return texts.stream()
+                .map(text -> bert.embedSequence(text))
+                .map(this::convertFloatToDouble)
+                .map(embeddings -> Arrays.copyOf(embeddings, 1024))
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            throw new IndexException("Failed to compute embeddings using default BERT model", e);
+        }
+    }
+
+    /**
+     * Convert a float array to a double array.
+     *
+     * @param floatArray the float array to convert
+     * @return the converted double array
+     */
+    private double[] convertFloatToDouble(float[] floatArray)
+    {
+        double[] doubleArray = new double[floatArray.length];
+        for (int i = 0; i < floatArray.length; i++) {
+            doubleArray[i] = floatArray[i];
+        }
+        return doubleArray;
+    }
+
+    /**
+     * Compute embeddings using a specified model.
      *
      * @param texts the texts to compute embeddings for
      * @param modelId the model id
@@ -78,7 +142,7 @@ public class EmbeddingsUtils implements Initializable
      * @return the embeddings as list of double arrays
      * @throws IndexException if an error occurs while computing the embeddings
      */
-    public List<double[]> computeEmbeddings(List<String> texts, String modelId, UserReference userReference)
+    private List<double[]> computeModelEmbeddings(List<String> texts, String modelId, UserReference userReference)
         throws IndexException
     {
         try {
