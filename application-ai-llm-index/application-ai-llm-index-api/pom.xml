@@ -33,7 +33,7 @@
     <properties>
         <xwiki.extension.name>LLM Index API (BETA)</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
-        <xwiki.jacoco.instructionRatio>0.27</xwiki.jacoco.instructionRatio>
+        <xwiki.jacoco.instructionRatio>0.33</xwiki.jacoco.instructionRatio>
         <xwiki.extension.features>
           org.xwiki.contrib.llm:application-llm-index-api
         </xwiki.extension.features>

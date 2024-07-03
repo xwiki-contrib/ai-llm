@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal.xwikistore;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,8 +30,8 @@ import javax.inject.Named;
 import javax.inject.Provider;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.tika.Tika;
-import org.apache.tika.utils.StringUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
@@ -110,7 +111,8 @@ public class XWikiDocumentDocument implements Document
     @Override
     public String getLanguage()
     {
-        if (this.xWikiDocument.getLocale() != null) {
+        Locale locale = this.xWikiDocument.getLocale();
+        if (locale != null && !locale.equals(Locale.ROOT)) {
             return this.xWikiDocument.getLocale().toString();
         } else {
             return this.xWikiDocument.getDefaultLocale().toString();
@@ -141,19 +143,28 @@ public class XWikiDocumentDocument implements Document
         // FIXME: refactor this to return an input stream that iteratively returns all of these values instead of a
         //  string.
         XWikiContext context = this.xWikiContextProvider.get();
-        return formatHeading(1, this.xWikiDocument.getRenderedTitle(this.xWikiDocument.getSyntax(), context))
-            + this.xWikiDocument.getContent() + DELIMITER
-            + getFormattedXObjects()
-            + this.xWikiDocument.getAttachmentList().stream().flatMap(attachment -> {
-                try {
-                    return Stream.of(formatHeading(2, attachment.getFilename())
-                        + this.tika.parseToString(attachment.getContentInputStream(context)));
-                } catch (Exception e) {
-                    this.logger.warn("Failed to parse attachment content: {}", ExceptionUtils.getRootCauseMessage(e));
-                    return Stream.empty();
-                }
-            })
+        return Stream.of(
+            formatHeading(1, this.xWikiDocument.getRenderedTitle(this.xWikiDocument.getSyntax(), context))
+                + this.xWikiDocument.getContent(),
+                getFormattedXObjects(),
+                getFormattedAttachments()
+            )
+            .filter(StringUtils::isNotBlank)
             .collect(Collectors.joining(DELIMITER));
+    }
+
+    private String getFormattedAttachments()
+    {
+        XWikiContext context = this.xWikiContextProvider.get();
+        return this.xWikiDocument.getAttachmentList().stream().flatMap(attachment -> {
+            try {
+                return Stream.of(formatHeading(2, attachment.getFilename())
+                    + this.tika.parseToString(attachment.getContentInputStream(context)));
+            } catch (Exception e) {
+                this.logger.warn("Failed to parse attachment content: {}", ExceptionUtils.getRootCauseMessage(e));
+                return Stream.empty();
+            }
+        }).collect(Collectors.joining(DELIMITER));
     }
 
     private String getFormattedXObjects()
@@ -180,11 +191,11 @@ public class XWikiDocumentDocument implements Document
     {
         // This currently only supports XWiki and Markdown.
         if (this.xWikiDocument.getSyntax().getType().equals(SyntaxType.XWIKI)) {
-            String delimiter = StringUtils.repeat('=', 2);
+            String delimiter = StringUtils.repeat('=', level);
             return "%s %s %s\n\n".formatted(delimiter, content, delimiter);
         } else {
             String start = StringUtils.repeat('#', level);
-            return start + content + DELIMITER;
+            return start + " " + content + DELIMITER;
         }
     }
 
@@ -233,6 +244,6 @@ public class XWikiDocumentDocument implements Document
     @Override
     public List<Chunk> chunkDocument()
     {
-        return List.of();
+        throw new UnsupportedOperationException("Use ChunkingUtils to chunk documents");
     }
 }

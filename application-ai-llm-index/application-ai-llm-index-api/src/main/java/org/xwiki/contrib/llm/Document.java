@@ -157,9 +157,11 @@ public interface Document
 
     /**
      * Process the document and chunk it into smaller pieces.
-     * 
+     *
+     * @deprecated since 0.6, use {@link ChunkingUtils#chunkDocument} instead.
      * @return a list of chunks of the document
      */
+    @Deprecated(since = "0.6")
     List<Chunk> chunkDocument();
 
 }
