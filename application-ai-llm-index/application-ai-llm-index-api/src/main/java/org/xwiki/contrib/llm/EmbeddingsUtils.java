@@ -27,6 +27,7 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.phase.Initializable;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
@@ -35,12 +36,14 @@ import org.xwiki.user.UserReference;
 
 import com.xpn.xwiki.XWikiContext;
 
+import ai.djl.huggingface.translator.TextEmbeddingTranslatorFactory;
+import ai.djl.inference.Predictor;
+import ai.djl.repository.zoo.Criteria;
+import ai.djl.repository.zoo.ZooModel;
 import io.github.resilience4j.core.IntervalFunction;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
-
-import com.robrua.nlp.bert.Bert;
 
 /**
  * Utility class used in chunking the documents.
@@ -52,6 +55,7 @@ import com.robrua.nlp.bert.Bert;
 public class EmbeddingsUtils implements Initializable
 {
     private static final String DEFAULT_MODEL = "AI.Models.Default";
+    private static final String DJLMODEL = "sentence-transformers/all-MiniLM-L6-v2";
 
     @Inject
     private Provider<XWikiContext> contextProvider;
@@ -59,9 +63,10 @@ public class EmbeddingsUtils implements Initializable
     @Inject 
     private EmbeddingModelManager embeddingModelManager;
 
-    private RetryRegistry retryRegistry;
+    @Inject
+    private Logger logger;
 
-    private Bert bert;
+    private RetryRegistry retryRegistry;
 
     /**
      * Compute embeddings for given text.
@@ -105,16 +110,40 @@ public class EmbeddingsUtils implements Initializable
     private List<double[]> computeDefaultEmbeddings(List<String> texts) throws IndexException
     {
         try {
-            if (bert == null) {
-                bert = Bert.load("com/robrua/nlp/easy-bert/bert-multi-cased-L-12-H-768-A-12");
+            Criteria<String, float[]> criteria = 
+                Criteria.builder()
+                    .setTypes(String.class, float[].class)
+                    .optModelUrls("djl://ai.djl.huggingface.pytorch/" + DJLMODEL)
+                    .optEngine("PyTorch")
+                    .optTranslatorFactory(new TextEmbeddingTranslatorFactory())
+                    .build();
+    
+            try (ZooModel<String, float[]> model = criteria.loadModel();
+                 Predictor<String, float[]> predictor = model.newPredictor()) {
+                
+                return computeEmbeddingsWithPredictor(texts, predictor);
             }
-            return texts.stream()
-                .map(text -> bert.embedSequence(text))
-                .map(this::convertFloatToDouble)
-                .map(embeddings -> Arrays.copyOf(embeddings, 1024))
-                .collect(Collectors.toList());
         } catch (Exception e) {
-            throw new IndexException("Failed to compute embeddings using default BERT model", e);
+            throw new IndexException("Failed to compute embeddings using default DJL model", e);
+        }
+    }
+    
+    private List<double[]> computeEmbeddingsWithPredictor(List<String> texts, Predictor<String, float[]> predictor)
+    {
+        return texts.stream()
+            .map(text -> predictAndConvert(text, predictor))
+            .map(embeddings -> Arrays.copyOf(embeddings, 1024))
+            .collect(Collectors.toList());
+    }
+    
+    private double[] predictAndConvert(String text, Predictor<String, float[]> predictor)
+    {
+        try {
+            float[] embeddings = predictor.predict(text);
+            return convertFloatToDouble(embeddings);
+        } catch (Exception e) {
+            logger.error("Failed to compute embeddings for text: " + text, e);
+            return new double[0];
         }
     }
 
