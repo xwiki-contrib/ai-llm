@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.internal;
 
 import java.util.List;
+import java.util.Optional;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -34,6 +35,7 @@ import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.contrib.llm.IndexTaskConsumer;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
@@ -57,9 +59,14 @@ import com.xpn.xwiki.doc.XWikiDocument;
  */
 @Component
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
-@Named("internal")
+@Named(InternalDocumentStore.NAME)
 public class InternalDocumentStore implements DocumentStore
 {
+    /**
+     * The name of this document store.
+     */
+    public static final String NAME = "internal";
+
     private static final String DOCUMENT_CLASS = Document.XCLASS_SPACE_STRING + "." + Document.XCLASS_NAME;
 
     private static final String TEMPLATE_DOC = Document.XCLASS_SPACE_STRING + ".DocumentsTemplate";
@@ -132,6 +139,20 @@ public class InternalDocumentStore implements DocumentStore
         } catch (QueryException e) {
             throw new IndexException("Failed to get documents from collection " + this.collection.getID(), e);
         }
+    }
+
+    @Override
+    public List<DocumentReference> getDocumentReferences(int offset, int limit) throws IndexException
+    {
+        return getDocumentNames(offset, limit).stream()
+            .map(this::getDocumentReference)
+            .toList();
+    }
+
+    @Override
+    public Optional<String> getTaskConsumerHint()
+    {
+        return Optional.of(IndexTaskConsumer.NAME);
     }
 
     private boolean isUserSet()

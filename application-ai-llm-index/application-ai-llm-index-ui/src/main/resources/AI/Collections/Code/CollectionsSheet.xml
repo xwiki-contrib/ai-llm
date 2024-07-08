@@ -180,6 +180,29 @@
 &lt;/div&gt;
 {{/html}}
 
+#if ($hasGlobalAdmin &amp;&amp; !$editing)
+(% id="HReindexing" %)
+== {{translation key="collections.sheet.reindex.heading" /}} ==
+
+(%%){{translation key="collections.sheet.reindex.intro" /}}
+
+{{html clean="false"}}
+&lt;div class="xform"&gt;
+&lt;dl&gt;
+&lt;dt&gt;$escapetool.xml($services.localization.render("collections.sheet.reindex.clean"))&lt;/dt&gt;
+&lt;dd&gt;
+&lt;label&gt;&lt;input type="checkbox" id="collection-reindex-clean" /&gt; $escapetool.xml($services.localization.render("collections.sheet.reindex.clean.label"))&lt;/label&gt;
+&lt;/dd&gt;
+&lt;/dl&gt;
+    &lt;p&gt;
+      &lt;span class="buttonwrapper"&gt;
+        &lt;button class="button" type="button" id="collection-reindex-button"&gt;$escapetool.xml($services.localization.render("collections.sheet.reindex.button"))&lt;/button&gt;
+      &lt;/span&gt;
+    &lt;/p&gt;
+&lt;/div&gt;
+{{/html}}
+
+#end
 #set ($object = $doc.getObject('AI.Collections.Code.CollectionsClass'))
 #set ($documentStore = $doc.getValue('documentStore', $object))
 #if (!$doc.isNew() &amp;&amp; ("$!documentStore" == '' || $documentStore == 'internal'))
@@ -389,7 +412,16 @@
       <cache>long</cache>
     </property>
     <property>
-      <code>require(['jquery', 'xwiki-meta'], function($, xm) {
+      <code>define('ai-llm-collections-translation-keys', {
+    prefix: 'collections.sheet.reindex.',
+    keys: [
+        'startingReindexing',
+        'reindexingStarted',
+        'reindexingFailed'
+    ]
+});
+
+require(['jquery', 'xwiki-meta', 'xwiki-l10n!ai-llm-collections-translation-keys'], function($, xm, l10n) {
     function updateOrLoadSheet() {
         // The value is possibly already displayed, find an element with data-ai-llm-rights-check-method attribute
         // We do this first as when the editable property is cancelled, the select element with a wrong value
@@ -475,6 +507,42 @@
 
     $(document).on('xwiki:dom:updated', updateOrLoadSheet);
     $(updateOrLoadSheet);
+
+    $(function() {
+        document.getElementById('collection-reindex-button').addEventListener('click', function(event) {
+            // Deactivate the button to avoid multiple clicks
+            event.target.disabled = true;
+
+            const clean = document.getElementById('collection-reindex-clean').checked;
+            const wiki = xm.documentReference.extractReferenceValue(XWiki.EntityType.WIKI);
+            const collectionName = xm.documentReference.extractReferenceValue(XWiki.EntityType.SPACE);
+        
+            const restURL = XWiki.Document.RestURLTemplate.replace(/\/spaces.*$/, '')
+                .replace('__wiki__', encodeURIComponent(wiki)) + '/aiLLM/collections/'
+                + encodeURIComponent(collectionName) + '/reindex';
+            const cleanOptions = {clean: clean};
+
+            const notification = new XWiki.widgets.Notification(l10n.startingReindexing, 'inprogress');
+
+            fetch(restURL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(cleanOptions)
+            })
+            .then(response =&gt; {
+                if (!response.ok) {
+                    notification.replace(new XWiki.widgets.Notification(l10n.reindexingFailed, 'error'));
+                } else {
+                    notification.replace(new XWiki.widgets.Notification(l10n.reindexingStarted, 'done'));
+                }
+
+                // Re-enable the button
+                event.target.disabled = false;
+            });
+        });
+    });
 });</code>
     </property>
     <property>

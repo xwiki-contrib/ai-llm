@@ -20,8 +20,10 @@
 package org.xwiki.contrib.llm;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.xwiki.component.annotation.Role;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.stability.Unstable;
 import org.xwiki.user.UserReference;
@@ -55,6 +57,31 @@ public interface DocumentStore
      *     document store
      */
     List<String> getDocumentNames(int offset, int limit) throws IndexException;
+
+    /**
+     * List documents by document references for indexing task scheduling.
+     *
+     * @param offset the first document to list
+     * @param limit the number of documents list, -1 to list all
+     * @return the list of documents
+     * @throws IndexException if loading the list of documents failed or the documents aren't managed by this
+     * document store
+     * @since 0.5
+     */
+    default List<DocumentReference> getDocumentReferences(int offset, int limit) throws IndexException
+    {
+        return List.of();
+    }
+
+    /**
+     * @return the hint of the {@link org.xwiki.index.TaskConsumer} to use for indexing documents of this store, if
+     * supported. Returns an empty optional if this document store doesn't support indexing documents with a task
+     * consumer.
+     */
+    default Optional<String> getTaskConsumerHint()
+    {
+        return Optional.empty();
+    }
 
     /**
      * Get a document.

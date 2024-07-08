@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.internal.xwikistore;
 
 import java.util.List;
+import java.util.Optional;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -123,6 +124,22 @@ public class XWikiDocumentStore implements DocumentStore
                     || this.authorizationManager.hasAccess(Right.VIEW, this.userDocumentReference, documentReference))
             .map(this.entityReferenceSerializer::serialize)
             .toList();
+    }
+
+    @Override
+    public List<DocumentReference> getDocumentReferences(int offset, int limit) throws IndexException
+    {
+        return this.helper.getDocuments(this.spaces, offset, limit).stream()
+            .filter(documentReference ->
+                !isUserPresent()
+                    || this.authorizationManager.hasAccess(Right.VIEW, this.userDocumentReference, documentReference))
+            .toList();
+    }
+
+    @Override
+    public Optional<String> getTaskConsumerHint()
+    {
+        return Optional.of(XWikiDocumentDocumentIndexingTaskConsumer.NAME);
     }
 
     @Override

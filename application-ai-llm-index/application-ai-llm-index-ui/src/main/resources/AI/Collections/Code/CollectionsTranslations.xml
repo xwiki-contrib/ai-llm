@@ -64,6 +64,14 @@ collections.sheet.documents=Documents
 collections.sheet.chunks=Indexed Chunks
 collections.sheet.addDocumentLabel=Add new document
 collections.sheet.addDocumentButton=Add Document
+collections.sheet.reindex.heading=Re-index this Collection
+collections.sheet.reindex.intro=To avoid potentially slow and expensive indexing operations, the entire collection is re-indexed only when the document store is changed. When changing the embedding model to a different model (not just a different provider), please manually clean and re-index the collection using the button below. To apply updated chunking settings, re-indexing without cleaning is sufficient; chunks will be re-indexed if they are different from those already indexed. For the XWiki store, documents are automatically added to and removed from the index when you update the indexed spaces configuration. Any document that is updated will also be automatically re-indexed.
+collections.sheet.reindex.clean=Cleaning
+collections.sheet.reindex.clean.label=Clean the collection before indexing
+collections.sheet.reindex.button=Start re-indexing
+collections.sheet.reindex.startingReindexing=Starting the re-indexing of the collection…
+collections.sheet.reindex.reindexingStarted=Started the re-indexing of the collection.
+collections.sheet.reindex.reindexingFailed=Starting the re-indexing of the collection failed.
 
 # Live table generic keys
 collections.livetable.doc.title=Page Title

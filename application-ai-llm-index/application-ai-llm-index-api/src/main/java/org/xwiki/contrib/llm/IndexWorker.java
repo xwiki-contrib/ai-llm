@@ -19,6 +19,8 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.util.Objects;
+
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -28,7 +30,10 @@ import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentDeletedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.internal.CollectionIndexingTaskConsumer;
+import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
+import org.xwiki.contrib.llm.internal.InternalDocumentStore;
 import org.xwiki.index.TaskManager;
 import org.xwiki.observation.event.AbstractLocalEventListener;
 import org.xwiki.observation.event.Event;
@@ -37,8 +42,8 @@ import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 
 /**
- * This class is responsible for handling the document queue,
- * chunking the documents from the queue, computing the embeddings and storing them in solr.
+ * This class is responsible for listening to updates of collections and internal documents. It will add appropriate
+ * indexing tasks to the queue.
  * 
  * @version $Id$
  */
@@ -85,8 +90,39 @@ public class IndexWorker extends AbstractLocalEventListener
                 String id = xObject.getStringValue(DefaultDocument.ID_KEY);
                 String collection = xObject.getStringValue(DefaultDocument.PARENT_COLLECTION);
                 String wiki = xdocument.getDocumentReference().getWikiReference().getName();
-                this.solrConnector.deleteChunksByDocId(wiki, collection, id);
+                // Ensure that if the current store is not the internal store, we don't accidentally delete the document
+                // of a different store that happens to have the same id.
+                this.solrConnector.deleteChunksByDocIdAndStore(wiki, collection, id, InternalDocumentStore.NAME);
             }
+        }
+
+        BaseObject collectionObject = xdocument.getXObject(Collection.XCLASS_REFERENCE);
+        BaseObject collectionObjectOriginal = xdocument.getOriginalDocument().getXObject(Collection.XCLASS_REFERENCE);
+
+        if (collectionObject != null && collectionObjectOriginal != null) {
+            String collectionId = collectionObject.getStringValue(DefaultCollection.ID_FIELDNAME);
+            String wiki = xdocument.getDocumentReference().getWikiReference().getName();
+
+            String oldStoreHint = collectionObjectOriginal.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
+            String newStoreHint = collectionObject.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
+
+            String oldCollectionId = collectionObjectOriginal.getStringValue(DefaultCollection.ID_FIELDNAME);
+
+            // If the store or the collection id was changed, clear the index and re-index all documents.
+            if (!Objects.equals(oldStoreHint, newStoreHint) || !Objects.equals(oldCollectionId, collectionId)) {
+                this.solrConnector.deleteChunksByCollection(wiki, oldCollectionId);
+
+                this.taskManager.addTask(wiki, xdocument.getId(), CollectionIndexingTaskConsumer.NAME);
+            }
+        } else if (collectionObject != null) {
+            // New collection - queue it for indexing.
+            String wiki = xdocument.getDocumentReference().getWikiReference().getName();
+            this.taskManager.addTask(wiki, xdocument.getId(), CollectionIndexingTaskConsumer.NAME);
+        } else if (collectionObjectOriginal != null) {
+            // Collection was deleted - delete it from Solr.
+            String collectionId = collectionObjectOriginal.getStringValue(DefaultCollection.ID_FIELDNAME);
+            String wiki = xdocument.getDocumentReference().getWikiReference().getName();
+            this.solrConnector.deleteChunksByCollection(wiki, collectionId);
         }
     }
 

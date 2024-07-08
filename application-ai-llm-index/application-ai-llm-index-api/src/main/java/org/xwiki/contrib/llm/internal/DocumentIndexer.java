@@ -92,6 +92,12 @@ public class DocumentIndexer
         try {
             Collection collectionObj = this.collectionManager.getCollection(collection);
             Document documentObj = collectionObj.getDocumentStore().getDocument(document);
+
+            if (documentObj == null) {
+                throw new IndexException("Document [%s] does not exist in collection [%s] in wiki [%s]"
+                    .formatted(document, collection, wiki));
+            }
+
             List<Chunk> chunks = this.chunkingUtils.chunkDocument(collectionObj, documentObj);
             String embeddingModel = collectionObj.getEmbeddingModel();
             UserReference author = collectionObj.getAuthor();

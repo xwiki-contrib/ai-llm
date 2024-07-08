@@ -19,10 +19,13 @@
  */
 package org.xwiki.contrib.llm.internal.xwikistore;
 
+import java.util.List;
+
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentDeletedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
@@ -84,18 +87,15 @@ public class XWikiDocumentStoreEventListener extends AbstractLocalEventListener
         boolean isXWikiStore = isXWikiCollection(updatedObject);
         boolean wasXWikiStore = isXWikiCollection(originalObject);
 
-        if (wasXWikiStore) {
-            if (!isXWikiStore) {
-                // Delete the whole collection from the index. As the document might have been deleted, and we also
-                // want to avoid interfering with any indexing operations, we do this immediately.
-                String collectionId = getCollectionId(originalObject);
-                this.solrConnector.deleteChunksByCollection(wiki, collectionId);
-            } else {
-                // TODO: check if the indexed spaces were changed, if not, no need to re-index for now
+        // Only handle the case of a collection update, creation and deletion are handled by the generic IndexWorker.
+        if (wasXWikiStore && isXWikiStore) {
+            List<?> previousSpaces = originalObject.getListValue(DefaultCollection.DOCUMENT_SPACE_FIELDNAME);
+            List<?> currentSpaces = updatedObject.getListValue(DefaultCollection.DOCUMENT_SPACE_FIELDNAME);
+
+            // Compare the two lists as sets to detect true changes that aren't just reordering.
+            if (!CollectionUtils.isEqualCollection(previousSpaces, currentSpaces)) {
                 this.taskManager.addTask(wiki, document.getId(), XWikiDocumentCollectionIndexingTaskConsumer.NAME);
             }
-        } else if (isXWikiStore) {
-            this.taskManager.addTask(wiki, document.getId(), XWikiDocumentCollectionIndexingTaskConsumer.NAME);
         }
 
         // If the document has been deleted, delete it from all collections where it was indexed, matching
@@ -113,10 +113,5 @@ public class XWikiDocumentStoreEventListener extends AbstractLocalEventListener
     {
         return baseObject != null
             && XWikiDocumentStore.NAME.equals(baseObject.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME));
-    }
-
-    private String getCollectionId(BaseObject baseObject)
-    {
-        return baseObject.getStringValue(DefaultCollection.ID_FIELDNAME);
     }
 }

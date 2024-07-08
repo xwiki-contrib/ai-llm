@@ -21,15 +21,25 @@ package org.xwiki.contrib.llm.internal.rest;
 
 import java.util.List;
 
+import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.contrib.llm.SolrConnector;
+import org.xwiki.contrib.llm.internal.CollectionIndexingTaskConsumer;
 import org.xwiki.contrib.llm.rest.CollectionResource;
 import org.xwiki.contrib.llm.rest.JSONCollection;
+import org.xwiki.contrib.llm.rest.ReindexOptions;
+import org.xwiki.index.TaskManager;
 import org.xwiki.rest.XWikiRestException;
+import org.xwiki.security.authorization.AccessDeniedException;
+import org.xwiki.security.authorization.ContextualAuthorizationManager;
+import org.xwiki.security.authorization.Right;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xpn.xwiki.XWikiContext;
@@ -45,6 +55,15 @@ import com.xpn.xwiki.XWikiContext;
 @Singleton
 public class DefaultCollectionResource extends AbstractCollectionResource implements CollectionResource
 {
+    @Inject
+    private ContextualAuthorizationManager contextualAuthorizationManager;
+
+    @Inject
+    private TaskManager taskManager;
+
+    @Inject
+    private SolrConnector solrConnector;
+
     @Override
     public JSONCollection getCollection(String wikiName, String collectionName)
         throws XWikiRestException
@@ -112,5 +131,28 @@ public class DefaultCollectionResource extends AbstractCollectionResource implem
         } catch (IndexException e) {
             throw new XWikiRestException("Failed to list documents", e);
         }
+    }
+
+    @Override
+    public Response reindexCollection(String wikiName, String collectionName, ReindexOptions options)
+    {
+        Collection collection = getInternalCollection(wikiName, collectionName);
+
+        // Check for wiki admin right on the wiki of the collection.
+        try {
+            this.contextualAuthorizationManager.checkAccess(
+                Right.ADMIN, collection.getDocumentReference().getWikiReference());
+        } catch (AccessDeniedException e) {
+            throw new WebApplicationException("Re-indexing collections is only allowed for wiki admins.",
+                Response.Status.UNAUTHORIZED);
+        }
+
+        if (options.clean()) {
+            this.solrConnector.deleteChunksByCollection(wikiName, collectionName);
+        }
+
+        this.taskManager.addTask(wikiName, collection.getDocumentId(), CollectionIndexingTaskConsumer.NAME);
+
+        return Response.ok().build();
     }
 }

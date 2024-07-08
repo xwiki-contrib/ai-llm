@@ -10,6 +10,8 @@ org.xwiki.contrib.llm.internal.InternalDocumentStore
 org.xwiki.contrib.llm.internal.RAGChatRequestFilterBuilder
 org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer
 org.xwiki.contrib.llm.internal.DocumentIndexer
+org.xwiki.contrib.llm.internal.UserUpdatingDocumentListener
+org.xwiki.contrib.llm.internal.CollectionIndexingTaskConsumer
 org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentCollectionIndexingTaskConsumer
 org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocument
 org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocumentIndexingTaskConsumer

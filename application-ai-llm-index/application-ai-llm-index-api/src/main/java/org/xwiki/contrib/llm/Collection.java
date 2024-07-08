@@ -274,10 +274,16 @@ public interface Collection
     }
 
     /**
-     * @return the wiki where the collection is stored
+     * @return the document reference where the collection is stored
      * @since 0.4
      */
     DocumentReference getDocumentReference();
+
+    /**
+     * @return the internal id of the document where the collection is stored
+     * @since 0.5
+     */
+    long getDocumentId();
 
     /**
      * @return the authorization manager for this collection that needs to be used to check rights on any retrieved

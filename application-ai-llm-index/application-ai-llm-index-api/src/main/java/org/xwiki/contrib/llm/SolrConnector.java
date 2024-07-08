@@ -41,6 +41,7 @@ import org.apache.solr.common.SolrInputDocument;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
+import org.xwiki.contrib.llm.internal.InternalDocumentStore;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.search.solr.Solr;
 import org.xwiki.search.solr.SolrException;
@@ -185,6 +186,38 @@ public class SolrConnector
             this.logger.error("Failed to delete chunks of document [{}] in collection [{}] in wiki [{}]",
                 documentId, collectionId, wiki, e);
         }
+    }
+
+    /**
+     * Connects to the Solr server and deletes all chunks of a document that belong to the specified store.
+     *
+     * @param wiki the wiki in which the document is stored
+     * @param collectionId the id of the collection the document is part of
+     * @param documentId the id of the document
+     * @param storeId the id of the document store
+     */
+    public void deleteChunksByDocIdAndStore(String wiki, String collectionId, String documentId, String storeId)
+    {
+        String query = buildQuery(wiki, collectionId, documentId) + AND + buildStoreQuery(storeId);
+        try {
+            deleteChunksByQuery(query);
+        } catch (Exception e) {
+            this.logger.error("Failed to delete chunks of document [{}] and store [{}] in collection [{}] in wiki [{}]",
+                documentId, storeId, collectionId, wiki, e);
+        }
+    }
+
+    private String buildStoreQuery(String storeId)
+    {
+        String result = AiLLMSolrCoreInitializer.FIELD_STORE_HINT + SOLR_SEPARATOR
+            + this.solrUtils.toCompleteFilterQueryString(storeId);
+        // Before version 0.5, there was no storeId field and all documents belonged to the "internal" store.
+        // Therefore, also match documents with empty storeId field when the storeId is "internal".
+        if (InternalDocumentStore.NAME.equals(storeId)) {
+            result = "(%s OR (*:* AND -%s:[* TO *]))".formatted(result, AiLLMSolrCoreInitializer.FIELD_STORE_HINT);
+        }
+
+        return result;
     }
 
     /**

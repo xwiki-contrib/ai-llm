@@ -144,7 +144,7 @@ public class DefaultCollection implements Collection
     {
         String result = this.xWikiDocumentWrapper.getStringValue(DOCUMENT_STORE_FIELDNAME);
         if (StringUtils.isBlank(result)) {
-            result = "internal";
+            result = InternalDocumentStore.NAME;
         }
 
         return result;
@@ -363,6 +363,12 @@ public class DefaultCollection implements Collection
     public DocumentReference getDocumentReference()
     {
         return this.xWikiDocumentWrapper.getDocumentReference();
+    }
+
+    @Override
+    public long getDocumentId()
+    {
+        return this.xWikiDocumentWrapper.getXWikiDocument().getId();
     }
 
     XWikiDocument getCollectionDocument()

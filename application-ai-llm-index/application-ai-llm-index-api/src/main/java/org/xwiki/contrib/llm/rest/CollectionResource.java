@@ -24,10 +24,12 @@ import java.util.List;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.Response;
 
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
@@ -102,5 +104,22 @@ public interface CollectionResource
         @PathParam("collectionName") String collectionName,
         @QueryParam("start") @DefaultValue("0") Integer start,
         @QueryParam("number") @DefaultValue("-1") Integer number
+    ) throws XWikiRestException;
+
+    /**
+     * Re-indexes the documents in a collection.
+     *
+     * @param wikiName the wiki in which the collection is located
+     * @param collectionName the name of the collection
+     * @param options the options to use when re-indexing the collection
+     * @return the response, success if the re-indexing has been started successfully
+     * @throws XWikiRestException when there is an error re-indexing the collection
+     */
+    @POST
+    @Path("/reindex")
+    Response reindexCollection(
+        @PathParam("wikiName") String wikiName,
+        @PathParam("collectionName") String collectionName,
+        ReindexOptions options
     ) throws XWikiRestException;
 }

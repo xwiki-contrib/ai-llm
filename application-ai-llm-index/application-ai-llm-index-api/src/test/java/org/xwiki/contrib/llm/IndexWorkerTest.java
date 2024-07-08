@@ -25,6 +25,7 @@ import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentDeletedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
+import org.xwiki.contrib.llm.internal.InternalDocumentStore;
 import org.xwiki.index.TaskManager;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -112,7 +113,8 @@ class IndexWorkerTest
 
         verifyNoInteractions(this.taskManager);
 
-        verify(this.solrConnector).deleteChunksByDocId(WIKI_NAME, COLLECTION, DOCUMENT_ID);
+        verify(this.solrConnector)
+            .deleteChunksByDocIdAndStore(WIKI_NAME, COLLECTION, DOCUMENT_ID, InternalDocumentStore.NAME);
     }
 
     private static XWikiDocument getDocumentWithObject()
