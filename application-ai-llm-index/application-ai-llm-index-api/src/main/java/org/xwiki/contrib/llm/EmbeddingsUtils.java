@@ -21,13 +21,11 @@ package org.xwiki.contrib.llm;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.phase.Initializable;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
@@ -36,10 +34,6 @@ import org.xwiki.user.UserReference;
 
 import com.xpn.xwiki.XWikiContext;
 
-import ai.djl.huggingface.translator.TextEmbeddingTranslatorFactory;
-import ai.djl.inference.Predictor;
-import ai.djl.repository.zoo.Criteria;
-import ai.djl.repository.zoo.ZooModel;
 import io.github.resilience4j.core.IntervalFunction;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
@@ -54,17 +48,11 @@ import io.github.resilience4j.retry.RetryRegistry;
 @Singleton
 public class EmbeddingsUtils implements Initializable
 {
-    private static final String DEFAULT_MODEL = "AI.Models.Default";
-    private static final String DJLMODEL = "sentence-transformers/all-MiniLM-L6-v2";
-
     @Inject
     private Provider<XWikiContext> contextProvider;
 
     @Inject 
     private EmbeddingModelManager embeddingModelManager;
-
-    @Inject
-    private Logger logger;
 
     private RetryRegistry retryRegistry;
 
@@ -82,88 +70,7 @@ public class EmbeddingsUtils implements Initializable
     }
 
     /**
-     * Compute embeddings for given texts using either the default BERT model or a specified model.
-     *
-     * @param texts the texts to compute embeddings for
-     * @param modelId the model id, use "default" for the built-in BERT model
-     * @param userReference the user reference
-     * @return the embeddings as list of double arrays
-     * @throws IndexException if an error occurs while computing the embeddings
-     */
-    public List<double[]> computeEmbeddings(List<String> texts, String modelId, UserReference userReference)
-        throws IndexException
-    {
-        if (DEFAULT_MODEL.equals(modelId) || modelId == null || modelId.isBlank()) {
-            return computeDefaultEmbeddings(texts);
-        } else {
-            return computeModelEmbeddings(texts, modelId, userReference);
-        }
-    }
-
-    /**
-     * Compute embeddings using the default BERT model.
-     *
-     * @param texts the texts to compute embeddings for
-     * @return the embeddings as list of double arrays
-     * @throws IndexException if an error occurs while computing the embeddings
-     */
-    private List<double[]> computeDefaultEmbeddings(List<String> texts) throws IndexException
-    {
-        try {
-            Criteria<String, float[]> criteria = 
-                Criteria.builder()
-                    .setTypes(String.class, float[].class)
-                    .optModelUrls("djl://ai.djl.huggingface.pytorch/" + DJLMODEL)
-                    .optEngine("PyTorch")
-                    .optTranslatorFactory(new TextEmbeddingTranslatorFactory())
-                    .build();
-    
-            try (ZooModel<String, float[]> model = criteria.loadModel();
-                 Predictor<String, float[]> predictor = model.newPredictor()) {
-                
-                return computeEmbeddingsWithPredictor(texts, predictor);
-            }
-        } catch (Exception e) {
-            throw new IndexException("Failed to compute embeddings using default DJL model", e);
-        }
-    }
-    
-    private List<double[]> computeEmbeddingsWithPredictor(List<String> texts, Predictor<String, float[]> predictor)
-    {
-        return texts.stream()
-            .map(text -> predictAndConvert(text, predictor))
-            .map(embeddings -> Arrays.copyOf(embeddings, 1024))
-            .collect(Collectors.toList());
-    }
-    
-    private double[] predictAndConvert(String text, Predictor<String, float[]> predictor)
-    {
-        try {
-            float[] embeddings = predictor.predict(text);
-            return convertFloatToDouble(embeddings);
-        } catch (Exception e) {
-            logger.error("Failed to compute embeddings for text: " + text, e);
-            return new double[0];
-        }
-    }
-
-    /**
-     * Convert a float array to a double array.
-     *
-     * @param floatArray the float array to convert
-     * @return the converted double array
-     */
-    private double[] convertFloatToDouble(float[] floatArray)
-    {
-        double[] doubleArray = new double[floatArray.length];
-        for (int i = 0; i < floatArray.length; i++) {
-            doubleArray[i] = floatArray[i];
-        }
-        return doubleArray;
-    }
-
-    /**
-     * Compute embeddings using a specified model.
+     * Compute embeddings for given texts.
      *
      * @param texts the texts to compute embeddings for
      * @param modelId the model id
@@ -171,7 +78,7 @@ public class EmbeddingsUtils implements Initializable
      * @return the embeddings as list of double arrays
      * @throws IndexException if an error occurs while computing the embeddings
      */
-    private List<double[]> computeModelEmbeddings(List<String> texts, String modelId, UserReference userReference)
+    public List<double[]> computeEmbeddings(List<String> texts, String modelId, UserReference userReference)
         throws IndexException
     {
         try {

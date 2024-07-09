@@ -60,10 +60,15 @@ import com.xpn.xwiki.objects.BaseObject;
  * @since 0.3
  */
 @Component
-@Named("AI.Models.Code.ModelsClass")
+@Named(ModelWikiObjectComponentBuilder.NAME)
 @Singleton
 public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuilder
 {
+    /**
+     * The name of the component builder.
+     */
+    public static final String NAME = "AI.Models.Code.ModelsClass";
+
     private static final List<String> SPACE_NAMES = List.of("AI", "Models", "Code");
 
     // Local reference to the class AI.Models.Code.ModelsClass that should trigger the builder.
@@ -159,11 +164,12 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
         try {
             XWikiDocument document = context.getWiki().getDocument(documentReference, context);
             // Check wiki admin rights.
-            if (!this.authorizationManager.hasAccess(Right.ADMIN, document.getAuthorReference(),
+            DocumentReference authorReference = document.getAuthorReference();
+            if (!this.authorizationManager.hasAccess(Right.ADMIN, authorReference,
                 documentReference.getWikiReference())) {
                 throw new WikiComponentException(String.format(
                     "Failed to build component for object [%s], user [%s] does not have admin rights on the wiki.",
-                    reference, documentReference));
+                    reference, authorReference));
             }
 
             BaseObject xObject = document.getXObject(reference);
@@ -176,7 +182,7 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
 
                 return List.of(new FilteringOpenAIChatModel(modelConfiguration, filters, this.componentManager));
             } else if (TYPE_EMBEDDING.equals(modelType)) {
-                return List.of(new OpenAIEmbeddingModel(modelConfiguration, this.componentManager));
+                return List.of(new DefaultEmbeddingModel(modelConfiguration, this.componentManager));
             } else {
                 throw new WikiComponentException(String.format("Unknown model type [%s]", modelType));
             }

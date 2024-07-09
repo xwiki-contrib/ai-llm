@@ -21,15 +21,15 @@ package org.xwiki.contrib.llm.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Type;
 import java.net.http.HttpResponse;
 import java.util.List;
 
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.contrib.llm.EmbeddingModel;
-import org.xwiki.contrib.llm.EmbeddingModelDescriptor;
+import org.xwiki.contrib.llm.GPTAPIConfig;
 import org.xwiki.contrib.llm.RequestError;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.ObjectReference;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -40,43 +40,39 @@ import com.theokanning.openai.embedding.Embedding;
 import com.theokanning.openai.embedding.EmbeddingRequest;
 
 /**
- * Implementation of {@link EmbeddingModel} that uses the OpenAI API.
+ * Implementation of {@link GPTAPIServer} that uses the OpenAI API.
  *
  * @version $Id$
- * @since 0.3
+ * @since 0.5
  */
-public class OpenAIEmbeddingModel extends AbstractModel implements EmbeddingModel
+public class OpenAIGPTAPIServer extends AbstractGPTAPIServer
 {
     private final RequestHelper requestHelper;
 
     /**
      * Constructor.
      *
-     * @param config the model configuration
+     * @param config the server configuration
+     * @param objectReference the object reference
+     * @param authorReference the author reference
      * @param componentManager the component manager
      * @throws ComponentLookupException if a component cannot be found
      */
-    public OpenAIEmbeddingModel(ModelConfiguration config, ComponentManager componentManager)
-        throws ComponentLookupException
+    public OpenAIGPTAPIServer(GPTAPIConfig config, ObjectReference objectReference, DocumentReference authorReference,
+        ComponentManager componentManager) throws ComponentLookupException
     {
-        super(config, componentManager);
+        super(config, objectReference, authorReference);
         this.requestHelper = componentManager.getInstance(RequestHelper.class);
     }
 
     @Override
-    public double[] embed(String text) throws RequestError
+    public List<double[]> embed(String model, List<String> texts) throws RequestError
     {
-        return embed(List.of(text)).get(0);
-    }
-
-    @Override
-    public List<double[]> embed(List<String> texts) throws RequestError
-    {
-        EmbeddingRequest request = new EmbeddingRequest(this.modelConfiguration.getModel(), texts, null);
+        EmbeddingRequest request = new EmbeddingRequest(model, texts, null);
 
         try {
             HttpResponse<InputStream> httpResponse =
-                this.requestHelper.post(getConfig(), "embeddings", request, HttpResponse.BodyHandlers.ofInputStream());
+                this.requestHelper.post(this.config, "embeddings", request, HttpResponse.BodyHandlers.ofInputStream());
             ObjectMapper objectMapper = new ObjectMapper();
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -114,24 +110,5 @@ public class OpenAIEmbeddingModel extends AbstractModel implements EmbeddingMode
             OpenAiError error = objectMapper.readValue(httpResponse.body(), OpenAiError.class);
             throw new IOException(error.error.getMessage());
         }
-    }
-
-    @Override
-    public EmbeddingModelDescriptor getDescriptor()
-    {
-        return new EmbeddingModelDescriptor(getRoleHint(), this.modelConfiguration.getName(),
-            this.modelConfiguration.getDimensions());
-    }
-
-    @Override
-    public Type getRoleType()
-    {
-        return EmbeddingModel.class;
-    }
-
-    @Override
-    public int getMaximumParallelism()
-    {
-        return this.modelConfiguration.getMaximumParallelism();
     }
 }

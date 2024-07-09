@@ -30,6 +30,8 @@ import org.xwiki.stability.Unstable;
 @Unstable
 public class RequestError extends Exception
 {
+    private static final String SEPARATOR = ": ";
+
     private final int code;
 
     private final String message;
@@ -42,7 +44,22 @@ public class RequestError extends Exception
      */
     public RequestError(int code, String message)
     {
-        super(code + ": " + message);
+        super(code + SEPARATOR + message);
+
+        this.code = code;
+        this.message = message;
+    }
+
+    /**
+     * Creates a new request error.
+     *
+     * @param code the error code
+     * @param message the message
+     * @param cause the exception that caused the error
+     */
+    public RequestError(int code, String message, Exception cause)
+    {
+        super(code + SEPARATOR + message, cause);
 
         this.code = code;
         this.message = message;

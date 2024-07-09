@@ -81,8 +81,12 @@ public class ModelComponentFixer
     private Provider<XWikiContext> contextProvider;
 
     @Inject
-    @Named("AI.Models.Code.ModelsClass")
-    private WikiObjectComponentBuilder componentBuilder;
+    @Named(ModelWikiObjectComponentBuilder.NAME)
+    private WikiObjectComponentBuilder modelComponentBuilder;
+
+    @Inject
+    @Named(GPTAPIServerWikiObjectComponentBuilder.NAME)
+    private WikiObjectComponentBuilder serverComponentBuilder;
 
     @Inject
     @Named("local")
@@ -119,7 +123,7 @@ public class ModelComponentFixer
             XWikiContext context = this.contextProvider.get();
 
             // Get all documents that contain an ModelsClass XObject.
-            EntityReference classReference = this.componentBuilder.getClassReference();
+            EntityReference classReference = this.modelComponentBuilder.getClassReference();
 
             for (DocumentReference sourceDocumentReference : getDocumentsWithModelDefinitions(classReference)) {
                 XWikiDocument document;
@@ -133,18 +137,34 @@ public class ModelComponentFixer
 
                 document.getXObjects(classReference).stream()
                     .filter(Objects::nonNull)
-                    .forEach(this::buildComponents);
+                    .forEach(xObject -> buildComponents(xObject, this.modelComponentBuilder));
+            }
+
+            try {
+                DocumentReference serverDocumentReference =
+                    new DocumentReference(GPTAPIServerWikiObjectComponentBuilder.AI_CONFIG_DOCUMENT,
+                        context.getWikiReference());
+                // Get the document that contains the server configuration.
+                XWikiDocument serverConfigDocument = context.getWiki().getDocument(serverDocumentReference, context);
+                serverConfigDocument.getXObjects(this.serverComponentBuilder.getClassReference())
+                    .stream()
+                    .filter(Objects::nonNull)
+                    .forEach(object -> buildComponents(object, this.serverComponentBuilder));
+            } catch (XWikiException e) {
+                this.logger.warn("Failed loading server configuration document [{}], "
+                        + "skipping the reload of the server components: [{}]",
+                    GPTAPIServerWikiObjectComponentBuilder.AI_CONFIG_DOCUMENT, ExceptionUtils.getRootCauseMessage(e));
             }
         }
     }
 
-    private void buildComponents(BaseObject xObject)
+    private void buildComponents(BaseObject xObject, WikiObjectComponentBuilder componentBuilder)
     {
         ObjectReference objectReference = xObject.getReference();
         maybeUnregisterComponents(objectReference);
 
         try {
-            List<WikiComponent> components = this.componentBuilder.buildComponents(objectReference);
+            List<WikiComponent> components = componentBuilder.buildComponents(objectReference);
 
             for (WikiComponent component : components) {
                 this.wikiComponentManager.registerWikiComponent(component);

@@ -42,12 +42,8 @@ public class GPTAPIConfig
         this.name = (String) properties.get("Name");
         this.url = (String) properties.get("url");
         this.token = (String) properties.get("token");
-        if ((Integer) properties.get("Requestmode") == 1) {
-            this.canStream = true;
-        } else {
-            this.canStream = false;
-        }
-
+        Integer requestMode = (Integer) properties.get("Requestmode");
+        this.canStream = requestMode != null && requestMode == 1;
     }
 
     /**

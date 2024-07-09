@@ -19,9 +19,11 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -38,8 +40,6 @@ import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
-import com.xpn.xwiki.objects.BaseProperty;
-import com.xpn.xwiki.objects.PropertyInterface;
 
 /**
  * Default implementation of {@link GPTAPIConfigProvider}.
@@ -56,6 +56,9 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider
 
     @Inject
     private Provider<XWikiContext> contextProvider;
+
+    @Inject
+    private GPTAPIConfigBuilder configBuilder;
 
     @Override
     public Map<String, GPTAPIConfig> getConfigObjects(String currentWiki)
@@ -76,30 +79,17 @@ public class DefaultGPTAPIConfigProvider implements GPTAPIConfigProvider
             String currentWiki) throws GPTAPIException
     {
         // Retrieve the LLM Configuration Objects
-        Map<String, GPTAPIConfig> configProperties = new HashMap<>();
         try {
             DocumentReference configDocumentReference = new DocumentReference(currentWiki, AI_SPACE_NAMES, "AIConfig");
             DocumentReference configClassReference =
                 new DocumentReference(currentWiki, AI_SPACE_NAMES, "AIConfigClass");
             XWikiDocument doc = xwiki.getDocument(configDocumentReference, context);
             List<BaseObject> configObjects = doc.getXObjects(configClassReference);
-            // Build the Java configurationObject with a Map.
-            for (BaseObject configObject : configObjects) {
-                if (configObject == null) {
-                    continue;
-                }
-                Map<String, Object> configObjMap = new HashMap<>();
-                for (String fieldName : configObject.getPropertyList()) {
-                    PropertyInterface field = configObject.getField(fieldName);
-                    if (field instanceof BaseProperty) {
-                        configObjMap.put(fieldName, ((BaseProperty<?>) field).getValue());
-                    }
-                }
+            return configObjects.stream()
+                .filter(Objects::nonNull)
+                .map(this.configBuilder::build)
+                .collect(Collectors.toMap(GPTAPIConfig::getName, Function.identity()));
 
-                GPTAPIConfig res = new GPTAPIConfig(configObjMap);
-                configProperties.put(res.getName(), res);
-            }
-            return configProperties;
         } catch (XWikiException e) {
             throw new GPTAPIException("Error while trying to access the configuration.", e);
         }

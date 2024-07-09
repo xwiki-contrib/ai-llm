@@ -19,39 +19,28 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
+import java.util.List;
 import java.util.concurrent.Flow;
-
-import javax.inject.Named;
 
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.contrib.llm.GPTAPIConfig;
-import org.xwiki.contrib.llm.GPTAPIConfigProvider;
-import org.xwiki.contrib.llm.GPTAPIException;
 import org.xwiki.contrib.llm.RequestError;
-import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.ObjectReference;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectComponentManager;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.test.mockito.MockitoComponentManager;
-import org.xwiki.user.UserReferenceSerializer;
-import org.xwiki.user.group.GroupManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -61,9 +50,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Component test for {@link OpenAIGPTAPIServer}.
+ *
+ * @version $Id$
+ */
 @ComponentTest
 @ComponentList({ RequestHelper.class })
-class OpenAIEmbeddingModelTest
+class OpenAIGPTAPIServerTest
 {
 
     private static final String INPUT = "XWiki is awesome";
@@ -74,53 +68,36 @@ class OpenAIEmbeddingModelTest
 
     private static final String MODEL = "text-embedding-ada-002";
 
-    private static final String SERVER_NAME = "LocalAI";
-
-    private static final String WIKI_NAME = "wiki";
-
-    private static final DocumentReference DOCUMENT_REFERENCE = new DocumentReference(WIKI_NAME, "space", "modelPage");
-
-    private static final ObjectReference OBJECT_REFERENCE = new ObjectReference("AI.Models.Code.ModelsClass[0]",
-        DOCUMENT_REFERENCE);
-
     /**
      * Example response taken from
      * <a href="https://platform.openai.com/docs/api-reference/embeddings/create">the OpenAI documentation</a>.
      */
-    private static final String EMBEDDING_RESPONSE = "{\n"
-        + "  \"object\": \"list\",\n"
-        + "  \"data\": [\n"
-        + "    {\n"
-        + "      \"object\": \"embedding\",\n"
-        + "      \"embedding\": [\n"
-        + "        0.0023064255,\n"
-        + "        -0.009327292,\n"
-        + "        -0.0028842222\n"
-        + "      ],\n"
-        + "      \"index\": 0\n"
-        + "    }\n"
-        + "  ],\n"
-        + "  \"model\": \"text-embedding-ada-002\",\n"
-        + "  \"usage\": {\n"
-        + "    \"prompt_tokens\": 8,\n"
-        + "    \"total_tokens\": 8\n"
-        + "  }\n"
-        + "}\n";
+    private static final String EMBEDDING_RESPONSE = """
+            {
+              "object": "list",
+              "data": [
+                {
+                  "object": "embedding",
+                  "embedding": [
+                    0.0023064255,
+                    -0.009327292,
+                    -0.0028842222
+                  ],
+                  "index": 0
+                }
+              ],
+              "model": "text-embedding-ada-002",
+              "usage": {
+                "prompt_tokens": 8,
+                "total_tokens": 8
+              }
+            }
+            """;
 
     private static final String APPLICATION_JSON = "application/json";
 
     @MockComponent
     private HttpClientFactory httpClientFactory;
-
-    @MockComponent
-    private GPTAPIConfigProvider configProvider;
-
-    @MockComponent
-    private GroupManager groupManager;
-
-    @MockComponent
-    @Named("document")
-    private UserReferenceSerializer<DocumentReference> userReferenceSerializer;
 
     @InjectComponentManager
     private MockitoComponentManager componentManager;
@@ -135,30 +112,23 @@ class OpenAIEmbeddingModelTest
     private GPTAPIConfig config;
 
     @BeforeEach
-    void setUp() throws IOException, GPTAPIException, InterruptedException
+    void setUp() throws Exception
     {
         when(this.httpClientFactory.createHttpClient()).thenReturn(this.httpClient);
         when(this.httpClient.<InputStream>send(any(HttpRequest.class), any())).thenReturn(this.httpResponse);
         when(this.config.getToken()).thenReturn(TOKEN);
         when(this.config.getURL()).thenReturn(URL);
-
-        when(this.configProvider.getConfigObjects(WIKI_NAME)).thenReturn(Map.of(SERVER_NAME, this.config));
     }
 
     @Test
-    void embed() throws IOException, RequestError, URISyntaxException, ComponentLookupException, InterruptedException
+    void embed() throws Exception
     {
         when(this.httpResponse.statusCode()).thenReturn(200);
         when(this.httpResponse.body()).thenReturn(IOUtils.toInputStream(EMBEDDING_RESPONSE, StandardCharsets.UTF_8));
 
-        ModelConfiguration modelConfiguration = new ModelConfiguration();
-        modelConfiguration.setModel(MODEL);
-        modelConfiguration.setServerName(SERVER_NAME);
-        modelConfiguration.setObjectReference(OBJECT_REFERENCE);
-
-        OpenAIEmbeddingModel openAIEmbeddingModel =
-            new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
-        double[] embedding = openAIEmbeddingModel.embed(INPUT);
+        OpenAIGPTAPIServer server =
+            new OpenAIGPTAPIServer(this.config, mock(), mock(), this.componentManager);
+        double[] embedding = server.embed(MODEL, List.of(INPUT)).get(0);
         assertEquals(3, embedding.length);
         assertEquals(0.0023064255, embedding[0]);
         assertEquals(-0.009327292, embedding[1]);
@@ -190,20 +160,16 @@ class OpenAIEmbeddingModelTest
     }
 
     @Test
-    void embedWithError() throws IOException, ComponentLookupException
+    void embedWithError() throws Exception
     {
         when(this.httpResponse.statusCode()).thenReturn(400);
         when(this.httpResponse.body()).thenReturn(IOUtils.toInputStream(
             "{\"error\": {\"message\": \"Invalid request\", \"code\": 400}}", StandardCharsets.UTF_8));
-        ModelConfiguration modelConfiguration = new ModelConfiguration();
-        modelConfiguration.setModel(MODEL);
-        modelConfiguration.setServerName(SERVER_NAME);
-        modelConfiguration.setObjectReference(OBJECT_REFERENCE);
 
-        OpenAIEmbeddingModel openAIEmbeddingModel =
-            new OpenAIEmbeddingModel(modelConfiguration, this.componentManager);
+        OpenAIGPTAPIServer server =
+            new OpenAIGPTAPIServer(this.config, mock(), mock(), this.componentManager);
 
-        RequestError exception = assertThrows(RequestError.class, () -> openAIEmbeddingModel.embed(INPUT));
+        RequestError exception = assertThrows(RequestError.class, () -> server.embed(MODEL, List.of(INPUT)));
         assertEquals("400: Invalid request", exception.getMessage());
     }
 }

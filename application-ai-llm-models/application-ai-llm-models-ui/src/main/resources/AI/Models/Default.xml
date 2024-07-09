@@ -296,10 +296,10 @@ and stringprop.id.name='id'</sql>
       <allowGuests>0</allowGuests>
     </property>
     <property>
-      <contextSize/>
+      <contextSize>128</contextSize>
     </property>
     <property>
-      <dimensions/>
+      <dimensions>384</dimensions>
     </property>
     <property>
       <groups>XWiki.XWikiAdminGroup,XWiki.XWikiAllGroup</groups>
@@ -308,10 +308,10 @@ and stringprop.id.name='id'</sql>
       <maximumParallelism/>
     </property>
     <property>
-      <model/>
+      <model>sentence-transformers/all-MiniLM-L6-v2</model>
     </property>
     <property>
-      <serverName/>
+      <serverName>Internal</serverName>
     </property>
     <property>
       <type>emb</type>
