@@ -67,6 +67,7 @@
             <contentPage>.*/AI/Models/GPT3.5-turbo.xml</contentPage>
             <contentPage>.*/AI/Models/GPT4.xml</contentPage>
             <contentPage>.*/AI/Models/mixtral.xml</contentPage>
+            <contentPage>.*/AI/Models/Default.xml</contentPage>
             <contentPage>.*/AI/PromptDB/Free Pompt.xml</contentPage>
             <contentPage>.*/AI/PromptDB/Summarize.xml</contentPage>
             <contentPage>.*/AI/PromptDB/Translate.xml</contentPage>
@@ -91,6 +92,10 @@
             </entry>
             <entry>
               <document>AI.Models.mixtral</document>
+              <type>demo</type>
+            </entry>
+            <entry>
+              <document>AI.Models.Default</document>
               <type>demo</type>
             </entry>
             <entry>
