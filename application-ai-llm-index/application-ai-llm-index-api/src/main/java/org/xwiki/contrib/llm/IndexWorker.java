@@ -96,14 +96,23 @@ public class IndexWorker extends AbstractLocalEventListener
             }
         }
 
-        BaseObject collectionObject = xdocument.getXObject(Collection.XCLASS_REFERENCE);
-        BaseObject collectionObjectOriginal = xdocument.getOriginalDocument().getXObject(Collection.XCLASS_REFERENCE);
+        if (!"CollectionsTemplate".equals(xdocument.getDocumentReference().getName())) {
+            updateCollectionIndex(xdocument);
+        }
+    }
+
+    private void updateCollectionIndex(XWikiDocument document)
+    {
+        BaseObject collectionObject = document.getXObject(Collection.XCLASS_REFERENCE);
+        BaseObject collectionObjectOriginal =
+            document.getOriginalDocument().getXObject(Collection.XCLASS_REFERENCE);
 
         if (collectionObject != null && collectionObjectOriginal != null) {
             String collectionId = collectionObject.getStringValue(DefaultCollection.ID_FIELDNAME);
-            String wiki = xdocument.getDocumentReference().getWikiReference().getName();
+            String wiki = document.getDocumentReference().getWikiReference().getName();
 
-            String oldStoreHint = collectionObjectOriginal.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
+            String oldStoreHint =
+                collectionObjectOriginal.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
             String newStoreHint = collectionObject.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
 
             String oldCollectionId = collectionObjectOriginal.getStringValue(DefaultCollection.ID_FIELDNAME);
@@ -112,16 +121,16 @@ public class IndexWorker extends AbstractLocalEventListener
             if (!Objects.equals(oldStoreHint, newStoreHint) || !Objects.equals(oldCollectionId, collectionId)) {
                 this.solrConnector.deleteChunksByCollection(wiki, oldCollectionId);
 
-                this.taskManager.addTask(wiki, xdocument.getId(), CollectionIndexingTaskConsumer.NAME);
+                this.taskManager.addTask(wiki, document.getId(), CollectionIndexingTaskConsumer.NAME);
             }
         } else if (collectionObject != null) {
             // New collection - queue it for indexing.
-            String wiki = xdocument.getDocumentReference().getWikiReference().getName();
-            this.taskManager.addTask(wiki, xdocument.getId(), CollectionIndexingTaskConsumer.NAME);
+            String wiki = document.getDocumentReference().getWikiReference().getName();
+            this.taskManager.addTask(wiki, document.getId(), CollectionIndexingTaskConsumer.NAME);
         } else if (collectionObjectOriginal != null) {
             // Collection was deleted - delete it from Solr.
             String collectionId = collectionObjectOriginal.getStringValue(DefaultCollection.ID_FIELDNAME);
-            String wiki = xdocument.getDocumentReference().getWikiReference().getName();
+            String wiki = document.getDocumentReference().getWikiReference().getName();
             this.solrConnector.deleteChunksByCollection(wiki, collectionId);
         }
     }
