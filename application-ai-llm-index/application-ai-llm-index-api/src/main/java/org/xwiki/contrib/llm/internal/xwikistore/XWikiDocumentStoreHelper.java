@@ -201,13 +201,16 @@ public class XWikiDocumentStoreHelper
 
         String spaceQuery =
             IntStream.range(0, spaces.size())
-                .mapToObj(i -> ":space" + i + " member of collection." + DefaultCollection.DOCUMENT_SPACE_FIELDNAME)
+                .mapToObj(i -> "item=:space" + i)
                 .collect(Collectors.joining(" or "));
 
         try {
             Query query = this.queryManager.createQuery(
-                "from doc.object(" + Collection.XCLASS_FULLNAME + ") as collection where (" + spaceQuery + ")",
-                Query.XWQL);
+                ", BaseObject as obj, DBStringListProperty as prop join prop.list item "
+                    + "where obj.className='" + Collection.XCLASS_FULLNAME + "' and obj.name=doc.fullName "
+                    + "and obj.id=prop.id.id and prop.id.name='" + DefaultCollection.DOCUMENT_SPACE_FIELDNAME + "' "
+                    + "and (" + spaceQuery + ")",
+                Query.HQL);
             for (int i = 0; i < spaces.size(); ++i) {
                 query.bindValue("space" + i, spaces.get(i));
             }
