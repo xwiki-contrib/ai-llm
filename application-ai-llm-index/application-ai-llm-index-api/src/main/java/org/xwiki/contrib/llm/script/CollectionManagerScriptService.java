@@ -37,6 +37,7 @@ import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.IndexTaskConsumer;
 import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocumentIndexingTaskConsumer;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.index.TaskManager;
 import org.xwiki.model.reference.DocumentReference;
@@ -213,6 +214,7 @@ public class CollectionManagerScriptService implements ScriptService
     @Unstable
     public long getDocumentIndexingQueueSize()
     {
-        return this.taskManager.getQueueSize(IndexTaskConsumer.NAME);
+        return this.taskManager.getQueueSize(IndexTaskConsumer.NAME)
+            + this.taskManager.getQueueSize(XWikiDocumentDocumentIndexingTaskConsumer.NAME);
     }
 }
