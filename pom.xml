@@ -32,7 +32,7 @@
     <description>
       Integrate artificial intelligence in the form of Large Language Models (LLMs) into the XWiki platform.
     </description>
-    <version>0.6-SNAPSHOT</version>
+    <version>0.5.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>LLM</name>
     <scm>
