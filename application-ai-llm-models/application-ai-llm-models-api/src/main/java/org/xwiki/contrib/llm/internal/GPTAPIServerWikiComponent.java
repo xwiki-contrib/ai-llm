@@ -1,6 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-
-<!--
+/*
  * See the NOTICE file distributed with this work for additional
  * information regarding copyright ownership.
  *
@@ -18,24 +16,30 @@
  * License along with this software; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
--->
+ */
+package org.xwiki.contrib.llm.internal;
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-<modelVersion>4.0.0</modelVersion>
-  <parent>
-    <groupId>org.xwiki.contrib.llm</groupId>
-    <artifactId>application-ai-llm</artifactId>
-    <version>0.6-SNAPSHOT</version>
-  </parent>
+import org.xwiki.component.annotation.Role;
+import org.xwiki.component.wiki.WikiComponent;
+import org.xwiki.contrib.llm.GPTAPIConfig;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.ObjectReference;
 
-  <artifactId>application-ai-llm-models</artifactId>
-  <name>LLM - Models</name>
-  <description>Modules for defining, extending and accessing different LLMs.</description>
-  <packaging>pom</packaging>
-
-  <modules>
-    <module>application-ai-llm-models-api</module>
-    <module>application-ai-llm-models-ui</module>
-    <module>application-ai-llm-models-internal</module>
-  </modules>
-</project>
+/**
+ * Internal role for GPT API server wiki components.
+ *
+ * @version $Id$
+ * @since 0.5.1
+ */
+@Role
+public interface GPTAPIServerWikiComponent extends GPTAPIServer, WikiComponent
+{
+    /**
+     * Initialize the wiki component with the given parameters.
+     *
+     * @param config the configuration of the server
+     * @param objectReference the reference of the object that contained the configuration
+     * @param authorReference the reference of the author of the configuration
+     */
+    void initialize(GPTAPIConfig config, ObjectReference objectReference, DocumentReference authorReference);
+}

@@ -76,6 +76,8 @@ public class GPTAPIServerWikiObjectComponentBuilder implements WikiObjectCompone
     public static final LocalDocumentReference AI_CONFIG_CLASS_REFERENCE =
         new LocalDocumentReference(SPACE_NAMES, "AIConfigClass");
 
+    private static final String INTERNAL_SERVER = "internal";
+
     @Inject
     private Provider<XWikiContext> contextProvider;
 
@@ -83,7 +85,8 @@ public class GPTAPIServerWikiObjectComponentBuilder implements WikiObjectCompone
     private AuthorizationManager authorizationManager;
 
     @Inject
-    private ComponentManager componentManager;
+    @Named("context")
+    private Provider<ComponentManager> componentManagerProvider;
 
     @Inject
     private GPTAPIConfigBuilder configBuilder;
@@ -119,11 +122,22 @@ public class GPTAPIServerWikiObjectComponentBuilder implements WikiObjectCompone
 
             GPTAPIConfig config = this.configBuilder.build(xObject);
 
+            ComponentManager componentManager = this.componentManagerProvider.get();
+
+            GPTAPIServerWikiComponent component;
+            // TODO: make the server implementation a configuration parameter.
             if (StringUtils.isNotBlank(config.getURL())) {
-                return List.of(new OpenAIGPTAPIServer(config, reference, authorReference, this.componentManager));
+                component = componentManager.getInstance(GPTAPIServerWikiComponent.class, "openai");
             } else {
-                return List.of(new InternalGPTAPIServer(config, reference, authorReference, this.componentManager));
+                if (componentManager.hasComponent(GPTAPIServerWikiComponent.class, INTERNAL_SERVER)) {
+                    component = componentManager.getInstance(GPTAPIServerWikiComponent.class, INTERNAL_SERVER);
+                } else {
+                    throw new WikiComponentException("No internal server implementation available, please install the"
+                        + " internal LLM inference extension.");
+                }
             }
+            component.initialize(config, reference, authorReference);
+            return List.of(component);
         } catch (XWikiException e) {
             throw new WikiComponentException(String.format("Failed to load document for [%s]", reference), e);
         } catch (ComponentLookupException e) {

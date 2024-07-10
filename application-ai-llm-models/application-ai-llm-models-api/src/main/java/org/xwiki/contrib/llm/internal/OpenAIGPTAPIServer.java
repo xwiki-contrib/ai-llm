@@ -24,12 +24,13 @@ import java.io.InputStream;
 import java.net.http.HttpResponse;
 import java.util.List;
 
-import org.xwiki.component.manager.ComponentLookupException;
-import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.contrib.llm.GPTAPIConfig;
+import javax.inject.Inject;
+import javax.inject.Named;
+
+import org.xwiki.component.annotation.Component;
+import org.xwiki.component.annotation.InstantiationStrategy;
+import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 import org.xwiki.contrib.llm.RequestError;
-import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.ObjectReference;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -40,30 +41,19 @@ import com.theokanning.openai.embedding.Embedding;
 import com.theokanning.openai.embedding.EmbeddingRequest;
 
 /**
- * Implementation of {@link GPTAPIServer} that uses the OpenAI API.
+ * Implementation of {@link GPTAPIServer} that uses the OpenAI API. This component is meant to be instantiated and
+ * registered by the {@link GPTAPIServerWikiObjectComponentBuilder}.
  *
  * @version $Id$
  * @since 0.5
  */
+@Component(roles = GPTAPIServerWikiComponent.class)
+@InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
+@Named("openai")
 public class OpenAIGPTAPIServer extends AbstractGPTAPIServer
 {
-    private final RequestHelper requestHelper;
-
-    /**
-     * Constructor.
-     *
-     * @param config the server configuration
-     * @param objectReference the object reference
-     * @param authorReference the author reference
-     * @param componentManager the component manager
-     * @throws ComponentLookupException if a component cannot be found
-     */
-    public OpenAIGPTAPIServer(GPTAPIConfig config, ObjectReference objectReference, DocumentReference authorReference,
-        ComponentManager componentManager) throws ComponentLookupException
-    {
-        super(config, objectReference, authorReference);
-        this.requestHelper = componentManager.getInstance(RequestHelper.class);
-    }
+    @Inject
+    private RequestHelper requestHelper;
 
     @Override
     public List<double[]> embed(String model, List<String> texts) throws RequestError

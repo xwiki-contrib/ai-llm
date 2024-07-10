@@ -21,16 +21,17 @@ package org.xwiki.contrib.llm.internal;
 
 import java.util.List;
 
+import javax.inject.Inject;
+import javax.inject.Named;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xwiki.component.manager.ComponentLookupException;
-import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.contrib.llm.GPTAPIConfig;
+import org.xwiki.component.annotation.Component;
+import org.xwiki.component.annotation.InstantiationStrategy;
+import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 import org.xwiki.contrib.llm.RequestError;
 import org.xwiki.environment.Environment;
-import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.ObjectReference;
 
 import ai.djl.huggingface.translator.TextEmbeddingTranslatorFactory;
 import ai.djl.inference.Predictor;
@@ -43,31 +44,17 @@ import ai.djl.repository.zoo.ZooModel;
  * @version $Id$
  * @since 0.5
  */
+@Component(roles = GPTAPIServerWikiComponent.class)
+@InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
+@Named("internal")
 public class InternalGPTAPIServer extends AbstractGPTAPIServer
 {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(InternalGPTAPIServer.class);
 
     private static final String CACHE_DIR_PROPERTY = "DJL_CACHE_DIR";
 
-    private final Environment environment;
-
-    /**
-     * Constructor.
-     *
-     * @param config the server configuration
-     * @param objectReference the object reference
-     * @param authorReference the author reference
-     * @param componentManager the component manager
-     * @throws ComponentLookupException if a component cannot be found
-     */
-    public InternalGPTAPIServer(GPTAPIConfig config, ObjectReference objectReference, DocumentReference authorReference,
-        ComponentManager componentManager) throws ComponentLookupException
-    {
-        super(config, objectReference, authorReference);
-
-        this.environment = componentManager.getInstance(Environment.class);
-    }
+    @Inject
+    private Environment environment;
 
     @Override
     public List<double[]> embed(String modelName, List<String> texts) throws RequestError

@@ -22,7 +22,6 @@ package org.xwiki.contrib.llm.internal;
 import java.util.List;
 
 import org.xwiki.component.annotation.Role;
-import org.xwiki.component.wiki.WikiComponent;
 import org.xwiki.contrib.llm.RequestError;
 
 /**
@@ -32,7 +31,7 @@ import org.xwiki.contrib.llm.RequestError;
  * @since 0.5
  */
 @Role
-public interface GPTAPIServer extends WikiComponent
+public interface GPTAPIServer
 {
     /**
      * Embed the given texts with the given model.

@@ -136,7 +136,8 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
     private AuthorizationManager authorizationManager;
 
     @Inject
-    private ComponentManager componentManager;
+    @Named("context")
+    private Provider<ComponentManager> componentManagerProvider;
 
     @Inject
     @Named("local")
@@ -176,13 +177,15 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
 
             ModelConfiguration modelConfiguration = buildModelConfiguration(xObject);
 
+            ComponentManager componentManager = this.componentManagerProvider.get();
+
             String modelType = xObject.getStringValue(TYPE_FIELD);
             if (TYPE_LLM.equals(modelType)) {
                 List<ChatRequestFilter> filters = getChatRequestFilters(document);
 
-                return List.of(new FilteringOpenAIChatModel(modelConfiguration, filters, this.componentManager));
+                return List.of(new FilteringOpenAIChatModel(modelConfiguration, filters, componentManager));
             } else if (TYPE_EMBEDDING.equals(modelType)) {
-                return List.of(new DefaultEmbeddingModel(modelConfiguration, this.componentManager));
+                return List.of(new DefaultEmbeddingModel(modelConfiguration, componentManager));
             } else {
                 throw new WikiComponentException(String.format("Unknown model type [%s]", modelType));
             }
@@ -197,7 +200,7 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
     {
         // Get all filter builders and build the respective filter components.
         List<ChatRequestFilterBuilder> filterBuilders =
-            this.componentManager.getInstanceList(ChatRequestFilterBuilder.class);
+            this.componentManagerProvider.get().getInstanceList(ChatRequestFilterBuilder.class);
         List<ChatRequestFilter> filters = new ArrayList<>();
         for (ChatRequestFilterBuilder filterBuilder : filterBuilders) {
             BaseObject filterObject = document.getXObject(filterBuilder.getClassReference());

@@ -23,15 +23,13 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
-import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.test.TestEnvironment;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.ComponentTest;
-import org.xwiki.test.junit5.mockito.InjectComponentManager;
+import org.xwiki.test.junit5.mockito.InjectMockComponents;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link InternalGPTAPIServer}.
@@ -42,14 +40,13 @@ import static org.mockito.Mockito.mock;
 @ComponentList(TestEnvironment.class)
 class InternalGPTAPIServerTest
 {
-    @InjectComponentManager
-    private ComponentManager componentManager;
+    @InjectMockComponents
+    private InternalGPTAPIServer server;
 
     @Test
     void embed() throws Exception
     {
-        InternalGPTAPIServer server = new InternalGPTAPIServer(mock(), mock(), mock(), this.componentManager);
-        List<double[]> embed = server.embed("sentence-transformers/all-MiniLM-L6-v2", List.of("XWiki is great!"));
+        List<double[]> embed = this.server.embed("sentence-transformers/all-MiniLM-L6-v2", List.of("XWiki is great!"));
 
         assertEquals(1, embed.size());
         assertEquals(384, embed.get(0).length);

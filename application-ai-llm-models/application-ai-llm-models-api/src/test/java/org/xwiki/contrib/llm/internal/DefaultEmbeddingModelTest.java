@@ -39,6 +39,7 @@ import org.xwiki.contrib.llm.RequestError;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectComponentManager;
+import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.test.mockito.MockitoComponentManager;
 
@@ -111,6 +112,9 @@ class OpenAIGPTAPIServerTest
     @Mock
     private GPTAPIConfig config;
 
+    @InjectMockComponents
+    private OpenAIGPTAPIServer server;
+
     @BeforeEach
     void setUp() throws Exception
     {
@@ -118,6 +122,7 @@ class OpenAIGPTAPIServerTest
         when(this.httpClient.<InputStream>send(any(HttpRequest.class), any())).thenReturn(this.httpResponse);
         when(this.config.getToken()).thenReturn(TOKEN);
         when(this.config.getURL()).thenReturn(URL);
+        this.server.initialize(this.config, mock(), mock());
     }
 
     @Test
@@ -126,9 +131,7 @@ class OpenAIGPTAPIServerTest
         when(this.httpResponse.statusCode()).thenReturn(200);
         when(this.httpResponse.body()).thenReturn(IOUtils.toInputStream(EMBEDDING_RESPONSE, StandardCharsets.UTF_8));
 
-        OpenAIGPTAPIServer server =
-            new OpenAIGPTAPIServer(this.config, mock(), mock(), this.componentManager);
-        double[] embedding = server.embed(MODEL, List.of(INPUT)).get(0);
+        double[] embedding = this.server.embed(MODEL, List.of(INPUT)).get(0);
         assertEquals(3, embedding.length);
         assertEquals(0.0023064255, embedding[0]);
         assertEquals(-0.009327292, embedding[1]);
@@ -166,10 +169,7 @@ class OpenAIGPTAPIServerTest
         when(this.httpResponse.body()).thenReturn(IOUtils.toInputStream(
             "{\"error\": {\"message\": \"Invalid request\", \"code\": 400}}", StandardCharsets.UTF_8));
 
-        OpenAIGPTAPIServer server =
-            new OpenAIGPTAPIServer(this.config, mock(), mock(), this.componentManager);
-
-        RequestError exception = assertThrows(RequestError.class, () -> server.embed(MODEL, List.of(INPUT)));
+        RequestError exception = assertThrows(RequestError.class, () -> this.server.embed(MODEL, List.of(INPUT)));
         assertEquals("400: Invalid request", exception.getMessage());
     }
 }

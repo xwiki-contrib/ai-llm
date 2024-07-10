@@ -33,15 +33,16 @@ import org.xwiki.model.reference.ObjectReference;
  * @version $Id$
  * @since 0.5
  */
-public abstract class AbstractGPTAPIServer implements GPTAPIServer
+public abstract class AbstractGPTAPIServer implements GPTAPIServerWikiComponent
 {
     protected GPTAPIConfig config;
 
-    private final ObjectReference objectReference;
+    private ObjectReference objectReference;
 
-    private final DocumentReference authorReference;
+    private DocumentReference authorReference;
 
-    AbstractGPTAPIServer(GPTAPIConfig config, ObjectReference objectReference, DocumentReference authorReference)
+    @Override
+    public void initialize(GPTAPIConfig config, ObjectReference objectReference, DocumentReference authorReference)
     {
         this.config = config;
         this.objectReference = objectReference;
