@@ -19,9 +19,11 @@
  */
 package org.xwiki.contrib.llm.internal.xwikistore;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -39,6 +41,7 @@ import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 import org.xwiki.contrib.llm.Chunk;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.localization.ContextualLocalizationManager;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.rendering.syntax.SyntaxType;
@@ -71,10 +74,17 @@ public class XWikiDocumentDocument implements Document
 
     @Inject
     @Named("withparameters")
-    private EntityReferenceSerializer<String> entityReferenceSerializer;
+    private EntityReferenceSerializer<String> parametersEntityReferenceSerializer;
+
+    @Inject
+    @Named("compactwiki")
+    private EntityReferenceSerializer<String> compactEntityReferenceSerializer;
 
     @Inject
     private Logger logger;
+
+    @Inject
+    private ContextualLocalizationManager localizationManager;
 
     private final Tika tika = new Tika();
 
@@ -99,7 +109,7 @@ public class XWikiDocumentDocument implements Document
     @Override
     public String getID()
     {
-        return this.entityReferenceSerializer.serialize(this.xWikiDocument.getDocumentReferenceWithLocale());
+        return this.parametersEntityReferenceSerializer.serialize(this.xWikiDocument.getDocumentReferenceWithLocale());
     }
 
     @Override
@@ -158,12 +168,14 @@ public class XWikiDocumentDocument implements Document
         XWikiContext context = this.xWikiContextProvider.get();
         return this.xWikiDocument.getAttachmentList().stream().flatMap(attachment -> {
             try {
-                return Stream.of(formatHeading(2, attachment.getFilename())
-                    + this.tika.parseToString(attachment.getContentInputStream(context)));
+                String content = this.tika.parseToString(attachment.getContentInputStream(context));
+                if (StringUtils.isNotBlank(content)) {
+                    return Stream.of(formatHeading(2, attachment.getFilename()) + content);
+                }
             } catch (Exception e) {
                 this.logger.warn("Failed to parse attachment content: {}", ExceptionUtils.getRootCauseMessage(e));
-                return Stream.empty();
             }
+            return Stream.empty();
         }).collect(Collectors.joining(DELIMITER));
     }
 
@@ -171,18 +183,28 @@ public class XWikiDocumentDocument implements Document
     {
         XWikiContext context = this.xWikiContextProvider.get();
         return this.xWikiDocument.getXObjects().values().stream().flatMap(List::stream)
+            .filter(Objects::nonNull)
             .map(xObject -> {
                 BaseClass xClass = xObject.getXClass(context);
-
-                Collection<?> fieldList = xClass.getFieldList();
-                String objectProperties = fieldList.stream()
-                    .filter(PropertyClass.class::isInstance)
-                    .map(PropertyClass.class::cast)
-                    .filter(xProperty -> xObject.safeget(xProperty.getName()) != null)
-                    .map(xProperty -> formatHeading(2, xProperty.getTranslatedPrettyName(context))
-                        + xObject.getStringValue(xProperty.getName()))
-                    .collect(Collectors.joining(DELIMITER));
-                return formatHeading(1, xObject.getPrettyName()) + objectProperties;
+                String objectProperties;
+                if (xClass != null) {
+                    Collection<?> fieldList = xClass.getFieldList();
+                    objectProperties = fieldList.stream()
+                        .filter(PropertyClass.class::isInstance)
+                        .map(PropertyClass.class::cast)
+                        .filter(xProperty -> xObject.safeget(xProperty.getName()) != null)
+                        .map(xProperty -> formatHeading(2, xProperty.getTranslatedPrettyName(context))
+                            + xObject.getStringValue(xProperty.getName()))
+                        .collect(Collectors.joining(DELIMITER));
+                } else {
+                    objectProperties = Arrays.stream(xObject.getPropertyNames())
+                        .map(fieldName -> formatHeading(2, fieldName) + xObject.getStringValue(fieldName))
+                        .collect(Collectors.joining(DELIMITER));
+                }
+                String heading = this.localizationManager.getTranslationPlain("aiLLM.index.objectHeading",
+                    this.compactEntityReferenceSerializer.serialize(xObject.getXClassReference(),
+                        xObject.getDocumentReference()));
+                return formatHeading(1, heading) + objectProperties;
             })
             .collect(Collectors.joining(DELIMITER));
     }
