@@ -505,16 +505,6 @@
       <content>{{velocity}}
 #set($widgetDocument = $xwiki.getDocument("AI.Code.ChatWidgetConfig"))
 #set($widgetIsEnabled = $widgetDocument.getObject('AI.Code.ChatWidgetConfigClass').getProperty('isEnabled').getValue())
-#set ($scheme = $request.scheme)
-#set ($serverName = $request.serverName)
-#set ($serverPort = $request.serverPort)
-#set ($contextPath = $request.contextPath)
-## Construct the base URL
-#if ($serverPort == 80 || $serverPort == 443)
-    #set ($baseURL = "${scheme}://${serverName}${contextPath}")
-#else
-    #set ($baseURL = "${scheme}://${serverName}:${serverPort}${contextPath}")
-#end
 #if($doc == "AI.WebHome")
   {{html clean=false}}
   &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'purify.min.js')"&gt;&lt;/script&gt;
@@ -525,7 +515,7 @@
   &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'purify.min.js')"&gt;&lt;/script&gt;
   &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'marked.min.js')"&gt;&lt;/script&gt;
   &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'aillm.js')"&gt;&lt;/script&gt;
-  &lt;script id="chat-widget" data-base-url="$!{baseURL}" src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'chatWidget.js')"&gt;&lt;/script&gt;
+  &lt;script id="chat-widget" data-base-url="$!{request.contextPath}" src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'chatWidget.js')"&gt;&lt;/script&gt;
   &lt;link rel="stylesheet" href="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'chatWidget.css')"&gt;
   {{/html}}
 #end
