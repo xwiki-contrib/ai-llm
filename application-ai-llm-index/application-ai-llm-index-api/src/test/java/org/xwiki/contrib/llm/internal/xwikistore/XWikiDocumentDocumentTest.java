@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal.xwikistore;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -206,7 +207,7 @@ class XWikiDocumentDocumentTest
             when(xObject.safeget(propertyName)).thenReturn(mock());
             properties.add(propertyClass);
         }
-        when(this.xWikiDocument.getXObjects()).thenReturn(Map.of(mock(), List.of(xObject)));
+        when(this.xWikiDocument.getXObjects()).thenReturn(Map.of(mock(), Arrays.asList(null, xObject)));
 
         assertEquals("""
             = XObjects Title =
