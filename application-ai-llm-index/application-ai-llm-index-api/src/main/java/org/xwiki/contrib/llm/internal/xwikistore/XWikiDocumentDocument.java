@@ -193,11 +193,19 @@ public class XWikiDocumentDocument implements Document
                         .filter(PropertyClass.class::isInstance)
                         .map(PropertyClass.class::cast)
                         .filter(xProperty -> xObject.safeget(xProperty.getName()) != null)
-                        .map(xProperty -> formatHeading(2, xProperty.getTranslatedPrettyName(context))
-                            + xObject.getStringValue(xProperty.getName()))
+                        .flatMap(xProperty -> {
+                            String value = xObject.getStringValue(xProperty.getName());
+                            if (StringUtils.isNotBlank(value)) {
+                                return Stream.of(formatHeading(2, xProperty.getTranslatedPrettyName(context))
+                                    + value);
+                            } else {
+                                return Stream.empty();
+                            }
+                        })
                         .collect(Collectors.joining(DELIMITER));
                 } else {
                     objectProperties = Arrays.stream(xObject.getPropertyNames())
+                        .filter(fieldName -> StringUtils.isNotBlank(xObject.getStringValue(fieldName)))
                         .map(fieldName -> formatHeading(2, fieldName) + xObject.getStringValue(fieldName))
                         .collect(Collectors.joining(DELIMITER));
                 }
