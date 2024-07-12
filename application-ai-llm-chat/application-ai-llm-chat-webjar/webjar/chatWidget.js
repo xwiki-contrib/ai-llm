@@ -27,15 +27,7 @@ let newConvButton;
 // Get the script tag
 const scriptTag = document.getElementById('chat-widget');
 
-// Check if the script tag exists and has the data-base-url attribute
-if (scriptTag && scriptTag.dataset.baseUrl) {
-    // Set the base URL using the data-base-url attribute
-    XWikiAiAPI.setBaseURL(scriptTag.dataset.baseUrl);
-} else {
-    // Fallback to a default URL or log an error
-    console.warn('Base URL not provided. Falling back on default value [http://localhost:8080/xwiki]', );
-    XWikiAiAPI.setBaseURL('http://localhost:8080/xwiki');
-}
+XWikiAiAPI.setBaseURL(scriptTag.dataset.baseUrl || '');
 
 // Set the wiki name
 if (scriptTag && scriptTag.dataset.wikiName) {
