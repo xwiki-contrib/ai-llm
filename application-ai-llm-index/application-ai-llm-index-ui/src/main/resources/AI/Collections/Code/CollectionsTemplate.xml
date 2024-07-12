@@ -356,13 +356,13 @@ and modelProp.id.name='model'</sql>
       <allowGuests>0</allowGuests>
     </property>
     <property>
-      <chunkingMaxSize>3000</chunkingMaxSize>
+      <chunkingMaxSize>2000</chunkingMaxSize>
     </property>
     <property>
       <chunkingMethod>maxChars</chunkingMethod>
     </property>
     <property>
-      <chunkingOverlapOffset>15</chunkingOverlapOffset>
+      <chunkingOverlapOffset>0</chunkingOverlapOffset>
     </property>
     <property>
       <documentSpaces/>
