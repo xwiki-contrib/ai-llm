@@ -542,7 +542,7 @@ public class SolrConnector
             }
 
         } catch (Exception e) {
-            logger.error("Similarity search failed: {}", e.getMessage());
+            logger.error("Similarity search failed: {}", e.getMessage(), e);
         }
         return resultsList;
     }

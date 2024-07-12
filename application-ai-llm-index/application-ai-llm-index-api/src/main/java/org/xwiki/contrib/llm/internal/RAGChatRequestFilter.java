@@ -28,18 +28,17 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.slf4j.Logger;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
 import org.xwiki.contrib.llm.CollectionManager;
-import org.xwiki.contrib.llm.RequestError;
 import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
 import org.xwiki.contrib.llm.openai.ChatCompletionChunkChoice;
 import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
 import org.xwiki.contrib.llm.openai.ChatCompletionResult;
 import org.xwiki.contrib.llm.openai.ChatMessage;
 import org.xwiki.contrib.llm.openai.Context;
-import org.apache.commons.lang3.StringUtils;
 
 /**
  * A filter that adds context from the given collections to the request.
@@ -95,7 +94,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
     @Override
     public void processStreaming(ChatCompletionRequest request,
-        FailableConsumer<ChatCompletionChunk, IOException> consumer) throws IOException, RequestError
+        FailableConsumer<ChatCompletionChunk, IOException> consumer) throws IOException
     {
         // Get the sources from the search results cache or perform the search
         List<Context> searchResults = getSearchResults(request);
@@ -130,7 +129,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     
 
     @Override
-    public ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError
+    public ChatCompletionResult process(ChatCompletionRequest request) throws IOException
     {
         List<Context> searchResults = getSearchResults(request);
         ChatCompletionRequest modifiedRequest = addContext(request, searchResults);

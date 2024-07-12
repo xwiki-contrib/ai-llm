@@ -684,12 +684,21 @@
      * @return {JSON} A JSON object containing the updated state of isErr, beginRep, and completedReply.
      */
     function handleValidChunk(jsonMessages, completedReply, beginRep, isErr, model, startTime) {
+        const chatContent = document.querySelector('#chatContent');
         for (const jsonMessage of jsonMessages) {
             if (jsonMessage.trim() !== '') {
                 const message = JSON.parse(jsonMessage);
+
+                // Check if the message contains an error response which is in an error attribute
+                if (message.error) {
+                    isErr = true;
+                    console.error(message.error);
+                    errorCatcher(chatContent, message.error);
+                }
+
                 let reply = '';
                 // Extract the generated reply from the response
-                if (message.choices.length &gt; 0) {
+                if (!isErr &amp;&amp; message.choices.length &gt; 0) {
                     reply = message.choices[0].delta.content;
                 }
 

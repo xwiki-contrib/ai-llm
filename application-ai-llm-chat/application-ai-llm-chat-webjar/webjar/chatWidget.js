@@ -390,7 +390,7 @@ function handleRequestError(error, updateTimer) {
         console.log('Request aborted');
     } else {
         console.error('Failed to get chat completions:', error);
-        displayErrorMessage('An error occurred. Please try again.');
+        displayErrorMessage('An error occurred: ' + error.message);
     }
     removeWaitingAnimation();
     clearInterval(updateTimer);

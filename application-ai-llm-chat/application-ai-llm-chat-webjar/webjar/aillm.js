@@ -52,7 +52,13 @@ const XWikiAiAPI = (() => {
     
                 let jsonMessages = completeData.split('data: ').filter(Boolean).map(msg => 'data: ' + msg);
                 jsonMessages.forEach(msg => {
+                    if (msg.trim() === "data: [DONE]") {
+                        return;
+                    }
                     const message = JSON.parse(msg.replace(/^data: /, '').trim());
+                    if (message.error) {
+                        throw new Error(message.error.message);
+                    }
                     if (message.choices.length > 0 && message.choices[0].delta && message.choices[0].delta.content !== null) {
                         onMessageChunk(message);
                     }
@@ -67,9 +73,12 @@ const XWikiAiAPI = (() => {
                 throw new DOMException('Aborted', 'AbortError');
             }
         }
-    
-        if (accumulatedChunks) {
+
+        if (accumulatedChunks && accumulatedChunks.trim() !== "data: [DONE]") {
             const message = JSON.parse(accumulatedChunks.replace(/^data: /, '').trim());
+            if (message.error) {
+                throw new Error(message.error.message);
+            }
             if (message.choices.length > 0 && message.choices[0].delta && message.choices[0].delta.content !== null) {
                 onMessageChunk(message);
             }
@@ -77,7 +86,7 @@ const XWikiAiAPI = (() => {
                 usageData = message.usage;
             }
         }
-    
+
         return usageData;
     };
     
@@ -187,16 +196,12 @@ const XWikiAiAPI = (() => {
                     throw new Error(`Network response was not ok: ${response.statusText}`);
                 }
                 if (request.stream) {
-                    try {
-                        return await handleStreamedResponse(response, onMessageCallback, signal);
-                    } catch (error) {
-                        // If streaming fails, handle as non-streaming response
-                        const data = await response.json();
-                        error.response = data;
-                        throw error;
-                    }
+                    return await handleStreamedResponse(response, onMessageCallback, signal);
                 } else {
                     const data = await response.json();
+                    if (data.error) {
+                        throw new Error(data.error.message);
+                    }
                     if (onMessageCallback) {
                         onMessageCallback(data);
                     }
@@ -215,7 +220,8 @@ const XWikiAiAPI = (() => {
         /**
          * Set the available settings as an array of strings.
          * 
-         * @param {Array} settings - The available settings as an array of strings. Available settings are: "server-address","temperature","model" and "stream"
+         * @param {Array} settings - The available settings as an array of strings. Available settings are:
+         *     "server-address","temperature","model" and "stream"
          */
         setChatUISettings: (settings) => {
             chatUISettings = settings;

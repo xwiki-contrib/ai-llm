@@ -48,13 +48,13 @@ public interface ChatModel
      * @param consumer the consumer that will be called for every chat response that is received.
      */
     void processStreaming(ChatCompletionRequest request, FailableConsumer<ChatCompletionChunk, IOException> consumer)
-        throws IOException, RequestError;
+        throws IOException;
 
     /**
      * @param request the request to process
      * @return the response
      */
-    ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError;
+    ChatCompletionResult process(ChatCompletionRequest request) throws IOException;
 
     /**
      * @return {@code true} if the model supports streaming, {@code false} otherwise

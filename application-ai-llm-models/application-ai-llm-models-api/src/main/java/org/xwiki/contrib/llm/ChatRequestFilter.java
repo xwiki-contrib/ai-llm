@@ -53,7 +53,7 @@ public interface ChatRequestFilter
      * @param consumer the consumer that will be called for every chunk that is received.
      */
     void processStreaming(ChatCompletionRequest request, FailableConsumer<ChatCompletionChunk, IOException> consumer)
-        throws IOException, RequestError;
+        throws IOException;
 
     /**
      * Processes the given request and returns the response.
@@ -61,5 +61,5 @@ public interface ChatRequestFilter
      * @param request the request to process
      * @return the response
      */
-    ChatCompletionResult process(ChatCompletionRequest request) throws IOException, RequestError;
+    ChatCompletionResult process(ChatCompletionRequest request) throws IOException;
 }

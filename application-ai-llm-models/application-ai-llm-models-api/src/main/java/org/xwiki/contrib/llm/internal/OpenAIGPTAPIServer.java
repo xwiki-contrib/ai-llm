@@ -81,6 +81,9 @@ public class OpenAIGPTAPIServer extends AbstractGPTAPIServer
             } else {
                 throw new IOException("Response data is null");
             }
+        } catch (RequestError e) {
+            // Don't let the next catch clause catch this more specific exception.
+            throw e;
         } catch (IOException e) {
             throw new RequestError(500, e.getMessage());
         }

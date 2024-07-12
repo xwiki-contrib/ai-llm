@@ -79,7 +79,6 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
             String allowedOrigin = CORSUtils.matchOrigin(origin, configProvider, wikiName);
             ChatModel model = this.chatModelManager.getModel(request.model(), CurrentUserReference.INSTANCE, wikiName);
 
-
             if (model.supportsStreaming() && Boolean.TRUE.equals(request.stream())) {
                 return Response.ok((StreamingOutput) output -> {
                     try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
@@ -101,7 +100,15 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                                 .header(CORS_ALLOW_HEADERS, CORS_HEADERS)
                                 .build();
             }
-        } catch (GPTAPIException | RequestError | IOException e) {
+        } catch (RequestError e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                .entity(e.getOpenAiError())
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .header(CORS_ALLOW_ORIGIN, origin)
+                .header(CORS_ALLOW_METHODS, CORS_METHODS)
+                .header(CORS_ALLOW_HEADERS, CORS_HEADERS)
+                .build();
+        } catch (GPTAPIException | IOException e) {
             throw new WebApplicationException(e, Response.Status.INTERNAL_SERVER_ERROR);
         }
     }
@@ -128,8 +135,10 @@ public class DefaultChatCompletionsResource extends XWikiResource implements Cha
                 writer.flush();
             });
         } catch (RequestError e) {
-            writer.write(DATA_FORMAT.formatted(objectMapper.writeValueAsString(e)));
+            writer.write(DATA_FORMAT.formatted(objectMapper.writeValueAsString(e.getOpenAiError())));
             writer.flush();
         }
+
+        writer.write(DATA_FORMAT.formatted("[DONE]"));
     }
 }
