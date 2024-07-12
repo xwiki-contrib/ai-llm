@@ -47,7 +47,6 @@ public class ChatMessage
 
     private List<Context> context;
 
-    @JsonInclude()
     private String memory;
 
     /**

@@ -26,6 +26,7 @@ import java.lang.reflect.Type;
 import java.net.http.HttpResponse;
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
@@ -77,11 +78,15 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
     public void processStreaming(ChatCompletionRequest request,
         FailableConsumer<ChatCompletionChunk, IOException> consumer) throws IOException, RequestError
     {
-        if (Boolean.TRUE.equals(this.getConfig().getCanStream())) {
+        GPTAPIConfig config = this.getConfig();
+        if (Boolean.TRUE.equals(config.getCanStream())) {
             // Set the model to the model in the configuration
-            ChatCompletionRequest adaptedRequest = setModel(request, true);
+            ChatCompletionRequest adaptedRequest = setModel(request, true,
+                // Only include the stream options when calling the OpenAI API as other providers do not seem to like
+                // it (in particular, Fireworks and Mistral).
+                StringUtils.startsWith(config.getURL(), "https://api.openai.com"));
 
-            HttpResponse<InputStream> httpResponse = this.requestHelper.post(this.getConfig(), PATH,
+            HttpResponse<InputStream> httpResponse = this.requestHelper.post(config, PATH,
                 adaptedRequest, HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream body = httpResponse.body()) {
                 if (httpResponse.statusCode() == 200) {
@@ -123,11 +128,12 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
     }
 
     private ChatCompletionRequest setModel(ChatCompletionRequest request, boolean stream)
+    private ChatCompletionRequest setModel(ChatCompletionRequest request, boolean stream, boolean supportsUsage)
     {
         ChatCompletionRequest.Builder builder = request.but()
             .model(this.modelConfiguration.getModel())
             .stream(stream);
-        if (stream) {
+        if (stream && supportsUsage) {
             // Default usage information to true as it just makes a lot of sense to have it.
             builder.streamOptions(new StreamOptions(true));
         } else {
