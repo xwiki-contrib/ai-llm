@@ -49,6 +49,7 @@ import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
+import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupException;
 import org.xwiki.user.group.GroupManager;
@@ -100,6 +101,8 @@ public class DefaultCollectionManager implements CollectionManager
                                                         id, documentReference));
             }
 
+            xdocument.setDefaultLocale(context.getLocale());
+            xdocument.setSyntax(Syntax.XWIKI_2_1);
             DefaultCollection newCollection = collectionProvider.get();
             newCollection.initialize(xdocument);
             newCollection.setID(id);

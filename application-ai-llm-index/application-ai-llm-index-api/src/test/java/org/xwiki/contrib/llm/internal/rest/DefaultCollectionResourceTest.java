@@ -56,6 +56,8 @@ import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.user.CurrentUserReference;
+import org.xwiki.user.UserReference;
+import org.xwiki.user.UserReferenceResolver;
 import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupManager;
 
@@ -128,6 +130,8 @@ class DefaultCollectionResourceTest
     private static final DocumentReference USER_REFERENCE =
         new DocumentReference(MAIN_WIKI, "XWiki", "User");
 
+    private static final UserReference CURRENT_USER_REFERENCE = mock();
+
     private static final String RIGHTS_CHECK_METHOD = "customRights";
 
     private static final String AUTHORIZATION_PARAMETER_NAME = "param1";
@@ -146,6 +150,9 @@ class DefaultCollectionResourceTest
 
     @MockComponent
     private GroupManager groupManager;
+
+    @MockComponent
+    private UserReferenceResolver<CurrentUserReference> currentUserReferenceUserReferenceResolver;
 
     @MockComponent
     @Named("customRights")
@@ -196,6 +203,9 @@ class DefaultCollectionResourceTest
         UserReferenceSerializer<DocumentReference> userReferenceSerializer =
             this.oldcore.getMocker().getInstance(UserReferenceSerializer.TYPE_DOCUMENT_REFERENCE, "document");
         when(userReferenceSerializer.serialize(CurrentUserReference.INSTANCE)).thenReturn(USER_REFERENCE);
+
+        when(this.currentUserReferenceUserReferenceResolver.resolve(CurrentUserReference.INSTANCE))
+            .thenReturn(CURRENT_USER_REFERENCE);
     }
 
     @Test
@@ -253,6 +263,7 @@ class DefaultCollectionResourceTest
         Collection savedCollection = getCollectionFromWiki(id);
         assertEquals(chunkingMaxSize, savedCollection.getChunkingMaxSize());
         assertEquals(chunkingMethod, savedCollection.getChunkingMethod());
+        assertEquals(CURRENT_USER_REFERENCE, savedCollection.getAuthor());
         // Update a property directly in the collection.
         savedCollection.setRightsCheckMethod(RIGHTS_CHECK_METHOD);
         savedCollection.save();
@@ -324,6 +335,7 @@ class DefaultCollectionResourceTest
         Object authorizationConfiguration = savedCollection.getAuthorizationConfiguration();
         assertInstanceOf(RightsCheckConfiguration.class, authorizationConfiguration);
         assertEquals(authorizationParameter, ((RightsCheckConfiguration) authorizationConfiguration).param1());
+        assertEquals(CURRENT_USER_REFERENCE, savedCollection.getAuthor());
 
         AuthorizationManager authorizationManager = mock();
         when(this.customRightsAuthorizationManagerBuilder.build(any())).thenReturn(authorizationManager);

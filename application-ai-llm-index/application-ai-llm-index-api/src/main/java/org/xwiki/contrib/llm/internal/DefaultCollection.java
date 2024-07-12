@@ -81,7 +81,7 @@ public class DefaultCollection implements Collection
     @Inject
     protected Provider<XWikiContext> contextProvider;
 
-    private XWikiDocumentWrapper xWikiDocumentWrapper;
+    protected XWikiDocumentWrapper xWikiDocumentWrapper;
 
     @Inject
     @Named("context")

@@ -48,6 +48,7 @@ import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.user.CurrentUserReference;
+import org.xwiki.user.UserReferenceResolver;
 import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupManager;
 
@@ -123,6 +124,9 @@ class DefaultDocumentResourceTest
 
     @MockComponent
     private GroupManager groupManager;
+
+    @MockComponent
+    private UserReferenceResolver<CurrentUserReference> currentUserReferenceUserReferenceResolver;
 
     @BeforeEach
     void setUp() throws Exception

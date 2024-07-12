@@ -30,6 +30,8 @@ import org.xwiki.security.authorization.AuthorizationException;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.user.CurrentUserReference;
+import org.xwiki.user.UserReference;
+import org.xwiki.user.UserReferenceResolver;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -48,6 +50,9 @@ public class CurrentUserCollection extends DefaultCollection
     @Inject
     private ContextualAuthorizationManager contextualAuthorizationManager;
 
+    @Inject
+    private UserReferenceResolver<CurrentUserReference> currentUserReferenceUserReferenceResolver;
+
     @Override
     public DocumentStore getDocumentStore() throws IndexException
     {
@@ -59,11 +64,17 @@ public class CurrentUserCollection extends DefaultCollection
     {
         XWikiContext context = this.contextProvider.get();
         try {
-            XWikiDocument collectionDocument = super.getCollectionDocument();
+            XWikiDocument collectionDocument = this.xWikiDocumentWrapper.getClonedXWikiDocument();
             this.contextualAuthorizationManager.checkAccess(Right.EDIT, collectionDocument.getDocumentReference());
-            // Ensure we're not modifying the potentially shared document instance.
-            context.getWiki().checkSavingDocument(context.getUserReference(), collectionDocument.clone(), context);
-            super.save();
+            UserReference userReference =
+                this.currentUserReferenceUserReferenceResolver.resolve(CurrentUserReference.INSTANCE);
+            collectionDocument.getAuthors().setOriginalMetadataAuthor(userReference);
+            collectionDocument.getAuthors().setEffectiveMetadataAuthor(userReference);
+            if (collectionDocument.isNew()) {
+                collectionDocument.getAuthors().setCreator(userReference);
+            }
+            context.getWiki().checkSavingDocument(context.getUserReference(), collectionDocument, context);
+            context.getWiki().saveDocument(collectionDocument, context);
         } catch (XWikiException | AuthorizationException e) {
             throw new IndexException(
                 String.format("Access denied for saving collection [%s]", super.getID()), e);
