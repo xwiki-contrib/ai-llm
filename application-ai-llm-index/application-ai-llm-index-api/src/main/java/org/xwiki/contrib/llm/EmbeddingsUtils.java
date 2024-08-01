@@ -62,11 +62,15 @@ public class EmbeddingsUtils implements Initializable
      * @param text the text to compute embeddings for
      * @param modelId the model id
      * @param userReference the user reference
+     * @param purpose the purpose of the embeddings
      * @return the embeddings as double array
      */
-    public double[] computeEmbeddings(String text, String modelId, UserReference userReference) throws IndexException
+    public double[] computeEmbeddings(String text,
+                                     String modelId,
+                                     UserReference userReference,
+                                     EmbeddingModel.EmbeddingPurpose purpose) throws IndexException
     {
-        return computeEmbeddings(List.of(text), modelId, userReference).get(0);
+        return computeEmbeddings(List.of(text), modelId, userReference, purpose).get(0);
     }
 
     /**
@@ -75,10 +79,14 @@ public class EmbeddingsUtils implements Initializable
      * @param texts the texts to compute embeddings for
      * @param modelId the model id
      * @param userReference the user reference
+     * @param purpose the purpose of the embeddings
      * @return the embeddings as list of double arrays
      * @throws IndexException if an error occurs while computing the embeddings
      */
-    public List<double[]> computeEmbeddings(List<String> texts, String modelId, UserReference userReference)
+    public List<double[]> computeEmbeddings(List<String> texts,
+                                         String modelId,
+                                         UserReference userReference,
+                                         EmbeddingModel.EmbeddingPurpose purpose)
         throws IndexException
     {
         try {
@@ -91,9 +99,9 @@ public class EmbeddingsUtils implements Initializable
             Retry retry = this.retryRegistry.retry(retryId);
             List<double[]> embeddingsFull;
             if (texts.size() == 1) {
-                embeddingsFull = retry.executeCallable(() -> List.of(embeddingModel.embed(texts.get(0))));
+                embeddingsFull = retry.executeCallable(() -> List.of(embeddingModel.embed(texts.get(0), purpose)));
             } else {
-                embeddingsFull = retry.executeCallable(() -> embeddingModel.embed(texts));
+                embeddingsFull = retry.executeCallable(() -> embeddingModel.embed(texts, purpose));
             }
             return embeddingsFull.stream()
                 .map(embeddings -> Arrays.copyOf(embeddings, AiLLMSolrCoreInitializer.NUMBER_OF_DIMENSIONS))

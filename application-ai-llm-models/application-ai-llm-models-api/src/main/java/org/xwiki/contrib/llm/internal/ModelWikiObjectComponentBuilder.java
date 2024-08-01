@@ -124,6 +124,16 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
     private static final String MODEL_FIELD = "model";
 
     /**
+     * The name of the field containing the indexing prefix for the embedding model.
+     */
+    private static final String EMBEDDING_INDEX_PREFIX = "embeddingIndexPrefix";
+
+    /**
+     * The name of the field containing the query prefix for the embedding model.
+     */
+    private static final String EMBEDDING_QUERY_PREFIX = "embeddingQueryPrefix";
+
+    /**
      * The name of the field containing the server name that should be called.
      */
     private static final String SERVER_NAME_FIELD = "serverName";
@@ -222,6 +232,8 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
         ModelConfiguration modelConfiguration = new ModelConfiguration();
         modelConfiguration.setServerName(xObject.getStringValue(SERVER_NAME_FIELD));
         modelConfiguration.setModel(xObject.getStringValue(MODEL_FIELD));
+        modelConfiguration.setEmbeddingIndexPrefix(xObject.getStringValue(EMBEDDING_INDEX_PREFIX));
+        modelConfiguration.setEmbeddingQueryPrefix(xObject.getStringValue(EMBEDDING_QUERY_PREFIX));
         modelConfiguration.setDimensions(xObject.getIntValue(DIMENSIONS_FIELD));
         modelConfiguration.setContextSize(xObject.getIntValue(CONTEXT_SIZE_FIELD));
         modelConfiguration.setMaximumParallelism(xObject.getIntValue(MAXIMUM_PARALLELISM_FIELD, 100));

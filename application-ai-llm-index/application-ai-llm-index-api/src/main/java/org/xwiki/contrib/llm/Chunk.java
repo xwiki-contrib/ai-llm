@@ -328,7 +328,10 @@ public class Chunk
      */
     public void computeEmbeddings(String embeddingModelID, UserReference userReference) throws IndexException
     {
-        this.embeddings = this.embeddingsUtils.computeEmbeddings(this.content, embeddingModelID, userReference);
+        this.embeddings = this.embeddingsUtils.computeEmbeddings(this.content,
+                                                                 embeddingModelID,
+                                                                 userReference,
+                                                                 EmbeddingModel.EmbeddingPurpose.INDEX);
     }
 
     /**

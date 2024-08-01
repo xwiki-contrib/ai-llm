@@ -35,18 +35,43 @@ import org.xwiki.user.UserReference;
 @Role
 public interface EmbeddingModel
 {
+
+    /**
+     * Purpose of the embedding options.
+     */
+    enum EmbeddingPurpose
+    {
+        /**
+         * Used when embedding text for indexing purposes.
+         */
+        INDEX,
+
+        /**
+         * Used when embedding text for query purposes.
+         */
+        QUERY,
+
+        /**
+         * Used when embedding text for other purposes, without applying any specific prefix.
+         */
+        OTHER
+    }
+
+
     /**
      * @param text the text to embed
+     * @param purpose the purpose of the embedding
      * @return the embedding
      */
-    double[] embed(String text) throws RequestError;
+    double[] embed(String text, EmbeddingPurpose purpose) throws RequestError;
 
     /**
      * @param texts the texts to embed
+     * @param purpose the purpose of the embedding
      * @return an embedding for each text
      * @throws RequestError when the API request fails
      */
-    List<double[]> embed(List<String> texts) throws RequestError;
+    List<double[]> embed(List<String> texts, EmbeddingPurpose purpose) throws RequestError;
 
     /**
      * @return the descriptor of the model

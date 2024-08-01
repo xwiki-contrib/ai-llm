@@ -54,7 +54,7 @@
       <displayType/>
       <hint/>
       <name>allowGuests</name>
-      <number>8</number>
+      <number>10</number>
       <prettyName>Allow guests to access the model</prettyName>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
@@ -66,7 +66,7 @@
       <disabled>0</disabled>
       <hint/>
       <name>contextSize</name>
-      <number>5</number>
+      <number>7</number>
       <numberType>integer</numberType>
       <prettyName>Context size</prettyName>
       <size>30</size>
@@ -80,7 +80,7 @@
       <disabled>0</disabled>
       <hint/>
       <name>dimensions</name>
-      <number>4</number>
+      <number>6</number>
       <numberType>integer</numberType>
       <prettyName>Number of Dimensions</prettyName>
       <size>30</size>
@@ -89,6 +89,34 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
     </dimensions>
+    <embeddingIndexPrefix>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>Prefix needed for some embedding models for indexing documents for retrieval augmented generation (RAG).</hint>
+      <name>embeddingIndexPrefix</name>
+      <number>4</number>
+      <picker>0</picker>
+      <prettyName>Embedding Index Prefix</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+    </embeddingIndexPrefix>
+    <embeddingQueryPrefix>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>Prefix required by some embedding models for embedding the query.</hint>
+      <name>embeddingQueryPrefix</name>
+      <number>5</number>
+      <picker>0</picker>
+      <prettyName>Embedding Query Prefix</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+    </embeddingQueryPrefix>
     <groups>
       <cache>0</cache>
       <customDisplay/>
@@ -100,7 +128,7 @@
       <largeStorage>0</largeStorage>
       <multiSelect>1</multiSelect>
       <name>groups</name>
-      <number>7</number>
+      <number>9</number>
       <picker>0</picker>
       <prettyName>Group</prettyName>
       <relationalStorage>0</relationalStorage>
@@ -119,7 +147,7 @@
       <disabled>0</disabled>
       <hint>The maximum number of embedding requests to send in a single request. The default is 100. This value is ignored for chat models.</hint>
       <name>maximumParallelism</name>
-      <number>6</number>
+      <number>8</number>
       <numberType>long</numberType>
       <prettyName>Maximum Parallelism</prettyName>
       <size>30</size>

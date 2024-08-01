@@ -525,7 +525,8 @@ public class SolrConnector
                 List<String> collectionsWithSameEmbeddingModel = entry.getValue();
                 double[] queryEmbeddings = embeddingsUtils.computeEmbeddings(textQuery,
                                                                             embeddingsModelID,
-                                                                            CurrentUserReference.INSTANCE);
+                                                                            CurrentUserReference.INSTANCE,
+                                                                            EmbeddingModel.EmbeddingPurpose.QUERY);
                 String embeddingsAsString = arrayToString(queryEmbeddings);
                 SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel, limit);
                 QueryResponse response = client.query(query);

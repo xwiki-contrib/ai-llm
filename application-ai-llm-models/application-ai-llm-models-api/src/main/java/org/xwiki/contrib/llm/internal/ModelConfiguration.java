@@ -41,6 +41,10 @@ public class ModelConfiguration
 
     private String model;
 
+    private String embeddingIndexPrefix;
+
+    private String embeddingQueryPrefix;
+
     private int dimensions;
 
     private int contextSize;
@@ -85,6 +89,22 @@ public class ModelConfiguration
     public String getModel()
     {
         return this.model;
+    }
+
+    /**
+     * @return the prefix of the index to use for the embeddings
+     */
+    public String getEmbeddingIndexPrefix()
+    {
+        return this.embeddingIndexPrefix;
+    }
+
+    /**
+     * @return the prefix of the query to use for the embeddings
+     */
+    public String getEmbeddingQueryPrefix()
+    {
+        return this.embeddingQueryPrefix;
     }
 
     /**
@@ -175,6 +195,22 @@ public class ModelConfiguration
         this.model = model;
     }
 
+    /**
+     * @param embeddingIndexPrefix the prefix of the index to use for the embeddings
+     */
+    public void setEmbeddingIndexPrefix(String embeddingIndexPrefix)
+    {
+        this.embeddingIndexPrefix = embeddingIndexPrefix;
+    }
+
+    /**
+     * @param embeddingQueryPrefix the prefix of the query to use for the embeddings
+     */
+    public void setEmbeddingQueryPrefix(String embeddingQueryPrefix)
+    {
+        this.embeddingQueryPrefix = embeddingQueryPrefix;
+    }
+    
     /**
      * @param dimensions the number of dimensions of the model in the case of an embedding model
      */

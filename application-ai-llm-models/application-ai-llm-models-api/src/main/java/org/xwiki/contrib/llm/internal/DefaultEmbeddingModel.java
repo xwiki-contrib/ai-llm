@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal;
 
 import java.lang.reflect.Type;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.inject.Provider;
 
@@ -57,18 +58,23 @@ public class DefaultEmbeddingModel extends AbstractModel implements EmbeddingMod
     }
 
     @Override
-    public double[] embed(String text) throws RequestError
+    public double[] embed(String text, EmbeddingPurpose purpose) throws RequestError
     {
-        return embed(List.of(text)).get(0);
+        return embed(List.of(text), purpose).get(0);
     }
 
     @Override
-    public List<double[]> embed(List<String> texts) throws RequestError
+    public List<double[]> embed(List<String> texts, EmbeddingPurpose purpose) throws RequestError
     {
         try {
             GPTAPIServer server = this.componentManagerProvider.get()
                 .getInstance(GPTAPIServer.class, this.modelConfiguration.getServerName());
-            return server.embed(this.modelConfiguration.getModel(), texts);
+            
+            List<String> prefixedTexts = texts.stream()
+                .map(text -> addPrefix(text, purpose))
+                .collect(Collectors.toList());
+            
+            return server.embed(this.modelConfiguration.getModel(), prefixedTexts);
         } catch (ComponentLookupException e) {
             throw new RequestError(500, "Could not find the GPT API server");
         }
@@ -91,5 +97,18 @@ public class DefaultEmbeddingModel extends AbstractModel implements EmbeddingMod
     public int getMaximumParallelism()
     {
         return this.modelConfiguration.getMaximumParallelism();
+    }
+
+    private String addPrefix(String text, EmbeddingPurpose purpose)
+    {
+        switch (purpose) {
+            case INDEX:
+                return this.modelConfiguration.getEmbeddingIndexPrefix() + text;
+            case QUERY:
+                return this.modelConfiguration.getEmbeddingQueryPrefix() + text;
+            case OTHER:
+            default:
+                return text;
+        }
     }
 }
