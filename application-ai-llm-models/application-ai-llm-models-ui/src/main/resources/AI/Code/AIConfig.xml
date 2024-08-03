@@ -80,87 +80,6 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
       </Requestmode>
-      <RightLLM>
-        <cache>0</cache>
-        <customDisplay/>
-        <defaultValue/>
-        <disabled>0</disabled>
-        <displayType>checkbox</displayType>
-        <freeText/>
-        <hint/>
-        <largeStorage>0</largeStorage>
-        <multiSelect>1</multiSelect>
-        <name>RightLLM</name>
-        <number>7</number>
-        <picker>0</picker>
-        <prettyName>Group Allowed to use LLM</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <separators/>
-        <size>10</size>
-        <sort/>
-        <unmodifiable>0</unmodifiable>
-        <usesList>0</usesList>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
-      </RightLLM>
-      <embeddingModels>
-        <cache>0</cache>
-        <classname/>
-        <customDisplay/>
-        <defaultValue/>
-        <disabled>0</disabled>
-        <displayType>select</displayType>
-        <freeText/>
-        <hint/>
-        <idField/>
-        <largeStorage>0</largeStorage>
-        <multiSelect>0</multiSelect>
-        <name>embeddingModels</name>
-        <number>7</number>
-        <picker>1</picker>
-        <prettyName>Embedding Models</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <separators/>
-        <size>1</size>
-        <sort/>
-        <sql>select modelProp.value from XWikiDocument as doc, BaseObject as obj, StringProperty as modelProp, StringProperty as typeProp where doc.fullName = obj.name and obj.className = 'AI.Models.Code.ModelsClass' and obj.id = modelProp.id.id and modelProp.id.name = 'model' and obj.id = typeProp.id.id and typeProp.id.name = 'type' and typeProp.value = 'emb' order by modelProp.value asc</sql>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <valueField/>
-        <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
-      </embeddingModels>
-      <languageModels>
-        <cache>0</cache>
-        <classname/>
-        <customDisplay/>
-        <defaultValue/>
-        <disabled>0</disabled>
-        <displayType>input</displayType>
-        <freeText/>
-        <hint/>
-        <idField/>
-        <largeStorage>0</largeStorage>
-        <multiSelect>1</multiSelect>
-        <name>languageModels</name>
-        <number>8</number>
-        <picker>1</picker>
-        <prettyName>Language Models</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <separators/>
-        <size>1</size>
-        <sort/>
-        <sql>select modelProp.value from XWikiDocument as doc, BaseObject as obj, StringProperty as modelProp, StringProperty as typeProp where doc.fullName = obj.name and obj.className = 'AI.Models.Code.ModelsClass' and obj.id = modelProp.id.id and modelProp.id.name = 'model' and obj.id = typeProp.id.id and typeProp.id.name = 'type' and typeProp.value = 'llm' order by modelProp.value asc</sql>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <valueField/>
-        <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
-      </languageModels>
       <token>
         <algorithm/>
         <customDisplay/>
@@ -197,15 +116,6 @@
     </property>
     <property>
       <Requestmode>1</Requestmode>
-    </property>
-    <property>
-      <RightLLM/>
-    </property>
-    <property>
-      <embeddingModels/>
-    </property>
-    <property>
-      <languageModels/>
     </property>
     <property>
       <token/>
@@ -257,87 +167,6 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
       </Requestmode>
-      <RightLLM>
-        <cache>0</cache>
-        <customDisplay/>
-        <defaultValue/>
-        <disabled>0</disabled>
-        <displayType>checkbox</displayType>
-        <freeText/>
-        <hint/>
-        <largeStorage>0</largeStorage>
-        <multiSelect>1</multiSelect>
-        <name>RightLLM</name>
-        <number>7</number>
-        <picker>0</picker>
-        <prettyName>Group Allowed to use LLM</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <separators/>
-        <size>10</size>
-        <sort/>
-        <unmodifiable>0</unmodifiable>
-        <usesList>0</usesList>
-        <validationMessage/>
-        <validationRegExp/>
-        <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
-      </RightLLM>
-      <embeddingModels>
-        <cache>0</cache>
-        <classname/>
-        <customDisplay/>
-        <defaultValue/>
-        <disabled>0</disabled>
-        <displayType>select</displayType>
-        <freeText/>
-        <hint/>
-        <idField/>
-        <largeStorage>0</largeStorage>
-        <multiSelect>0</multiSelect>
-        <name>embeddingModels</name>
-        <number>7</number>
-        <picker>1</picker>
-        <prettyName>Embedding Models</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <separators/>
-        <size>1</size>
-        <sort/>
-        <sql>select modelProp.value from XWikiDocument as doc, BaseObject as obj, StringProperty as modelProp, StringProperty as typeProp where doc.fullName = obj.name and obj.className = 'AI.Models.Code.ModelsClass' and obj.id = modelProp.id.id and modelProp.id.name = 'model' and obj.id = typeProp.id.id and typeProp.id.name = 'type' and typeProp.value = 'emb' order by modelProp.value asc</sql>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <valueField/>
-        <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
-      </embeddingModels>
-      <languageModels>
-        <cache>0</cache>
-        <classname/>
-        <customDisplay/>
-        <defaultValue/>
-        <disabled>0</disabled>
-        <displayType>input</displayType>
-        <freeText/>
-        <hint/>
-        <idField/>
-        <largeStorage>0</largeStorage>
-        <multiSelect>1</multiSelect>
-        <name>languageModels</name>
-        <number>8</number>
-        <picker>1</picker>
-        <prettyName>Language Models</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <separators/>
-        <size>1</size>
-        <sort/>
-        <sql>select modelProp.value from XWikiDocument as doc, BaseObject as obj, StringProperty as modelProp, StringProperty as typeProp where doc.fullName = obj.name and obj.className = 'AI.Models.Code.ModelsClass' and obj.id = modelProp.id.id and modelProp.id.name = 'model' and obj.id = typeProp.id.id and typeProp.id.name = 'type' and typeProp.value = 'llm' order by modelProp.value asc</sql>
-        <unmodifiable>0</unmodifiable>
-        <validationMessage/>
-        <validationRegExp/>
-        <valueField/>
-        <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
-      </languageModels>
       <token>
         <algorithm/>
         <customDisplay/>
@@ -376,22 +205,97 @@
       <Requestmode>1</Requestmode>
     </property>
     <property>
-      <RightLLM>XWiki.XWikiAllGroup,XWiki.XWikiAdminGroup</RightLLM>
+      <token/>
     </property>
     <property>
-      <embeddingModels>text-embedding-ada-002</embeddingModels>
+      <url>https://api.openai.com/v1/</url>
+    </property>
+  </object>
+  <object>
+    <name>AI.Code.AIConfig</name>
+    <number>2</number>
+    <className>AI.Code.AIConfigClass</className>
+    <guid>7959a95a-c5bb-4982-9e07-c7023a80e8e2</guid>
+    <class>
+      <name>AI.Code.AIConfigClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <Name>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Server Name</hint>
+        <name>Name</name>
+        <number>1</number>
+        <picker>1</picker>
+        <prettyName>AI Code Server Name</prettyName>
+        <size>10</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </Name>
+      <Requestmode>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayFormType>checkbox</displayFormType>
+        <displayType/>
+        <hint>Can stream</hint>
+        <name>Requestmode</name>
+        <number>5</number>
+        <prettyName>Requestmode</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </Requestmode>
+      <token>
+        <algorithm/>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Token</hint>
+        <name>token</name>
+        <number>6</number>
+        <picker>1</picker>
+        <prettyName>AI Code Server Password</prettyName>
+        <size>10</size>
+        <storageType>Clear</storageType>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.PasswordClass</classType>
+      </token>
+      <url>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>URL Prefix</hint>
+        <name>url</name>
+        <number>2</number>
+        <picker>1</picker>
+        <prettyName>AI Code Server URL Prefix</prettyName>
+        <size>20</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </url>
+    </class>
+    <property>
+      <Name>Ollama</Name>
     </property>
     <property>
-      <languageModels>
-        <value>gpt-4</value>
-        <value>gpt-3.5-turbo</value>
-      </languageModels>
+      <Requestmode>1</Requestmode>
     </property>
     <property>
       <token/>
     </property>
     <property>
-      <url>https://api.openai.com/v1/</url>
+      <url>http://ollama:11434/v1/</url>
     </property>
   </object>
   <object>

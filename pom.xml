@@ -70,6 +70,7 @@
         <module>application-ai-llm-index</module>
         <module>application-ai-llm-authentication</module>
         <module>application-ai-llm-chat</module>
+        <module>xwiki-platform-distribution-flavor-ai-llm</module>
     </modules>
     <build>
         <extensions>
