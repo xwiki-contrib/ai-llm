@@ -28,9 +28,14 @@
     <version>0.5.4-SNAPSHOT</version>
   </parent>
   <artifactId>application-ai-llm-flavor</artifactId>
-  <name>AILLM</name>
+  <name>LLM - Flavor</name>
   <packaging>xar</packaging>
-  <description>Flavor demonstrating XWiki and the AILLM application.</description>
+  <description>Flavor demonstrating XWiki and the LLM application.</description>
+  <properties>
+    <xwiki.extension.category>flavor</xwiki.extension.category>
+    <!-- This flavor is only for the main wiki -->
+    <xwiki.extension.namespaces>wiki:xwiki</xwiki.extension.namespaces>
+  </properties>
   <dependencies>
   <!-- Build on top of the Standard Flavor -->
     <dependency>
@@ -66,21 +71,4 @@
         <version>${project.parent.version}</version>
     </dependency>
   </dependencies>
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-enforcer-plugin</artifactId>
-        <configuration>
-          <rules>
-            <bannedDependencies>
-              <excludes>
-                <exclude>org.json:json</exclude>
-              </excludes>
-            </bannedDependencies>
-          </rules>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
 </project>
