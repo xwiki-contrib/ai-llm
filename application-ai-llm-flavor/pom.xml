@@ -31,12 +31,8 @@
   <name>AILLM</name>
   <packaging>xar</packaging>
   <description>Flavor demonstrating XWiki and the AILLM application.</description>
-  <url>http://extensions.xwiki.org/xwiki/bin/view/Extension/Demo Flavor/</url>
-  <!-- Some extensions declared below could depend transitively on old XWiki artifacts that are not installed in the
-       XWiki instance where this flavor is installed and that would get installed in versions that are too old for
-       other extensions below to work properly. -->
   <dependencies>
-    <!-- Build on top of the Standard Flavor -->
+  <!-- Build on top of the Standard Flavor -->
     <dependency>
       <groupId>org.xwiki.platform</groupId>
       <artifactId>xwiki-platform-distribution-flavor-common</artifactId>
