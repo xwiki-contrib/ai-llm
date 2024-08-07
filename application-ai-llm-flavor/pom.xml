@@ -32,6 +32,7 @@
   <packaging>xar</packaging>
   <description>Flavor demonstrating XWiki and the LLM application.</description>
   <properties>
+    <xwiki.extension.name>LLM Flavor</xwiki.extension.name>
     <xwiki.extension.category>flavor</xwiki.extension.category>
     <!-- This flavor is only for the main wiki -->
     <xwiki.extension.namespaces>wiki:xwiki</xwiki.extension.namespaces>
