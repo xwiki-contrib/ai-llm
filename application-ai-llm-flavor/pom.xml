@@ -32,72 +32,9 @@
   <packaging>xar</packaging>
   <description>Flavor demonstrating XWiki and the AILLM application.</description>
   <url>http://extensions.xwiki.org/xwiki/bin/view/Extension/Demo Flavor/</url>
-  <properties>
-    <commons.version>16.2.0</commons.version>
-    <rendering.version>${commons.version}</rendering.version>
-    <platform.version>${commons.version}</platform.version>
-    <xwiki.extension.category>flavor</xwiki.extension.category>
-    <!-- This flavor is only for the main wiki -->
-    <xwiki.extension.namespaces>wiki:xwiki</xwiki.extension.namespaces>
-    <xwiki.issueManagement.jira.id>AILLM</xwiki.issueManagement.jira.id>
-  </properties>
-  <developers>
-    <developer>
-        <id>mmunoz</id>
-        <name>Matéo Munoz</name>
-    </developer>
-    <developer>
-        <id>ldubost</id>
-        <name>Ludovic Dubost</name>
-    </developer>
-    <developer>
-        <id>michitux</id>
-        <name>Michael Hamann</name>
-    </developer>
-    <developer>
-        <id>ppantiru</id>
-        <name>Paul Pantiru</name>
-    </developer>
-  </developers>
   <!-- Some extensions declared below could depend transitively on old XWiki artifacts that are not installed in the
        XWiki instance where this flavor is installed and that would get installed in versions that are too old for
        other extensions below to work properly. -->
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.xwiki.platform</groupId>
-        <artifactId>xwiki-platform-distribution-flavor-common</artifactId>
-        <version>${platform.version}</version>
-        <type>xar</type>
-      </dependency>
-      <dependency>
-        <groupId>org.xwiki.platform</groupId>
-        <artifactId>xwiki-platform-wiki-ui-mainwiki</artifactId>
-        <version>${platform.version}</version>
-        <type>xar</type>
-        <optional>true</optional>
-      </dependency>
-      <dependency>
-        <groupId>org.xwiki.platform</groupId>
-        <artifactId>xwiki-platform-menu-ui</artifactId>
-        <version>${platform.version}</version>
-        <type>xar</type>
-        <optional>true</optional>
-      </dependency>
-      <dependency>
-          <groupId>org.xwiki.contrib.llm</groupId>
-          <artifactId>application-ai-llm-index-ui</artifactId>
-          <type>xar</type>
-          <version>${project.parent.version}</version>
-      </dependency>
-      <dependency>
-          <groupId>org.xwiki.contrib.llm</groupId>
-          <artifactId>application-ai-llm-authentication-ui</artifactId>
-          <type>xar</type>
-          <version>${project.parent.version}</version>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
   <dependencies>
     <!-- Build on top of the Standard Flavor -->
     <dependency>

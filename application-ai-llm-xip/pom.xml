@@ -34,17 +34,6 @@
     <properties>
     <commons.version>16.6.0</commons.version>
     </properties>
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-ai-llm-flavor</artifactId>
-        <version>0.5.4-SNAPSHOT</version>
-        <type>xar</type>
-        <scope>provided</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
   <dependencies>
     <dependency>
       <groupId>org.xwiki.contrib.llm</groupId>
