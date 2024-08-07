@@ -20,62 +20,47 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-      <groupId>org.xwiki.contrib.llm</groupId>
-      <artifactId>application-ai-llm</artifactId>
-      <version>0.5.4-SNAPSHOT</version>
+    <groupId>org.xwiki.platform</groupId>
+    <artifactId>xwiki-platform-distribution-flavor</artifactId>
+    <version>16.6.0</version>
   </parent>
-  <artifactId>ai-llm-xip</artifactId>
+  <artifactId>xwiki-platform-application-ai-llm-xip</artifactId>
+  <name>XWiki Platform - Distribution - Flavor - XIP</name>
   <packaging>xip</packaging>
-  <name>LLM</name>
-  <properties>
-    <!-- Important property to be referenced as a Flavor in the XWiki repository! -->
-    <xwiki.extension.category>flavor</xwiki.extension.category>
-  </properties>
+  <description>Package containing all extension required to install the flavor offline</description>
+    <properties>
+    <commons.version>16.6.0</commons.version>
+    </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.xwiki.contrib.llm</groupId>
+        <artifactId>application-ai-llm-flavor</artifactId>
+        <version>0.5.4-SNAPSHOT</version>
+        <type>xar</type>
+        <scope>provided</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>org.xwiki.platform</groupId>
-      <artifactId>xwiki-platform-distribution-flavor-mainwiki</artifactId>
-      <version>16.3.0</version>
+      <groupId>org.xwiki.contrib.llm</groupId>
+      <artifactId>application-ai-llm-flavor</artifactId>
+      <version>0.5.4-SNAPSHOT</version>
       <type>xar</type>
       <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.xwiki.platform</groupId>
-      <artifactId>xwiki-platform-distribution-flavor-wiki</artifactId>
-      <version>16.3.0</version>
-      <type>xar</type>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-        <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-ai-llm-index-ui</artifactId>
-        <type>xar</type>
-        <version>${project.parent.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-ai-llm-authentication-ui</artifactId>
-        <type>xar</type>
-        <version>${project.parent.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-ai-llm-models-internal</artifactId>
-        <version>${project.parent.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.tdunning</groupId>
+          <artifactId>json</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
   </dependencies>
-  <build>
-    <extensions>
-      <extension>
-        <groupId>org.xwiki.commons</groupId>
-        <artifactId>xwiki-commons-tool-extension-plugin</artifactId>
-        <version>${commons.version}</version>
-      </extension>
-    </extensions>
-    <pluginManagement>
+    <build>
       <plugins>
         <plugin>
           <groupId>org.xwiki.commons</groupId>
@@ -83,17 +68,16 @@
           <version>${commons.version}</version>
           <configuration>
             <coreExtensions>
+              <!-- We exclude what is already in the WAR -->
               <coreExtension>
                 <groupId>org.xwiki.platform</groupId>
                 <artifactId>xwiki-platform-distribution-war-dependencies</artifactId>
-                <version>16.3.0</version>
+                <version>${project.version}</version>
                 <type>pom</type>
               </coreExtension>
             </coreExtensions>
           </configuration>
         </plugin>
       </plugins>
-    </pluginManagement>
-  </build>
-
+    </build>
 </project>

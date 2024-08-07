@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.xwiki.contrib.llm</groupId>
+    <artifactId>application-ai-llm</artifactId>
+    <version>0.5.4-SNAPSHOT</version>
+  </parent>
+  <artifactId>application-ai-llm-flavor</artifactId>
+  <name>AILLM</name>
+  <packaging>xar</packaging>
+  <description>Flavor demonstrating XWiki and the AILLM application.</description>
+  <url>http://extensions.xwiki.org/xwiki/bin/view/Extension/Demo Flavor/</url>
+  <properties>
+    <commons.version>16.2.0</commons.version>
+    <rendering.version>${commons.version}</rendering.version>
+    <platform.version>${commons.version}</platform.version>
+    <xwiki.extension.category>flavor</xwiki.extension.category>
+    <!-- This flavor is only for the main wiki -->
+    <xwiki.extension.namespaces>wiki:xwiki</xwiki.extension.namespaces>
+    <xwiki.issueManagement.jira.id>AILLM</xwiki.issueManagement.jira.id>
+  </properties>
+  <developers>
+    <developer>
+        <id>mmunoz</id>
+        <name>Matéo Munoz</name>
+    </developer>
+    <developer>
+        <id>ldubost</id>
+        <name>Ludovic Dubost</name>
+    </developer>
+    <developer>
+        <id>michitux</id>
+        <name>Michael Hamann</name>
+    </developer>
+    <developer>
+        <id>ppantiru</id>
+        <name>Paul Pantiru</name>
+    </developer>
+  </developers>
+  <!-- Some extensions declared below could depend transitively on old XWiki artifacts that are not installed in the
+       XWiki instance where this flavor is installed and that would get installed in versions that are too old for
+       other extensions below to work properly. -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.xwiki.platform</groupId>
+        <artifactId>xwiki-platform-distribution-flavor-common</artifactId>
+        <version>${platform.version}</version>
+        <type>xar</type>
+      </dependency>
+      <dependency>
+        <groupId>org.xwiki.platform</groupId>
+        <artifactId>xwiki-platform-wiki-ui-mainwiki</artifactId>
+        <version>${platform.version}</version>
+        <type>xar</type>
+        <optional>true</optional>
+      </dependency>
+      <dependency>
+        <groupId>org.xwiki.platform</groupId>
+        <artifactId>xwiki-platform-menu-ui</artifactId>
+        <version>${platform.version}</version>
+        <type>xar</type>
+        <optional>true</optional>
+      </dependency>
+      <dependency>
+          <groupId>org.xwiki.contrib.llm</groupId>
+          <artifactId>application-ai-llm-index-ui</artifactId>
+          <type>xar</type>
+          <version>0.5.4-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+          <groupId>org.xwiki.contrib.llm</groupId>
+          <artifactId>application-ai-llm-authentication-ui</artifactId>
+          <type>xar</type>
+          <version>0.5.4-SNAPSHOT</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+  <dependencies>
+    <!-- Build on top of the Standard Flavor -->
+    <dependency>
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-distribution-flavor-common</artifactId>
+      <version>${platform.version}</version>
+      <type>xar</type>
+    </dependency>
+    <dependency>
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-wiki-ui-mainwiki</artifactId>
+      <version>${platform.version}</version>
+      <type>xar</type>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.xwiki.platform</groupId>
+      <artifactId>xwiki-platform-menu-ui</artifactId>
+      <version>${platform.version}</version>
+      <type>xar</type>
+      <optional>true</optional>
+    </dependency>
+    <!-- Add the Mail Resending UI. It's only added in the main wiki XS flavor so that it's not installed
+        in subwikis (as we want a single mail resender located in the main wiki) -->
+    <dependency>
+        <groupId>org.xwiki.contrib.llm</groupId>
+        <artifactId>application-ai-llm-index-ui</artifactId>
+        <type>xar</type>
+        <version>0.5.4-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+        <groupId>org.xwiki.contrib.llm</groupId>
+        <artifactId>application-ai-llm-authentication-ui</artifactId>
+        <type>xar</type>
+        <version>0.5.4-SNAPSHOT</version>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <configuration>
+          <rules>
+            <bannedDependencies>
+              <excludes>
+                <exclude>org.json:json</exclude>
+              </excludes>
+              <includes>
+                <include>org.json:json:20240303</include>
+              </includes>
+            </bannedDependencies>
+          </rules>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -172,7 +172,7 @@ if [ "$1" = 'xwiki' ]; then
     other_starts
   fi
   shift
-  if ! sed -i 's|<xwiki.extension.knownFlavors>|<xwiki.extension.knownFlavors>org.xwiki.platform:xwiki-platform-distribution-flavor-mainwiki-ai-llm/16.2.0,|' /usr/local/tomcat/webapps/ROOT/META-INF/extension.xed; then
+  if ! sed -i 's|<xwiki.extension.knownFlavors>|<xwiki.extension.knownFlavors>org.xwiki.contrib.llm:application-ai-llm-flavor,|' /usr/local/tomcat/webapps/ROOT/META-INF/extension.xed; then
     echo "Failed to modify extension.xed"
     exit 1
   fi
