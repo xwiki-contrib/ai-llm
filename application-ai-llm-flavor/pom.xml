@@ -120,8 +120,6 @@
       <type>xar</type>
       <optional>true</optional>
     </dependency>
-    <!-- Add the Mail Resending UI. It's only added in the main wiki XS flavor so that it's not installed
-        in subwikis (as we want a single mail resender located in the main wiki) -->
     <dependency>
         <groupId>org.xwiki.contrib.llm</groupId>
         <artifactId>application-ai-llm-index-ui</artifactId>
@@ -146,9 +144,6 @@
               <excludes>
                 <exclude>org.json:json</exclude>
               </excludes>
-              <includes>
-                <include>org.json:json:20240303</include>
-              </includes>
             </bannedDependencies>
           </rules>
         </configuration>
