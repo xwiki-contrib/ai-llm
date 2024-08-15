@@ -5,7 +5,7 @@ const XWikiAiAPI = (() => {
     let baseURL = "http://localhost:8080/xwiki"; // Default base URL
     let wikiName = 'xwiki'; // Default wiki name
     let apiKey = ''; // API key for authentication
-    let temperature = 1;
+    let temperature = 0;
     let stream = false;
     let chatUISettings = [];
     let apiKeyChangeCallback = null;

@@ -84,7 +84,8 @@ services:
       - |
         ollama serve &
         sleep 10
-        ollama pull phi3:mini-128k
+        ollama pull all-minilm
+        ollama pull qwen2
         wait
 volumes:
   mysql-data: {}

@@ -20,28 +20,28 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.Models.Phi-3 Mini" locale="">
+<xwikidoc version="1.5" reference="AI.Models.all-minilm" locale="">
   <web>AI.Models</web>
-  <name>Phi-3 Mini</name>
+  <name>all-minilm</name>
   <language/>
   <defaultLanguage>en</defaultLanguage>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>AI.Models.WebHome</parent>
+  <parent>WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>Phi-3 Mini</title>
+  <title>all-minilm</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>false</hidden>
   <content/>
   <object>
-    <name>AI.Models.Phi-3 Mini</name>
+    <name>AI.Models.all-minilm</name>
     <number>0</number>
     <className>AI.Code.RAGChatRequestFilterClass</className>
-    <guid>c7c7f179-4522-4385-a483-45bbbcfe13e7</guid>
+    <guid>4ec9a764-2a60-40d6-b982-d5aa0c9991ee</guid>
     <class>
       <name>AI.Code.RAGChatRequestFilterClass</name>
       <customClass/>
@@ -129,10 +129,10 @@ and stringprop.id.name='id'</sql>
     </property>
   </object>
   <object>
-    <name>AI.Models.Phi-3 Mini</name>
+    <name>AI.Models.all-minilm</name>
     <number>0</number>
     <className>AI.Models.Code.ModelsClass</className>
-    <guid>fdd70fd0-2e91-4e78-a508-e1d345dbd9f0</guid>
+    <guid>bfea48a3-018f-44c4-8ec0-fa2aeb1d5e55</guid>
     <class>
       <name>AI.Models.Code.ModelsClass</name>
       <customClass/>
@@ -150,7 +150,7 @@ and stringprop.id.name='id'</sql>
         <displayType/>
         <hint/>
         <name>allowGuests</name>
-        <number>8</number>
+        <number>10</number>
         <prettyName>Allow guests to access the model</prettyName>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
@@ -162,7 +162,7 @@ and stringprop.id.name='id'</sql>
         <disabled>0</disabled>
         <hint/>
         <name>contextSize</name>
-        <number>5</number>
+        <number>7</number>
         <numberType>integer</numberType>
         <prettyName>Context size</prettyName>
         <size>30</size>
@@ -176,7 +176,7 @@ and stringprop.id.name='id'</sql>
         <disabled>0</disabled>
         <hint/>
         <name>dimensions</name>
-        <number>4</number>
+        <number>6</number>
         <numberType>integer</numberType>
         <prettyName>Number of Dimensions</prettyName>
         <size>30</size>
@@ -185,6 +185,34 @@ and stringprop.id.name='id'</sql>
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
       </dimensions>
+      <embeddingIndexPrefix>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Prefix needed for some embedding models for indexing documents for retrieval augmented generation (RAG).</hint>
+        <name>embeddingIndexPrefix</name>
+        <number>4</number>
+        <picker>0</picker>
+        <prettyName>Embedding Index Prefix</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </embeddingIndexPrefix>
+      <embeddingQueryPrefix>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Prefix required by some embedding models for embedding the query.</hint>
+        <name>embeddingQueryPrefix</name>
+        <number>5</number>
+        <picker>0</picker>
+        <prettyName>Embedding Query Prefix</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </embeddingQueryPrefix>
       <groups>
         <cache>0</cache>
         <customDisplay/>
@@ -196,7 +224,7 @@ and stringprop.id.name='id'</sql>
         <largeStorage>0</largeStorage>
         <multiSelect>1</multiSelect>
         <name>groups</name>
-        <number>7</number>
+        <number>9</number>
         <picker>0</picker>
         <prettyName>Group</prettyName>
         <relationalStorage>0</relationalStorage>
@@ -215,7 +243,7 @@ and stringprop.id.name='id'</sql>
         <disabled>0</disabled>
         <hint>The maximum number of embedding requests to send in a single request. The default is 100. This value is ignored for chat models.</hint>
         <name>maximumParallelism</name>
-        <number>6</number>
+        <number>8</number>
         <numberType>long</numberType>
         <prettyName>Maximum Parallelism</prettyName>
         <size>30</size>
@@ -296,25 +324,31 @@ and stringprop.id.name='id'</sql>
       <allowGuests>0</allowGuests>
     </property>
     <property>
-      <contextSize>128000</contextSize>
+      <contextSize>256</contextSize>
     </property>
     <property>
-      <dimensions/>
+      <dimensions>384</dimensions>
     </property>
     <property>
-      <groups>XWiki.XWikiAllGroup</groups>
+      <embeddingIndexPrefix/>
+    </property>
+    <property>
+      <embeddingQueryPrefix/>
+    </property>
+    <property>
+      <groups>XWiki.XWikiAdminGroup,XWiki.XWikiAllGroup</groups>
     </property>
     <property>
       <maximumParallelism/>
     </property>
     <property>
-      <model>phi3:mini-128k</model>
+      <model>all-minilm</model>
     </property>
     <property>
       <serverName>Ollama</serverName>
     </property>
     <property>
-      <type>llm</type>
+      <type>emb</type>
     </property>
   </object>
 </xwikidoc>

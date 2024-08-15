@@ -20,9 +20,9 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.Models.mixtral" locale="">
+<xwikidoc version="1.5" reference="AI.Models.qwen2" locale="">
   <web>AI.Models</web>
-  <name>mixtral</name>
+  <name>qwen2</name>
   <language/>
   <defaultLanguage>en</defaultLanguage>
   <translation>0</translation>
@@ -31,17 +31,17 @@
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>mixtral</title>
+  <title>qwen2</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>false</hidden>
   <content/>
   <object>
-    <name>AI.Models.mixtral</name>
+    <name>AI.Models.qwen2</name>
     <number>0</number>
     <className>AI.Code.RAGChatRequestFilterClass</className>
-    <guid>09e5fc64-d2f7-4457-bb8d-2e9084048415</guid>
+    <guid>cfed22f8-9b31-479c-9925-0cf532edf9e1</guid>
     <class>
       <name>AI.Code.RAGChatRequestFilterClass</name>
       <customClass/>
@@ -86,14 +86,14 @@ and stringprop.id.name='id'</sql>
         <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
       </collections>
       <contextPrompt>
-        <contenttype>---</contenttype>
+        <contenttype>PureText</contenttype>
         <customDisplay/>
         <disabled>0</disabled>
-        <editor>---</editor>
-        <hint/>
+        <editor>PureText</editor>
+        <hint>Sets the system message. Use the keyword {{search_results}} anywhare in your prompt to inject the search results there. If the keyword is missing the search results will be automatically added at the end. If Property is empty a default prompt will be used.</hint>
         <name>contextPrompt</name>
         <number>3</number>
-        <picker>1</picker>
+        <picker>0</picker>
         <prettyName>Context prompt</prettyName>
         <restricted>0</restricted>
         <rows>5</rows>
@@ -119,22 +119,20 @@ and stringprop.id.name='id'</sql>
       </maxResults>
     </class>
     <property>
-      <collections>
-        <value>Waise</value>
-      </collections>
+      <collections/>
     </property>
     <property>
-      <contextPrompt>Use the search results to provide an answer to the user with a link to the source or state that you don't have access to the information.</contextPrompt>
+      <contextPrompt/>
     </property>
     <property>
-      <maxResults>5</maxResults>
+      <maxResults>3</maxResults>
     </property>
   </object>
   <object>
-    <name>AI.Models.mixtral</name>
+    <name>AI.Models.qwen2</name>
     <number>0</number>
     <className>AI.Models.Code.ModelsClass</className>
-    <guid>0477e460-43ed-4fb3-a7ab-6f97f8c71a30</guid>
+    <guid>bd0eab1a-7c5f-49e2-b007-6a99dbbdbae5</guid>
     <class>
       <name>AI.Models.Code.ModelsClass</name>
       <customClass/>
@@ -152,7 +150,7 @@ and stringprop.id.name='id'</sql>
         <displayType/>
         <hint/>
         <name>allowGuests</name>
-        <number>7</number>
+        <number>10</number>
         <prettyName>Allow guests to access the model</prettyName>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
@@ -164,7 +162,7 @@ and stringprop.id.name='id'</sql>
         <disabled>0</disabled>
         <hint/>
         <name>contextSize</name>
-        <number>5</number>
+        <number>7</number>
         <numberType>integer</numberType>
         <prettyName>Context size</prettyName>
         <size>30</size>
@@ -178,7 +176,7 @@ and stringprop.id.name='id'</sql>
         <disabled>0</disabled>
         <hint/>
         <name>dimensions</name>
-        <number>4</number>
+        <number>6</number>
         <numberType>integer</numberType>
         <prettyName>Number of Dimensions</prettyName>
         <size>30</size>
@@ -187,6 +185,34 @@ and stringprop.id.name='id'</sql>
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
       </dimensions>
+      <embeddingIndexPrefix>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Prefix needed for some embedding models for indexing documents for retrieval augmented generation (RAG).</hint>
+        <name>embeddingIndexPrefix</name>
+        <number>4</number>
+        <picker>0</picker>
+        <prettyName>Embedding Index Prefix</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </embeddingIndexPrefix>
+      <embeddingQueryPrefix>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Prefix required by some embedding models for embedding the query.</hint>
+        <name>embeddingQueryPrefix</name>
+        <number>5</number>
+        <picker>0</picker>
+        <prettyName>Embedding Query Prefix</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </embeddingQueryPrefix>
       <groups>
         <cache>0</cache>
         <customDisplay/>
@@ -198,7 +224,7 @@ and stringprop.id.name='id'</sql>
         <largeStorage>0</largeStorage>
         <multiSelect>1</multiSelect>
         <name>groups</name>
-        <number>6</number>
+        <number>9</number>
         <picker>0</picker>
         <prettyName>Group</prettyName>
         <relationalStorage>0</relationalStorage>
@@ -212,6 +238,20 @@ and stringprop.id.name='id'</sql>
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
       </groups>
+      <maximumParallelism>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>The maximum number of embedding requests to send in a single request. The default is 100. This value is ignored for chat models.</hint>
+        <name>maximumParallelism</name>
+        <number>8</number>
+        <numberType>long</numberType>
+        <prettyName>Maximum Parallelism</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+      </maximumParallelism>
       <model>
         <customDisplay/>
         <disabled>0</disabled>
@@ -281,108 +321,34 @@ and stringprop.id.name='id'</sql>
       </type>
     </class>
     <property>
-      <allowGuests>1</allowGuests>
+      <allowGuests>0</allowGuests>
     </property>
     <property>
-      <contextSize>4000</contextSize>
+      <contextSize>128000</contextSize>
     </property>
     <property>
       <dimensions/>
     </property>
     <property>
-      <groups>XWiki.XWikiAdminGroup,XWiki.XWikiAllGroup</groups>
+      <embeddingIndexPrefix/>
     </property>
     <property>
-      <model>mixtral</model>
+      <embeddingQueryPrefix/>
+    </property>
+    <property>
+      <groups>XWiki.XWikiAllGroup</groups>
+    </property>
+    <property>
+      <maximumParallelism/>
+    </property>
+    <property>
+      <model>qwen2</model>
     </property>
     <property>
       <serverName>Ollama</serverName>
     </property>
     <property>
       <type>llm</type>
-    </property>
-  </object>
-  <object>
-    <name>AI.Models.mixtral</name>
-    <number>0</number>
-    <className>XWiki.XWikiRights</className>
-    <guid>9f260b07-2f08-4092-8e3d-aab61ef518e7</guid>
-    <class>
-      <name>XWiki.XWikiRights</name>
-      <customClass/>
-      <customMapping/>
-      <defaultViewSheet/>
-      <defaultEditSheet/>
-      <defaultWeb/>
-      <nameField/>
-      <validationScript/>
-      <allow>
-        <defaultValue>1</defaultValue>
-        <disabled>0</disabled>
-        <displayFormType>select</displayFormType>
-        <displayType>allow</displayType>
-        <name>allow</name>
-        <number>4</number>
-        <prettyName>Allow/Deny</prettyName>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
-      </allow>
-      <groups>
-        <cache>0</cache>
-        <disabled>0</disabled>
-        <displayType>input</displayType>
-        <multiSelect>1</multiSelect>
-        <name>groups</name>
-        <number>1</number>
-        <picker>1</picker>
-        <prettyName>Groups</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <size>5</size>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
-      </groups>
-      <levels>
-        <cache>0</cache>
-        <disabled>0</disabled>
-        <displayType>select</displayType>
-        <multiSelect>1</multiSelect>
-        <name>levels</name>
-        <number>2</number>
-        <prettyName>Levels</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <size>3</size>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.LevelsClass</classType>
-      </levels>
-      <users>
-        <cache>0</cache>
-        <disabled>0</disabled>
-        <displayType>input</displayType>
-        <multiSelect>1</multiSelect>
-        <name>users</name>
-        <number>3</number>
-        <picker>1</picker>
-        <prettyName>Users</prettyName>
-        <relationalStorage>0</relationalStorage>
-        <separator> </separator>
-        <size>5</size>
-        <unmodifiable>0</unmodifiable>
-        <classType>com.xpn.xwiki.objects.classes.UsersClass</classType>
-      </users>
-    </class>
-    <property>
-      <allow>1</allow>
-    </property>
-    <property>
-      <groups/>
-    </property>
-    <property>
-      <levels>view</levels>
-    </property>
-    <property>
-      <users>XWiki.XWikiGuest</users>
     </property>
   </object>
 </xwikidoc>

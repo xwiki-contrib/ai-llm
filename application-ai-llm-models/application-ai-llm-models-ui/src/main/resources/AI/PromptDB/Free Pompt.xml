@@ -197,7 +197,7 @@
       <longText1>The default prompt. It does not add anything to your personal request.</longText1>
     </property>
     <property>
-      <shortText1>1</shortText1>
+      <shortText1>0</shortText1>
     </property>
     <property>
       <sysPrompt/>

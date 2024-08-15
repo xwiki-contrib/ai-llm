@@ -62,12 +62,10 @@
             <visibleTechnicalPage>.*/AI/WebHome\.xml</visibleTechnicalPage>
           </visibleTechnicalPages>
           <contentPages>
-            <contentPage>.*/AI/Models/Ada-002.xml</contentPage>
-            <contentPage>.*/AI/Models/bert.xml</contentPage>
-            <contentPage>.*/AI/Models/GPT3.5-turbo.xml</contentPage>
-            <contentPage>.*/AI/Models/GPT4.xml</contentPage>
-            <contentPage>.*/AI/Models/mixtral.xml</contentPage>
-            <contentPage>.*/AI/Models/Phi-3\ Mini.xml</contentPage>
+            <contentPage>.*/AI/Models/all-minilm.xml</contentPage>
+            <contentPage>.*/AI/Models/gpt-4o-mini.xml</contentPage>
+            <contentPage>.*/AI/Models/gpt-4o.xml</contentPage>
+            <contentPage>.*/AI/Models/qwen2.xml</contentPage>
             <contentPage>.*/AI/Models/Default.xml</contentPage>
             <contentPage>.*/AI/PromptDB/Free Pompt.xml</contentPage>
             <contentPage>.*/AI/PromptDB/Summarize.xml</contentPage>

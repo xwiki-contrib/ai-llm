@@ -139,7 +139,7 @@
     let maxToken = 2000;
     let domain = window.location.origin;
     let paramView, paramExist = false;
-    let settingsTemp = 1;
+    let settingsTemp = 0;
     let promptData;
     let userRef;
 
@@ -1064,7 +1064,7 @@
                             const dbLink = getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/';
                             chatContent.appendChild(addSystemChat(msg, dbLink, 'Application PromptDB'));
                         }
-                        json = { prompt: '', temperature: 1 };
+                        json = { prompt: '', temperature: 0 };
                         resolve(json);
                     }
                     else {
@@ -1333,7 +1333,7 @@
                         });
                 }
                 else {
-                    promptData = { prompt: '', temperature: 1 };
+                    promptData = { prompt: '', temperature: 0 };
                     document.querySelector('#txt-input').value = '';
                     if (paramExist) {
                         document.querySelector('#sysPromptDisplay').value = '';
@@ -1376,7 +1376,7 @@
             abortRequest();
         });
 
-        promptData = { prompt: '', temperature: 1 };
+        promptData = { prompt: '', temperature: 0 };
     }
 
     /**

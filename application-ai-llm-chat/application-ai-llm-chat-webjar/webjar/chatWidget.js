@@ -7,7 +7,7 @@ let abortController = null;
 let conversationHistory = [];
 let userSettings = {
     model: '',
-    temperature: 1,
+    temperature: 0,
     stream: true,
     settingsCollapsed: false
 };
@@ -57,7 +57,7 @@ function createChatWidget() {
                         </div>
                         <div>
                             <label for="temperature-input">Temp:</label>
-                            <input type="number" id="temperature-input" min="0" max="2" step="0.1" value="1">
+                            <input type="number" id="temperature-input" min="0" max="2" step="0.1" value="0">
                         </div>
                         <div>
                             <label for="stream-checkbox">Stream:</label>

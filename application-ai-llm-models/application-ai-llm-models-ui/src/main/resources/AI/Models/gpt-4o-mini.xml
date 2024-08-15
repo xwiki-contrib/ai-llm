@@ -20,9 +20,9 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.Models.Ada-002" locale="">
+<xwikidoc version="1.5" reference="AI.Models.gpt-4o-mini" locale="">
   <web>AI.Models</web>
-  <name>Ada-002</name>
+  <name>gpt-4o-mini</name>
   <language/>
   <defaultLanguage>en</defaultLanguage>
   <translation>0</translation>
@@ -31,17 +31,108 @@
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>Ada-002</title>
+  <title>gpt-4o-mini</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>false</hidden>
   <content/>
   <object>
-    <name>AI.Models.Ada-002</name>
+    <name>AI.Models.gpt-4o-mini</name>
+    <number>0</number>
+    <className>AI.Code.RAGChatRequestFilterClass</className>
+    <guid>3073ebee-2b93-4847-8aa1-fae6b2196d23</guid>
+    <class>
+      <name>AI.Code.RAGChatRequestFilterClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <collections>
+        <cache>0</cache>
+        <classname/>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayType>input</displayType>
+        <freeText/>
+        <hint/>
+        <idField/>
+        <largeStorage>0</largeStorage>
+        <multiSelect>1</multiSelect>
+        <name>collections</name>
+        <number>1</number>
+        <picker>1</picker>
+        <prettyName>Collections</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators/>
+        <size>1</size>
+        <sort/>
+        <sql>select stringprop.value, doc.title
+from XWikiDocument doc, BaseObject obj, StringProperty stringprop
+where doc.fullName=obj.name
+and obj.className='AI.Collections.Code.CollectionsClass'
+and doc.fullName &lt;&gt; 'AI.Collections.Code.CollectionsTemplate'
+and obj.id=stringprop.id.id
+and stringprop.id.name='id'</sql>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <valueField/>
+        <classType>com.xpn.xwiki.objects.classes.DBListClass</classType>
+      </collections>
+      <contextPrompt>
+        <contenttype>PureText</contenttype>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <hint>Sets the system message. Use the keyword {{search_results}} anywhare in your prompt to inject the search results there. If the keyword is missing the search results will be automatically added at the end. If Property is empty a default prompt will be used.</hint>
+        <name>contextPrompt</name>
+        <number>3</number>
+        <picker>0</picker>
+        <prettyName>Context prompt</prettyName>
+        <restricted>0</restricted>
+        <rows>5</rows>
+        <size>40</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </contextPrompt>
+      <maxResults>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Maximum number of results returned by the similarity search (number)</hint>
+        <name>maxResults</name>
+        <number>2</number>
+        <numberType>long</numberType>
+        <prettyName>Search results limit (number)</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+      </maxResults>
+    </class>
+    <property>
+      <collections/>
+    </property>
+    <property>
+      <contextPrompt/>
+    </property>
+    <property>
+      <maxResults>10</maxResults>
+    </property>
+  </object>
+  <object>
+    <name>AI.Models.gpt-4o-mini</name>
     <number>0</number>
     <className>AI.Models.Code.ModelsClass</className>
-    <guid>9baf70bb-85f1-4746-8c46-260c1d193bbb</guid>
+    <guid>e62ad380-eb3b-43c3-b1c2-bdd48a06727d</guid>
     <class>
       <name>AI.Models.Code.ModelsClass</name>
       <customClass/>
@@ -59,7 +150,7 @@
         <displayType/>
         <hint/>
         <name>allowGuests</name>
-        <number>7</number>
+        <number>10</number>
         <prettyName>Allow guests to access the model</prettyName>
         <unmodifiable>0</unmodifiable>
         <validationMessage/>
@@ -71,7 +162,7 @@
         <disabled>0</disabled>
         <hint/>
         <name>contextSize</name>
-        <number>5</number>
+        <number>7</number>
         <numberType>integer</numberType>
         <prettyName>Context size</prettyName>
         <size>30</size>
@@ -85,7 +176,7 @@
         <disabled>0</disabled>
         <hint/>
         <name>dimensions</name>
-        <number>4</number>
+        <number>6</number>
         <numberType>integer</numberType>
         <prettyName>Number of Dimensions</prettyName>
         <size>30</size>
@@ -94,6 +185,34 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
       </dimensions>
+      <embeddingIndexPrefix>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Prefix needed for some embedding models for indexing documents for retrieval augmented generation (RAG).</hint>
+        <name>embeddingIndexPrefix</name>
+        <number>4</number>
+        <picker>0</picker>
+        <prettyName>Embedding Index Prefix</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </embeddingIndexPrefix>
+      <embeddingQueryPrefix>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>Prefix required by some embedding models for embedding the query.</hint>
+        <name>embeddingQueryPrefix</name>
+        <number>5</number>
+        <picker>0</picker>
+        <prettyName>Embedding Query Prefix</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </embeddingQueryPrefix>
       <groups>
         <cache>0</cache>
         <customDisplay/>
@@ -105,7 +224,7 @@
         <largeStorage>0</largeStorage>
         <multiSelect>1</multiSelect>
         <name>groups</name>
-        <number>6</number>
+        <number>9</number>
         <picker>0</picker>
         <prettyName>Group</prettyName>
         <relationalStorage>0</relationalStorage>
@@ -119,6 +238,20 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
       </groups>
+      <maximumParallelism>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <hint>The maximum number of embedding requests to send in a single request. The default is 100. This value is ignored for chat models.</hint>
+        <name>maximumParallelism</name>
+        <number>8</number>
+        <numberType>long</numberType>
+        <prettyName>Maximum Parallelism</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+      </maximumParallelism>
       <model>
         <customDisplay/>
         <disabled>0</disabled>
@@ -188,25 +321,34 @@
       </type>
     </class>
     <property>
-      <allowGuests/>
+      <allowGuests>0</allowGuests>
     </property>
     <property>
-      <contextSize/>
+      <contextSize>128000</contextSize>
     </property>
     <property>
-      <dimensions>1536</dimensions>
+      <dimensions/>
     </property>
     <property>
-      <groups/>
+      <embeddingIndexPrefix/>
     </property>
     <property>
-      <model>text-embedding-ada-002</model>
+      <embeddingQueryPrefix/>
+    </property>
+    <property>
+      <groups>XWiki.XWikiAllGroup,XWiki.XWikiAdminGroup</groups>
+    </property>
+    <property>
+      <maximumParallelism/>
+    </property>
+    <property>
+      <model>gpt-4o-mini</model>
     </property>
     <property>
       <serverName>OpenAI</serverName>
     </property>
     <property>
-      <type>emb</type>
+      <type>llm</type>
     </property>
   </object>
 </xwikidoc>
