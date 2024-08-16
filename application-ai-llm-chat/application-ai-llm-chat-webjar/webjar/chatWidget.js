@@ -23,6 +23,8 @@ let toggleChatButton;
 let settingsContainer;
 let settingsToggle;
 let newConvButton;
+let isResizing = false;
+let startX, startY, startWidth, startHeight;
 
 // Get the script tag
 const scriptTag = document.getElementById('chat-widget');
@@ -43,6 +45,8 @@ function createChatWidget() {
     const chatWidgetElement = document.createElement('div');
     chatWidgetElement.id = 'chat-widget';
     chatWidgetElement.innerHTML = `
+        <div id="resize-handle"></div>
+        <div id="chat-widget-divider"></div>
         <div id="chat-container">
             <h2>XWiki AI Chat</h2>
             <div class="settings-container">
@@ -129,6 +133,10 @@ async function initializeChatWidget() {
     settingsContainer = document.querySelector('.settings-container');
     settingsToggle = document.getElementById('settings-toggle');
     newConvButton = document.getElementById('new-conv');
+    const resizeHandle = document.getElementById('resize-handle');
+    resizeHandle.addEventListener('mousedown', initResize);
+    document.addEventListener('mousemove', resize);
+    document.addEventListener('mouseup', stopResize);
 
     // Populate the model select dropdown
     await populateModelSelect();
@@ -152,6 +160,50 @@ async function initializeChatWidget() {
 
     // Load last conversation from local storage
     loadLastConversation();
+}
+
+
+function initResize(e) {
+    isResizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startWidth = parseInt(document.defaultView.getComputedStyle(chatWidget).width, 10);
+    startHeight = parseInt(document.defaultView.getComputedStyle(chatWidget).height, 10);
+    e.preventDefault();
+}
+
+function startResize(e) {
+    isResizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startWidth = parseInt(document.defaultView.getComputedStyle(chatWidget).width, 10);
+    startHeight = parseInt(document.defaultView.getComputedStyle(chatWidget).height, 10);
+    document.addEventListener('mousemove', resize);
+    document.addEventListener('mouseup', stopResize);
+    e.preventDefault();
+}
+
+function resize(e) {
+    if (!isResizing) return;
+    const width = startWidth - (e.clientX - startX);
+    const height = startHeight - (e.clientY - startY);
+    if (width > 300 && height > 400) {
+        chatWidget.style.width = width + 'px';
+        chatWidget.style.height = height + 'px';
+    }
+}
+
+function stopResize() {
+    isResizing = false;
+}
+
+// Modify the toggleChatWidget function
+function toggleChatWidget() {
+    if (isPanelMode) {
+        chatWidget.style.display = chatWidget.style.display === 'none' ? 'flex' : 'none';
+    } else {
+        chatWidget.style.display = chatWidget.style.display === 'none' ? 'block' : 'none';
+    }
 }
 
 // Handle new conversation
