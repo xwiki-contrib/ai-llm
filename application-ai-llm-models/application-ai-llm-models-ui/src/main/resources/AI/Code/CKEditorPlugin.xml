@@ -247,7 +247,6 @@
       var llmConfig = editor.config['llm-action'];
       editor.ui.addButton('llmButton', {
         label: 'LLM Button',
-        icon: 'paste',
         command: 'llmaction',
         toolbar: 'insert,70'
       });

@@ -434,6 +434,13 @@
 #configRedir #promptDBRedir{
   pointer-events: none;
   color: grey;
+}
+
+.cke_button__llmbutton_icon::before {
+  content: "✨";
+  display: inline-block;
+  text-align: center;
+  width: 16px;
 }</code>
     </property>
     <property>
