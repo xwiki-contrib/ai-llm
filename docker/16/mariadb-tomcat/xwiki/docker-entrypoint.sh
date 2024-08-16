@@ -24,8 +24,6 @@ set -e
 function first_start() {
   configure
   touch /usr/local/tomcat/webapps/$CONTEXT_PATH/.first_start_completed
-  mkdir -p /usr/local/xwiki/data/extension/repository/
-  unzip /opt/extensions/*.xip -d /usr/local/xwiki/data/extension/repository/
 }
 
 function other_starts() {

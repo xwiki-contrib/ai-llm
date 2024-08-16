@@ -70,6 +70,14 @@ ENV MYSQL_JDBC_TARGET="/usr/local/tomcat/webapps/ROOT/WEB-INF/lib/${MYSQL_JDBC_A
 RUN curl -fSL "${MYSQL_JDBC_PREFIX}/${MYSQL_JDBC_ARTIFACT}" -o $MYSQL_JDBC_TARGET && \
   echo "$MYSQL_JDBC_SHA256 $MYSQL_JDBC_TARGET" | sha256sum -c -
 
+# Install the AILLM flavor
+ENV LLM_XIP_VERSION="0.6"
+ENV LLM_XIP_URL_PREFIX "https://maven.xwiki.org/releases/org/xwiki/contrib/llm/application-ai-llm-xip/${LLM_XIP_VERSION}"
+RUN mkdir -p /usr/local/xwiki/data/extension/repository/ && \
+    curl -fSL "${LLM_XIP_URL_PREFIX}/application-ai-llm-xip-${LLM_XIP_VERSION}.xip" -o aillm.xip && \
+    unzip -d /usr/local/xwiki/data/extension/repository/ aillm.xip && \
+    rm -f aillm.xip
+
 # Configure Tomcat. For example set the memory for the Tomcat JVM since the default value is too small for XWiki
 COPY tomcat/setenv.sh /usr/local/tomcat/bin/
 
