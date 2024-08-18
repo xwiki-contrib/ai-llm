@@ -63,7 +63,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     private static final String ERROR_LOG_FORMAT = "{}: {}";
     private static final String NL = "\n";
     private static final String NL2 = "\n\n";
-    
+    private static final String SOURCES_STRING2 = "Sources: ";
     
     private final List<String> collections;
     private final CollectionManager collectionManager;
@@ -109,7 +109,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         String id = UUID.randomUUID().toString();
 
         // Create and send a custom ChatCompletionChunk with the sources
-        ChatMessage chatMessage = new ChatMessage("assistant", sources + NL, searchResults);
+        ChatMessage chatMessage = new ChatMessage("assistant", SOURCES_STRING2 + sources, searchResults);
 
         ChatCompletionChunkChoice choice = new ChatCompletionChunkChoice(0, chatMessage, null);
         ChatCompletionChunk sourcesResponse = new ChatCompletionChunk(id, timestamp, request.model(), List.of(choice));
@@ -142,7 +142,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
             // Add full memory to the message
             message.setMemory(llmCurrentMemoryState);
             // Add the sources to the content
-            message.setContent(extractURLsAndformat(searchResults) + NL2 + message.getContent());
+            message.setContent(SOURCES_STRING2 + extractURLsAndformat(searchResults) + NL2 + message.getContent());
         }
         return response;
     }

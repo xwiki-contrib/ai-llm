@@ -448,8 +448,36 @@
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec - T: ${settingsTemp}`;
         else
             document.querySelector('#mod-inf-' + msgIdNum).textContent = `${assistInfoName} (${model}) - ${updatedTime} sec`;
-        document.querySelector('#msg-content-' + msgIdNum).innerHTML = DOMPurify.sanitize(marked.parse(chunkReply), {FORBID_TAGS: ['style'], FORBID_ATTR: ['src']});
+
+        const messageContent = document.querySelector('#msg-content-' + msgIdNum);
+        const sourcesMatch = chunkReply.match(/Sources:([\s\S]*?)(?=\n\n|$)/);
+        if (sourcesMatch) {
+            const sources = sourcesMatch[1].trim();
+            const content = chunkReply.replace(sourcesMatch[0], '').trim();
+
+            let sourcesBubble = messageContent.previousElementSibling;
+            if (!sourcesBubble || !sourcesBubble.classList.contains('sources-bubble')) {
+                sourcesBubble = createSourcesBubble(sources, msgIdNum);
+                messageContent.parentElement.insertBefore(sourcesBubble, messageContent);
+            } else {
+                // Update existing sources bubble
+                const sourceLinks = sources.split('\n')
+                    .filter(source =&gt; source.trim().startsWith('http'))
+                    .map(source =&gt; {
+                        const trimmedSource = source.trim();
+                        return `&lt;li&gt;&lt;a href="${trimmedSource}" target="_blank"&gt;${trimmedSource}&lt;/a&gt;&lt;/li&gt;`;
+                    }).join('');
+                sourcesBubble.querySelector('.sources-content ul').innerHTML = sourceLinks;
+                messageSourcesMap.set(msgIdNum, sources);
+            }
+
+            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(content), {FORBID_TAGS: ['style'], FORBID_ATTR: ['src']});
+        } else {
+            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(chunkReply), {FORBID_TAGS: ['style'], FORBID_ATTR: ['src']});
+        }
+        attachSourcesBubbleListeners();
     }
+
 
     /**
      *
@@ -617,12 +645,22 @@
      */
     function updateChat(chatContent, generatedContent, model, elapsedTime, userText) {
         removeLoading(chatContent);
-        chatContent.appendChild(addAssistantChat(generatedContent, model, elapsedTime));
+        const sourcesMatch = generatedContent.match(/Sources:([\s\S]*?)(?=\n\n|$)/);
+        if (sourcesMatch) {
+            const sources = sourcesMatch[1].trim();
+            const content = generatedContent.replace(sourcesMatch[0], '').trim();
+            const sourcesBubble = createSourcesBubble(sources, nbAssistMsg + 1);
+            chatContent.appendChild(sourcesBubble);
+            chatContent.appendChild(addAssistantChat(content, model, elapsedTime));
+        } else {
+            chatContent.appendChild(addAssistantChat(generatedContent, model, elapsedTime));
+        }
         let actualMsgID = nbAssistMsg;
         document.querySelector('#copy-button-' + actualMsgID).style.display = "block";
         document.querySelector('#include-button-' + actualMsgID).style.display = "block";
         context.push({ user: userText, assistant: generatedContent });
         tokenManager();
+        attachSourcesBubbleListeners();
     }
 
     /**
@@ -1500,6 +1538,66 @@
                 resolve(XWiki.Model.serialize(xm.userReference));
             });
         })
+    }
+
+    let messageSourcesMap = new Map();
+
+    /**
+     * Create an expandable bubble with sources
+     * @param {string} sources The sources string
+     * @param {number} msgId The message ID
+     * @return {HTMLElement} The sources bubble element
+     */
+    function createSourcesBubble(sources, msgId) {
+        const sourcesBubble = document.createElement('div');
+        sourcesBubble.classList.add('sources-bubble');
+        sourcesBubble.dataset.msgId = msgId;
+
+        const sourceLinks = sources.split('\n')
+            .filter(source =&gt; source.trim().startsWith('http'))
+            .map(source =&gt; {
+                const trimmedSource = source.trim();
+                return `&lt;li&gt;&lt;a href="${trimmedSource}" target="_blank"&gt;${trimmedSource}&lt;/a&gt;&lt;/li&gt;`;
+            }).join('');
+
+        sourcesBubble.innerHTML = `
+            &lt;div class="sources-header"&gt;Sources &lt;span class="expand-icon"&gt;+&lt;/span&gt;&lt;/div&gt;
+            &lt;div class="sources-content hidden"&gt;&lt;ul&gt;${sourceLinks}&lt;/ul&gt;&lt;/div&gt;
+        `;
+
+        messageSourcesMap.set(msgId, sources);
+
+        return sourcesBubble;
+    }
+
+    /**
+     * Attach click event listener to sources bubble
+     * @param {HTMLElement} sourcesBubble The sources bubble element
+     */
+    function attachSourcesBubbleListener(sourcesBubble) {
+        const header = sourcesBubble.querySelector('.sources-header');
+        header.addEventListener('click', function() {
+            const content = this.nextElementSibling;
+            content.classList.toggle('hidden');
+            this.querySelector('.expand-icon').textContent = content.classList.contains('hidden') ? '+' : '-';
+        });
+    }
+
+    /**
+     * Attach click event listener to all sources bubbles
+     */
+    function attachSourcesBubbleListeners() {
+        document.querySelectorAll('.sources-bubble').forEach(bubble =&gt; {
+            const header = bubble.querySelector('.sources-header');
+            if (!header.hasListener) {
+                header.addEventListener('click', function() {
+                    const content = this.nextElementSibling;
+                    content.classList.toggle('hidden');
+                    this.querySelector('.expand-icon').textContent = content.classList.contains('hidden') ? '+' : '-';
+                });
+                header.hasListener = true;
+            }
+        });
     }
 
     /**

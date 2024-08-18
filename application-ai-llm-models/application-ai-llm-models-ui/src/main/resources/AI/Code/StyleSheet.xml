@@ -148,7 +148,8 @@
   position: relative;
   float: right;
   clear: both;
-  background-color: lightblue;
+  background-color: #386da7;
+  color: #fff;
   padding: 5px;
   margin-bottom: 10px;
   max-width: 70%;
@@ -166,15 +167,14 @@
   position: relative;
   float: bottom;
   clear: both;
-  background-color: lightgreen;
+  background-color: #fafafa;
   padding: 5px;
   margin-bottom: 10px;
   width: fit-content;
-  max-width: 70%;
-  border-radius: 10px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   word-wrap: break-word;
+  border-radius: 10px;
 }
 
 #chatUI .system-message {
@@ -236,24 +236,24 @@
 #chatUI .copy-button {
   position: relative;
   border-radius: 5px;
-  background-color: rgb(91, 155, 91);
-  border-color: black;
+  background-color: #386da7;
+  color: #fff;
   width: 63px;
 }
 
 #chatUI .include-button {
   position: relative;
   border-radius: 5px;
-  background-color: rgb(91, 155, 91);
-  border-color: black;
+  background-color: #386da7;
+  color: #fff;
   width: 63px;
 }
 
 #chatUI .userMsgButton {
   position: relative;
   border-radius: 5px;
-  background-color: rgb(128, 159, 255);
-  border-color: black;
+  background-color: #e0e0e0;
+  color: #000;
   width: 63px;
 }
 
@@ -441,6 +441,37 @@
   display: inline-block;
   text-align: center;
   width: 16px;
+}
+
+#chatUI .sources-bubble {
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    clear: both;
+}
+
+#chatUI .sources-header {
+    background-color: #e0e0e0;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+#chatUI .sources-content {
+    padding: 10px;
+}
+
+#chatUI .sources-content.hidden {
+    display: none;
+}
+
+#chatUI .expand-icon {
+    float: right;
+}
+
+#xwikicontent .astMsgButtonWrapper, #xwikicontent .userMsgButton {
+  display: none;
 }</code>
     </property>
     <property>

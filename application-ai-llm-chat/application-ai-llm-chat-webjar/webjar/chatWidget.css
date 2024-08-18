@@ -398,3 +398,29 @@ button#new-conv {
     background-color: #e0e0e0;
     transform: translateX(-50%);
 }
+
+.sources-bubble {
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.sources-header {
+    background-color: #e0e0e0;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.sources-content {
+    padding: 10px;
+}
+
+.sources-content.hidden {
+    display: none;
+}
+
+.expand-icon {
+    float: right;
+}
