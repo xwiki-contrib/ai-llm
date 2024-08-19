@@ -87,7 +87,7 @@ function createChatWidget() {
 function createToggleChatButton() {
     const toggleChatButtonElement = document.createElement('button');
     toggleChatButtonElement.id = 'toggle-chat-button';
-    toggleChatButtonElement.textContent = 'LLM Chat';
+    toggleChatButtonElement.textContent = '✨ Chat';
     document.body.appendChild(toggleChatButtonElement);
     return toggleChatButtonElement;
 }
