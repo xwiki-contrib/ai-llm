@@ -71,7 +71,7 @@ RUN curl -fSL "${MYSQL_JDBC_PREFIX}/${MYSQL_JDBC_ARTIFACT}" -o $MYSQL_JDBC_TARGE
   echo "$MYSQL_JDBC_SHA256 $MYSQL_JDBC_TARGET" | sha256sum -c -
 
 # Install the AILLM flavor
-ENV LLM_XIP_VERSION="0.6"
+ENV LLM_XIP_VERSION="0.6.1"
 ENV LLM_XIP_URL_PREFIX "https://maven.xwiki.org/releases/org/xwiki/contrib/llm/application-ai-llm-xip/${LLM_XIP_VERSION}"
 RUN mkdir -p /usr/local/xwiki/data/extension/repository/ && \
     curl -fSL "${LLM_XIP_URL_PREFIX}/application-ai-llm-xip-${LLM_XIP_VERSION}.xip" -o aillm.xip && \
