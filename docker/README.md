@@ -62,7 +62,7 @@ You need to run at least 2 containers:
 
 -	One for the XWiki image
 -	One for the database image to which XWiki connects to
--       (Optionally) Ollama for inference.
+-  	Ollama for inference. (Optional)
 
 ### Using `docker run`
 
