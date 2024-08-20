@@ -12,7 +12,7 @@ This project provides a Docker setup for running XWiki with AI Large Language Mo
 
 1. Clone this repository
 2. Navigate to the project directory
-3. Run `docker-compose up`
+3. Run `docker compose up`
 
 This will start XWiki, the database, and Ollama.
 
@@ -62,7 +62,7 @@ You need to run at least 2 containers:
 
 -	One for the XWiki image
 -	One for the database image to which XWiki connects to
--  	Ollama for inference. (Optional)
+- Ollama for inference. (Optional)
 
 ### Using `docker run`
 
@@ -163,7 +163,7 @@ Another solution is to use the Docker Compose files we provide.
 	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/docker-compose.yml`
 -	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
 	 -	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/.env -o .env`
--	`docker-compose up`
+-	`docker compose up`
 
 #### For MariaDB on Tomcat
 
@@ -173,19 +173,19 @@ Another solution is to use the Docker Compose files we provide.
 	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mariadb-tomcat/docker-compose.yml -o docker-compose.yml`
 -	`wget https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/mariadb-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
 	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/mariadb-tomcat/.env -o .env`
--	`docker-compose up`
+-	`docker compose up`
 
 ## Building
 
 To build the Docker image locally:
 -	Install Git and run `git clone https://github.com/xwiki-contrib/ai-llm.git` or download the sources from the GitHub UI. Then go to the directory corresponding to the docker tag you wish to use. For example: `cd docker/16/mysql-tomcat`
 - Navigate to the directory containing the Dockerfile (e.g., `16/mysql-tomcat` or `16/mariadb-tomcat`)
--	Run `docker-compose up`
+-	Run `docker compose up`
 -	Start a browser and point it to `http://localhost:8080`
 
 Note that if you want to set a custom version of XWiki you can edit the `.env` file and set the values you need in there. It's also possible to override them on the command line with `docker-compose run -e "XWIKI_VERSION=12.10.10"`.
 
-Note that `docker-compose up` will automatically build the XWiki image on the first run. If you need to rebuild it you can issue `docker-compose up --build`. You can also build the image with `docker build . -t xwiki-mysql-tomcat:latest` for example.
+Note that `docker compose up` will automatically build the XWiki image on the first run. If you need to rebuild it you can issue `docker compose up --build`. You can also build the image with `docker build . -t xwiki-mysql-tomcat:latest` for example.
 
 You can also just build the image by issuing `docker build -t xwiki-ai-llm .` and then use the instructions from above to start XWiki and the database using `docker run ...`.
 

@@ -52,7 +52,7 @@ services:
     # - Provide a SQL script to be executed when the db image starts (to set permissions to create subwikis)
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     # Configure the MySQL database and create a user with provided name/password.
     # See https://hub.docker.com/_/mysql/ for more details.
     # Default values defined in .env file.
