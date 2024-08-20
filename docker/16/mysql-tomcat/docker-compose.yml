@@ -24,8 +24,7 @@ networks:
 services:
   # The container that runs XWiki in Tomcat, with the appropriate JDBC driver (for mysql).
   web:
-    build: .
-    container_name: xwiki-mysql-tomcat-web
+    image: "xwikicontrib/ai-llm:0.6.1-16.6.0-mysql-tomcat"
     depends_on:
       - db
     ports:

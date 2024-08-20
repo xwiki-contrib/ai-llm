@@ -24,8 +24,7 @@ networks:
 services:
   # The container that runs XWiki in Tomcat, with the appropriate JDBC driver (for mariadb).
   web:
-    build: .
-    container_name: xwiki-mariadb-tomcat
+    image: "xwikicontrib/ai-llm:0.6.1-16.6.0-mariadb-tomcat"
     depends_on:
       - db
     ports:
