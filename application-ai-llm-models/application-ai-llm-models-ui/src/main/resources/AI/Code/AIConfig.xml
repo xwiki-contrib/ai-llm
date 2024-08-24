@@ -554,7 +554,7 @@
       <scope>WIKI</scope>
     </property>
     <property>
-      <sectionOrder/>
+      <sectionOrder>0</sectionOrder>
     </property>
   </object>
 </xwikidoc>
