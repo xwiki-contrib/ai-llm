@@ -39,7 +39,7 @@ Environment variables can be customized in the `.env` file.
 ## Volumes
 
 - `xwiki-data`: Persists XWiki data
-- `mysql-data` or `mariadb-data`: Persists database data
+- `mariadb-data`, `mysql-data` or `postgres-data`: Persists database data
 - `ollama`: Persists Ollama models and data
 
 ## Ports
@@ -121,6 +121,22 @@ Full command example:
 docker run --net=xwiki-nw --name mysql-xwiki -v /my/path/mariadb:/var/lib/mysql -v /my/path/mariadb-init:/docker-entrypoint-initdb.d -e MYSQL_ROOT_PASSWORD=xwiki -e MYSQL_USER=xwiki -e MYSQL_PASSWORD=xwiki -e MYSQL_DATABASE=xwiki -d mariadb:11.4 --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --explicit-defaults-for-timestamp=1
 ```
 
+#### Starting PostgreSQL
+
+We will bind mount a local directory to be used by the PostgreSQL container to contain the data put by XWiki inside the database, so that when you stop and restart PostgreSQL you don't find yourself without any data. For example:
+
+- `/my/path/postgres`
+
+You need to make sure this directory exists, before proceeding.
+
+Note Make sure the directory you specify is specified with the fully-qualified path, not a relative path.
+
+```
+docker run --net=xwiki-nw --name postgres-xwiki -v /my/path/postgres:/var/lib/postgresql/data -e POSTGRES_ROOT_PASSWORD=xwiki -e POSTGRES_USER=xwiki -e POSTGRES_PASSWORD=xwiki -e POSTGRES_DB=xwiki -e POSTGRES_INITDB_ARGS="--encoding=UTF8" -d postgres:16
+```
+
+You should adapt the command line to use the passwords that you wish for the PostgreSQL root password and for the xwiki user password.
+
 #### Starting XWiki with the AI-LLM flavor setup
 
 We will also bind mount a local directory for the XWiki permanent directory (contains application config and state), for example:
@@ -134,13 +150,18 @@ Ensure this directory exists, and then run XWiki in a container by issuing one o
 For MySQL:
 
 ```console
-docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mysql-xwiki ai-llm:16.6.0-mysql-tomcat
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mysql-xwiki ai-llm:0.6.2-16.6.0-mysql-tomcat
 ```
 
 For MariaDB:
 
 ```console
-docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=postgres-xwiki ai-llm:16.6.0-mariadb-tomcat
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=postgres-xwiki ai-llm:0.6.2-16.6.0-mariadb-tomcat
+```
+
+For PostgreSQL:
+```console
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=postgres-xwiki ai-llm:0.6.2-16.6.0-postgres-tomcat
 ```
 
 Be careful to use the same DB username, password and database names that you've used on the first command to start the DB container. Also, please don't forget to add a `-e DB_HOST=` environment variable with the name of the previously created DB container so that XWiki knows where its database is.
@@ -173,6 +194,14 @@ Another solution is to use the Docker Compose files we provide.
 	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mariadb-tomcat/docker-compose.yml -o docker-compose.yml`
 -	`wget https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/mariadb-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
 	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/mariadb-tomcat/.env -o .env`
+-	`docker compose up`
+
+#### For PostgreSQL on Tomcat
+
+-	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/postgres-tomcat/docker-compose.yml`
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/postgres-tomcat/docker-compose.yml -o docker-compose.yml`
+-	`wget https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/postgres-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/postgres-tomcat/.env -o .env`
 -	`docker compose up`
 
 ## Building
