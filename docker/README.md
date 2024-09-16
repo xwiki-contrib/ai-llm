@@ -76,6 +76,7 @@ Then run a container for the database and make sure it's configured to use an UT
 
 -	MySQL
 -	MariaDB
+-	PostgresSQL
 
 #### Starting MySQL
 
