@@ -5,13 +5,13 @@ This project provides a Docker setup for running XWiki with AI Large Language Mo
 ## What's Included
 
 - XWiki with AI LLM flavor
-- MySQL or MariaDB database
+- MySQL, MariaDB or PosteresSQL database
 - Ollama for inference
 
 ## Quick Start
 
 1. Clone this repository
-2. Navigate to the project directory
+2. Navigate to the directory of the docker version you want to use (ex: `ai-llm/docker/16/mariadb-tomcat/` )
 3. Run `docker compose up`
 
 This will start XWiki, the database, and Ollama.
