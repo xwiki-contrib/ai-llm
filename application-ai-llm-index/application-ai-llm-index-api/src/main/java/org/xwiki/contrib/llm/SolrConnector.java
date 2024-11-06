@@ -144,6 +144,7 @@ public class SolrConnector
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_ERROR_MESSAGE, chunk.getErrorMessage());
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_STORE_HINT, chunk.getStoreHint());
         solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT, chunk.getContent());
+        solrDocument.addField(AiLLMSolrCoreInitializer.FIELD_CONTENT_INDEX, chunk.getContent());
         double[] embeddings = chunk.getEmbeddings();
         // The embeddings could be null if we got an error and want to store the error.
         if (embeddings != null) {
@@ -511,6 +512,10 @@ public class SolrConnector
                                                int limit) throws SolrServerException
     {
         List<Context> resultsList = new ArrayList<>();
+
+        if (limit <= 0) {
+            return resultsList;
+        }
         
         try (SolrClient client = solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             // split embeddingModelMap into sets of collections with the same embedding model
@@ -548,23 +553,51 @@ public class SolrConnector
         return resultsList;
     }
 
+    /**
+     * Perform a keyword search in the content of the chunks in the given collections.
+     *
+     * @param textQuery the query to search for
+     * @param collections the collections to search in
+     * @param limit the maximum number of results to return
+     * @return a list of context chunks
+     */
+    public List<Context> keywordSearch(String textQuery, java.util.Collection<String> collections, int limit)
+    {
+        List<Context> resultsList = new ArrayList<>();
+
+        if (limit > 0) {
+            try (SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
+                SolrQuery query = new SolrQuery();
+                query.setQuery("%s:%s".formatted(AiLLMSolrCoreInitializer.FIELD_CONTENT_INDEX,
+                    this.solrUtils.toCompleteFilterQueryString(textQuery)));
+                query.setRows(limit);
+                setContextQueryFields(query);
+                // Constructing the filter query from the collections list
+                addCollectionsQuery(collections, query);
+                QueryResponse response = client.query(query);
+                SolrDocumentList documents = response.getResults();
+                resultsList = collectResults(documents, false);
+            } catch (Exception e) {
+                this.logger.error("Keyword search failed: {}", e.getMessage(), e);
+            }
+        }
+        return resultsList;
+    }
+
     private SolrQuery prepareQuery(String embeddingsAsString, List<String> collections, int limit)
     {
         SolrQuery query = new SolrQuery();
         query.addFilterQuery(buildWikiQuery(this.contextProvider.get().getWikiId()));
         query.setQuery(String.format("{!knn f=vector topK=%s}%s", limit, embeddingsAsString));
 
-        // Constructing the filter query from the collections list
-        if (collections != null && !collections.isEmpty()) {
-            String filterQuery = collections.stream()
-                                    .map(collection -> AiLLMSolrCoreInitializer.FIELD_COLLECTION
-                                                    + SOLR_SEPARATOR
-                                                    + solrUtils.toCompleteFilterQueryString(collection)
-                                        )
-                                    .collect(Collectors.joining(OR_DELIMITER));
-            query.addFilterQuery(filterQuery);
-        }
+        addCollectionsQuery(collections, query);
 
+        setContextQueryFields(query);
+        return query;
+    }
+
+    private static void setContextQueryFields(SolrQuery query)
+    {
         query.setFields(FIELD_ID,
                         AiLLMSolrCoreInitializer.FIELD_DOC_ID,
                         AiLLMSolrCoreInitializer.FIELD_COLLECTION,
@@ -575,7 +608,20 @@ public class SolrConnector
                         AiLLMSolrCoreInitializer.FIELD_POS_LAST_CHAR,
                         AiLLMSolrCoreInitializer.FIELD_CONTENT,
                         FIELD_SCORE);
-        return query;
+    }
+
+    private void addCollectionsQuery(java.util.Collection<String> collections, SolrQuery query)
+    {
+        // Constructing the filter query from the collections list
+        if (collections != null && !collections.isEmpty()) {
+            String filterQuery = collections.stream()
+                                    .map(collection -> AiLLMSolrCoreInitializer.FIELD_COLLECTION
+                                                    + SOLR_SEPARATOR
+                                                    + solrUtils.toCompleteFilterQueryString(collection)
+                                        )
+                                    .collect(Collectors.joining(OR_DELIMITER));
+            query.addFilterQuery(filterQuery);
+        }
     }
 
     private List<Context> collectResults(SolrDocumentList documents, boolean includeVector)

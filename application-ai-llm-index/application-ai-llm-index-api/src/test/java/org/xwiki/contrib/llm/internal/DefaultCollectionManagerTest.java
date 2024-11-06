@@ -28,11 +28,11 @@ import javax.inject.Named;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.junit.jupiter.api.Test;
 import org.xwiki.component.manager.ComponentLookupException;
-import org.xwiki.contrib.llm.authorization.AuthorizationManager;
-import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
+import org.xwiki.contrib.llm.authorization.AuthorizationManager;
+import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.query.Query;
@@ -175,7 +175,7 @@ class DefaultCollectionManagerTest
     }
 
     @Test
-    void similaritySearch() throws QueryException, ComponentLookupException, IndexException, SolrServerException
+    void hybridSearch() throws QueryException, ComponentLookupException, IndexException, SolrServerException
     {
         XWikiContext context = this.oldcore.getXWikiContext();
         context.setWikiId(WIKI_NAME);
@@ -214,15 +214,17 @@ class DefaultCollectionManagerTest
         when(authorization2.canView(Set.of("forbidden2", "allowed4")))
             .thenReturn(Map.of("forbidden2", false, "allowed4", true));
 
-        when(this.solrConnector.similaritySearch(any(), any(), anyInt())).thenReturn(contextList);
+        when(this.solrConnector.similaritySearch(any(), any(), anyInt())).thenReturn(contextList.subList(0, 3));
+        when(this.solrConnector.keywordSearch(any(), any(), anyInt())).thenReturn(contextList.subList(1, 4));
 
         List<Context> result =
-            this.collectionManager.similaritySearch("query", List.of(COLLECTION_ID, collectionId2), 10);
+            this.collectionManager.hybridSearch("query", List.of(COLLECTION_ID, collectionId2), 4, 3);
 
         List<Context> expected = List.of(contextList.get(0), contextList.get(1), contextList.get(3));
         assertEquals(expected, result);
 
-        verify(this.solrConnector).similaritySearch("query", embeddingModelMap, 10);
+        verify(this.solrConnector).similaritySearch("query", embeddingModelMap, 4);
+        verify(this.solrConnector).keywordSearch("query", embeddingModelMap.keySet(), 3);
     }
 
     private void createAndSaveCollection(String collectionId, String embeddingModel)

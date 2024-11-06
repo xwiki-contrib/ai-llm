@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm.internal;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -206,6 +207,13 @@ public class DefaultCollectionManager implements CollectionManager
                                                 List<String> collections,
                                                 int limit) throws IndexException
     {
+        return hybridSearch(textQuery, collections, limit, 0);
+    }
+
+    @Override
+    public List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
+        int limitKeywordSearch) throws IndexException
+    {
         Map<String, DefaultCollection> collectionMap = getAccessibleCollections(collections);
 
         Map<String, AuthorizationManager> authorizationManagerMap = getAuthorizationManagerMap(collectionMap);
@@ -220,7 +228,16 @@ public class DefaultCollectionManager implements CollectionManager
         }
 
         try {
-            List<Context> results = solrConnector.similaritySearch(textQuery, collectionEmbeddingModelMap, limit);
+            List<Context> semanticResults = this.solrConnector.similaritySearch(textQuery, collectionEmbeddingModelMap,
+                limitSemanticSimilarity);
+            List<Context> keywordResults = this.solrConnector.keywordSearch(textQuery,
+                collectionEmbeddingModelMap.keySet(), limitKeywordSearch);
+
+            Set<String> uniqueContent = new HashSet<>();
+            List<Context> results = Stream.concat(semanticResults.stream(), keywordResults.stream())
+                .filter(context -> uniqueContent.add(context.content()))
+                .toList();
+
             return filterSearchResults(results, authorizationManagerMap);
         } catch (SolrServerException e) {
             throw new IndexException("Failed to perform similarity search", e);

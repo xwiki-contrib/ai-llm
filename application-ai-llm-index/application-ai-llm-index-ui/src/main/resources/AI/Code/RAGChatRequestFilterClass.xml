@@ -105,12 +105,26 @@ and stringprop.id.name='id'</sql>
       <name>maxResults</name>
       <number>2</number>
       <numberType>long</numberType>
-      <prettyName>Search results limit (number)</prettyName>
+      <prettyName>Similarity search results limit (number)</prettyName>
       <size>30</size>
       <unmodifiable>0</unmodifiable>
       <validationMessage/>
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
     </maxResults>
+    <maxKeywordResults>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>Maximum number of results returned by the keyword search (number)</hint>
+      <name>maxKeywordResults</name>
+      <number>4</number>
+      <numberType>long</numberType>
+      <prettyName>Keyword search results limit (number)</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+    </maxKeywordResults>
   </class>
 </xwikidoc>

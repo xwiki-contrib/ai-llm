@@ -67,7 +67,8 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     
     private final List<String> collections;
     private final CollectionManager collectionManager;
-    private final int maxResults;
+    private final int maxSemanticResults;
+    private final int maxKeywordResults;
     private final String contextPrompt;
     private final Logger logger;
 
@@ -76,18 +77,27 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
      *
      * @param collections the collections to use
      * @param collectionManager the collection manager
-     * @param maxResults the maximum number of results to return
+     * @param maxSemanticResults the maximum number of results to return
+     * @param maxKeywordResults the maximum number of keyword results to return
      * @param contextPrompt the context prompt
      * @param logger the logger
      */
     public RAGChatRequestFilter(List<String> collections,
                                 CollectionManager collectionManager,
-                                Integer maxResults,
+                                Integer maxSemanticResults,
+                                Integer maxKeywordResults,
                                 String contextPrompt, Logger logger)
     {
         this.collections = collections;
         this.collectionManager = collectionManager;
-        this.maxResults = maxResults != null && maxResults > 0 ? maxResults : 10;
+        int initialMaxSemanticResults = maxSemanticResults != null ? maxSemanticResults : 0;
+        int initialMaxKeywordResults = maxKeywordResults != null ? maxKeywordResults : 0;
+        if (initialMaxKeywordResults + initialMaxSemanticResults <= 0) {
+            initialMaxKeywordResults = 7;
+            initialMaxSemanticResults = 3;
+        }
+        this.maxSemanticResults = initialMaxSemanticResults;
+        this.maxKeywordResults = initialMaxKeywordResults;
         this.contextPrompt = contextPrompt;
         this.logger = logger;
     }
@@ -216,7 +226,8 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 
         // Perform solr similarity search on the last message
         try {
-            return this.collectionManager.similaritySearch(message, this.collections, this.maxResults);
+            return this.collectionManager.hybridSearch(message, this.collections, this.maxSemanticResults,
+                this.maxKeywordResults);
         } catch (Exception e) {
             this.logger.error(ERROR_LOG_FORMAT, SIMILARITY_SEARCH_ERROR_MSG, ExceptionUtils.getRootCauseMessage(e));
             return Collections.emptyList();

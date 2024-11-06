@@ -77,6 +77,7 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
             .collect(Collectors.toList());
 
         Integer maxResults = object.getIntValue("maxResults");
+        Integer maxKeywordResults = object.getIntValue("maxKeywordResults");
         String contextPrompt = object.getLargeStringValue("contextPrompt");
 
 
@@ -85,6 +86,7 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
                                      : List.of(new RAGChatRequestFilter(collections,
                                                                         collectionManager,
                                                                         maxResults,
+                                                                        maxKeywordResults,
                                                                         contextPrompt, logger));
     }
 

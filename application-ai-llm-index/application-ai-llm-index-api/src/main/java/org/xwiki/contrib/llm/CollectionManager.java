@@ -98,6 +98,21 @@ public interface CollectionManager
     List<Context> similaritySearch(String textQuery, List<String> collections, int limit) throws IndexException;
 
     /**
+     * Perform a hybrid semantic similarity and keyword-based search.
+     *
+     * @param textQuery the text query
+     * @param collections the collections to search in
+     * @param limitSemanticSimilarity the maximum number of results to return from a semantic similarity search
+     * @param limitKeywordSearch the maximum number of results to return for the keyword search
+     * @return a list of document ids that are similar to the text query
+     */
+    default List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
+        int limitKeywordSearch) throws IndexException
+    {
+        return similaritySearch(textQuery, collections, limitSemanticSimilarity + limitKeywordSearch);
+    }
+
+    /**
      * @param collections the collections to filter
      * @return a list of collections that the user has access to
      */

@@ -24,7 +24,12 @@ import java.io.IOException;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
+import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.common.SolrDocument;
+import org.apache.solr.common.SolrDocumentList;
+import org.apache.solr.common.SolrInputDocument;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.search.solr.AbstractSolrCoreInitializer;
 import org.xwiki.search.solr.SolrException;
@@ -96,6 +101,11 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
     public static final String FIELD_CONTENT = "content";
 
     /**
+     * The name of the field that stores the content indexed for keyword search.
+     */
+    public static final String FIELD_CONTENT_INDEX = "content_index";
+
+    /**
      * The name of the field that stores the vector embedding of the chunk.
      */
     public static final String FIELD_VECTOR = "vector";
@@ -120,7 +130,9 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
 
     private static final long ERROR_MESSAGE_FILED_VERSION = 121000004;
 
-    private static final long CURRENT_VERSION = 121000005;
+    private static final long STORE_HINT_VERSION = 121000005;
+
+    private static final long CURRENT_VERSION = 121000006;
 
     private static final String SOLR_DENSE_VECTOR_FIELD = "solr.DenseVectorField";
 
@@ -146,11 +158,16 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
         this.addPIntField(FIELD_POS_LAST_CHAR, false, false);
         this.addTextGeneralField(FIELD_CONTENT, false, false);
         this.addField(FIELD_VECTOR, FIELD_TYPE_KNN_VECTOR, false, false);
-        migrateSchema(REINDEX_VERSION);
+        migrateSchemaInternal(REINDEX_VERSION, true);
     }
 
     @Override
     protected void migrateSchema(long cversion) throws SolrException
+    {
+        migrateSchemaInternal(cversion, false);
+    }
+
+    private void migrateSchemaInternal(long cversion, boolean create) throws SolrException
     {
         if (cversion < REINDEX_VERSION) {
             this.setFieldType(FIELD_TYPE_KNN_VECTOR,
@@ -175,8 +192,69 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
             this.addStringField(FIELD_ERROR_MESSAGE, false, false);
         }
 
-        if (cversion < CURRENT_VERSION) {
+        if (cversion < STORE_HINT_VERSION) {
             this.addStringField(FIELD_STORE_HINT, false, false);
+        }
+
+        if (cversion < CURRENT_VERSION) {
+            // Add another version of the text field, but indexed as regular text.
+            this.setTextGeneralField(FIELD_CONTENT_INDEX, false, false);
+
+            if (!create) {
+                indexOldContent();
+            }
+        }
+    }
+
+    /**
+     * Index content that was added in old versions for keyword search.
+     *
+     * @throws SolrException if the indexing fails
+     */
+    private void indexOldContent() throws SolrException
+    {
+        // Query all documents and set the FIELD_CONTENT_INDEX from the CONTENT field.
+        int batchSize = getMigrationBatchRows();
+        int size;
+        int start = 0;
+        do {
+            SolrQuery solrQuery = new SolrQuery();
+            solrQuery.setRows(batchSize);
+            solrQuery.setStart(start);
+            // Add an explicit sort to prevent changing order because of updated documents.
+            solrQuery.setSort(SolrQuery.SortClause.asc("id"));
+
+            QueryResponse response;
+            try {
+                response = this.core.getClient().query(solrQuery);
+            } catch (Exception e) {
+                throw new SolrException("Failed to search for entries in the source client", e);
+            }
+
+            SolrDocumentList result = response.getResults();
+            size = result.size();
+            start += size;
+
+            if (size > 0) {
+                migrateData(response.getResults());
+            }
+        } while (size == batchSize);
+    }
+
+    private void migrateData(SolrDocumentList results) throws SolrException
+    {
+        for (SolrDocument document : results) {
+            if (document.get(FIELD_CONTENT_INDEX) == null) {
+                SolrInputDocument targetDocument = new SolrInputDocument();
+                migrate(document, targetDocument);
+                targetDocument.setField(FIELD_CONTENT_INDEX, document.get(FIELD_CONTENT));
+
+                try {
+                    this.core.getClient().add(targetDocument);
+                } catch (SolrServerException | IOException e) {
+                    throw new SolrException("Failed to update the document with the new field.", e);
+                }
+            }
         }
     }
 
