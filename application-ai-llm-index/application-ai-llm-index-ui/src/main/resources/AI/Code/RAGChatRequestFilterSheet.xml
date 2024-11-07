@@ -93,6 +93,22 @@
       &lt;/span&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('contextPrompt')&lt;/dd&gt;
+    &lt;dt #if (!$editing &amp;&amp; $hasEdit)
+        class="editableProperty"
+        data-property="$escapetool.xml($services.model.serialize($object.getPropertyReference('chunkTemplate')))"
+        data-object-policy="updateOrCreate"
+        data-property-type="object"#end&gt;
+      &lt;label#if ($editing) for="AI.Code.RAGChatRequestFilterClass_0_chunkTemplatet"#end&gt;
+        $escapetool.xml($doc.displayPrettyName('chunkTemplate', false, false))
+      &lt;/label&gt;
+      &lt;span class="xHint"&gt;
+        $escapetool.xml($services.localization.render(
+            $xwiki.getDocument('AI.Code.RAGChatRequestFilterClass').getxWikiClass().get('chunkTemplate').getHint())
+        )
+      &lt;/span&gt;
+    &lt;/dt&gt;
+    &lt;dd&gt;$doc.display('chunkTemplate')&lt;/dd&gt;
+
   &lt;/dl&gt;
   {{/html}}
 #end

@@ -79,6 +79,7 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
         Integer maxResults = object.getIntValue("maxResults");
         Integer maxKeywordResults = object.getIntValue("maxKeywordResults");
         String contextPrompt = object.getLargeStringValue("contextPrompt");
+        String chunkTemplate = object.getLargeStringValue("chunkTemplate");
 
 
         // Only return a filter if there are collections to filter on.
@@ -87,7 +88,7 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
                                                                         collectionManager,
                                                                         maxResults,
                                                                         maxKeywordResults,
-                                                                        contextPrompt, logger));
+                                                                        contextPrompt, chunkTemplate, logger));
     }
 
     @Override

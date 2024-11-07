@@ -46,6 +46,24 @@
     <defaultWeb/>
     <nameField/>
     <validationScript/>
+    <chunkTemplate>
+      <contenttype>PureText</contenttype>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <editor>PureText</editor>
+      <hint>The template that is used for displaying a search result in the context. The placeholders {{url}}, {{index}} and {{content}} are replaced by the URL, index (1-based position in the result list), and content of the chunk, respectively. If the template is empty, a default template will be used.</hint>
+      <name>chunkTemplate</name>
+      <number>5</number>
+      <picker>0</picker>
+      <prettyName>Chunk Template</prettyName>
+      <restricted>0</restricted>
+      <rows>5</rows>
+      <size>40</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+    </chunkTemplate>
     <collections>
       <cache>0</cache>
       <classname/>
@@ -87,7 +105,7 @@ and stringprop.id.name='id'</sql>
       <editor>PureText</editor>
       <hint>Sets the system message. Use the keyword {{search_results}} anywhare in your prompt to inject the search results there. If the keyword is missing the search results will be automatically added at the end. If Property is empty a default prompt will be used.</hint>
       <name>contextPrompt</name>
-      <number>3</number>
+      <number>4</number>
       <picker>0</picker>
       <prettyName>Context prompt</prettyName>
       <restricted>0</restricted>
@@ -98,6 +116,20 @@ and stringprop.id.name='id'</sql>
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
     </contextPrompt>
+    <maxKeywordResults>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint>Maximum number of results returned by the keyword search (number)</hint>
+      <name>maxKeywordResults</name>
+      <number>3</number>
+      <numberType>long</numberType>
+      <prettyName>Keyword search results limit (number)</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+    </maxKeywordResults>
     <maxResults>
       <customDisplay/>
       <disabled>0</disabled>
@@ -112,19 +144,49 @@ and stringprop.id.name='id'</sql>
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
     </maxResults>
-    <maxKeywordResults>
-      <customDisplay/>
-      <disabled>0</disabled>
-      <hint>Maximum number of results returned by the keyword search (number)</hint>
-      <name>maxKeywordResults</name>
-      <number>4</number>
-      <numberType>long</numberType>
-      <prettyName>Keyword search results limit (number)</prettyName>
-      <size>30</size>
-      <unmodifiable>0</unmodifiable>
-      <validationMessage/>
-      <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
-    </maxKeywordResults>
   </class>
+  <object>
+    <name>AI.Code.RAGChatRequestFilterClass</name>
+    <number>0</number>
+    <className>XWiki.DocumentSheetBinding</className>
+    <guid>d6062630-3edb-45b6-b37a-bbc03047452e</guid>
+    <class>
+      <name>XWiki.DocumentSheetBinding</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <sheet>
+        <cache>0</cache>
+        <classname/>
+        <customDisplay/>
+        <disabled>0</disabled>
+        <displayType>input</displayType>
+        <hint/>
+        <idField/>
+        <multiSelect>0</multiSelect>
+        <name>sheet</name>
+        <number>1</number>
+        <picker>1</picker>
+        <prettyName>Sheet</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators/>
+        <size>30</size>
+        <sort>none</sort>
+        <sql/>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <valueField/>
+        <classType>com.xpn.xwiki.objects.classes.PageClass</classType>
+      </sheet>
+    </class>
+    <property>
+      <sheet>XWiki.ClassSheet</sheet>
+    </property>
+  </object>
 </xwikidoc>

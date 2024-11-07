@@ -22,9 +22,7 @@ package org.xwiki.contrib.llm.internal;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
@@ -50,15 +48,24 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
 {
     private static final String KEYWARD_STRING = "{{search_results}}";
     private static final String DEFAULT_CONTEXT_PROMPT = "You are an AI assistant.\n"
-        + "Use the following information to help answer the user's question:\n"
-        + "=====================\n"
+        + "Use the following search results to answer the user's question:\n"
+        + "<documents>\n"
         + KEYWARD_STRING
-        + "\n=====================\n"
+        + "\n</documents>\n"
         + "If the information is not relevant, inform the user and rely on your general knowledge to answer.\n"
         + "The answer must be written in the language of the user's question formatted using markdown syntax.\n";
-    private static final String SEARCH_RESULTS_STRING = "Search results: %n";
+    private static final String URL_PLACEHOLDER = "{{url}}";
+    private static final String INDEX_PLACEHOLDER = "{{index}}";
+    private static final String CONTENT_PLACEHOLDER = "{{content}}";
+    private static final String DEFAULT_CHUNK_TEMPLATE = """
+        <document index="%s">
+        <source>%s</source>
+        <document_content>
+        %s
+        </document_content>
+        </document>
+        """.formatted(INDEX_PLACEHOLDER, URL_PLACEHOLDER, CONTENT_PLACEHOLDER);
     private static final String SOURCE_STRING = "%s %n";
-    private static final String CONTENT_CHUNK_STRING = "Content chunk: %n %s %n";
     private static final String SIMILARITY_SEARCH_ERROR_MSG = "There was an error during similarity search";
     private static final String ERROR_LOG_FORMAT = "{}: {}";
     private static final String NL = "\n";
@@ -70,6 +77,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     private final int maxSemanticResults;
     private final int maxKeywordResults;
     private final String contextPrompt;
+    private final String chunkTemplate;
     private final Logger logger;
 
     /**
@@ -80,13 +88,16 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
      * @param maxSemanticResults the maximum number of results to return
      * @param maxKeywordResults the maximum number of keyword results to return
      * @param contextPrompt the context prompt
+     * @param chunkTemplate the template of a chunk in the context prompt
      * @param logger the logger
      */
     public RAGChatRequestFilter(List<String> collections,
-                                CollectionManager collectionManager,
-                                Integer maxSemanticResults,
-                                Integer maxKeywordResults,
-                                String contextPrompt, Logger logger)
+        CollectionManager collectionManager,
+        Integer maxSemanticResults,
+        Integer maxKeywordResults,
+        String contextPrompt,
+        String chunkTemplate,
+        Logger logger)
     {
         this.collections = collections;
         this.collectionManager = collectionManager;
@@ -99,6 +110,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         this.maxSemanticResults = initialMaxSemanticResults;
         this.maxKeywordResults = initialMaxKeywordResults;
         this.contextPrompt = contextPrompt;
+        this.chunkTemplate = StringUtils.isBlank(chunkTemplate) ? DEFAULT_CHUNK_TEMPLATE : chunkTemplate;
         this.logger = logger;
     }
 
@@ -195,20 +207,17 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         }
 
         StringBuilder contextBuilder = new StringBuilder();
-        Set<String> addedUrls = new HashSet<>();
-
-        contextBuilder.append(SEARCH_RESULTS_STRING);
+        int index = 0;
         for (Context result : searchResults) {
-            String sourceURL = result.url();
-            String contentMsg = result.content();
-
-            // Check if URL has already been added
-            if (!addedUrls.contains(sourceURL)) {
-                contextBuilder.append(String.format(SOURCE_STRING + CONTENT_CHUNK_STRING,
-                        sourceURL, contentMsg));
-                addedUrls.add(sourceURL);
-            } else {
-                contextBuilder.append(String.format(CONTENT_CHUNK_STRING, contentMsg));
+            ++index;
+            String chunk = this.chunkTemplate
+                .replace(URL_PLACEHOLDER, result.url())
+                .replace(CONTENT_PLACEHOLDER, result.content())
+                .replace(INDEX_PLACEHOLDER, String.valueOf(index));
+            contextBuilder.append(chunk);
+            // If the last character isn't a newline, append one.
+            if (!NL.equals(chunk.substring(chunk.length() - 1))) {
+                contextBuilder.append(NL);
             }
         }
 
