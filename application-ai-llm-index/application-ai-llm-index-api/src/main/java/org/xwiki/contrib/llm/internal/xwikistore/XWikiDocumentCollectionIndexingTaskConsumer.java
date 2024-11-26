@@ -141,9 +141,9 @@ public class XWikiDocumentCollectionIndexingTaskConsumer implements TaskConsumer
                 .map(this.entityReferenceSerializer::serialize)
                 .map(this.solrUtils::toFilterQueryString)
                 .map(filter -> filter + ".*")
-                .collect(Collectors.joining(" OR ", "(*:* -(" + AiLLMSolrCoreInitializer.FIELD_DOC_ID + ":(",
+                .collect(Collectors.joining(" OR ", "(*:* -" + AiLLMSolrCoreInitializer.FIELD_DOC_ID + ":(",
                     // Also clean all chunks indexed with a different store hint.
-                    ") OR " + AiLLMSolrCoreInitializer.FIELD_STORE_HINT + ":" + XWikiDocumentStore.NAME + "))"));
+                    ")) OR (*:* -" + AiLLMSolrCoreInitializer.FIELD_STORE_HINT + ":" + XWikiDocumentStore.NAME + ")"));
 
             this.solrConnector.deleteChunksByQuery(wiki, collectionId, query);
         }
