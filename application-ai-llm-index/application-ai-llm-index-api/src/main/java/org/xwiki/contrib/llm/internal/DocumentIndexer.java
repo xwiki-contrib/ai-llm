@@ -143,15 +143,21 @@ public class DocumentIndexer
     {
         // Take the embedding from the existing chunks if the content matches. For this, index chunks by content.
         Map<String, Chunk> chunkByContent = existingChunks.stream()
-            .collect(Collectors.toMap(Chunk::getContent, Function.identity()));
+            .collect(Collectors.toMap(Chunk::getContent, Function.identity(),
+                // For duplicates, take the first one that has a valid embedding.
+                (existing, replacement) -> hasValidEmbedding(existing) ? existing : replacement));
         for (Chunk chunk : chunkGroup) {
             Chunk existingChunk = chunkByContent.get(chunk.getContent());
             // Check that we have an existing embedding that actually contains a non-zero embedding.
-            if (existingChunk != null && existingChunk.getEmbeddings() != null
-                && Arrays.stream(existingChunk.getEmbeddings()).anyMatch(v -> v != 0.0)) {
+            if (existingChunk != null && hasValidEmbedding(existingChunk)) {
                 chunk.setEmbeddings(existingChunk.getEmbeddings());
             }
         }
+    }
+
+    private static boolean hasValidEmbedding(Chunk chunk)
+    {
+        return chunk.getEmbeddings() != null && Arrays.stream(chunk.getEmbeddings()).anyMatch(v -> v != 0.0);
     }
 
     private void embedChunks(String document, List<Chunk> chunkGroup, String embeddingModel, UserReference author)
