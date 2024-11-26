@@ -48,9 +48,6 @@ public class ChunkingUtils
 {
     private static final String HEADING_REGEX = "^( *=+[^=\n]|#+|(?:[^\n]*\n(?:=+|-+)$))";
 
-    private static final Pattern HEADING_AT_END_PATTERN = Pattern.compile(".*" + HEADING_REGEX,
-        Pattern.MULTILINE | Pattern.DOTALL);
-
     private static final Pattern HEADING_PATTERN = Pattern.compile(HEADING_REGEX, Pattern.MULTILINE);
 
     private static final List<String> SEPARATORS = List.of("\n\n", "\n", ". ", " ");
@@ -184,8 +181,12 @@ public class ChunkingUtils
         // 5. Any space.
         // Truncate to the first option that still gives a chunk that has at least half of the maximum size length.
 
-        Matcher matcher = HEADING_AT_END_PATTERN.matcher(chunk);
-        int headingIndex = matcher.find() ? matcher.start(1) : -1;
+        Matcher matcher = HEADING_PATTERN.matcher(chunk);
+        int headingIndex = -1;
+        // Find the last heading.
+        while (matcher.find()) {
+            headingIndex = matcher.start(1);
+        }
         if (headingIndex > minimumIndex) {
             return OptionalInt.of(headingIndex);
         } else {

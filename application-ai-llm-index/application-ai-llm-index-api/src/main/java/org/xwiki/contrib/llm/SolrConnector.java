@@ -122,8 +122,12 @@ public class SolrConnector
     {
         try (SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
             List<SolrInputDocument> solrDocuments = chunks.stream().map(this::getSolrDocument).toList();
-            client.add(solrDocuments);
-            client.commit();
+            // Don't commit changes explicitly to avoid the performance impact of committing, just ask Solr to commit
+            // within 10 seconds.
+            client.add(solrDocuments, 10000);
+            // Trigger a soft commit to ensure that the chunks are available for search.
+            client.commit(null, false, true, true);
+
         }
     }
 
@@ -373,8 +377,11 @@ public class SolrConnector
     private void deleteChunksByQuery(String query) throws IOException, SolrServerException, SolrException
     {
         try (SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
-            client.deleteByQuery(query);
-            client.commit();
+            // Ask for an actual commit within 10 seconds to avoid the cost of a hard commit.
+            client.deleteByQuery(query, 10000);
+            // Trigger an explicit soft commit to ensure that the chunks are really gone when we search for them
+            // while checking if we should re-embed a chunk.
+            client.commit(null, false, true, true);
         }
     }
 
@@ -396,7 +403,7 @@ public class SolrConnector
         query.addFilterQuery(AiLLMSolrCoreInitializer.FIELD_INDEX + SOLR_SEPARATOR + "0");
         query.setFields(AiLLMSolrCoreInitializer.FIELD_DOC_ID);
         query.setRows(documentIds.size());
-        query.setQuery(AiLLMSolrCoreInitializer.FIELD_DOC_ID + SOLR_SEPARATOR
+        query.addFilterQuery(AiLLMSolrCoreInitializer.FIELD_DOC_ID + SOLR_SEPARATOR
             + documentIds.stream()
                 .map(this.solrUtils::toCompleteFilterQueryString)
                 .collect(Collectors.joining(OR_DELIMITER, PARENTHESIS_OPEN, PARENTHESIS_CLOSE)));
