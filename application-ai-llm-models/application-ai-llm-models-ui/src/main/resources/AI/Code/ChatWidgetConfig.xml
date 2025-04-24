@@ -533,7 +533,7 @@
       <parameters/>
     </property>
     <property>
-      <scope>user</scope>
+      <scope>wiki</scope>
     </property>
   </object>
 </xwikidoc>
