@@ -32,14 +32,14 @@
     <description>
       Integrate artificial intelligence in the form of Large Language Models (LLMs) into the XWiki platform.
     </description>
-    <version>0.7.1-SNAPSHOT</version>
+    <version>0.7.1</version>
     <packaging>pom</packaging>
     <name>LLM</name>
     <scm>
         <connection>scm:git:git://github.com/xwiki-contrib/application-ai-llm.git</connection>
         <developerConnection>scm:git:git@github.com:xwiki-contrib/application-ai-llm.git</developerConnection>
         <url>https://github.com/xwiki-contrib/application-ai-llm/tree/main</url>
-        <tag>HEAD</tag>
+        <tag>application-ai-llm-0.7.1</tag>
     </scm>
     <developers>
         <developer>
