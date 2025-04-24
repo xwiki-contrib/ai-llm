@@ -21,6 +21,8 @@ package org.xwiki.contrib.llm.internal;
 
 import java.util.Collection;
 
+import javax.inject.Provider;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xwiki.component.manager.ComponentLookupException;
@@ -37,6 +39,9 @@ import org.xwiki.user.UserReference;
 import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupException;
 import org.xwiki.user.group.GroupManager;
+import org.xwiki.user.group.WikiTarget;
+
+import com.xpn.xwiki.XWikiContext;
 
 /**
  * Abstract class for chat and embedding models.
@@ -56,6 +61,8 @@ public abstract class AbstractModel implements WikiComponent
 
     protected final ModelConfiguration modelConfiguration;
 
+    protected final Provider<XWikiContext> contextProvider;
+
     protected AbstractModel(ModelConfiguration modelConfiguration, ComponentManager componentManager)
         throws ComponentLookupException
     {
@@ -64,7 +71,7 @@ public abstract class AbstractModel implements WikiComponent
         this.userReferenceSerializer =
             componentManager.getInstance(UserReferenceSerializer.TYPE_DOCUMENT_REFERENCE, "document");
         this.configProvider = componentManager.getInstance(GPTAPIConfigProvider.class);
-
+        this.contextProvider = componentManager.getInstance(XWikiContext.TYPE_PROVIDER);
     }
 
     @Override
@@ -124,11 +131,16 @@ public abstract class AbstractModel implements WikiComponent
         }
         DocumentReference documentUserReference = this.userReferenceSerializer.serialize(user);
         Collection<DocumentReference> userGroups;
+        XWikiContext context = this.contextProvider.get();
+        String currentWiki = context.getWikiId();
         try {
-            userGroups = this.groupManager.getGroups(documentUserReference, getWikiReference(), true);
+            context.setWikiId(getWikiReference().getName());
+            userGroups = this.groupManager.getGroups(documentUserReference, WikiTarget.ENTITY_AND_CURRENT, true);
         } catch (GroupException e) {
             LOGGER.warn("Failed to get groups for user [{}]", documentUserReference, e);
             return false;
+        } finally {
+            context.setWikiId(currentWiki);
         }
 
         return this.modelConfiguration.getAllowedGroups().stream().anyMatch(userGroups::contains);

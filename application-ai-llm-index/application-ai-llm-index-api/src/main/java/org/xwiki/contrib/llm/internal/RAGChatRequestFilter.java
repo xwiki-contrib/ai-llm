@@ -25,10 +25,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import javax.inject.Provider;
+
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.AbstractChatRequestFilter;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.openai.ChatCompletionChunk;
@@ -37,6 +42,9 @@ import org.xwiki.contrib.llm.openai.ChatCompletionRequest;
 import org.xwiki.contrib.llm.openai.ChatCompletionResult;
 import org.xwiki.contrib.llm.openai.ChatMessage;
 import org.xwiki.contrib.llm.openai.Context;
+import org.xwiki.model.reference.WikiReference;
+
+import com.xpn.xwiki.XWikiContext;
 
 /**
  * A filter that adds context from the given collections to the request.
@@ -71,36 +79,38 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
     private static final String NL = "\n";
     private static final String NL2 = "\n\n";
     private static final String SOURCES_STRING2 = "Sources: ";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(RAGChatRequestFilter.class);
     
     private final List<String> collections;
     private final CollectionManager collectionManager;
+    private final Provider<XWikiContext> contextProvider;
     private final int maxSemanticResults;
     private final int maxKeywordResults;
     private final String contextPrompt;
     private final String chunkTemplate;
-    private final Logger logger;
+    private final WikiReference wikiReference;
 
     /**
      * Constructor.
      *
      * @param collections the collections to use
-     * @param collectionManager the collection manager
      * @param maxSemanticResults the maximum number of results to return
      * @param maxKeywordResults the maximum number of keyword results to return
      * @param contextPrompt the context prompt
      * @param chunkTemplate the template of a chunk in the context prompt
-     * @param logger the logger
+     * @param wiki the wiki where the filter is defined
+     * @param componentManager the component manager to get components from
      */
     public RAGChatRequestFilter(List<String> collections,
-        CollectionManager collectionManager,
         Integer maxSemanticResults,
         Integer maxKeywordResults,
         String contextPrompt,
         String chunkTemplate,
-        Logger logger)
+        WikiReference wiki,
+        ComponentManager componentManager) throws ComponentLookupException
     {
         this.collections = collections;
-        this.collectionManager = collectionManager;
         int initialMaxSemanticResults = maxSemanticResults != null ? maxSemanticResults : 0;
         int initialMaxKeywordResults = maxKeywordResults != null ? maxKeywordResults : 0;
         if (initialMaxKeywordResults + initialMaxSemanticResults <= 0) {
@@ -111,7 +121,9 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         this.maxKeywordResults = initialMaxKeywordResults;
         this.contextPrompt = contextPrompt;
         this.chunkTemplate = StringUtils.isBlank(chunkTemplate) ? DEFAULT_CHUNK_TEMPLATE : chunkTemplate;
-        this.logger = logger;
+        this.wikiReference = wiki;
+        this.collectionManager = componentManager.getInstance(CollectionManager.class);
+        this.contextProvider = componentManager.getInstance(XWikiContext.TYPE_PROVIDER);
     }
 
     @Override
@@ -234,12 +246,17 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         String message = lastMessage.getContent();
 
         // Perform solr similarity search on the last message
+        XWikiContext context = this.contextProvider.get();
+        String currentWiki = context.getWikiId();
         try {
+            context.setWikiId(this.wikiReference.getName());
             return this.collectionManager.hybridSearch(message, this.collections, this.maxSemanticResults,
                 this.maxKeywordResults);
         } catch (Exception e) {
-            this.logger.error(ERROR_LOG_FORMAT, SIMILARITY_SEARCH_ERROR_MSG, ExceptionUtils.getRootCauseMessage(e));
+            LOGGER.error(ERROR_LOG_FORMAT, SIMILARITY_SEARCH_ERROR_MSG, ExceptionUtils.getRootCauseMessage(e));
             return Collections.emptyList();
+        } finally {
+            context.setWikiId(currentWiki);
         }
     }
 

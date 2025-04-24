@@ -25,13 +25,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Priority;
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.ChatRequestFilter;
 import org.xwiki.contrib.llm.ChatRequestFilterBuilder;
-import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.LocalDocumentReference;
 
@@ -62,7 +64,8 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
     private static final String COLLECTIONS_FIELD = "collections";
 
     @Inject
-    private CollectionManager collectionManager;
+    @Named("context")
+    private Provider<ComponentManager> componentManagerProvider;
 
     @Inject
     private Logger logger;
@@ -83,12 +86,15 @@ public class RAGChatRequestFilterBuilder implements ChatRequestFilterBuilder
 
 
         // Only return a filter if there are collections to filter on.
-        return collections.isEmpty() ? List.of() 
-                                     : List.of(new RAGChatRequestFilter(collections,
-                                                                        collectionManager,
-                                                                        maxResults,
-                                                                        maxKeywordResults,
-                                                                        contextPrompt, chunkTemplate, logger));
+        try {
+            return collections.isEmpty() ? List.of()
+                : List.of(new RAGChatRequestFilter(collections, maxResults, maxKeywordResults, contextPrompt,
+                chunkTemplate, object.getDocumentReference().getWikiReference(), this.componentManagerProvider.get()));
+        } catch (ComponentLookupException e) {
+            this.logger.error("Error building RAG chat request filter for [{}]", object.getReference(), e);
+        }
+
+        return List.of();
     }
 
     @Override

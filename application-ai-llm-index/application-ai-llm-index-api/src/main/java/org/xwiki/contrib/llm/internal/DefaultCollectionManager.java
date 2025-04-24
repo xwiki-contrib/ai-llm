@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -30,30 +31,31 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.contrib.llm.DocumentStore;
-import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
+import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
 import org.xwiki.rendering.syntax.Syntax;
-import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupException;
 import org.xwiki.user.group.GroupManager;
+import org.xwiki.user.group.WikiTarget;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -86,8 +88,7 @@ public class DefaultCollectionManager implements CollectionManager
     private GroupManager groupManager;
 
     @Inject
-    @Named("document")
-    private UserReferenceSerializer<DocumentReference> userReferenceSerializer;
+    private DocumentReferenceResolver<String> documentReferenceResolver;
 
     @Override
     public DefaultCollection createCollection(String id) throws IndexException
@@ -273,7 +274,7 @@ public class DefaultCollectionManager implements CollectionManager
                     return Stream.empty();
                 }
             })
-            .filter(entry -> hasAccess(entry.getValue()))
+            .filter(entry -> entry.getValue() != null && hasAccess(entry.getValue()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -330,9 +331,7 @@ public class DefaultCollectionManager implements CollectionManager
         DocumentReference documentUserReference = contextProvider.get().getUserReference();
         java.util.Collection<DocumentReference> userGroups = new ArrayList<>();
         try {
-            userGroups = groupManager.getGroups(documentUserReference,
-                                                contextProvider.get().getWikiReference(),
-                                                 true);
+            userGroups = groupManager.getGroups(documentUserReference, WikiTarget.ENTITY_AND_CURRENT, true);
         } catch (GroupException e) {
             logger.warn("Failed to get groups for user [{}]", documentUserReference, e);
         }
@@ -341,17 +340,10 @@ public class DefaultCollectionManager implements CollectionManager
     
     private java.util.Collection<DocumentReference> convertAllowedGroupsToReferences(String stringGroups)
     {
-        String[] allowedGroups = stringGroups.split(",");
-        java.util.Collection<DocumentReference> allowedGroupReferences = new ArrayList<>();
-        for (String group : allowedGroups) {
-            String[] stringGroupParts = group.trim().split("\\.");
-            DocumentReference groupReference = new DocumentReference(contextProvider.get().getWikiId(),
-                                                                     stringGroupParts[0],
-                                                                     stringGroupParts[1]
-                                                                    );
-            allowedGroupReferences.add(groupReference);
-        }
-        return allowedGroupReferences;
+        return Arrays.stream(StringUtils.split(stringGroups, ','))
+            .map(String::trim)
+            .map(this.documentReferenceResolver::resolve)
+            .collect(Collectors.toList());
     }
 
     @Override

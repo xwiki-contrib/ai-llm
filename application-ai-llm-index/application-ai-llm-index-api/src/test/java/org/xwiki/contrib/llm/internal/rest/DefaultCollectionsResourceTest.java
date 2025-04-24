@@ -31,12 +31,12 @@ import org.xwiki.security.authorization.Right;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
-import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupManager;
 
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.InjectMockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.OldcoreTest;
+import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -51,6 +51,7 @@ import static org.mockito.Mockito.when;
  */
 @OldcoreTest
 @ComponentList({ CurrentUserCollectionManager.class })
+@ReferenceComponentList
 class DefaultCollectionsResourceTest
 {
     private static final String COLLECTION_1 = "collection1";
