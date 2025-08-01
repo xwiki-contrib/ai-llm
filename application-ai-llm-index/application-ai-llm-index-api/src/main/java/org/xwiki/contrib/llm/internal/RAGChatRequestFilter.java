@@ -27,7 +27,7 @@ import java.util.UUID;
 
 import javax.inject.Provider;
 
-import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.slf4j.Logger;

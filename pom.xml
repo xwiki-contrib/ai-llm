@@ -83,4 +83,24 @@
         </extensions>
         <plugins />
     </build>
+
+    <!--
+      Make sure we don't trigger as transitive dependency things which should not be used directly:
+        * commons-lang:commons-lang
+     -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.xwiki.commons</groupId>
+                <artifactId>xwiki-commons-velocity</artifactId>
+                <version>${commons.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>commons-lang</groupId>
+                        <artifactId>commons-lang</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 </project>
