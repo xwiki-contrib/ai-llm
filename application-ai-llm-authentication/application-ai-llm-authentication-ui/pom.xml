@@ -36,6 +36,9 @@
   <properties>
     <xwiki.extension.name>Token-based authentication for the LLM Application (BETA)</xwiki.extension.name>
     <xwiki.extension.category>application</xwiki.extension.category>
+
+    <!-- TODO: Remove when upgrading to a test framework which does not require commons-lang 2 -->
+    <xwiki.enforcer.enforce-commons-lang3.skip>true</xwiki.enforcer.enforce-commons-lang3.skip>
   </properties>
   <dependencies>
     <dependency>
@@ -47,6 +50,12 @@
       <groupId>org.xwiki.platform</groupId>
       <artifactId>xwiki-platform-test-page</artifactId>
       <version>${platform.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- TODO: Remove when upgrading to a test framework which does not require commons-lang 2 -->
+    <dependency>
+      <groupId>commons-lang</groupId>
+      <artifactId>commons-lang</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
