@@ -23,7 +23,6 @@ import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Singleton;
 import javax.ws.rs.core.GenericEntity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -49,7 +48,6 @@ import com.theokanning.openai.OpenAiResponse;
  */
 @Component
 @Named("org.xwiki.contrib.llm.internal.rest.DefaultModelsResource")
-@Singleton
 public class DefaultModelsResource extends XWikiResource implements ModelsResource
 {
     private static final String CORS_ALLOW_ORIGIN = "Access-Control-Allow-Origin";

@@ -20,9 +20,9 @@
 package org.xwiki.contrib.llm.internal.rest;
 
 import java.util.List;
+
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Singleton;
 import javax.ws.rs.core.GenericEntity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -44,7 +44,6 @@ import org.xwiki.rest.XWikiRestException;
  */
 @Component
 @Named("org.xwiki.contrib.llm.internal.rest.DefaultPromptsResource")
-@Singleton
 public class DefaultPromptsResource extends XWikiResource implements PromptsResource
 {
     private static final String CORS_ALLOW_ORIGIN = "Access-Control-Allow-Origin";

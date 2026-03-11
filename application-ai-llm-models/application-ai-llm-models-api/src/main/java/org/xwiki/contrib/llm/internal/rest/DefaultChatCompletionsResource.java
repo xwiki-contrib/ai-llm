@@ -25,7 +25,6 @@ import java.nio.charset.StandardCharsets;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Singleton;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -56,7 +55,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @Component
 @Named("org.xwiki.contrib.llm.internal.rest.DefaultChatCompletionsResource")
-@Singleton
 public class DefaultChatCompletionsResource extends XWikiResource implements ChatCompletionsResource
 {
     private static final String DATA_FORMAT = "data: %s%n%n";
