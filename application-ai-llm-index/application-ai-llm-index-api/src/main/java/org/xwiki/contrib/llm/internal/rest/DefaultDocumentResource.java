@@ -20,7 +20,6 @@
 package org.xwiki.contrib.llm.internal.rest;
 
 import javax.inject.Named;
-import javax.inject.Singleton;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
@@ -41,7 +40,6 @@ import org.xwiki.security.authorization.AccessDeniedException;
  */
 @Component
 @Named("org.xwiki.contrib.llm.internal.rest.DefaultDocumentResource")
-@Singleton
 public class DefaultDocumentResource extends AbstractCollectionResource implements DocumentResource
 {
     @Override

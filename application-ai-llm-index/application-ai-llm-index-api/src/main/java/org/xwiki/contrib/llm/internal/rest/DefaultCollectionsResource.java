@@ -24,7 +24,6 @@ import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
-import javax.inject.Singleton;
 
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.CollectionManager;
@@ -43,7 +42,6 @@ import com.xpn.xwiki.XWikiContext;
  */
 @Component
 @Named("org.xwiki.contrib.llm.internal.rest.DefaultCollectionsResource")
-@Singleton
 public class DefaultCollectionsResource extends XWikiResource implements CollectionsResource
 {
     @Inject

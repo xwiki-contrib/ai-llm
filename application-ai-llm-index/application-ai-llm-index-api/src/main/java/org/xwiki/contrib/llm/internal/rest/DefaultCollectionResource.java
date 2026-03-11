@@ -23,7 +23,6 @@ import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Singleton;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
@@ -52,7 +51,6 @@ import com.xpn.xwiki.XWikiContext;
  */
 @Component
 @Named("org.xwiki.contrib.llm.internal.rest.DefaultCollectionResource")
-@Singleton
 public class DefaultCollectionResource extends AbstractCollectionResource implements CollectionResource
 {
     @Inject
