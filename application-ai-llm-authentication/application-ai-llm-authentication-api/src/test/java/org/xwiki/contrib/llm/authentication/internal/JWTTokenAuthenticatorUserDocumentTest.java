@@ -55,12 +55,11 @@ import com.xpn.xwiki.test.junit5.mockito.OldcoreTest;
 import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -98,6 +97,8 @@ class JWTTokenAuthenticatorUserDocumentTest
     private static final String FIRST_NAME = "first_name";
 
     private static final String LAST_NAME = "last_name";
+
+    private static final String UPDATE_MESSAGE = "Update user profile";
 
     @InjectMockitoOldcore
     private MockitoOldcore mockitoOldcore;
@@ -149,7 +150,7 @@ class JWTTokenAuthenticatorUserDocumentTest
         // Set a property and save the document
         userDocument.setActive(true, this.mockitoOldcore.getXWikiContext());
         userDocument.maybeSave(this.mockitoOldcore.getXWikiContext());
-        verify(this.mockitoOldcore.getSpyXWiki()).saveDocument(any(), eq("Update user profile"), any());
+        verify(this.mockitoOldcore.getSpyXWiki()).saveDocument(any(), eq(UPDATE_MESSAGE), any());
 
         // Verify that the document has been saved.
         XWikiDocument savedDocument = this.mockitoOldcore.getSpyXWiki().getDocument(userDocument.getDocumentReference(),
@@ -169,7 +170,6 @@ class JWTTokenAuthenticatorUserDocumentTest
                 .set(propertyName, oldValue, context);
         }
         this.mockitoOldcore.getSpyXWiki().saveDocument(document, context);
-        XWikiDocument savedDocument = this.mockitoOldcore.getSpyXWiki().getDocument(USER_REFERENCE, context);
 
         XWikiDocument initialDocument = document.clone();
 
@@ -195,21 +195,17 @@ class JWTTokenAuthenticatorUserDocumentTest
         // Verify that the original document hasn't been changed, but a clone has been created instead.
         assertEquals(initialDocument, document);
         XWikiDocument updatedDocument = this.mockitoOldcore.getSpyXWiki().getDocument(USER_REFERENCE, context);
-        if (Objects.equals(oldValue, newValue)) {
-            // Verify that the document hasn't been saved.
-            assertSame(savedDocument, updatedDocument);
-            verify(this.mockitoOldcore.getSpyXWiki(), never()).saveDocument(any(), eq("Update user profile"), any());
-        } else {
-            // Verify that the document has been saved.
-            verify(this.mockitoOldcore.getSpyXWiki()).saveDocument(any(), eq("Update user profile"), any());
-        }
+        int expectedSaveCount = Objects.equals(oldValue, newValue) ? 0 : 1;
+        verify(this.mockitoOldcore.getSpyXWiki(), times(expectedSaveCount))
+            .saveDocument(any(), eq(UPDATE_MESSAGE), any());
         assertEquals(String.valueOf(newValue),
             updatedDocument.getXObject(XWikiUsersDocumentInitializer.XWIKI_USERS_DOCUMENT_REFERENCE)
             .getStringValue(propertyName));
 
         // Verify that saving again doesn't save the document again.
         userDocument.maybeSave(context);
-        assertSame(updatedDocument, this.mockitoOldcore.getSpyXWiki().getDocument(USER_REFERENCE, context));
+        verify(this.mockitoOldcore.getSpyXWiki(), times(expectedSaveCount))
+            .saveDocument(any(), eq(UPDATE_MESSAGE), any());
     }
 
     private static Stream<Arguments> userPropertiesProvider()
@@ -244,7 +240,7 @@ class JWTTokenAuthenticatorUserDocumentTest
         assertEquals(initialDocument, document);
         XWikiDocument updatedDocument = this.mockitoOldcore.getSpyXWiki().getDocument(USER_REFERENCE, context);
         // Verify that the document has been saved.
-        verify(this.mockitoOldcore.getSpyXWiki()).saveDocument(any(), eq("Update user profile"), any());
+        verify(this.mockitoOldcore.getSpyXWiki()).saveDocument(any(), eq(UPDATE_MESSAGE), any());
         assertEquals("subject",
             updatedDocument.getXObject(JWTTokenAuthenticatorUserClassDocumentInitializer.CLASS_REFERENCE)
             .getStringValue(JWTTokenAuthenticatorUserClassDocumentInitializer.SUBJECT_FIELD));
@@ -257,6 +253,6 @@ class JWTTokenAuthenticatorUserDocumentTest
 
         // Verify that saving again doesn't save the document again.
         userDocument.maybeSave(context);
-        assertSame(updatedDocument, this.mockitoOldcore.getSpyXWiki().getDocument(USER_REFERENCE, context));
+        verify(this.mockitoOldcore.getSpyXWiki()).saveDocument(any(), eq(UPDATE_MESSAGE), any());
     }
 }

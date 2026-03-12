@@ -84,6 +84,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.glassfish.jersey.core</groupId>
+            <artifactId>jersey-common</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.xwiki.platform</groupId>
             <artifactId>xwiki-platform-search-solr-query</artifactId>
             <version>${platform.version}</version>
@@ -101,7 +106,7 @@
         <dependency>
             <groupId>org.xwiki.contrib.llm</groupId>
             <artifactId>application-ai-llm-models-api</artifactId>
-            <version>0.7.3-SNAPSHOT</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.github.resilience4j</groupId>
