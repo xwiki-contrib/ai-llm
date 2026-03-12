@@ -1,0 +1,2 @@
+org.xwiki.contrib.llm.mcp.internal.XWikiMCPServerManager
+org.xwiki.contrib.llm.mcp.internal.DefaultMCPResource

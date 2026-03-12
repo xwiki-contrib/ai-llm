@@ -68,6 +68,7 @@
     <modules>
         <module>application-ai-llm-models</module>
         <module>application-ai-llm-index</module>
+        <module>application-ai-llm-mcp</module>
         <module>application-ai-llm-authentication</module>
         <module>application-ai-llm-chat</module>
         <module>application-ai-llm-flavor</module>
