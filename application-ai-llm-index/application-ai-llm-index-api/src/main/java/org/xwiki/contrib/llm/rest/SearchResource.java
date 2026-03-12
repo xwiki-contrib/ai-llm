@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.rest;
 
 import java.util.List;
 
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -41,11 +42,16 @@ import org.xwiki.stability.Unstable;
 public interface SearchResource
 {
     /**
+     * Default limit for keyword and semantic search results.
+     */
+    String DEFAULT_LIMIT = "10";
+
+    /**
      * Searches for context chunks similar to the given query.
      *
      * @param wikiName the name of the wiki
      * @param query the query to search for
-     * @param collections the collections to search in
+     * @param collections the collections to search in, when empty all accessible collections are searched
      * @param limitKeywordResults the maximum number of results to return for the keyword search
      * @param limitSemanticResults the maximum number of results to return for the semantic search
      * @return a list of context chunks that are similar to the query
@@ -56,7 +62,7 @@ public interface SearchResource
         @PathParam("wikiName") String wikiName,
         @QueryParam("query") String query,
         @QueryParam("collection") List<String> collections,
-        @QueryParam("limitKeywordResults") Integer limitKeywordResults,
-        @QueryParam("limitSemanticResults") Integer limitSemanticResults
+        @QueryParam("limitKeywordResults") @DefaultValue(DEFAULT_LIMIT) int limitKeywordResults,
+        @QueryParam("limitSemanticResults") @DefaultValue(DEFAULT_LIMIT) int limitSemanticResults
     ) throws XWikiRestException;
 }

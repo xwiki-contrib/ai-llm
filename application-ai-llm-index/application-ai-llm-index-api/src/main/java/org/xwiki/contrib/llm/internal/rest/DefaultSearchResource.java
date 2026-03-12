@@ -20,7 +20,6 @@
 package org.xwiki.contrib.llm.internal.rest;
 
 import java.util.List;
-import java.util.Objects;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -50,9 +49,6 @@ import com.xpn.xwiki.XWikiContext;
 @Named("org.xwiki.contrib.llm.internal.rest.DefaultSearchResource")
 public class DefaultSearchResource extends XWikiResource implements SearchResource
 {
-    private static final int DEFAULT_LIMIT_KEYWORD_RESULTS = 10;
-    private static final int DEFAULT_LIMIT_SEMANTIC_RESULTS = 10;
-
     @Inject
     @Named("currentUser")
     private CollectionManager collectionManager;
@@ -70,8 +66,8 @@ public class DefaultSearchResource extends XWikiResource implements SearchResour
         String wikiName,
         String query,
         List<String> collections,
-        Integer limitKeywordResults,
-        Integer limitSemanticResults
+        int limitKeywordResults,
+        int limitSemanticResults
     ) throws XWikiRestException
     {
         XWikiContext context = this.contextProvider.get();
@@ -81,15 +77,20 @@ public class DefaultSearchResource extends XWikiResource implements SearchResour
         try {
             context.setWikiId(wikiName);
 
-            int actualKeywordLimit = Objects.requireNonNullElse(limitKeywordResults, DEFAULT_LIMIT_KEYWORD_RESULTS);
-            int actualSemanticLimit = Objects.requireNonNullElse(limitSemanticResults, DEFAULT_LIMIT_SEMANTIC_RESULTS);
+            this.validateLimit(limitKeywordResults);
+            this.validateLimit(limitSemanticResults);
 
-            this.validateLimit(actualKeywordLimit);
-            this.validateLimit(actualSemanticLimit);
+            List<String> collectionsToSearch =
+                collections.isEmpty() ? this.collectionManager.getCollections() : collections;
 
             // Authorization is handled by the CollectionManager, only actually accessible collections are searched,
             // and results are filtered accordingly.
-            return this.collectionManager.hybridSearch(query, collections, actualKeywordLimit, actualSemanticLimit);
+            return this.collectionManager.hybridSearch(
+                query,
+                collectionsToSearch,
+                limitKeywordResults,
+                limitSemanticResults
+            );
         } catch (IndexException e) {
             throw new XWikiRestException("Failed to search", e);
         } finally {
