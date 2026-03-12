@@ -25,7 +25,6 @@ import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
-import javax.ws.rs.POST;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -66,7 +65,6 @@ public class DefaultSearchResource extends XWikiResource implements SearchResour
     // in the parent class.
     private SecurityConfiguration llmSecurityConfiguration;
 
-    @POST
     @Override
     public List<Context> search(
         String wikiName,
