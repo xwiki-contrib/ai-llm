@@ -41,6 +41,7 @@ import org.xwiki.context.ExecutionContext;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.openai.Context;
+import org.xwiki.security.SecurityConfiguration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xpn.xwiki.XWikiContext;
@@ -104,6 +105,9 @@ public class XWikiMCPServerManager implements Initializable, Disposable
 
     @Inject
     private Execution execution;
+
+    @Inject
+    private SecurityConfiguration securityConfiguration;
 
     private McpStatelessSyncServer mcpServer;
 
@@ -188,6 +192,14 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         int keywordLimit = getIntParam(args, LIMIT_KEYWORD_PARAM, DEFAULT_LIMIT);
         int semanticLimit = getIntParam(args, LIMIT_SEMANTIC_PARAM, DEFAULT_LIMIT);
 
+        if (isLimitExceeded(keywordLimit) || isLimitExceeded(semanticLimit)) {
+            return McpSchema.CallToolResult.builder()
+                .addTextContent(
+                    "Error: Limits must be less than or equal to " + this.securityConfiguration.getQueryItemsLimit())
+                .isError(true)
+                .build();
+        }
+
         try {
             if (collections.isEmpty()) {
                 collections = this.collectionManager.getCollections();
@@ -204,6 +216,12 @@ public class XWikiMCPServerManager implements Initializable, Disposable
                 .isError(true)
                 .build();
         }
+    }
+
+    private boolean isLimitExceeded(int limit)
+    {
+        int configuredLimit = this.securityConfiguration.getQueryItemsLimit();
+        return configuredLimit > 0 && limit > configuredLimit;
     }
 
     McpSchema.CallToolResult handleCollectionListTool(McpTransportContext context, McpSchema.CallToolRequest request)
