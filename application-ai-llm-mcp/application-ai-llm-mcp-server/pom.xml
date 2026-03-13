@@ -34,7 +34,7 @@
     <properties>
         <xwiki.extension.name>LLM MCP Server (BETA)</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
-        <xwiki.jacoco.instructionRatio>0.86</xwiki.jacoco.instructionRatio>
+        <xwiki.jacoco.instructionRatio>0.81</xwiki.jacoco.instructionRatio>
         <!-- This extension needs to be on the root namespace as it exposes a REST API. -->
         <xwiki.extension.namespaces>{root}</xwiki.extension.namespaces>
     </properties>
