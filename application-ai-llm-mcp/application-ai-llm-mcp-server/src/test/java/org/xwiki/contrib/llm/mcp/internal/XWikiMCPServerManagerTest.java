@@ -29,6 +29,7 @@ import org.xwiki.context.Execution;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.openai.Context;
+import org.xwiki.security.SecurityConfiguration;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -46,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -68,9 +70,13 @@ class XWikiMCPServerManagerTest
     @MockComponent
     private Execution execution;
 
+    @MockComponent
+    private SecurityConfiguration securityConfiguration;
+
     @Test
     void handleSearchToolCallsHybridSearchWithDefaultLimits() throws IndexException
     {
+        when(this.securityConfiguration.getQueryItemsLimit()).thenReturn(1000);
         List<String> allCollections = List.of("col1", "col2");
         List<Context> results = List.of(
             new Context("col1", "doc1", "https://wiki.example.com/doc1", "Some content", 0.95, null));
@@ -93,6 +99,7 @@ class XWikiMCPServerManagerTest
     @Test
     void handleSearchToolPassesCollectionsAndCustomLimits() throws IndexException
     {
+        when(this.securityConfiguration.getQueryItemsLimit()).thenReturn(1000);
         when(this.collectionManager.hybridSearch(any(), any(), anyInt(), anyInt()))
             .thenReturn(Collections.emptyList());
 
@@ -122,8 +129,24 @@ class XWikiMCPServerManagerTest
     }
 
     @Test
+    void handleSearchToolReturnsErrorForNonStringQuery()
+    {
+        McpSchema.CallToolRequest request =
+            new McpSchema.CallToolRequest("search_wiki", Map.of("query", 7));
+
+        McpSchema.CallToolResult result =
+            this.mcpServerManager.handleSearchTool(McpTransportContext.EMPTY, request);
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Error: 'query' parameter must be a string.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verifyNoInteractions(this.collectionManager);
+    }
+
+    @Test
     void handleSearchToolReturnsErrorOnIndexException() throws IndexException
     {
+        when(this.securityConfiguration.getQueryItemsLimit()).thenReturn(1000);
         when(this.collectionManager.hybridSearch(any(), any(), anyInt(), anyInt()))
             .thenThrow(new IndexException("Solr unavailable"));
 
@@ -142,6 +165,7 @@ class XWikiMCPServerManagerTest
     @Test
     void handleSearchToolFormatsResultsWithUrlAndScore() throws IndexException
     {
+        when(this.securityConfiguration.getQueryItemsLimit()).thenReturn(1000);
         List<Context> results = List.of(
             new Context("col1", "doc1", "https://wiki.example.com/doc1", "First content", 0.95, null),
             new Context("col1", "doc2", null, "Second content", null, null)
@@ -175,6 +199,7 @@ class XWikiMCPServerManagerTest
     @Test
     void handleSearchToolReturnsNoResultsMessage() throws IndexException
     {
+        when(this.securityConfiguration.getQueryItemsLimit()).thenReturn(1000);
         when(this.collectionManager.hybridSearch(any(), any(), anyInt(), anyInt()))
             .thenReturn(Collections.emptyList());
 
@@ -187,5 +212,74 @@ class XWikiMCPServerManagerTest
         assertNotEquals(Boolean.TRUE, result.isError());
         String text = ((McpSchema.TextContent) result.content().get(0)).text();
         assertTrue(text.contains("No relevant content found"));
+    }
+
+    @Test
+    void handleSearchToolParsesStringLimits() throws IndexException
+    {
+        when(this.securityConfiguration.getQueryItemsLimit()).thenReturn(1000);
+        List<String> allCollections = List.of("col1", "col2");
+        when(this.collectionManager.getCollections()).thenReturn(allCollections);
+        when(this.collectionManager.hybridSearch(any(), any(), anyInt(), anyInt()))
+            .thenReturn(Collections.emptyList());
+
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("search_wiki", Map.of(
+            "query", "string limits",
+            "limitKeywordResults", "5",
+            "limitSemanticResults", "3"
+        ));
+
+        McpSchema.CallToolResult result = this.mcpServerManager.handleSearchTool(McpTransportContext.EMPTY, request);
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        verify(this.collectionManager).hybridSearch("string limits", allCollections, 3, 5);
+    }
+
+    @Test
+    void handleSearchToolReturnsErrorForNegativeLimit()
+    {
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("search_wiki", Map.of(
+            "query", "negative",
+            "limitKeywordResults", "-1"
+        ));
+
+        McpSchema.CallToolResult result = this.mcpServerManager.handleSearchTool(McpTransportContext.EMPTY, request);
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Error: Limits must be greater than or equal to 0.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verifyNoInteractions(this.collectionManager);
+    }
+
+    @Test
+    void handleSearchToolReturnsErrorForInvalidCollectionItems()
+    {
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("search_wiki", Map.of(
+            "query", "invalid collections",
+            "collections", List.of("collA", 12)
+        ));
+
+        McpSchema.CallToolResult result = this.mcpServerManager.handleSearchTool(McpTransportContext.EMPTY, request);
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Error: 'collections' parameter must be an array of strings.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verifyNoInteractions(this.collectionManager);
+    }
+
+    @Test
+    void handleSearchToolReturnsErrorForInvalidStringLimit()
+    {
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("search_wiki", Map.of(
+            "query", "invalid limit",
+            "limitKeywordResults", "not-a-number"
+        ));
+
+        McpSchema.CallToolResult result = this.mcpServerManager.handleSearchTool(McpTransportContext.EMPTY, request);
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Error: 'limitKeywordResults' parameter must be an integer.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verifyNoInteractions(this.collectionManager);
     }
 }

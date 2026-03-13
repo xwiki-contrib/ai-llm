@@ -85,6 +85,17 @@ public class XWikiMCPServerManager implements Initializable, Disposable
 
     private static final String LIMIT_SEMANTIC_PARAM = "limitSemanticResults";
 
+    private static final String REQUIRED_QUERY_MESSAGE = "Error: 'query' parameter is required and must not be empty.";
+
+    private static final String INVALID_LIMITS_MESSAGE = "Error: Limits must be greater than or equal to 0.";
+
+    private static final String QUERY_STRING_PARAMETER_MESSAGE = "Error: 'query' parameter must be a string.";
+
+    private static final String COLLECTION_ARRAY_PARAMETER_MESSAGE =
+        "Error: 'collections' parameter must be an array of strings.";
+
+    private static final String INTEGER_PARAMETER_MESSAGE = "Error: '%s' parameter must be an integer.";
+
     private static final String TYPE = "type";
 
     private static final String STRING = "string";
@@ -180,41 +191,30 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     McpSchema.CallToolResult handleSearchTool(McpTransportContext context, McpSchema.CallToolRequest request)
     {
         Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();
-        String query = (String) args.get(QUERY_PARAM);
-        if (StringUtils.isBlank(query)) {
-            return McpSchema.CallToolResult.builder()
-                .addTextContent("Error: 'query' parameter is required and must not be empty.")
-                .isError(true)
-                .build();
-        }
-
-        List<String> collections = getListParam(args, COLLECTIONS_PARAM);
-        int keywordLimit = getIntParam(args, LIMIT_KEYWORD_PARAM, DEFAULT_LIMIT);
-        int semanticLimit = getIntParam(args, LIMIT_SEMANTIC_PARAM, DEFAULT_LIMIT);
-
-        if (isLimitExceeded(keywordLimit) || isLimitExceeded(semanticLimit)) {
-            return McpSchema.CallToolResult.builder()
-                .addTextContent(
-                    "Error: Limits must be less than or equal to " + this.securityConfiguration.getQueryItemsLimit())
-                .isError(true)
-                .build();
-        }
 
         try {
+            String query = getQueryParam(args);
+
+            int keywordLimit = getIntParam(args, LIMIT_KEYWORD_PARAM);
+            int semanticLimit = getIntParam(args, LIMIT_SEMANTIC_PARAM);
+
+            validateLimits(keywordLimit, semanticLimit);
+
+            List<String> collections = getCollectionsParam(args);
             if (collections.isEmpty()) {
                 collections = this.collectionManager.getCollections();
             }
+
             List<Context> results =
                 this.collectionManager.hybridSearch(query, collections, semanticLimit, keywordLimit);
             return McpSchema.CallToolResult.builder()
                 .addTextContent(formatResults(results))
                 .build();
         } catch (IndexException e) {
-            this.logger.error("MCP search_wiki tool failed for query [{}]", query, e);
-            return McpSchema.CallToolResult.builder()
-                .addTextContent("Error searching wiki: " + ExceptionUtils.getRootCauseMessage(e))
-                .isError(true)
-                .build();
+            this.logger.error("MCP search_wiki tool failed for query [{}]", args.get(QUERY_PARAM), e);
+            return buildErrorResult("Error searching wiki: " + ExceptionUtils.getRootCauseMessage(e));
+        } catch (IllegalArgumentException e) {
+            return buildErrorResult(e.getMessage());
         }
     }
 
@@ -222,6 +222,52 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     {
         int configuredLimit = this.securityConfiguration.getQueryItemsLimit();
         return configuredLimit > 0 && limit > configuredLimit;
+    }
+
+    private String getQueryParam(Map<String, Object> args)
+    {
+        String query = getStringParam(args);
+        if (StringUtils.isBlank(query)) {
+            throw new IllegalArgumentException(REQUIRED_QUERY_MESSAGE);
+        }
+        return query;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> getCollectionsParam(Map<String, Object> args)
+    {
+        Object value = args.get(COLLECTIONS_PARAM);
+        if (value == null) {
+            return List.of();
+        }
+
+        if (!(value instanceof List<?> list)) {
+            throw new IllegalArgumentException(COLLECTION_ARRAY_PARAMETER_MESSAGE);
+        }
+
+        for (Object entry : list) {
+            if (!(entry instanceof String)) {
+                throw new IllegalArgumentException(COLLECTION_ARRAY_PARAMETER_MESSAGE);
+            }
+        }
+
+        // The cast is safe because we checked the contents of the list above.
+        return (List<String>) list;
+    }
+
+    private void validateLimits(int keywordLimit, int semanticLimit)
+    {
+        if (keywordLimit < 0 || semanticLimit < 0) {
+            throw new IllegalArgumentException(INVALID_LIMITS_MESSAGE);
+        }
+        if (isLimitExceeded(keywordLimit) || isLimitExceeded(semanticLimit)) {
+            throw new IllegalArgumentException(getLimitExceededMessage());
+        }
+    }
+
+    private String getLimitExceededMessage()
+    {
+        return "Error: Limits must be less than or equal to " + this.securityConfiguration.getQueryItemsLimit();
     }
 
     McpSchema.CallToolResult handleCollectionListTool(McpTransportContext context, McpSchema.CallToolRequest request)
@@ -293,22 +339,48 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         return new McpSchema.JsonSchema(OBJECT, properties, List.of(QUERY_PARAM), null, null, null);
     }
 
-    private List<String> getListParam(Map<String, Object> args, String key)
+    private String getStringParam(Map<String, Object> args)
     {
-        Object value = args.get(key);
-        if (value instanceof List<?> list) {
-            return list.stream().map(v -> (String) v).toList();
+        Object value = args.get(QUERY_PARAM);
+        if (value == null || value instanceof String) {
+            return (String) value;
         }
-        return List.of();
+        throw new IllegalArgumentException(QUERY_STRING_PARAMETER_MESSAGE);
     }
 
-    private int getIntParam(Map<String, Object> args, String key, int defaultValue)
+    private int getIntParam(Map<String, Object> args, String key)
     {
         Object value = args.get(key);
+        if (value == null) {
+            return DEFAULT_LIMIT;
+        }
         if (value instanceof Number number) {
             return number.intValue();
         }
-        return defaultValue;
+        if (value instanceof String stringValue) {
+            if (StringUtils.isBlank(stringValue)) {
+                throw new IllegalArgumentException(getIntegerParameterMessage(key));
+            }
+            try {
+                return Integer.parseInt(stringValue);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(getIntegerParameterMessage(key), e);
+            }
+        }
+        throw new IllegalArgumentException(getIntegerParameterMessage(key));
+    }
+
+    private String getIntegerParameterMessage(String key)
+    {
+        return INTEGER_PARAMETER_MESSAGE.formatted(key);
+    }
+
+    private McpSchema.CallToolResult buildErrorResult(String message)
+    {
+        return McpSchema.CallToolResult.builder()
+            .addTextContent(message)
+            .isError(true)
+            .build();
     }
 
     private String formatResults(List<Context> results)
