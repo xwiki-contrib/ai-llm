@@ -45,5 +45,5 @@ public interface SearchCollectionsResource
      * @return the list of collections
      */
     @GET
-    List<String> getCollections(@PathParam("wikiName") String wikiName) throws XWikiRestException;
+    List<JSONCollection> getCollections(@PathParam("wikiName") String wikiName) throws XWikiRestException;
 }

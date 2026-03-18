@@ -29,6 +29,7 @@ import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.stability.Unstable;
 import org.xwiki.text.XWikiToStringBuilder;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +44,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
  */
 @Unstable
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class JSONCollection
 {
     private String id;
@@ -50,10 +52,10 @@ public class JSONCollection
     private String title;
     private String embeddingModel;
     private String chunkingMethod;
-    private int chunkingMaxSize;
-    private int chunkingOverlapOffset;
+    private Integer chunkingMaxSize;
+    private Integer chunkingOverlapOffset;
     private List<String> documentSpaces;
-    private boolean allowGuests;
+    private Boolean allowGuests;
     private String queryGroups;
     private String rightsCheckMethod;
 
@@ -142,14 +144,14 @@ public class JSONCollection
 
     private void applyChunkingMaxSize(Collection collection) throws IndexException
     {
-        if (this.chunkingMaxSize != 0) {
+        if (this.chunkingMaxSize != null) {
             collection.setChunkingMaxSize(this.chunkingMaxSize);
         }
     }
 
     private void applyChunkingOverlapOffset(Collection collection) throws IndexException
     {
-        if (this.chunkingOverlapOffset != 0) {
+        if (this.chunkingOverlapOffset != null) {
             collection.setChunkingOverlapOffset(this.chunkingOverlapOffset);
         }
     }
@@ -163,7 +165,9 @@ public class JSONCollection
 
     private void applyAllowGuests(Collection collection) throws IndexException
     {
-        collection.setAllowGuests(this.allowGuests);
+        if (this.allowGuests != null) {
+            collection.setAllowGuests(this.allowGuests);
+        }
     }
 
     private void applyQueryGroups(Collection collection) throws IndexException
@@ -209,7 +213,7 @@ public class JSONCollection
      */
     public String getTitle()
     {
-        return this.id;
+        return this.title;
     }
 
     /**
@@ -231,7 +235,7 @@ public class JSONCollection
     /**
      * @return the maximum size of a chunk
      */
-    public int getChunkingMaxSize()
+    public Integer getChunkingMaxSize()
     {
         return this.chunkingMaxSize;
     }
@@ -239,7 +243,7 @@ public class JSONCollection
     /**
      * @return the overlap offset of chunks
      */
-    public int getChunkingOverlapOffset()
+    public Integer getChunkingOverlapOffset()
     {
         return this.chunkingOverlapOffset;
     }
@@ -255,7 +259,7 @@ public class JSONCollection
     /**
      * @return true if guests are allowed to access the collection, false otherwise
      */
-    public boolean getAllowGuests()
+    public Boolean getAllowGuests()
     {
         return this.allowGuests;
     }
@@ -311,7 +315,7 @@ public class JSONCollection
     /**
      * @param chunkingMaxSize the maximum size of a chunk
      */
-    public void setChunkingMaxSize(int chunkingMaxSize)
+    public void setChunkingMaxSize(Integer chunkingMaxSize)
     {
         this.chunkingMaxSize = chunkingMaxSize;
     }
@@ -319,7 +323,7 @@ public class JSONCollection
     /**
      * @param chunkingOverlapOffset the overlap offset chunks
      */
-    public void setChunkingOverlapOffset(int chunkingOverlapOffset)
+    public void setChunkingOverlapOffset(Integer chunkingOverlapOffset)
     {
         this.chunkingOverlapOffset = chunkingOverlapOffset;
     }
@@ -335,7 +339,7 @@ public class JSONCollection
     /**
      * @param allowGuests true if guests are allowed to access the collection, false otherwise
      */
-    public void setAllowGuests(boolean allowGuests)
+    public void setAllowGuests(Boolean allowGuests)
     {
         this.allowGuests = allowGuests;
     }

@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm.internal.rest;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.inject.Inject;
@@ -26,8 +27,10 @@ import jakarta.inject.Named;
 import jakarta.inject.Provider;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.contrib.llm.rest.JSONCollection;
 import org.xwiki.contrib.llm.rest.SearchCollectionsResource;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.rest.XWikiRestException;
@@ -51,14 +54,24 @@ public class DefaultSearchCollectionsResource extends XWikiResource implements S
     private Provider<XWikiContext> contextProvider;
 
     @Override
-    public List<String> getCollections(String wikiName) throws XWikiRestException
+    public List<JSONCollection> getCollections(String wikiName) throws XWikiRestException
     {
         XWikiContext context = this.contextProvider.get();
         String currentWiki = context.getWikiId();
         try {
             context.setWikiId(wikiName);
             List<String> allCollections = this.collectionManager.getCollections();
-            return this.collectionManager.filterCollectionbasedOnUserAccess(allCollections);
+            List<JSONCollection> result = new ArrayList<>();
+            for (String id : allCollections) {
+                Collection collection = this.collectionManager.getCollection(id);
+                if (this.collectionManager.hasAccess(collection)) {
+                    JSONCollection jsonCollection = new JSONCollection();
+                    jsonCollection.setID(id);
+                    jsonCollection.setTitle(collection.getTitle());
+                    result.add(jsonCollection);
+                }
+            }
+            return result;
         } catch (IndexException e) {
             throw new XWikiRestException("Failed to get collections", e);
         } finally {
