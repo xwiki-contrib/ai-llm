@@ -29,6 +29,7 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.xwiki.contrib.llm.Collection;
@@ -44,6 +45,7 @@ import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.DefaultCollectionManager;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
 import org.xwiki.contrib.llm.internal.InternalDocumentStore;
+import org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.rest.JSONCollection;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.SpaceReference;
@@ -52,7 +54,9 @@ import org.xwiki.query.QueryException;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.test.LogLevel;
 import org.xwiki.test.annotation.ComponentList;
+import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.user.CurrentUserReference;
@@ -106,6 +110,7 @@ import static org.mockito.Mockito.when;
     DefaultCollection.class,
     CurrentUserCollection.class,
     DefaultDocument.class,
+    XWikiAuthorizationManagerBuilder.class,
 })
 
 @ReferenceComponentList
@@ -135,6 +140,9 @@ class DefaultCollectionResourceTest
     private static final String RIGHTS_CHECK_METHOD = "customRights";
 
     private static final String AUTHORIZATION_PARAMETER_NAME = "param1";
+
+    @RegisterExtension
+    private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.ERROR);
 
     @InjectMockitoOldcore
     private MockitoOldcore oldcore;
@@ -350,6 +358,49 @@ class DefaultCollectionResourceTest
             assertEquals(configurationClassReference, object.getXClassReference());
             assertEquals(authorizationParameter, object.getStringValue(AUTHORIZATION_PARAMETER_NAME));
         });
+    }
+
+    @Test
+    void putCollectionPartialUpdateWithExistingRightsCheckMethod() throws XWikiRestException, IndexException
+    {
+        // Set up a collection with a rights check method already configured.
+        Collection savedCollection = getCollectionFromWiki(COLLECTION_1);
+        savedCollection.setRightsCheckMethod(RIGHTS_CHECK_METHOD);
+        savedCollection.save();
+
+        // Perform a partial update that does not include rights_check_method_configuration.
+        String updatedEmbeddingModel = "embedding2";
+        JSONCollection jsonCollection = new JSONCollection();
+        jsonCollection.setEmbeddingModel(updatedEmbeddingModel);
+        JSONCollection updatedCollection = this.collectionResource.putCollection(WIKI_NAME, COLLECTION_1, jsonCollection);
+
+        // The partial update should succeed, only changing the requested field.
+        assertEquals(updatedEmbeddingModel, updatedCollection.getEmbeddingModel());
+        assertEquals(RIGHTS_CHECK_METHOD, updatedCollection.getRightsCheckMethod());
+    }
+
+    @Test
+    void putCollectionConfigurationForMethodWithoutConfiguration() throws XWikiRestException, IndexException
+    {
+        // Set up a collection with a rights check method that doesn't accept any configuration ("xwiki").
+        Collection savedCollection = getCollectionFromWiki(COLLECTION_1);
+        savedCollection.setRightsCheckMethod("xwiki");
+        savedCollection.save();
+
+        // Attempt a PUT that includes rights_check_method_configuration even though "xwiki" takes none.
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectNode rightsCheckMethodConfiguration = objectMapper.createObjectNode();
+        rightsCheckMethodConfiguration.put("someField", "someValue");
+
+        JSONCollection jsonCollection = new JSONCollection();
+        jsonCollection.setRightsCheckMethodConfiguration(rightsCheckMethodConfiguration);
+
+        WebApplicationException exception = assertThrows(WebApplicationException.class,
+            () -> this.collectionResource.putCollection(WIKI_NAME, COLLECTION_1, jsonCollection));
+
+        assertEquals(500, exception.getResponse().getStatus());
+        assertEquals(1, this.logCapture.size());
+        assertEquals("Error updating collection [collection1].", this.logCapture.getMessage(0));
     }
 
     @Test

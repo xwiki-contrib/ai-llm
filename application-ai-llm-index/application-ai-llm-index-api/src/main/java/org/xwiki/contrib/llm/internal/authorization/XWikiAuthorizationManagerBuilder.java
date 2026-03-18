@@ -95,7 +95,7 @@ public class XWikiAuthorizationManagerBuilder implements AuthorizationManagerBui
     @Override
     public Class<?> getConfigurationType()
     {
-        return Object.class;
+        return null;
     }
 
     @Override

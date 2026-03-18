@@ -110,10 +110,16 @@ public class JSONCollection
         applyAllowGuests(collection);
         applyQueryGroups(collection);
         applyRightsCheckMethod(collection);
-        if (StringUtils.isNotBlank(collection.getRightsCheckMethod())) {
+        if (this.rightsCheckMethodConfiguration != null && StringUtils.isNotBlank(collection.getRightsCheckMethod())) {
+            Class<?> configurationType = collection.getAuthorizationConfigurationType();
+            if (configurationType == null) {
+                throw new IndexException(
+                    "The rights check method [%s] does not support any configuration."
+                        .formatted(collection.getRightsCheckMethod()));
+            }
             try {
-                collection.setAuthorizationConfiguration(objectMapper.treeToValue(this.rightsCheckMethodConfiguration,
-                    collection.getAuthorizationConfigurationType()));
+                collection.setAuthorizationConfiguration(
+                    objectMapper.treeToValue(this.rightsCheckMethodConfiguration, configurationType));
             } catch (JsonProcessingException e) {
                 throw new IndexException("Error deserializing authorization configuration.", e);
             }
