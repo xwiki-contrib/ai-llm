@@ -143,7 +143,7 @@ public class RAGChatRequestFilter extends AbstractChatRequestFilter
         String id = UUID.randomUUID().toString();
 
         // Create and send a custom ChatCompletionChunk with the sources
-        ChatMessage chatMessage = new ChatMessage("assistant", SOURCES_STRING2 + sources, searchResults);
+        ChatMessage chatMessage = new ChatMessage("assistant", SOURCES_STRING2 + sources + NL2, searchResults);
 
         ChatCompletionChunkChoice choice = new ChatCompletionChunkChoice(0, chatMessage, null);
         ChatCompletionChunk sourcesResponse = new ChatCompletionChunk(id, timestamp, request.model(), List.of(choice));
