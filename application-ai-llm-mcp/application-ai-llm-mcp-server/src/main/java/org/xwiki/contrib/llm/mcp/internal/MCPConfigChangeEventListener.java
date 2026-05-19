@@ -25,11 +25,12 @@ import javax.inject.Singleton;
 
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentModelBridge;
+import org.xwiki.bridge.event.AbstractDocumentEvent;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.EntityReferenceSerializer;
+import org.xwiki.model.reference.LocalDocumentReference;
 import org.xwiki.observation.event.AbstractLocalEventListener;
 import org.xwiki.observation.event.Event;
 
@@ -50,18 +51,11 @@ public class MCPConfigChangeEventListener extends AbstractLocalEventListener
     public static final String NAME =
         "org.xwiki.contrib.llm.mcp.internal.MCPConfigChangeEventListener";
 
-    /**
-     * Local reference (wiki-agnostic) serialized form of the config document.
-     * Compared against the local serialisation of every saved document.
-     */
-    private static final String CONFIG_LOCAL_REF = "AI.MCP.Code.MCPServerConfig";
+    private static final LocalDocumentReference CONFIG_LOCAL_REFERENCE =
+        new LocalDocumentReference(MCPServerConfiguration.CONFIG_SPACES, MCPServerConfiguration.CONFIG_DOC_NAME);
 
     @Inject
     private XWikiMCPServerManager mcpServerManager;
-
-    @Inject
-    @Named("local")
-    private EntityReferenceSerializer<String> localReferenceSerializer;
 
     @Inject
     private Logger logger;
@@ -78,11 +72,14 @@ public class MCPConfigChangeEventListener extends AbstractLocalEventListener
     @Override
     public void processLocalEvent(Event event, Object source, Object data)
     {
-        DocumentModelBridge doc = (DocumentModelBridge) source;
-        DocumentReference ref = doc.getDocumentReference();
-        String localRef = this.localReferenceSerializer.serialize(ref);
+        DocumentReference ref = event instanceof AbstractDocumentEvent
+            ? ((AbstractDocumentEvent) event).getDocumentReference()
+            : null;
+        if (ref == null && source instanceof DocumentModelBridge) {
+            ref = ((DocumentModelBridge) source).getDocumentReference();
+        }
 
-        if (CONFIG_LOCAL_REF.equals(localRef)) {
+        if (ref != null && CONFIG_LOCAL_REFERENCE.equals(ref.getLocalDocumentReference())) {
             this.logger.debug("MCP server configuration changed, triggering server rebuild");
             this.mcpServerManager.rebuildServer();
         }
