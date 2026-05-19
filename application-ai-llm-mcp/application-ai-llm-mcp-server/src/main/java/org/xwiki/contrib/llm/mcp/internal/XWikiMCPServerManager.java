@@ -20,33 +20,31 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
-import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.component.phase.Disposable;
 import org.xwiki.component.phase.Initializable;
 import org.xwiki.context.Execution;
 import org.xwiki.context.ExecutionContext;
-import org.xwiki.contrib.llm.CollectionManager;
-import org.xwiki.contrib.llm.IndexException;
-import org.xwiki.contrib.llm.openai.Context;
-import org.xwiki.security.SecurityConfiguration;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xpn.xwiki.XWikiContext;
 
-import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpStatelessSyncServer;
@@ -55,9 +53,16 @@ import io.modelcontextprotocol.spec.McpSchema;
 import reactor.core.scheduler.Schedulers;
 
 /**
- * Singleton component that manages the lifecycle of the MCP (Model Context Protocol) server. It creates and owns the
- * {@link HttpServletStatelessServerTransport} that the JAX-RS resource delegates HTTP requests to, and registers the
- * {@code search_wiki} tool backed by {@link CollectionManager#hybridSearch}.
+ * Singleton component that manages the lifecycle of the MCP (Model Context Protocol) server.
+ *
+ * <p>At initialisation it queries the component manager for all registered {@link MCPTool} implementations,
+ * filters by {@link MCPTool#isEnabled()}, and registers the enabled tools with the MCP SDK. The server can
+ * be rebuilt at any time (e.g. after a configuration change) by calling {@link #rebuildServer()}: in-flight
+ * requests are protected by a read-write lock so no request is dropped during the swap.</p>
+ *
+ * <p>The {@link HttpServletStatelessServerTransport} is recreated on every rebuild. The JAX-RS resource
+ * ({@link DefaultMCPResource}) always delegates to the current transport reference, which is swapped
+ * atomically under the write lock.</p>
  *
  * @version $Id$
  * @since 0.8
@@ -73,52 +78,39 @@ public class XWikiMCPServerManager implements Initializable, Disposable
      */
     static final String MCP_CONTEXT_PROPAGATION_PROPERTY = "xwiki.mcp.contextPropagation";
 
-    private static final int DEFAULT_LIMIT = 10;
-
-    private static final String SEARCH_TOOL_NAME = "search_wiki";
-
-    private static final String QUERY_PARAM = "query";
-
-    private static final String COLLECTIONS_PARAM = "collections";
-
-    private static final String LIMIT_KEYWORD_PARAM = "limitKeywordResults";
-
-    private static final String LIMIT_SEMANTIC_PARAM = "limitSemanticResults";
-
-    private static final String REQUIRED_QUERY_MESSAGE = "Error: 'query' parameter is required and must not be empty.";
-
-    private static final String INVALID_LIMITS_MESSAGE = "Error: Limits must be greater than or equal to 0.";
-
-    private static final String QUERY_STRING_PARAMETER_MESSAGE = "Error: 'query' parameter must be a string.";
-
-    private static final String COLLECTION_ARRAY_PARAMETER_MESSAGE =
-        "Error: 'collections' parameter must be an array of strings.";
-
-    private static final String INTEGER_PARAMETER_MESSAGE = "Error: '%s' parameter must be an integer.";
-
-    private static final String TYPE = "type";
-
-    private static final String STRING = "string";
-
-    private static final String DESCRIPTION = "description";
-
-    private static final String INTEGER = "integer";
-
     private static final String SCHEDULER_HOOK_KEY = "xwiki-execution-propagation";
 
-    private static final String OBJECT = "object";
+    private static final String POM_PROPERTIES_RESOURCE =
+        "META-INF/maven/org.xwiki.contrib.llm/application-ai-llm-mcp-server/pom.properties";
+
+    private static final String VERSION_PROPERTY = "version";
+
+    private static final String FALLBACK_SERVER_VERSION = "0.0.0";
+
+    /**
+     * Guards {@link #mcpServer} and {@link #transportProvider}.
+     * Read lock: held for the duration of each {@link #handleRequest} call.
+     * Write lock: held only for the brief reference swap inside {@link #rebuildServer()}.
+     */
+    private final ReentrantReadWriteLock serverLock = new ReentrantReadWriteLock();
 
     @Inject
     private Logger logger;
 
+    /**
+     * Context-aware component manager used to discover {@link MCPTool} implementations at rebuild time.
+     * Using the context manager (rather than a fixed injected list) means that tools contributed by
+     * dynamically installed extensions are picked up on the next {@link #rebuildServer()} call.
+     */
     @Inject
-    private CollectionManager collectionManager;
+    @Named("context")
+    private ComponentManager componentManager;
+
+    @Inject
+    private MCPServerConfiguration mcpConfig;
 
     @Inject
     private Execution execution;
-
-    @Inject
-    private SecurityConfiguration securityConfiguration;
 
     private McpStatelessSyncServer mcpServer;
 
@@ -151,258 +143,142 @@ public class XWikiMCPServerManager implements Initializable, Disposable
             };
         });
 
+        rebuildServer();
+    }
+
+    /**
+     * Rebuilds the MCP server from the current set of enabled {@link MCPTool} components.
+     *
+     * <p>A new {@link HttpServletStatelessServerTransport} and {@link McpStatelessSyncServer} are created,
+     * then swapped in atomically under the write lock. The old server is closed <em>after</em> the lock is
+     * released so that the write lock is held only for the brief reference swap, not for the potentially
+     * blocking {@code closeGracefully()} call.</p>
+     *
+     * <p>This method is called from {@link #initialize()} and by {@link MCPConfigChangeEventListener} whenever
+     * the {@code AI.MCP.Code.MCPServerConfig} document is saved.</p>
+     */
+    public void rebuildServer()
+    {
         JacksonMcpJsonMapper jsonMapper = new JacksonMcpJsonMapper(new ObjectMapper());
 
-        this.transportProvider = HttpServletStatelessServerTransport.builder()
+        HttpServletStatelessServerTransport newTransport = HttpServletStatelessServerTransport.builder()
             .jsonMapper(jsonMapper)
             .build();
 
-        McpSchema.Tool searchTool = McpSchema.Tool.builder()
-            .name(SEARCH_TOOL_NAME)
-            .description("Search the wiki using semantic and keyword similarity. "
-                + "Returns the most relevant content chunks from indexed pages.")
-            .inputSchema(buildSearchInputSchema())
-            .build();
+        // Null-guard: MCPServerConfiguration.getServerName() already falls back to the default,
+        // but a null here would crash the SDK with IllegalArgumentException, so we guard explicitly.
+        String serverName = this.mcpConfig.getServerName();
+        if (serverName == null || serverName.trim().isEmpty()) {
+            serverName = MCPServerConfiguration.DEFAULT_SERVER_NAME;
+        } else {
+            serverName = serverName.trim();
+        }
+        String serverDescription = this.mcpConfig.getServerDescription();
+        String serverVersion = getServerVersion();
+        McpServer.StatelessSyncSpecification builder = McpServer.sync(newTransport)
+            .serverInfo(serverName, serverVersion)
+            // The UI calls this "server description"; the MCP SDK exposes it as initialization instructions.
+            .instructions(serverDescription)
+            .capabilities(McpSchema.ServerCapabilities.builder().tools(true).build());
 
-        McpSchema.Tool collectionListTool = McpSchema.Tool.builder()
-            .name("list_collections")
-            .description("List all collections available for searching.")
-            .inputSchema(new McpSchema.JsonSchema(OBJECT, Map.of(), List.of(), null, null, null))
-            .build();
-
-        this.mcpServer = McpServer.sync(this.transportProvider)
-            .serverInfo("xwiki", "1.0.0")
-            .capabilities(McpSchema.ServerCapabilities.builder().tools(true).build())
-            .toolCall(searchTool, this::handleSearchTool)
-            .toolCall(collectionListTool, this::handleCollectionListTool)
-            .build();
-    }
-
-    /**
-     * Handles the {@code search_wiki} MCP tool call. The current wiki must have been set in the
-     * {@link XWikiContext} (via {@link XWikiContext#setWikiId}) before this method is called, so that
-     * the injected {@link CollectionManager} resolves collections from the correct wiki.
-     *
-     * @param context the MCP transport context (unused; wiki identity comes from the XWiki thread-local context)
-     * @param request the MCP tool call request containing {@code query}, optional {@code collections},
-     *     optional {@code limitKeywordResults}, and optional {@code limitSemanticResults}
-     * @return the search results as human-readable text, or an error result
-     */
-    McpSchema.CallToolResult handleSearchTool(McpTransportContext context, McpSchema.CallToolRequest request)
-    {
-        Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();
-
+        List<MCPTool> currentTools;
         try {
-            String query = getQueryParam(args);
-
-            int keywordLimit = getIntParam(args, LIMIT_KEYWORD_PARAM);
-            int semanticLimit = getIntParam(args, LIMIT_SEMANTIC_PARAM);
-
-            validateLimits(keywordLimit, semanticLimit);
-
-            List<String> collections = getCollectionsParam(args);
-            if (collections.isEmpty()) {
-                collections = this.collectionManager.getCollections();
-            }
-
-            List<Context> results =
-                this.collectionManager.hybridSearch(query, collections, semanticLimit, keywordLimit);
-            return McpSchema.CallToolResult.builder()
-                .addTextContent(formatResults(results))
-                .build();
-        } catch (IndexException e) {
-            this.logger.error("MCP search_wiki tool failed for query [{}]", args.get(QUERY_PARAM), e);
-            return buildErrorResult("Error searching wiki: " + ExceptionUtils.getRootCauseMessage(e));
-        } catch (IllegalArgumentException e) {
-            return buildErrorResult(e.getMessage());
+            currentTools = this.componentManager.getInstanceList(MCPTool.class);
+        } catch (ComponentLookupException e) {
+            this.logger.warn("Failed to look up MCPTool components; no tools will be registered", e);
+            currentTools = List.of();
         }
-    }
-
-    private boolean isLimitExceeded(int limit)
-    {
-        int configuredLimit = this.securityConfiguration.getQueryItemsLimit();
-        return configuredLimit > 0 && limit > configuredLimit;
-    }
-
-    private String getQueryParam(Map<String, Object> args)
-    {
-        String query = getStringParam(args);
-        if (StringUtils.isBlank(query)) {
-            throw new IllegalArgumentException(REQUIRED_QUERY_MESSAGE);
-        }
-        return query;
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<String> getCollectionsParam(Map<String, Object> args)
-    {
-        Object value = args.get(COLLECTIONS_PARAM);
-        if (value == null) {
-            return List.of();
-        }
-
-        if (!(value instanceof List<?> list)) {
-            throw new IllegalArgumentException(COLLECTION_ARRAY_PARAMETER_MESSAGE);
-        }
-
-        for (Object entry : list) {
-            if (!(entry instanceof String)) {
-                throw new IllegalArgumentException(COLLECTION_ARRAY_PARAMETER_MESSAGE);
+        for (MCPTool tool : currentTools) {
+            if (tool.isEnabled()) {
+                builder = builder.toolCall(tool.getToolDefinition(), tool::execute);
             }
         }
 
-        // The cast is safe because we checked the contents of the list above.
-        return (List<String>) list;
-    }
+        McpStatelessSyncServer newServer = builder.build();
 
-    private void validateLimits(int keywordLimit, int semanticLimit)
-    {
-        if (keywordLimit < 0 || semanticLimit < 0) {
-            throw new IllegalArgumentException(INVALID_LIMITS_MESSAGE);
-        }
-        if (isLimitExceeded(keywordLimit) || isLimitExceeded(semanticLimit)) {
-            throw new IllegalArgumentException(getLimitExceededMessage());
-        }
-    }
-
-    private String getLimitExceededMessage()
-    {
-        return "Error: Limits must be less than or equal to " + this.securityConfiguration.getQueryItemsLimit();
-    }
-
-    McpSchema.CallToolResult handleCollectionListTool(McpTransportContext context, McpSchema.CallToolRequest request)
-    {
+        // Swap references under write lock (brief critical section — no I/O here).
+        McpStatelessSyncServer oldServer;
+        this.serverLock.writeLock().lock();
         try {
-            List<String> allCollections = this.collectionManager.getCollections();
-            List<String> accessibleCollections =
-                this.collectionManager.filterCollectionbasedOnUserAccess(allCollections);
-            return McpSchema.CallToolResult.builder()
-                .addTextContent(String.join("\n", accessibleCollections))
-                .build();
-        } catch (IndexException e) {
-            this.logger.error("MCP list_collections tool failed", e);
-            return McpSchema.CallToolResult.builder()
-                .addTextContent("Error listing collections: " + ExceptionUtils.getRootCauseMessage(e))
-                .isError(true)
-                .build();
+            oldServer = this.mcpServer;
+            this.mcpServer = newServer;
+            this.transportProvider = newTransport;
+        } finally {
+            this.serverLock.writeLock().unlock();
         }
+
+        // Close the old server outside the lock to avoid blocking incoming requests.
+        if (oldServer != null) {
+            try {
+                oldServer.closeGracefully().block();
+            } catch (Exception e) {
+                this.logger.warn("Failed to close MCP server gracefully during rebuild", e);
+            }
+        }
+    }
+
+    private String getServerVersion()
+    {
+        Package packageMetadata = XWikiMCPServerManager.class.getPackage();
+        if (packageMetadata != null && packageMetadata.getImplementationVersion() != null
+            && !packageMetadata.getImplementationVersion().trim().isEmpty()) {
+            return packageMetadata.getImplementationVersion().trim();
+        }
+
+        try (InputStream inputStream =
+            XWikiMCPServerManager.class.getClassLoader().getResourceAsStream(POM_PROPERTIES_RESOURCE)) {
+            if (inputStream != null) {
+                Properties properties = new Properties();
+                properties.load(inputStream);
+                String version = properties.getProperty(VERSION_PROPERTY);
+                if (version != null && !version.trim().isEmpty()) {
+                    return version.trim();
+                }
+            }
+        } catch (IOException e) {
+            this.logger.warn("Failed to read MCP server version from [{}], using fallback version",
+                POM_PROPERTIES_RESOURCE, e);
+        }
+
+        return FALLBACK_SERVER_VERSION;
     }
 
     /**
-     * Handle an incoming request.
+     * Handle an incoming request. Acquires the read lock so that a concurrent {@link #rebuildServer()} call
+     * waits until all in-flight requests have completed before swapping the server reference.
      *
      * @param request the incoming request
      * @param response the outgoing response
+     * @throws ServletException if the transport throws
+     * @throws IOException if the transport throws
      */
     public void handleRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException
+        throws ServletException, IOException
     {
-        this.transportProvider.service(request, response);
+        this.serverLock.readLock().lock();
+        try {
+            this.transportProvider.service(request, response);
+        } finally {
+            this.serverLock.readLock().unlock();
+        }
     }
 
     @Override
     public void dispose()
     {
         Schedulers.resetOnScheduleHook(SCHEDULER_HOOK_KEY);
-        if (this.mcpServer != null) {
-            try {
-                this.mcpServer.closeGracefully().block();
-            } catch (Exception e) {
-                this.logger.warn("Failed to close MCP server gracefully", e);
+        this.serverLock.writeLock().lock();
+        try {
+            if (this.mcpServer != null) {
+                try {
+                    this.mcpServer.closeGracefully().block();
+                } catch (Exception e) {
+                    this.logger.warn("Failed to close MCP server gracefully", e);
+                }
+                this.mcpServer = null;
             }
+        } finally {
+            this.serverLock.writeLock().unlock();
         }
-    }
-
-    private McpSchema.JsonSchema buildSearchInputSchema()
-    {
-        Map<String, Object> properties = Map.of(
-            QUERY_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "The text to search for"
-            ),
-            COLLECTIONS_PARAM, Map.of(
-                TYPE, "array",
-                "items", Map.of(TYPE, STRING),
-                DESCRIPTION,
-                "Optional list of collection IDs to search in. Omit to search all accessible collections."
-            ),
-            LIMIT_KEYWORD_PARAM, Map.of(
-                TYPE, INTEGER,
-                DESCRIPTION, "Maximum number of keyword search results (default: %d)".formatted(DEFAULT_LIMIT)
-            ),
-            LIMIT_SEMANTIC_PARAM, Map.of(
-                TYPE, INTEGER,
-                DESCRIPTION,
-                "Maximum number of semantic similarity results (default: %d)".formatted(DEFAULT_LIMIT)
-            )
-        );
-        return new McpSchema.JsonSchema(OBJECT, properties, List.of(QUERY_PARAM), null, null, null);
-    }
-
-    private String getStringParam(Map<String, Object> args)
-    {
-        Object value = args.get(QUERY_PARAM);
-        if (value == null || value instanceof String) {
-            return (String) value;
-        }
-        throw new IllegalArgumentException(QUERY_STRING_PARAMETER_MESSAGE);
-    }
-
-    private int getIntParam(Map<String, Object> args, String key)
-    {
-        Object value = args.get(key);
-        if (value == null) {
-            return DEFAULT_LIMIT;
-        }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value instanceof String stringValue) {
-            if (StringUtils.isBlank(stringValue)) {
-                throw new IllegalArgumentException(getIntegerParameterMessage(key));
-            }
-            try {
-                return Integer.parseInt(stringValue);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(getIntegerParameterMessage(key), e);
-            }
-        }
-        throw new IllegalArgumentException(getIntegerParameterMessage(key));
-    }
-
-    private String getIntegerParameterMessage(String key)
-    {
-        return INTEGER_PARAMETER_MESSAGE.formatted(key);
-    }
-
-    private McpSchema.CallToolResult buildErrorResult(String message)
-    {
-        return McpSchema.CallToolResult.builder()
-            .addTextContent(message)
-            .isError(true)
-            .build();
-    }
-
-    private String formatResults(List<Context> results)
-    {
-        if (results.isEmpty()) {
-            return "No relevant content found.";
-        }
-        StringBuilder sb = new StringBuilder();
-        // Format the results as XML-like text.
-        for (Context ctx : results) {
-            sb.append("<result>\n");
-            if (ctx.url() != null) {
-                sb.append("<url>").append(ctx.url()).append("</url>\n");
-            }
-            if (ctx.documentId() != null) {
-                sb.append("<documentId>").append(ctx.documentId()).append("</documentId>\n");
-            }
-            if (ctx.content() != null) {
-                sb.append("<content>\n").append(ctx.content()).append("\n</content>\n");
-            }
-            sb.append("</result>\n");
-        }
-        return sb.toString().trim();
     }
 }

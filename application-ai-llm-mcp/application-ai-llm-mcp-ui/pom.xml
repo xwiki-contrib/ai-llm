@@ -24,16 +24,22 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-ai-llm</artifactId>
+        <artifactId>application-ai-llm-mcp</artifactId>
         <version>0.8.1-SNAPSHOT</version>
     </parent>
-    <artifactId>application-ai-llm-mcp</artifactId>
-    <name>LLM - MCP</name>
-    <description>MCP (Model Context Protocol) server exposing XWiki RAG search.</description>
-    <packaging>pom</packaging>
-    <modules>
-        <module>application-ai-llm-mcp-api</module>
-        <module>application-ai-llm-mcp-server</module>
-        <module>application-ai-llm-mcp-ui</module>
-    </modules>
+    <artifactId>application-ai-llm-mcp-ui</artifactId>
+    <name>LLM - MCP - UI</name>
+    <description>Admin configuration UI for the XWiki MCP server (XClass, config page, admin panel entry).</description>
+    <packaging>xar</packaging>
+    <properties>
+        <xwiki.extension.name>LLM MCP Server Admin UI (BETA)</xwiki.extension.name>
+        <xwiki.extension.category>application</xwiki.extension.category>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.xwiki.contrib.llm</groupId>
+            <artifactId>application-ai-llm-mcp-server</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+    </dependencies>
 </project>
