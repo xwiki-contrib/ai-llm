@@ -42,7 +42,7 @@
     <name>AI.MCP.Code.MCPServerConfig</name>
     <number>0</number>
     <className>AI.MCP.Code.MCPServerConfigClass</className>
-    <guid>b2c3d4e5-f6a7-8901-bcde-f12345678901</guid>
+    <guid>00d47861-7039-4cf5-966d-863036a94515</guid>
     <class>
       <name>AI.MCP.Code.MCPServerConfigClass</name>
       <customClass/>
@@ -96,7 +96,7 @@
     <name>AI.MCP.Code.MCPServerConfig</name>
     <number>0</number>
     <className>XWiki.ConfigurableClass</className>
-    <guid>c3d4e5f6-a7b8-9012-cdef-123456789012</guid>
+    <guid>04ad3276-a9b4-4ce6-a429-04436fb4d418</guid>
     <class>
       <name>XWiki.ConfigurableClass</name>
       <customClass/>

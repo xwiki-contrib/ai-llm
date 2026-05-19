@@ -98,7 +98,7 @@ class MCPListCollectionsToolTest
         McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
 
         assertNotEquals(Boolean.TRUE, result.isError());
-        assertEquals("", ((McpSchema.TextContent) result.content().get(0)).text());
+        assertEquals("No collections found.", ((McpSchema.TextContent) result.content().get(0)).text());
     }
 
     @Test

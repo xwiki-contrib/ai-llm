@@ -19,7 +19,6 @@
  */
 package org.xwiki.contrib.llm.mcp.internal;
 
-import java.util.Arrays;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -37,7 +36,7 @@ import org.xwiki.wiki.descriptor.WikiDescriptorManager;
  * if the config document or XObject is absent (e.g. before the mcp-ui module is installed).
  *
  * @version $Id$
- * @since 0.8
+ * @since 0.9
  */
 @Component(roles = MCPServerConfiguration.class)
 @Singleton
@@ -49,7 +48,7 @@ public class MCPServerConfiguration
     /** Default MCP server instructions advertised to connecting agents. */
     static final String DEFAULT_SERVER_DESCRIPTION = "XWiki MCP Server";
 
-    static final List<String> CONFIG_SPACES = Arrays.asList("AI", "MCP", "Code");
+    static final List<String> CONFIG_SPACES = List.of("AI", "MCP", "Code");
 
     static final String CONFIG_DOC_NAME = "MCPServerConfig";
 

@@ -165,13 +165,12 @@ public class XWikiMCPServerManager implements Initializable, Disposable
             .jsonMapper(jsonMapper)
             .build();
 
-        // Null-guard: MCPServerConfiguration.getServerName() already falls back to the default,
-        // but a null here would crash the SDK with IllegalArgumentException, so we guard explicitly.
+        // Guard against null/blank: MCPServerConfiguration never returns null in production, but Mockito
+        // mocks return null by default, and the MCP SDK rejects null or empty server names with
+        // IllegalArgumentException. The guard keeps tests stable without requiring every test to stub this.
         String serverName = this.mcpConfig.getServerName();
-        if (serverName == null || serverName.trim().isEmpty()) {
+        if (serverName == null || serverName.isBlank()) {
             serverName = MCPServerConfiguration.DEFAULT_SERVER_NAME;
-        } else {
-            serverName = serverName.trim();
         }
         String serverDescription = this.mcpConfig.getServerDescription();
         String serverVersion = getServerVersion();
@@ -267,18 +266,20 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     public void dispose()
     {
         Schedulers.resetOnScheduleHook(SCHEDULER_HOOK_KEY);
+        McpStatelessSyncServer serverToClose;
         this.serverLock.writeLock().lock();
         try {
-            if (this.mcpServer != null) {
-                try {
-                    this.mcpServer.closeGracefully().block();
-                } catch (Exception e) {
-                    this.logger.warn("Failed to close MCP server gracefully", e);
-                }
-                this.mcpServer = null;
-            }
+            serverToClose = this.mcpServer;
+            this.mcpServer = null;
         } finally {
             this.serverLock.writeLock().unlock();
+        }
+        if (serverToClose != null) {
+            try {
+                serverToClose.closeGracefully().block();
+            } catch (Exception e) {
+                this.logger.warn("Failed to close MCP server gracefully", e);
+            }
         }
     }
 }

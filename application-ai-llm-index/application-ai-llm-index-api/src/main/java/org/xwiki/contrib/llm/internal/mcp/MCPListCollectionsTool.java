@@ -92,8 +92,11 @@ public class MCPListCollectionsTool implements MCPTool
             List<String> allCollections = this.collectionManager.getCollections();
             List<String> accessibleCollections =
                 this.collectionManager.filterCollectionbasedOnUserAccess(allCollections);
+            String content = accessibleCollections.isEmpty()
+                ? "No collections found."
+                : String.join("\n", accessibleCollections);
             return McpSchema.CallToolResult.builder()
-                .addTextContent(String.join("\n", accessibleCollections))
+                .addTextContent(content)
                 .build();
         } catch (IndexException e) {
             this.logger.error("MCP list_collections tool failed", e);

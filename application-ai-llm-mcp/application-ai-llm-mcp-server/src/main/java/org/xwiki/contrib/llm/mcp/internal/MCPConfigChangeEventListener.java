@@ -40,7 +40,7 @@ import org.xwiki.observation.event.Event;
  * take effect immediately without restarting XWiki.
  *
  * @version $Id$
- * @since 0.8
+ * @since 0.9
  */
 @Component
 @Named(MCPConfigChangeEventListener.NAME)
