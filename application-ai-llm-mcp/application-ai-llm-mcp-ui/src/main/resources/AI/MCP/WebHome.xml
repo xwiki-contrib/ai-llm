@@ -20,7 +20,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.MCP.WebHome" locale="">
+<xwikidoc version="1.6" reference="AI.MCP.WebHome" locale="">
   <web>AI.MCP</web>
   <name>WebHome</name>
   <language/>
@@ -31,7 +31,7 @@
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>MCP Server</title>
+  <title>MCP</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
@@ -40,6 +40,6 @@
 
 This space contains configuration for the XWiki MCP (Model Context Protocol) server.
 
-To configure the server name and description, visit the [[Administration panel&gt;&gt;path:/xwiki/bin/admin/XWiki/XWikiPreferences?editor=globaladmin&amp;section=AI+LLM+Application]].
+To configure the server name and description, visit the [[Administration panel&gt;&gt;XWiki.XWikiPreferences||queryString="editor=globaladmin&amp;section=MCP%20Server"]].
 </content>
 </xwikidoc>

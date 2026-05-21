@@ -36,7 +36,6 @@ import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.security.SecurityConfiguration;
 
-import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
@@ -98,12 +97,6 @@ public class MCPSearchCollectionsTool implements MCPTool
     private SecurityConfiguration securityConfiguration;
 
     @Override
-    public String getId()
-    {
-        return TOOL_ID;
-    }
-
-    @Override
     public McpSchema.Tool getToolDefinition()
     {
         return McpSchema.Tool.builder()
@@ -115,14 +108,7 @@ public class MCPSearchCollectionsTool implements MCPTool
     }
 
     @Override
-    public boolean isEnabled()
-    {
-        // TODO: consult MCPToolConfig XObject for this tool ID.
-        return true;
-    }
-
-    @Override
-    public McpSchema.CallToolResult execute(McpTransportContext context, McpSchema.CallToolRequest request)
+    public McpSchema.CallToolResult execute(McpSchema.CallToolRequest request)
     {
         Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();
 

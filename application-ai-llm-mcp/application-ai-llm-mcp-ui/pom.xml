@@ -32,8 +32,9 @@
     <description>Admin configuration UI for the XWiki MCP server (XClass, config page, admin panel entry).</description>
     <packaging>xar</packaging>
     <properties>
-        <xwiki.extension.name>LLM MCP Server Admin UI (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>MCP Server (BETA)</xwiki.extension.name>
         <xwiki.extension.category>application</xwiki.extension.category>
+        <xwiki.extension.namespaces>wiki:xwiki</xwiki.extension.namespaces>
     </properties>
     <dependencies>
         <dependency>

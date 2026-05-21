@@ -35,7 +35,6 @@ import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 
-import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -83,7 +82,7 @@ class MCPSearchCollectionsToolTest
         McpSchema.CallToolRequest request =
             new McpSchema.CallToolRequest("search_collections", Map.of("query", "test query"));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertNotEquals(Boolean.TRUE, result.isError());
         assertNotNull(result.content());
@@ -106,7 +105,7 @@ class MCPSearchCollectionsToolTest
         );
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("search_collections", args);
 
-        this.tool.execute(McpTransportContext.EMPTY, request);
+        this.tool.execute(request);
 
         verify(this.collectionManager).hybridSearch("my query", List.of("collA", "collB"), 3, 5);
     }
@@ -117,7 +116,7 @@ class MCPSearchCollectionsToolTest
         McpSchema.CallToolRequest request =
             new McpSchema.CallToolRequest("search_collections", Collections.emptyMap());
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
     }
@@ -128,7 +127,7 @@ class MCPSearchCollectionsToolTest
         McpSchema.CallToolRequest request =
             new McpSchema.CallToolRequest("search_collections", Map.of("query", 7));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
         assertEquals("Error: 'query' parameter must be a string.",
@@ -146,7 +145,7 @@ class MCPSearchCollectionsToolTest
         McpSchema.CallToolRequest request =
             new McpSchema.CallToolRequest("search_collections", Map.of("query", "failing query"));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
         assertFalse(result.content().isEmpty());
@@ -169,7 +168,7 @@ class MCPSearchCollectionsToolTest
         McpSchema.CallToolRequest request =
             new McpSchema.CallToolRequest("search_collections", Map.of("query", "search"));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         String text = ((McpSchema.TextContent) result.content().get(0)).text();
         assertEquals("""
@@ -198,7 +197,7 @@ class MCPSearchCollectionsToolTest
         McpSchema.CallToolRequest request =
             new McpSchema.CallToolRequest("search_collections", Map.of("query", "obscure"));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertNotEquals(Boolean.TRUE, result.isError());
         assertTrue(((McpSchema.TextContent) result.content().get(0)).text().contains("No relevant content found"));
@@ -219,7 +218,7 @@ class MCPSearchCollectionsToolTest
             "limitSemanticResults", "3"
         ));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertNotEquals(Boolean.TRUE, result.isError());
         verify(this.collectionManager).hybridSearch("string limits", allCollections, 3, 5);
@@ -233,7 +232,7 @@ class MCPSearchCollectionsToolTest
             "limitKeywordResults", "-1"
         ));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
         assertEquals("Error: Limits must be greater than or equal to 0.",
@@ -249,7 +248,7 @@ class MCPSearchCollectionsToolTest
             "collections", List.of("collA", 12)
         ));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
         assertEquals("Error: 'collections' parameter must be an array of strings.",
@@ -265,18 +264,12 @@ class MCPSearchCollectionsToolTest
             "limitKeywordResults", "not-a-number"
         ));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
         assertEquals("Error: 'limitKeywordResults' parameter must be an integer.",
             ((McpSchema.TextContent) result.content().get(0)).text());
         verifyNoInteractions(this.collectionManager);
-    }
-
-    @Test
-    void getIdReturnsStableToolId()
-    {
-        assertEquals(MCPSearchCollectionsTool.TOOL_ID, this.tool.getId());
     }
 
     @Test

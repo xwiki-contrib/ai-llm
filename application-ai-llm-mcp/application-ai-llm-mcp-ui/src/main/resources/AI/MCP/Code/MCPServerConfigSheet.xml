@@ -27,7 +27,7 @@
   <defaultLanguage/>
   <translation>0</translation>
   <creator>xwiki:XWiki.Admin</creator>
-  <parent>WebHome</parent>
+  <parent>AI.MCP.Code.WebHome</parent>
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
@@ -47,6 +47,7 @@
   #set ($configObject = $configDoc.newObject($configClassName))
   #set ($discard = $configDoc.save('Created MCP server configuration', true))
 #end
+#set ($configClass = $xwiki.getDocument($configClassName).getxWikiClass())
 {{html clean="false"}}
   &lt;form id="mcp-server-config" method="post"
         action="$configDoc.getURL('save', "xredirect=$escapetool.url(${redirect})")"
@@ -54,13 +55,13 @@
     &lt;fieldset&gt;
       &lt;dl&gt;
         &lt;dt&gt;
-          &lt;label for="mcp-serverName"&gt;Server Name&lt;/label&gt;
-          &lt;span class="xHint"&gt;Name advertised to MCP clients. Defaults to "XWiki" if empty.&lt;/span&gt;
+          &lt;label for="mcp-serverName"&gt;$configClass.get('serverName').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;span class="xHint"&gt;$configClass.get('serverName').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('serverName', 'edit'){{html clean="false"}}&lt;/dd&gt;
         &lt;dt&gt;
-          &lt;label for="mcp-serverDescription"&gt;Server Description&lt;/label&gt;
-          &lt;span class="xHint"&gt;Short description shown to connecting agents.&lt;/span&gt;
+          &lt;label for="mcp-serverDescription"&gt;$configClass.get('serverDescription').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;span class="xHint"&gt;$configClass.get('serverDescription').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('serverDescription', 'edit'){{html clean="false"}}&lt;/dd&gt;
       &lt;/dl&gt;

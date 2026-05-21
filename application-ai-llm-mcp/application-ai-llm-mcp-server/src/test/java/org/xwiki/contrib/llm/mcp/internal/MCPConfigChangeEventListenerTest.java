@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.Arrays;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
@@ -28,6 +29,7 @@ import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -49,6 +51,15 @@ class MCPConfigChangeEventListenerTest
 
     @MockComponent
     private XWikiMCPServerManager mcpServerManager;
+
+    @MockComponent
+    private WikiDescriptorManager wikiDescriptorManager;
+
+    @BeforeEach
+    void setUp()
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+    }
 
     @Test
     void processLocalEventTriggersRebuildForConfigDoc()
@@ -72,6 +83,19 @@ class MCPConfigChangeEventListenerTest
         when(doc.getDocumentReference()).thenReturn(otherRef);
 
         this.listener.processLocalEvent(new DocumentUpdatedEvent(otherRef), doc, null);
+
+        verifyNoInteractions(this.mcpServerManager);
+    }
+
+    @Test
+    void processLocalEventIgnoresSubWikiConfigDoc()
+    {
+        DocumentReference subWikiRef = new DocumentReference("subwiki",
+            Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
+        DocumentModelBridge doc = mock(DocumentModelBridge.class);
+        when(doc.getDocumentReference()).thenReturn(subWikiRef);
+
+        this.listener.processLocalEvent(new DocumentUpdatedEvent(subWikiRef), doc, null);
 
         verifyNoInteractions(this.mcpServerManager);
     }

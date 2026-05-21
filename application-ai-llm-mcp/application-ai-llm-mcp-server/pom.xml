@@ -31,7 +31,7 @@
     <name>LLM - MCP - Server</name>
     <description>MCP server exposing XWiki RAG search as a Model Context Protocol tool.</description>
     <properties>
-        <xwiki.extension.name>LLM MCP Server (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>MCP Server - Core Module (BETA)</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
         <xwiki.jacoco.instructionRatio>0.81</xwiki.jacoco.instructionRatio>
         <!-- This extension needs to be on the root namespace as it exposes a REST API. -->
@@ -76,6 +76,20 @@
             <groupId>org.xwiki.contrib.llm</groupId>
             <artifactId>application-ai-llm-mcp-api</artifactId>
             <version>${project.parent.version}</version>
+        </dependency>
+        <!-- Query API: QueryManager, Query, SecureQuery used by MCPSearchPagesTool to query
+             the XWiki Solr search index. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-query-manager</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <!-- Solr search API: FieldUtils constants and SolrUtils escaping helpers used by
+             MCPSearchPagesTool. SolrDocument and QueryResponse arrive transitively from this. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-search-solr-api</artifactId>
+            <version>${platform.version}</version>
         </dependency>
         <!-- Admin config reading: DocumentAccessBridge for XObject property access,
              document events for config-change-triggered server rebuilds,

@@ -31,7 +31,6 @@ import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 
-import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,7 +65,7 @@ class MCPListCollectionsToolTest
 
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("list_collections", null);
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertNotEquals(Boolean.TRUE, result.isError());
         String text = ((McpSchema.TextContent) result.content().get(0)).text();
@@ -80,7 +79,7 @@ class MCPListCollectionsToolTest
 
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("list_collections", null);
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(((McpSchema.TextContent) result.content().get(0)).text().contains("Solr down"));
@@ -95,16 +94,10 @@ class MCPListCollectionsToolTest
 
         McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("list_collections", null);
 
-        McpSchema.CallToolResult result = this.tool.execute(McpTransportContext.EMPTY, request);
+        McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertNotEquals(Boolean.TRUE, result.isError());
         assertEquals("No collections found.", ((McpSchema.TextContent) result.content().get(0)).text());
-    }
-
-    @Test
-    void getIdReturnsStableToolId()
-    {
-        assertEquals(MCPListCollectionsTool.TOOL_ID, this.tool.getId());
     }
 
     @Test

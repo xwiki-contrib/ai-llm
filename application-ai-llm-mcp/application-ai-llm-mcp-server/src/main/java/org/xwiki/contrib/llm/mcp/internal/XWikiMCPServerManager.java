@@ -23,16 +23,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 import javax.inject.Singleton;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
@@ -57,12 +58,12 @@ import reactor.core.scheduler.Schedulers;
  *
  * <p>At initialisation it queries the component manager for all registered {@link MCPTool} implementations,
  * filters by {@link MCPTool#isEnabled()}, and registers the enabled tools with the MCP SDK. The server can
- * be rebuilt at any time (e.g. after a configuration change) by calling {@link #rebuildServer()}: in-flight
- * requests are protected by a read-write lock so no request is dropped during the swap.</p>
+ * be rebuilt at any time (e.g. after a configuration change) by calling {@link #rebuildServer()}.</p>
  *
- * <p>The {@link HttpServletStatelessServerTransport} is recreated on every rebuild. The JAX-RS resource
- * ({@link DefaultMCPResource}) always delegates to the current transport reference, which is swapped
- * atomically under the write lock.</p>
+ * <p>The active {@link HttpServletStatelessServerTransport} is stored in an {@link AtomicReference}.
+ * On rebuild, the reference is swapped atomically so new requests immediately go to the new transport,
+ * then the old server is closed gracefully — which drains any in-flight requests on the old transport
+ * before it is discarded. No locking is required in {@link #handleRequest}.</p>
  *
  * @version $Id$
  * @since 0.8
@@ -87,23 +88,16 @@ public class XWikiMCPServerManager implements Initializable, Disposable
 
     private static final String FALLBACK_SERVER_VERSION = "0.0.0";
 
-    /**
-     * Guards {@link #mcpServer} and {@link #transportProvider}.
-     * Read lock: held for the duration of each {@link #handleRequest} call.
-     * Write lock: held only for the brief reference swap inside {@link #rebuildServer()}.
-     */
-    private final ReentrantReadWriteLock serverLock = new ReentrantReadWriteLock();
-
     @Inject
     private Logger logger;
 
     /**
-     * Context-aware component manager used to discover {@link MCPTool} implementations at rebuild time.
-     * Using the context manager (rather than a fixed injected list) means that tools contributed by
-     * dynamically installed extensions are picked up on the next {@link #rebuildServer()} call.
+     * Farm-scoped component manager used to discover {@link MCPTool} implementations at rebuild time.
+     * Using the plain (non-context) manager keeps all tool instances in the same classloader scope as
+     * the MCP server itself, avoiding classloader-mismatch issues across extension reloads.
+     * Only tools registered at farm scope or above are supported.
      */
     @Inject
-    @Named("context")
     private ComponentManager componentManager;
 
     @Inject
@@ -114,7 +108,8 @@ public class XWikiMCPServerManager implements Initializable, Disposable
 
     private McpStatelessSyncServer mcpServer;
 
-    private HttpServletStatelessServerTransport transportProvider;
+    /** Holds the active transport; swapped atomically on each {@link #rebuildServer()} call. */
+    private final AtomicReference<HttpServletStatelessServerTransport> transport = new AtomicReference<>();
 
     @Override
     public void initialize()
@@ -149,10 +144,10 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     /**
      * Rebuilds the MCP server from the current set of enabled {@link MCPTool} components.
      *
-     * <p>A new {@link HttpServletStatelessServerTransport} and {@link McpStatelessSyncServer} are created,
-     * then swapped in atomically under the write lock. The old server is closed <em>after</em> the lock is
-     * released so that the write lock is held only for the brief reference swap, not for the potentially
-     * blocking {@code closeGracefully()} call.</p>
+     * <p>A new {@link HttpServletStatelessServerTransport} and {@link McpStatelessSyncServer} are created.
+     * The transport reference is then swapped atomically so new requests immediately go to the new transport.
+     * The old server is closed gracefully afterwards, which drains any in-flight requests on the old
+     * transport before discarding it.</p>
      *
      * <p>This method is called from {@link #initialize()} and by {@link MCPConfigChangeEventListener} whenever
      * the {@code AI.MCP.Code.MCPServerConfig} document is saved.</p>
@@ -189,48 +184,48 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         }
         for (MCPTool tool : currentTools) {
             if (tool.isEnabled()) {
-                builder = builder.toolCall(tool.getToolDefinition(), tool::execute);
+                builder = builder.toolCall(tool.getToolDefinition(), (ctx, req) -> tool.execute(req));
             }
         }
 
         McpStatelessSyncServer newServer = builder.build();
 
-        // Swap references under write lock (brief critical section — no I/O here).
-        McpStatelessSyncServer oldServer;
-        this.serverLock.writeLock().lock();
-        try {
-            oldServer = this.mcpServer;
-            this.mcpServer = newServer;
-            this.transportProvider = newTransport;
-        } finally {
-            this.serverLock.writeLock().unlock();
-        }
+        // Atomically publish the new transport; handleRequest() will use it for all subsequent requests.
+        this.transport.set(newTransport);
+        McpStatelessSyncServer oldServer = this.mcpServer;
+        this.mcpServer = newServer;
 
-        // Close the old server outside the lock to avoid blocking incoming requests.
+        // Close the old server after the swap; closeGracefully() waits for any in-flight requests
+        // on the old transport to complete before returning.
         if (oldServer != null) {
             try {
                 oldServer.closeGracefully().block();
             } catch (Exception e) {
-                this.logger.warn("Failed to close MCP server gracefully during rebuild", e);
+                this.logger.warn("Failed to close MCP server gracefully during rebuild: {}",
+                    ExceptionUtils.getRootCauseMessage(e));
+                this.logger.debug("Failed to close MCP server gracefully during rebuild", e);
             }
         }
     }
 
     private String getServerVersion()
     {
+        // Primary source: MANIFEST.MF Implementation-Version set by the maven-jar-plugin.
+        // Works in standard JAR deployments and in XWiki's OSGi runtime (Felix) which exposes it via Package.
         Package packageMetadata = XWikiMCPServerManager.class.getPackage();
-        if (packageMetadata != null && packageMetadata.getImplementationVersion() != null
-            && !packageMetadata.getImplementationVersion().trim().isEmpty()) {
+        if (packageMetadata != null && StringUtils.isNotBlank(packageMetadata.getImplementationVersion())) {
             return packageMetadata.getImplementationVersion().trim();
         }
 
+        // Secondary source: pom.properties written by the maven-jar-plugin into the JAR.
+        // Used as a fallback in environments where the manifest is unavailable or not read (e.g. test classpaths).
         try (InputStream inputStream =
             XWikiMCPServerManager.class.getClassLoader().getResourceAsStream(POM_PROPERTIES_RESOURCE)) {
             if (inputStream != null) {
                 Properties properties = new Properties();
                 properties.load(inputStream);
                 String version = properties.getProperty(VERSION_PROPERTY);
-                if (version != null && !version.trim().isEmpty()) {
+                if (StringUtils.isNotBlank(version)) {
                     return version.trim();
                 }
             }
@@ -243,8 +238,7 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     }
 
     /**
-     * Handle an incoming request. Acquires the read lock so that a concurrent {@link #rebuildServer()} call
-     * waits until all in-flight requests have completed before swapping the server reference.
+     * Handle an incoming request by delegating to the current transport.
      *
      * @param request the incoming request
      * @param response the outgoing response
@@ -254,31 +248,21 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     public void handleRequest(HttpServletRequest request, HttpServletResponse response)
         throws ServletException, IOException
     {
-        this.serverLock.readLock().lock();
-        try {
-            this.transportProvider.service(request, response);
-        } finally {
-            this.serverLock.readLock().unlock();
-        }
+        this.transport.get().service(request, response);
     }
 
     @Override
     public void dispose()
     {
         Schedulers.resetOnScheduleHook(SCHEDULER_HOOK_KEY);
-        McpStatelessSyncServer serverToClose;
-        this.serverLock.writeLock().lock();
-        try {
-            serverToClose = this.mcpServer;
-            this.mcpServer = null;
-        } finally {
-            this.serverLock.writeLock().unlock();
-        }
+        McpStatelessSyncServer serverToClose = this.mcpServer;
+        this.mcpServer = null;
         if (serverToClose != null) {
             try {
                 serverToClose.closeGracefully().block();
             } catch (Exception e) {
-                this.logger.warn("Failed to close MCP server gracefully", e);
+                this.logger.warn("Failed to close MCP server gracefully: {}", ExceptionUtils.getRootCauseMessage(e));
+                this.logger.debug("Failed to close MCP server gracefully", e);
             }
         }
     }

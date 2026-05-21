@@ -30,9 +30,9 @@ import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.LocalDocumentReference;
 import org.xwiki.observation.event.AbstractLocalEventListener;
 import org.xwiki.observation.event.Event;
+import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 /**
  * Listens for saves to the MCP server configuration document ({@code AI.MCP.Code.MCPServerConfig})
@@ -51,11 +51,11 @@ public class MCPConfigChangeEventListener extends AbstractLocalEventListener
     public static final String NAME =
         "org.xwiki.contrib.llm.mcp.internal.MCPConfigChangeEventListener";
 
-    private static final LocalDocumentReference CONFIG_LOCAL_REFERENCE =
-        new LocalDocumentReference(MCPServerConfiguration.CONFIG_SPACES, MCPServerConfiguration.CONFIG_DOC_NAME);
-
     @Inject
     private XWikiMCPServerManager mcpServerManager;
+
+    @Inject
+    private WikiDescriptorManager wikiDescriptorManager;
 
     @Inject
     private Logger logger;
@@ -79,9 +79,16 @@ public class MCPConfigChangeEventListener extends AbstractLocalEventListener
             ref = ((DocumentModelBridge) source).getDocumentReference();
         }
 
-        if (ref != null && CONFIG_LOCAL_REFERENCE.equals(ref.getLocalDocumentReference())) {
+        if (ref != null && getConfigDocumentReference().equals(ref)) {
             this.logger.debug("MCP server configuration changed, triggering server rebuild");
             this.mcpServerManager.rebuildServer();
         }
+    }
+
+    // Not cached as a field: getMainWikiId() may not be available at component initialisation time.
+    private DocumentReference getConfigDocumentReference()
+    {
+        return new DocumentReference(this.wikiDescriptorManager.getMainWikiId(),
+            MCPServerConfiguration.CONFIG_SPACES, MCPServerConfiguration.CONFIG_DOC_NAME);
     }
 }

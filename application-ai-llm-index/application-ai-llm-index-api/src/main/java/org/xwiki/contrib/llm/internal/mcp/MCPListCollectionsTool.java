@@ -33,7 +33,6 @@ import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 
-import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
@@ -63,12 +62,6 @@ public class MCPListCollectionsTool implements MCPTool
     private CollectionManager collectionManager;
 
     @Override
-    public String getId()
-    {
-        return TOOL_ID;
-    }
-
-    @Override
     public McpSchema.Tool getToolDefinition()
     {
         return McpSchema.Tool.builder()
@@ -79,14 +72,7 @@ public class MCPListCollectionsTool implements MCPTool
     }
 
     @Override
-    public boolean isEnabled()
-    {
-        // TODO (Phase 5): consult MCPToolConfig XObject for this tool ID.
-        return true;
-    }
-
-    @Override
-    public McpSchema.CallToolResult execute(McpTransportContext context, McpSchema.CallToolRequest request)
+    public McpSchema.CallToolResult execute(McpSchema.CallToolRequest request)
     {
         try {
             List<String> allCollections = this.collectionManager.getCollections();

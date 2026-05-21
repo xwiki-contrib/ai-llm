@@ -36,6 +36,8 @@ import org.xwiki.test.mockito.MockitoComponentManager;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -62,14 +64,6 @@ class XWikiMCPServerManagerTest
     private MCPServerConfiguration mcpConfig;
 
     @Test
-    void initializeWithNoToolsDoesNotThrow()
-    {
-        // initialize() is called by @InjectMockComponents. Reaching this point confirms
-        // that an empty tool list and default config are handled correctly.
-        assertDoesNotThrow(() -> { });
-    }
-
-    @Test
     void rebuildServerWithEnabledAndDisabledTools(MockitoComponentManager componentManager) throws Exception
     {
         MCPTool enabledTool = componentManager.registerMockComponent(MCPTool.class, "enabled_tool");
@@ -88,8 +82,10 @@ class XWikiMCPServerManagerTest
         // mcpConfig returns null by default from the Mockito mock; XWikiMCPServerManager falls back
         // to MCPServerConfiguration.DEFAULT_SERVER_NAME so the SDK never sees a null server name.
 
-        // rebuildServer() must complete without error with a mix of enabled/disabled tools.
         assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
+
+        // The disabled tool's definition must never be retrieved.
+        verify(disabledTool, never()).getToolDefinition();
     }
 
     @Test

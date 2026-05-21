@@ -22,7 +22,6 @@ package org.xwiki.contrib.llm.mcp;
 import org.xwiki.component.annotation.Role;
 import org.xwiki.stability.Unstable;
 
-import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
@@ -44,14 +43,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 public interface MCPTool
 {
     /**
-     * Returns the stable, immutable identifier for this tool. Used as the XWiki component hint and as the
-     * MCP tool name. Must never change between releases as clients may rely on it.
-     *
-     * @return the tool ID, e.g. {@code "search_collections"}
-     */
-    String getId();
-
-    /**
      * Returns the MCP tool definition (name, description, input schema) to advertise to agents.
      *
      * @return the MCP tool definition
@@ -61,18 +52,20 @@ public interface MCPTool
     /**
      * Returns {@code true} if this tool should currently be registered with the MCP server.
      * Disabled tools are not registered and are invisible to agents.
-     * Implementations should consult their configuration here.
+     * Override to consult tool-specific configuration; the default always returns {@code true}.
      *
      * @return {@code true} if the tool is enabled
      */
-    boolean isEnabled();
+    default boolean isEnabled()
+    {
+        return true;
+    }
 
     /**
      * Executes the tool call and returns the result.
      *
-     * @param context the MCP transport context
      * @param request the tool call request
      * @return the tool call result
      */
-    McpSchema.CallToolResult execute(McpTransportContext context, McpSchema.CallToolRequest request);
+    McpSchema.CallToolResult execute(McpSchema.CallToolRequest request);
 }

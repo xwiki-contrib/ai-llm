@@ -20,7 +20,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.MCP.Code.MCPServerConfigClass" locale="">
+<xwikidoc version="1.6" reference="AI.MCP.Code.MCPServerConfigClass" locale="">
   <web>AI.MCP.Code</web>
   <name>MCPServerConfigClass</name>
   <language/>
@@ -46,6 +46,24 @@
     <defaultWeb/>
     <nameField/>
     <validationScript/>
+    <serverDescription>
+      <contenttype>PureText</contenttype>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <editor>---</editor>
+      <hint>A short description of this MCP server shown to connecting agents.</hint>
+      <name>serverDescription</name>
+      <number>2</number>
+      <picker>0</picker>
+      <prettyName>Server Description</prettyName>
+      <restricted>0</restricted>
+      <rows>4</rows>
+      <size>60</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+    </serverDescription>
     <serverName>
       <customDisplay/>
       <disabled>0</disabled>
@@ -60,29 +78,12 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
     </serverName>
-    <serverDescription>
-      <contenttype>PureText</contenttype>
-      <customDisplay/>
-      <disabled>0</disabled>
-      <editor>---</editor>
-      <hint>A short description of this MCP server shown to connecting agents.</hint>
-      <name>serverDescription</name>
-      <number>2</number>
-      <picker>0</picker>
-      <prettyName>Server Description</prettyName>
-      <rows>4</rows>
-      <size>60</size>
-      <unmodifiable>0</unmodifiable>
-      <validationMessage/>
-      <validationRegExp/>
-      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
-    </serverDescription>
   </class>
   <object>
     <name>AI.MCP.Code.MCPServerConfigClass</name>
     <number>0</number>
     <className>XWiki.ClassSheetBinding</className>
-    <guid>2a24f370-4cef-4e65-80fd-94760a79ec96</guid>
+    <guid>dc88984b-eca7-4ed1-b138-006977f2f41e</guid>
     <class>
       <name>XWiki.ClassSheetBinding</name>
       <customClass/>
