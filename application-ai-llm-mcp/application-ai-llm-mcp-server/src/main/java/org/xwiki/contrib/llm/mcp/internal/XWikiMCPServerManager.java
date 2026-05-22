@@ -211,7 +211,6 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     private String getServerVersion()
     {
         // Primary source: MANIFEST.MF Implementation-Version set by the maven-jar-plugin.
-        // Works in standard JAR deployments and in XWiki's OSGi runtime (Felix) which exposes it via Package.
         Package packageMetadata = XWikiMCPServerManager.class.getPackage();
         if (packageMetadata != null && StringUtils.isNotBlank(packageMetadata.getImplementationVersion())) {
             return packageMetadata.getImplementationVersion().trim();
