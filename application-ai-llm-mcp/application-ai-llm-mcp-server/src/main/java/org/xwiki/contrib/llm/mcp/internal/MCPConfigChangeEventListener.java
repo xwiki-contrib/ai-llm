@@ -25,12 +25,11 @@ import javax.inject.Singleton;
 
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentModelBridge;
-import org.xwiki.bridge.event.AbstractDocumentEvent;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.observation.event.AbstractLocalEventListener;
+import org.xwiki.observation.AbstractEventListener;
 import org.xwiki.observation.event.Event;
 import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
@@ -45,7 +44,7 @@ import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 @Component
 @Named(MCPConfigChangeEventListener.NAME)
 @Singleton
-public class MCPConfigChangeEventListener extends AbstractLocalEventListener
+public class MCPConfigChangeEventListener extends AbstractEventListener
 {
     /** The component hint and listener name, used as a stable unique identifier. */
     public static final String NAME =
@@ -70,16 +69,13 @@ public class MCPConfigChangeEventListener extends AbstractLocalEventListener
     }
 
     @Override
-    public void processLocalEvent(Event event, Object source, Object data)
+    public void onEvent(Event event, Object source, Object data)
     {
-        DocumentReference ref = event instanceof AbstractDocumentEvent
-            ? ((AbstractDocumentEvent) event).getDocumentReference()
-            : null;
-        if (ref == null && source instanceof DocumentModelBridge) {
-            ref = ((DocumentModelBridge) source).getDocumentReference();
+        if (!(source instanceof DocumentModelBridge)) {
+            return;
         }
-
-        if (ref != null && getConfigDocumentReference().equals(ref)) {
+        DocumentReference ref = ((DocumentModelBridge) source).getDocumentReference();
+        if (getConfigDocumentReference().equals(ref)) {
             this.logger.debug("MCP server configuration changed, triggering server rebuild");
             this.mcpServerManager.rebuildServer();
         }

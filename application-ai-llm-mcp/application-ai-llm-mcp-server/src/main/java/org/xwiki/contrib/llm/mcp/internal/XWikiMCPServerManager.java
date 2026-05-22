@@ -20,9 +20,7 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.inject.Inject;
@@ -80,11 +78,6 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     static final String MCP_CONTEXT_PROPAGATION_PROPERTY = "xwiki.mcp.contextPropagation";
 
     private static final String SCHEDULER_HOOK_KEY = "xwiki-execution-propagation";
-
-    private static final String POM_PROPERTIES_RESOURCE =
-        "META-INF/maven/org.xwiki.contrib.llm/application-ai-llm-mcp-server/pom.properties";
-
-    private static final String VERSION_PROPERTY = "version";
 
     private static final String FALLBACK_SERVER_VERSION = "0.0.0";
 
@@ -214,23 +207,6 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         Package packageMetadata = XWikiMCPServerManager.class.getPackage();
         if (packageMetadata != null && StringUtils.isNotBlank(packageMetadata.getImplementationVersion())) {
             return packageMetadata.getImplementationVersion().trim();
-        }
-
-        // Secondary source: pom.properties written by the maven-jar-plugin into the JAR.
-        // Used as a fallback in environments where the manifest is unavailable or not read (e.g. test classpaths).
-        try (InputStream inputStream =
-            XWikiMCPServerManager.class.getClassLoader().getResourceAsStream(POM_PROPERTIES_RESOURCE)) {
-            if (inputStream != null) {
-                Properties properties = new Properties();
-                properties.load(inputStream);
-                String version = properties.getProperty(VERSION_PROPERTY);
-                if (StringUtils.isNotBlank(version)) {
-                    return version.trim();
-                }
-            }
-        } catch (IOException e) {
-            this.logger.warn("Failed to read MCP server version from [{}], using fallback version",
-                POM_PROPERTIES_RESOURCE, e);
         }
 
         return FALLBACK_SERVER_VERSION;

@@ -62,53 +62,53 @@ class MCPConfigChangeEventListenerTest
     }
 
     @Test
-    void processLocalEventTriggersRebuildForConfigDoc()
+    void onEventTriggersRebuildForConfigDoc()
     {
         DocumentReference configRef = new DocumentReference(MAIN_WIKI,
             Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
         DocumentModelBridge doc = mock(DocumentModelBridge.class);
         when(doc.getDocumentReference()).thenReturn(configRef);
 
-        this.listener.processLocalEvent(new DocumentUpdatedEvent(configRef), doc, null);
+        this.listener.onEvent(new DocumentUpdatedEvent(configRef), doc, null);
 
         verify(this.mcpServerManager).rebuildServer();
     }
 
     @Test
-    void processLocalEventIgnoresOtherDocuments()
+    void onEventIgnoresOtherDocuments()
     {
         DocumentReference otherRef = new DocumentReference(MAIN_WIKI,
             Arrays.asList("Some", "Other"), "Page");
         DocumentModelBridge doc = mock(DocumentModelBridge.class);
         when(doc.getDocumentReference()).thenReturn(otherRef);
 
-        this.listener.processLocalEvent(new DocumentUpdatedEvent(otherRef), doc, null);
+        this.listener.onEvent(new DocumentUpdatedEvent(otherRef), doc, null);
 
         verifyNoInteractions(this.mcpServerManager);
     }
 
     @Test
-    void processLocalEventIgnoresSubWikiConfigDoc()
+    void onEventIgnoresSubWikiConfigDoc()
     {
         DocumentReference subWikiRef = new DocumentReference("subwiki",
             Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
         DocumentModelBridge doc = mock(DocumentModelBridge.class);
         when(doc.getDocumentReference()).thenReturn(subWikiRef);
 
-        this.listener.processLocalEvent(new DocumentUpdatedEvent(subWikiRef), doc, null);
+        this.listener.onEvent(new DocumentUpdatedEvent(subWikiRef), doc, null);
 
         verifyNoInteractions(this.mcpServerManager);
     }
 
     @Test
-    void processLocalEventFallsBackToSourceDocumentReference()
+    void onEventFallsBackToSourceDocumentReference()
     {
         DocumentReference configRef = new DocumentReference(MAIN_WIKI,
             Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
         DocumentModelBridge doc = mock(DocumentModelBridge.class);
         when(doc.getDocumentReference()).thenReturn(configRef);
 
-        this.listener.processLocalEvent(new DocumentUpdatedEvent(), doc, null);
+        this.listener.onEvent(new DocumentUpdatedEvent(), doc, null);
 
         verify(this.mcpServerManager).rebuildServer();
     }
