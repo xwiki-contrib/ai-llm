@@ -27,7 +27,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 /**
  * Extension point for contributing tools to the XWiki MCP server.
  *
- * <p>Each implementation is a XWiki component with a hint equal to the tool's stable {@link #getId() ID}.
+ * <p>Each implementation is a XWiki component with a hint equal to the tool's stable ID.
  * The MCP server collects all registered implementations, filters by {@link #isEnabled()}, and registers
  * the enabled ones with the MCP SDK at startup and after each configuration change.</p>
  *
