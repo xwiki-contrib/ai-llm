@@ -31,7 +31,7 @@
     <name>LLM - MCP - Server</name>
     <description>MCP server exposing XWiki RAG search as a Model Context Protocol tool.</description>
     <properties>
-        <xwiki.extension.name>LLM MCP Server (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>MCP Server - Core Module (BETA)</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
         <xwiki.jacoco.instructionRatio>0.81</xwiki.jacoco.instructionRatio>
         <!-- This extension needs to be on the root namespace as it exposes a REST API. -->
@@ -43,6 +43,16 @@
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- reactive-streams: excluded from mcp-core's transitive deps to avoid conflicting with
+             the 1.0.3 core extension shipped by XWiki platform. Declared here as provided so
+             reactor-core types that reference Publisher compile correctly; the platform's 1.0.3
+             is used at runtime. -->
+        <dependency>
+            <groupId>org.reactivestreams</groupId>
+            <artifactId>reactive-streams</artifactId>
+            <version>1.0.3</version>
             <scope>provided</scope>
         </dependency>
         <!-- XWiki REST infrastructure -->
@@ -61,31 +71,67 @@
             <artifactId>xwiki-platform-container-servlet</artifactId>
             <version>${platform.version}</version>
         </dependency>
-        <!-- LLM Index API: CollectionManager, Context, IndexException -->
+        <!-- MCP API: MCPTool @Role interface -->
         <dependency>
             <groupId>org.xwiki.contrib.llm</groupId>
-            <artifactId>application-ai-llm-index-api</artifactId>
+            <artifactId>application-ai-llm-mcp-api</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
+        <!-- Query API: QueryManager, Query, SecureQuery used by MCPSearchPagesTool to query
+             the XWiki Solr search index. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-query-manager</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <!-- Solr search API: FieldUtils constants and SolrUtils escaping helpers used by
+             MCPSearchPagesTool. SolrDocument and QueryResponse arrive transitively from this. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-search-solr-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <!-- Admin config reading: DocumentAccessBridge for XObject property access,
+             document events for config-change-triggered server rebuilds,
+             and DocumentModelBridge used in the event listener. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-bridge</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <!-- WikiDescriptorManager.getMainWikiId() used by MCPServerConfiguration
+             to build the DocumentReference for the config document. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-wiki-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
         <!-- MCP SDK: core transport + Jackson 2.x JSON mapping -->
-        <!-- Exclude jackson libs that XWiki platform already provides to avoid
-             RequireUpperBoundDeps enforcer errors (MCP SDK requires newer versions than XWiki manages,
-             but at runtime XWiki's versions are used and are compatible with MCP SDK 1.0.0). -->
+        <!-- Exclude artifacts already managed by XWiki platform:
+             - jackson-annotations: provided by XWiki platform
+             - reactive-streams: XWiki platform ships 1.0.3 as a core extension;
+               mcp-core pulls 1.0.4 transitively via reactor-core, which the extension
+               manager rejects as incompatible. reactor-core uses the platform-provided
+               1.0.3 at runtime. -->
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp-core</artifactId>
-            <version>1.0.0</version>
+            <version>1.1.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-annotations</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.reactivestreams</groupId>
+                    <artifactId>reactive-streams</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp-json-jackson2</artifactId>
-            <version>1.0.0</version>
+            <version>1.1.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
@@ -105,6 +151,15 @@
             <artifactId>xwiki-platform-oldcore</artifactId>
             <version>${platform.version}</version>
             <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <!-- jersey-server provides javax.ws.rs.ext.RuntimeDelegate (RuntimeDelegateImpl) needed
+             by tests that build JAX-RS Response objects. Previously this arrived transitively
+             via index-api -> xwiki-platform-search-solr-query -> Solr -> jersey-server.
+             Now that mcp-server no longer depends on index-api, we declare it explicitly. -->
+        <dependency>
+            <groupId>org.glassfish.jersey.core</groupId>
+            <artifactId>jersey-server</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

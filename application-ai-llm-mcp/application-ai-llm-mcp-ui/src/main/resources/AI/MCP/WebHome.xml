@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.1" encoding="UTF-8"?>
 
 <!--
  * See the NOTICE file distributed with this work for additional
@@ -20,20 +20,26 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-    <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>org.xwiki.contrib.llm</groupId>
-        <artifactId>application-ai-llm</artifactId>
-        <version>0.8.1-SNAPSHOT</version>
-    </parent>
-    <artifactId>application-ai-llm-mcp</artifactId>
-    <name>LLM - MCP</name>
-    <description>MCP (Model Context Protocol) server exposing XWiki RAG search.</description>
-    <packaging>pom</packaging>
-    <modules>
-        <module>application-ai-llm-mcp-api</module>
-        <module>application-ai-llm-mcp-server</module>
-        <module>application-ai-llm-mcp-ui</module>
-    </modules>
-</project>
+<xwikidoc version="1.6" reference="AI.MCP.WebHome" locale="">
+  <web>AI.MCP</web>
+  <name>WebHome</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>AI.WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title>MCP</title>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content>= MCP Server =
+
+This space contains configuration for the XWiki MCP (Model Context Protocol) server.
+
+To configure the server name and description, visit the [[Administration panel&gt;&gt;XWiki.XWikiPreferences||queryString="editor=globaladmin&amp;section=MCP%20Server"]].
+</content>
+</xwikidoc>

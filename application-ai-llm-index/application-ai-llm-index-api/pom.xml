@@ -113,5 +113,12 @@
             <artifactId>resilience4j-retry</artifactId>
             <version>2.2.0</version>
         </dependency>
+        <!-- MCP API: MCPTool @Role interface + MCP SDK types used by the tool implementations
+             contributed by this module. -->
+        <dependency>
+            <groupId>org.xwiki.contrib.llm</groupId>
+            <artifactId>application-ai-llm-mcp-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 </project>

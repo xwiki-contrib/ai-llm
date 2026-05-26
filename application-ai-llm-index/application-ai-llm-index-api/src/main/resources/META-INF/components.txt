@@ -40,3 +40,5 @@ org.xwiki.contrib.llm.Chunk
 org.xwiki.contrib.llm.ChunkingUtils
 org.xwiki.contrib.llm.EmbeddingsUtils
 org.xwiki.contrib.llm.IndexTaskConsumer
+org.xwiki.contrib.llm.internal.mcp.MCPSearchCollectionsTool
+org.xwiki.contrib.llm.internal.mcp.MCPListCollectionsTool
