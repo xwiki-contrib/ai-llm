@@ -72,6 +72,18 @@ public class MCPListCollectionsTool implements MCPTool
     }
 
     @Override
+    public String getCategory()
+    {
+        return "Semantic Search";
+    }
+
+    @Override
+    public String getSummary()
+    {
+        return "List the indexed collections available for semantic search.";
+    }
+
+    @Override
     public McpSchema.CallToolResult execute(McpSchema.CallToolRequest request)
     {
         try {

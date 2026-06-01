@@ -277,4 +277,11 @@ class MCPSearchCollectionsToolTest
     {
         assertTrue(this.tool.isEnabled());
     }
+
+    @Test
+    void exposesCategoryAndSummary()
+    {
+        assertEquals("Semantic Search", this.tool.getCategory());
+        assertEquals("Semantic + keyword search over indexed collection content.", this.tool.getSummary());
+    }
 }

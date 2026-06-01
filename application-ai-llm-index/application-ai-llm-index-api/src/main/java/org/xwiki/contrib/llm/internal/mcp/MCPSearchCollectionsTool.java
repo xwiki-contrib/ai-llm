@@ -108,6 +108,18 @@ public class MCPSearchCollectionsTool implements MCPTool
     }
 
     @Override
+    public String getCategory()
+    {
+        return "Semantic Search";
+    }
+
+    @Override
+    public String getSummary()
+    {
+        return "Semantic + keyword search over indexed collection content.";
+    }
+
+    @Override
     public McpSchema.CallToolResult execute(McpSchema.CallToolRequest request)
     {
         Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();

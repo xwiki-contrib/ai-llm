@@ -105,4 +105,11 @@ class MCPListCollectionsToolTest
     {
         assertTrue(this.tool.isEnabled());
     }
+
+    @Test
+    void exposesCategoryAndSummary()
+    {
+        assertEquals("Semantic Search", this.tool.getCategory());
+        assertEquals("List the indexed collections available for semantic search.", this.tool.getSummary());
+    }
 }

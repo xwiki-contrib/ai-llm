@@ -62,6 +62,46 @@ public interface MCPTool
     }
 
     /**
+     * Returns the category under which this tool is grouped in the {@code man} catalog
+     * (e.g. "Search &amp; Navigation"). The default is "General".
+     *
+     * @return the tool's category, never {@code null}
+     * @since 0.9
+     */
+    default String getCategory()
+    {
+        return "General";
+    }
+
+    /**
+     * Returns a one-line summary of the tool (like a Unix man NAME tagline), used for the
+     * {@code man} catalog listing and the NAME line of the tool's page. Keep it to a single
+     * short sentence. The default is {@code null}, in which case {@code man} falls back to the
+     * first sentence of {@link #getToolDefinition()}'s description.
+     *
+     * @return a one-line summary, or {@code null} to fall back to the description
+     * @since 0.9
+     */
+    default String getSummary()
+    {
+        return null;
+    }
+
+    /**
+     * Returns the long-form documentation prose shown by the {@code man} tool below the
+     * auto-generated NAME/SYNOPSIS/OPTIONS sections (typically DESCRIPTION, EXAMPLES and
+     * SEE ALSO). Kept out of {@link #getToolDefinition()} so it is not shipped in the
+     * always-advertised tool list. The default is {@code null} (no extra prose).
+     *
+     * @return the man-page prose body, or {@code null} if the tool has none
+     * @since 0.9
+     */
+    default String getManPage()
+    {
+        return null;
+    }
+
+    /**
      * Executes the tool call and returns the result.
      *
      * @param request the tool call request

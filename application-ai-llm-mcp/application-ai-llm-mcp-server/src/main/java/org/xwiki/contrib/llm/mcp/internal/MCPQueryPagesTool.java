@@ -264,6 +264,31 @@ public class MCPQueryPagesTool implements MCPTool
     }
 
     @Override
+    public String getCategory()
+    {
+        return "Search & Navigation";
+    }
+
+    @Override
+    public String getSummary()
+    {
+        return "Search and browse XWiki pages via the wiki's Solr index.";
+    }
+
+    @Override
+    public String getManPage()
+    {
+        return """
+            EXAMPLES
+                Keywords:   query="script service groovy"
+                Phrase:     query="\\"programming rights\\" -deprecated"
+                In a space: query="release", space="Pro-Apps.Procedures"
+                Recent:     sort="newest"   (no query)
+                By date:    query="api", modifiedWithin="month"
+            """;
+    }
+
+    @Override
     public McpSchema.CallToolResult execute(McpSchema.CallToolRequest request)
     {
         Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();
