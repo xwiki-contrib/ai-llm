@@ -2,5 +2,5 @@ org.xwiki.contrib.llm.mcp.internal.XWikiMCPServerManager
 org.xwiki.contrib.llm.mcp.internal.DefaultMCPResource
 org.xwiki.contrib.llm.mcp.internal.MCPServerConfiguration
 org.xwiki.contrib.llm.mcp.internal.MCPConfigChangeEventListener
-org.xwiki.contrib.llm.mcp.internal.MCPQueryPagesTool
+org.xwiki.contrib.llm.mcp.internal.MCPQueryDocumentsTool
 org.xwiki.contrib.llm.mcp.internal.MCPManTool

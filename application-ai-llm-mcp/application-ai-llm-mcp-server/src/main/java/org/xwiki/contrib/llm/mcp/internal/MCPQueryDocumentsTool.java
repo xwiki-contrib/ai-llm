@@ -52,7 +52,7 @@ import com.xpn.xwiki.XWikiContext;
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
- * MCP tool that searches and browses XWiki pages using the platform's Solr search index.
+ * MCP tool that searches and browses XWiki documents using the platform's Solr search index.
  *
  * <p>This is a default tool bundled with the MCP server module. It queries the platform's
  * built-in document search index (not the AI-LLM RAG index), so it is independent of
@@ -71,14 +71,14 @@ import io.modelcontextprotocol.spec.McpSchema;
  * @since 0.9
  */
 @Component
-@Named(MCPQueryPagesTool.TOOL_ID)
+@Named(MCPQueryDocumentsTool.TOOL_ID)
 @Singleton
-public class MCPQueryPagesTool implements MCPTool
+public class MCPQueryDocumentsTool implements MCPTool
 {
     /**
      * The stable tool identifier. Used as the XWiki component hint.
      */
-    public static final String TOOL_ID = "query_pages";
+    public static final String TOOL_ID = "query_documents";
 
     /**
      * Field boosts handed to xdismax via the {@code qf} parameter. Mirrors the platform's default
@@ -217,8 +217,9 @@ public class MCPQueryPagesTool implements MCPTool
             QUERY_PARAM, Map.of(
                 TYPE, STRING,
                 DESCRIPTION, "Search terms. Rephrase the user's question into keywords. Supports "
-                    + "\"exact phrases\", +required and -excluded terms. Matched mainly against page titles "
-                    + "(high weight) and content. Leave empty to browse/list pages instead of searching."
+                    + "\"exact phrases\", +required and -excluded terms. Matched mainly against document "
+                    + "titles (high weight) and content. Leave empty to browse/list documents instead of "
+                    + "searching."
             ),
             SPACE_PARAM, Map.of(
                 TYPE, STRING,
@@ -253,12 +254,12 @@ public class MCPQueryPagesTool implements MCPTool
         );
         return McpSchema.Tool.builder()
             .name(TOOL_ID)
-            .description("Search and browse XWiki pages via the wiki's Solr index. Rephrase the user's "
+            .description("Search and browse XWiki documents via the wiki's Solr index. Rephrase the user's "
                 + "question into keywords; supports \"exact phrases\", +required and -excluded terms. "
-                + "Leave 'query' empty to browse/list pages (e.g. recent changes). Optional filters: "
+                + "Leave 'query' empty to browse/list documents (e.g. recent changes). Optional filters: "
                 + "space (subtree), author, modification date (modifiedWithin: day|week|month|year, or "
                 + "modifiedRange for a raw Solr date range); and sort (relevance|newest|oldest|title). "
-                + "Returns title, page reference, relevance score, and a matched snippet.")
+                + "Returns title, document reference, relevance score, and a matched snippet.")
             .inputSchema(new McpSchema.JsonSchema(OBJECT, properties, List.of(), null, null, null))
             .build();
     }
@@ -272,7 +273,7 @@ public class MCPQueryPagesTool implements MCPTool
     @Override
     public String getSummary()
     {
-        return "Search and browse XWiki pages via the wiki's Solr index.";
+        return "Search and browse XWiki documents via the wiki's Solr index.";
     }
 
     @Override
@@ -310,8 +311,8 @@ public class MCPQueryPagesTool implements MCPTool
         } catch (IllegalArgumentException e) {
             return buildErrorResult(e.getMessage());
         } catch (QueryException e) {
-            this.logger.warn("MCP query_pages tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
-            this.logger.debug("MCP query_pages tool failure details", e);
+            this.logger.warn("MCP query_documents tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP query_documents tool failure details", e);
             return buildErrorResult("Could not run the search. If you used query operators, check that quotes "
                 + "and parentheses are balanced, or simplify the query. Details: "
                 + ExceptionUtils.getRootCauseMessage(e));
@@ -438,7 +439,7 @@ public class MCPQueryPagesTool implements MCPTool
         boolean browse = StringUtils.isBlank(queryText);
         SolrDocumentList documents = response != null ? response.getResults() : null;
         if (documents == null || documents.isEmpty()) {
-            return browse ? "No pages found." : "No pages found matching \"" + queryText + "\".";
+            return browse ? "No documents found." : "No documents found matching \"" + queryText + "\".";
         }
 
         Map<String, Map<String, List<String>>> highlighting = response.getHighlighting();

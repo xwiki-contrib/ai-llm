@@ -50,7 +50,7 @@ import static org.mockito.Mockito.when;
 @ComponentTest
 class MCPManToolTest
 {
-    private static final String QUERY_PAGES = "query_pages";
+    private static final String QUERY_DOCUMENTS = "query_documents";
 
     private static final String TOOL_PARAM = "tool";
 
@@ -128,7 +128,7 @@ class MCPManToolTest
     void catalogGroupsByCategorySortsAndExcludesDisabledTool(MockitoComponentManager componentManager)
         throws Exception
     {
-        registerTool(componentManager, QUERY_PAGES, "Search pages.", "Search pages and more.",
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Search pages and more.",
             "Search & Navigation", true, Map.of(), List.of(), null);
         registerTool(componentManager, "demo_tool", "A demo tool.", "A demo tool, in depth.",
             "Search & Navigation", true, Map.of(), List.of(), null);
@@ -141,10 +141,10 @@ class MCPManToolTest
 
         // Categories sorted alphabetically: "Help" before "Search & Navigation".
         assertTrue(output.indexOf("Help") < output.indexOf("Search & Navigation"));
-        // Within a category, tools sorted by name: demo_tool before query_pages.
-        assertTrue(output.indexOf("demo_tool") < output.indexOf(QUERY_PAGES));
+        // Within a category, tools sorted by name: demo_tool before query_documents.
+        assertTrue(output.indexOf("demo_tool") < output.indexOf(QUERY_DOCUMENTS));
         // Line format: two-space indent, hyphen-space separator, the one-line summary.
-        assertTrue(output.contains("  query_pages - Search pages."));
+        assertTrue(output.contains("  query_documents - Search pages."));
         assertTrue(output.contains("  help_me - Show help."));
         // Disabled tool excluded.
         assertFalse(output.contains("secret"));
@@ -177,16 +177,16 @@ class MCPManToolTest
         Map<String, Object> properties = Map.of(
             "query", param(STRING, "Search terms."),
             "limit", param("integer", "Max results."));
-        registerTool(componentManager, QUERY_PAGES, "Search pages.", "Full description of searching.",
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Full description of searching.",
             "Search & Navigation", true, properties, List.of("query"), "EXAMPLES\n    Full prose body.");
 
-        String output = callMan(this.manTool, QUERY_PAGES);
+        String output = callMan(this.manTool, QUERY_DOCUMENTS);
 
         assertTrue(output.startsWith("NAME"));
         // NAME line shows the one-line summary tagline.
-        assertTrue(output.contains("    query_pages - Search pages."));
+        assertTrue(output.contains("    query_documents - Search pages."));
         // Required param bare, optional param bracketed; required comes first.
-        assertTrue(output.contains("SYNOPSIS\n    query_pages query=<string> [limit=<integer>]"));
+        assertTrue(output.contains("SYNOPSIS\n    query_documents query=<string> [limit=<integer>]"));
         // OPTIONS lists both with type + requiredness + description.
         assertTrue(output.contains("    query (string, required)\n        Search terms."));
         assertTrue(output.contains("    limit (integer, optional)\n        Max results."));
@@ -201,10 +201,10 @@ class MCPManToolTest
     void pageWithoutManPageHasNoTrailingProse(MockitoComponentManager componentManager) throws Exception
     {
         Map<String, Object> properties = Map.of("query", param(STRING, "Search terms."));
-        registerTool(componentManager, QUERY_PAGES, "Search pages.", "Full description of searching.",
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Full description of searching.",
             "Search & Navigation", true, properties, List.of("query"), null);
 
-        String output = callMan(this.manTool, QUERY_PAGES);
+        String output = callMan(this.manTool, QUERY_DOCUMENTS);
 
         // OPTIONS is present and DESCRIPTION is the last section, with no man-page prose after it.
         assertTrue(output.contains("OPTIONS"));
@@ -229,7 +229,7 @@ class MCPManToolTest
     @Test
     void unknownToolReturnsErrorListingAvailableTools(MockitoComponentManager componentManager) throws Exception
     {
-        registerTool(componentManager, QUERY_PAGES, "Search pages.", "Search pages and more.",
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Search pages and more.",
             "Search & Navigation", true, Map.of(), List.of(), null);
         registerTool(componentManager, "demo_tool", "A demo tool.", "A demo tool, in depth.",
             "Search & Navigation", true, Map.of(), List.of(), null);
@@ -241,8 +241,8 @@ class MCPManToolTest
         String text = textOf(result);
         assertTrue(text.contains("No manual entry for \"does_not_exist\""));
         // The injected man tool is itself an enabled MCPTool, so the available list also includes it,
-        // sorted alphabetically: demo_tool, man, query_pages.
-        assertTrue(text.contains("demo_tool, man, query_pages"));
+        // sorted alphabetically: demo_tool, man, query_documents.
+        assertTrue(text.contains("demo_tool, man, query_documents"));
     }
 
     @Test
@@ -250,10 +250,10 @@ class MCPManToolTest
         throws Exception
     {
         Map<String, Object> properties = Map.of("query", Map.of(TYPE, STRING));
-        registerTool(componentManager, QUERY_PAGES, "Search pages.", "Searches pages.", "Search & Navigation",
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Searches pages.", "Search & Navigation",
             true, properties, List.of("query"), null);
 
-        String output = callMan(this.manTool, QUERY_PAGES);
+        String output = callMan(this.manTool, QUERY_DOCUMENTS);
 
         // The option line is present with its type and requiredness.
         assertTrue(output.contains("    query (string, required)"));
@@ -267,13 +267,13 @@ class MCPManToolTest
     void pageWithNonMapPropertyOmitsTypeAndDescription(MockitoComponentManager componentManager) throws Exception
     {
         Map<String, Object> properties = Map.of("query", "not-a-map");
-        registerTool(componentManager, QUERY_PAGES, "Search pages.", "Searches pages.", "Search & Navigation",
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Searches pages.", "Search & Navigation",
             true, properties, List.of("query"), null);
 
-        String output = callMan(this.manTool, QUERY_PAGES);
+        String output = callMan(this.manTool, QUERY_DOCUMENTS);
 
         // No type suffix in the synopsis since the property is not a map.
-        assertTrue(output.contains("SYNOPSIS\n    query_pages query"));
+        assertTrue(output.contains("SYNOPSIS\n    query_documents query"));
         assertFalse(output.contains("query=<"));
         // The option is still listed, with requiredness only and no description line.
         assertTrue(output.contains("    query (required)"));
@@ -308,10 +308,10 @@ class MCPManToolTest
     void pageWithRequiredNameAbsentFromPropertiesSkipsIt(MockitoComponentManager componentManager) throws Exception
     {
         Map<String, Object> properties = Map.of("query", param(STRING, "Search terms."));
-        registerTool(componentManager, QUERY_PAGES, "Search pages.", "Searches pages.", "Search & Navigation",
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Searches pages.", "Search & Navigation",
             true, properties, List.of("query", "ghost"), null);
 
-        String output = callMan(this.manTool, QUERY_PAGES);
+        String output = callMan(this.manTool, QUERY_DOCUMENTS);
 
         // The declared property is rendered; the phantom required name is silently skipped.
         assertTrue(output.contains("    query (string, required)"));

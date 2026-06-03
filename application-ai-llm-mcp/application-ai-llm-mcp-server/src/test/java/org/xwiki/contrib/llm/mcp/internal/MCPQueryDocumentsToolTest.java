@@ -60,12 +60,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link MCPQueryPagesTool}.
+ * Tests for {@link MCPQueryDocumentsTool}.
  *
  * @version $Id$
  */
 @ComponentTest
-class MCPQueryPagesToolTest
+class MCPQueryDocumentsToolTest
 {
     private static final String QF_WEIGHTS = "title^10.0 doccontent^2.0 doccontentraw^0.4";
 
@@ -73,7 +73,7 @@ class MCPQueryPagesToolTest
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
 
     @InjectMockComponents
-    private MCPQueryPagesTool tool;
+    private MCPQueryDocumentsTool tool;
 
     @MockComponent
     private QueryManager queryManager;
@@ -166,7 +166,7 @@ class MCPQueryPagesToolTest
     {
         SecureQuery query = stubQuery(List.of());
 
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "+foo -bar \"exact phrase\"")));
 
         ArgumentCaptor<String> statementCaptor = ArgumentCaptor.forClass(String.class);
@@ -182,7 +182,7 @@ class MCPQueryPagesToolTest
     {
         SecureQuery query = stubQuery(List.of());
 
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "hello")));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "hello")));
 
         verify(query, never()).bindValue(eq("defType"), any());
         verify(query, never()).bindValue(eq("fl"), any());
@@ -193,7 +193,7 @@ class MCPQueryPagesToolTest
     {
         SecureQuery query = stubQuery(List.of());
 
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "hello")));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "hello")));
 
         verify(query).bindValue("qf", QF_WEIGHTS);
     }
@@ -203,7 +203,7 @@ class MCPQueryPagesToolTest
     {
         SecureQuery query = stubQuery(List.of());
 
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "hello")));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "hello")));
 
         verify(query).bindValue("timeAllowed", "5000");
     }
@@ -213,7 +213,7 @@ class MCPQueryPagesToolTest
     {
         SecureQuery query = stubQuery(List.of());
 
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "hello")));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "hello")));
 
         verify(query).bindValue("hl", "true");
         verify(query).bindValue("hl.fl", "doccontent_*");
@@ -232,7 +232,7 @@ class MCPQueryPagesToolTest
     {
         SecureQuery query = stubQuery(List.of());
 
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of()));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of()));
 
         ArgumentCaptor<String> statementCaptor = ArgumentCaptor.forClass(String.class);
         verify(this.queryManager).createQuery(statementCaptor.capture(), eq("solr"));
@@ -248,10 +248,10 @@ class MCPQueryPagesToolTest
         stubQuery(List.of());
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of()));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of()));
 
         assertNotEquals(Boolean.TRUE, result.isError());
-        assertEquals("No pages found.", textOf(result));
+        assertEquals("No documents found.", textOf(result));
     }
 
     @Test
@@ -260,7 +260,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of());
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "nothing here")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "nothing here")));
 
         assertNotEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("nothing here"));
@@ -274,7 +274,7 @@ class MCPQueryPagesToolTest
     void sortNewestBindsDateDesc() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "sort", "newest")));
         verify(query).bindValue("sort", "date desc");
     }
@@ -283,7 +283,7 @@ class MCPQueryPagesToolTest
     void sortOldestBindsDateAsc() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "sort", "oldest")));
         verify(query).bindValue("sort", "date asc");
     }
@@ -292,7 +292,7 @@ class MCPQueryPagesToolTest
     void sortTitleBindsTitleSortAsc() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "sort", "title")));
         verify(query).bindValue("sort", FieldUtils.TITLE_SORT + " asc");
     }
@@ -301,7 +301,7 @@ class MCPQueryPagesToolTest
     void sortRelevanceWithQueryBindsNoSort() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "sort", "relevance")));
         verify(query, never()).bindValue(eq("sort"), any());
     }
@@ -310,7 +310,7 @@ class MCPQueryPagesToolTest
     void invalidSortReturnsErrorWithAllowedValues() throws QueryException
     {
         stubQuery(List.of());
-        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "sort", "sideways")));
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
@@ -327,7 +327,7 @@ class MCPQueryPagesToolTest
     void baseFiltersAreAlwaysApplied() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
         List<String> fqs = captureFilterQueries(query);
         assertTrue(fqs.contains("type:DOCUMENT"));
         assertTrue(fqs.contains("hidden:false"));
@@ -338,7 +338,7 @@ class MCPQueryPagesToolTest
     void spaceProducesEscapedSpacePrefixFilter() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "space", "Help.Guides")));
         verify(this.solrUtils).toCompleteFilterQueryString("Help.Guides");
         assertTrue(captureFilterQueries(query).contains("space_prefix:Help.Guides"));
@@ -348,7 +348,7 @@ class MCPQueryPagesToolTest
     void authorProducesEscapedAuthorFilter() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "author", "xwiki:XWiki.Admin")));
         verify(this.solrUtils).toCompleteFilterQueryString("xwiki:XWiki.Admin");
         assertTrue(captureFilterQueries(query).contains("author:xwiki:XWiki.Admin"));
@@ -358,7 +358,7 @@ class MCPQueryPagesToolTest
     void modifiedWithinWeekProducesDateRangeFilter() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "modifiedWithin", "week")));
         assertTrue(captureFilterQueries(query).contains("date:[NOW-7DAY TO NOW]"));
     }
@@ -367,7 +367,7 @@ class MCPQueryPagesToolTest
     void modifiedRangeOverridesModifiedWithin() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "modifiedWithin", "week", "modifiedRange", "[2026-01-01T00:00:00Z TO NOW]")));
         List<String> fqs = captureFilterQueries(query);
         assertTrue(fqs.contains("date:[2026-01-01T00:00:00Z TO NOW]"));
@@ -380,7 +380,7 @@ class MCPQueryPagesToolTest
     void invalidModifiedWithinReturnsErrorWithAllowedValues() throws QueryException
     {
         stubQuery(List.of());
-        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "modifiedWithin", "fortnight")));
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
@@ -393,7 +393,7 @@ class MCPQueryPagesToolTest
     void modifiedRangeRejectsInjection() throws QueryException
     {
         stubQuery(List.of());
-        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "modifiedRange", "[* TO *] OR hidden:true")));
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("modifiedRange"));
@@ -403,7 +403,7 @@ class MCPQueryPagesToolTest
     void modifiedRangeAcceptsValidRange() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "modifiedRange", "[NOW-7DAY TO NOW]")));
         assertNotEquals(Boolean.TRUE, result.isError());
         assertTrue(captureFilterQueries(query).contains("date:[NOW-7DAY TO NOW]"));
@@ -417,7 +417,7 @@ class MCPQueryPagesToolTest
     void nonStringQueryReturnsError() throws QueryException
     {
         stubQuery(List.of());
-        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", 42)));
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
@@ -433,7 +433,7 @@ class MCPQueryPagesToolTest
     void limitIsClampedToMaximum() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x", "limit", 999)));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x", "limit", 999)));
         verify(query).setLimit(50);
     }
 
@@ -441,7 +441,7 @@ class MCPQueryPagesToolTest
     void explicitLimitIsApplied() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x", "limit", 5)));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x", "limit", 5)));
         verify(query).setLimit(5);
     }
 
@@ -449,7 +449,7 @@ class MCPQueryPagesToolTest
     void defaultLimitWhenNotProvided() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
         verify(query).setLimit(10);
     }
 
@@ -457,7 +457,7 @@ class MCPQueryPagesToolTest
     void limitIsClampedToMinimum() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x", "limit", 0)));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x", "limit", 0)));
         verify(query).setLimit(1);
     }
 
@@ -465,7 +465,7 @@ class MCPQueryPagesToolTest
     void negativeLimitIsClampedToMinimum() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x", "limit", -5)));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x", "limit", -5)));
         verify(query).setLimit(1);
     }
 
@@ -473,7 +473,7 @@ class MCPQueryPagesToolTest
     void nonNumericLimitReturnsError() throws QueryException
     {
         stubQuery(List.of());
-        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_pages",
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
             Map.of("query", "x", "limit", "lots")));
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("integer"));
@@ -496,7 +496,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of(doc), highlighting);
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "matched")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "matched")));
 
         String text = textOf(result);
         assertTrue(text.contains("Snippet: a matched snippet"), "Expected tag-stripped highlight, got: " + text);
@@ -515,7 +515,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of(doc), highlighting);
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "match")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "match")));
 
         String text = textOf(result);
         assertTrue(text.contains("Snippet: le match fragment"), "Expected scanned highlight, got: " + text);
@@ -531,7 +531,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of(doc), Map.of());
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
 
         assertTrue(textOf(result).contains("Snippet: Fallback content head."));
     }
@@ -544,7 +544,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of(doc));
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of()));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of()));
 
         assertTrue(textOf(result).contains("Snippet: Some content for browse."));
     }
@@ -557,7 +557,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of(doc));
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
 
         String text = textOf(result);
         assertTrue(text.contains("Title: No Content Page"));
@@ -572,7 +572,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of(doc));
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
 
         String text = textOf(result);
         assertTrue(text.contains("..."));
@@ -593,7 +593,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of(doc));
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
 
         assertTrue(textOf(result).contains("Score: 3.14"));
     }
@@ -605,7 +605,7 @@ class MCPQueryPagesToolTest
         stubQuery(List.of(doc));
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
 
         assertFalse(textOf(result).contains("Score:"));
     }
@@ -622,7 +622,7 @@ class MCPQueryPagesToolTest
             buildDoc("id2", "XWiki Syntax", "xwiki", "XWiki.XWikiSyntax", "Syntax content.")));
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
 
         String text = textOf(result);
         assertTrue(text.contains("Title: Getting Started"));
@@ -635,7 +635,7 @@ class MCPQueryPagesToolTest
     void usesSecureQueryForAuthorization() throws QueryException
     {
         SecureQuery query = stubQuery(List.of());
-        this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "x")));
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
         verify(query).checkCurrentUser(true);
     }
 
@@ -650,13 +650,13 @@ class MCPQueryPagesToolTest
             .thenThrow(new QueryException("unbalanced parentheses", null, null));
 
         McpSchema.CallToolResult result =
-            this.tool.execute(new McpSchema.CallToolRequest("query_pages", Map.of("query", "foo (")));
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "foo (")));
 
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
         assertTrue(text.contains("Could not run the search"));
         assertTrue(text.contains("unbalanced parentheses"));
-        assertTrue(this.logCapture.getMessage(0).contains("MCP query_pages tool failed"));
+        assertTrue(this.logCapture.getMessage(0).contains("MCP query_documents tool failed"));
     }
 
     // -------------------------------------------------------------------------
@@ -667,8 +667,8 @@ class MCPQueryPagesToolTest
     void toolDefinitionHasCorrectNameAndNoRequiredParams()
     {
         McpSchema.Tool definition = this.tool.getToolDefinition();
-        assertEquals(MCPQueryPagesTool.TOOL_ID, definition.name());
-        assertEquals("query_pages", definition.name());
+        assertEquals(MCPQueryDocumentsTool.TOOL_ID, definition.name());
+        assertEquals("query_documents", definition.name());
         assertTrue(definition.inputSchema().required().isEmpty(),
             "query is now optional, so no parameters should be required");
     }

@@ -150,7 +150,7 @@ public class MCPManTool implements MCPTool
         return """
             EXAMPLES
                 List all tools:   (call with no arguments)
-                One tool's page:  tool="query_pages\"""";
+                One tool's page:  tool="query_documents\"""";
     }
 
     @Override
