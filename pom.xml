@@ -98,12 +98,11 @@
                 <artifactId>commons-lang</artifactId>
                 <scope>test</scope>
             </dependency>
-            <!-- bcutil-jdk18on:1.80.2 (pulled in via bcpkix [1.80,1.81) range) requires bcprov:1.80.2;
-                 bump the managed version to satisfy RequireUpperBoundDeps. -->
+            <!-- Add missing dependency management for org.bouncycastle:bcutil-jdk18on. -->
             <dependency>
                 <groupId>org.bouncycastle</groupId>
-                <artifactId>bcprov-jdk18on</artifactId>
-                <version>1.80.2</version>
+                <artifactId>bcutil-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
