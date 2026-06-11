@@ -77,7 +77,7 @@
             <artifactId>application-ai-llm-mcp-api</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
-        <!-- Query API: QueryManager, Query, SecureQuery used by MCPSearchPagesTool to query
+        <!-- Query API: QueryManager, Query, SecureQuery used by MCPQueryDocumentsTool to query
              the XWiki Solr search index. -->
         <dependency>
             <groupId>org.xwiki.platform</groupId>
@@ -85,7 +85,7 @@
             <version>${platform.version}</version>
         </dependency>
         <!-- Solr search API: FieldUtils constants and SolrUtils escaping helpers used by
-             MCPSearchPagesTool. SolrDocument and QueryResponse arrive transitively from this. -->
+             MCPQueryDocumentsTool. SolrDocument and QueryResponse arrive transitively from this. -->
         <dependency>
             <groupId>org.xwiki.platform</groupId>
             <artifactId>xwiki-platform-search-solr-api</artifactId>

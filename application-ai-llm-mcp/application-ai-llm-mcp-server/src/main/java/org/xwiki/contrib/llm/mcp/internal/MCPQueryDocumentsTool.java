@@ -20,11 +20,9 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 import javax.inject.Inject;
@@ -32,14 +30,16 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
-import org.apache.solr.common.SolrDocumentList;
 import org.slf4j.Logger;
+import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
@@ -114,6 +114,10 @@ public class MCPQueryDocumentsTool implements MCPTool
 
     private static final String LIMIT_PARAM = "limit";
 
+    private static final String OFFSET_PARAM = "offset";
+
+    private static final String INCLUDE_HIDDEN_PARAM = "includeHidden";
+
     private static final String SPACE_PARAM = "space";
 
     private static final String AUTHOR_PARAM = "author";
@@ -126,33 +130,29 @@ public class MCPQueryDocumentsTool implements MCPTool
 
     private static final String RELEVANCE = "relevance";
 
+    private static final String NEWEST = "newest";
+
+    private static final String OLDEST = "oldest";
+
+    private static final String TITLE = "title";
+
     private static final String SCORE_FIELD = "score";
 
     private static final String DATE_DESC = "date desc";
 
     private static final String DATE_ASC = "date asc";
 
-    private static final String OBJECT = "object";
-
-    private static final String STRING = "string";
-
-    private static final String INTEGER = "integer";
-
-    private static final String TYPE = "type";
-
-    private static final String DESCRIPTION = "description";
-
     private static final String COLON = ":";
+
+    private static final String VIEW_ACTION = "view";
 
     private static final String NEW_LINE = "\n";
 
+    private static final String DOUBLE_NEW_LINE = "\n\n";
+
+    private static final String PERIOD = ".";
+
     private static final String RESULT_SEPARATOR = NEW_LINE + "---" + NEW_LINE;
-
-    private static final String ERROR_PREFIX = "Error: '";
-
-    private static final String STRING_PARAM_ERROR_SUFFIX = "' parameter must be a string.";
-
-    private static final String INTEGER_PARAM_ERROR_SUFFIX = "' parameter must be an integer.";
 
     private static final String HTML_TAG_REGEX = "<[^>]+>";
 
@@ -173,30 +173,73 @@ public class MCPQueryDocumentsTool implements MCPTool
         "[\\[{]\\s*(\\*|NOW[-+/A-Z0-9]*|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z)"
         + "\\s+TO\\s+(\\*|NOW[-+/A-Z0-9]*|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z)\\s*[\\]}]");
 
+    private static final String DAY = "day";
+
+    private static final String WEEK = "week";
+
+    private static final String MONTH = "month";
+
+    private static final String YEAR = "year";
+
     /**
      * Allowed values for the {@code modifiedWithin} parameter, mapped to their Solr date-range
      * expressions on the last-modified date field.
      */
     private static final Map<String, String> MODIFIED_WITHIN_RANGES = Map.of(
-        "day", "[NOW-1DAY TO NOW]",
-        "week", "[NOW-7DAY TO NOW]",
-        "month", "[NOW-1MONTH TO NOW]",
-        "year", "[NOW-1YEAR TO NOW]"
+        DAY, "[NOW-1DAY TO NOW]",
+        WEEK, "[NOW-7DAY TO NOW]",
+        MONTH, "[NOW-1MONTH TO NOW]",
+        YEAR, "[NOW-1YEAR TO NOW]"
     );
 
     /**
-     * Allowed values for the {@code sort} parameter, mapped to their Solr sort clause. The
-     * {@code relevance} value maps to {@code null}, meaning no sort is bound and the default
-     * score ordering applies.
+     * The accepted {@code modifiedWithin} values in display order, for the invalid-value error message
+     * ({@code Map.of} key order is unspecified). Must stay in sync with {@link #MODIFIED_WITHIN_RANGES}.
      */
-    private static final Map<String, String> SORT_CLAUSES = new LinkedHashMap<>();
+    private static final List<String> MODIFIED_WITHIN_VALUES = List.of(DAY, WEEK, MONTH, YEAR);
 
-    static {
-        SORT_CLAUSES.put(RELEVANCE, null);
-        SORT_CLAUSES.put("newest", DATE_DESC);
-        SORT_CLAUSES.put("oldest", DATE_ASC);
-        SORT_CLAUSES.put("title", FieldUtils.TITLE_SORT + " asc");
-    }
+    /**
+     * Allowed values for the {@code sort} parameter besides {@code relevance}, mapped to their Solr
+     * sort clause. The {@code relevance} default has no entry: no sort is bound and the default score
+     * ordering applies.
+     */
+    private static final Map<String, String> SORT_CLAUSES = Map.of(
+        NEWEST, DATE_DESC,
+        OLDEST, DATE_ASC,
+        TITLE, FieldUtils.TITLE_SORT + " asc");
+
+    /**
+     * All accepted {@code sort} values in display order, used for validation and the invalid-value
+     * error message. Must stay in sync with {@link #SORT_CLAUSES} (plus {@code relevance}).
+     */
+    private static final List<String> SORT_VALUES = List.of(RELEVANCE, NEWEST, OLDEST, TITLE);
+
+    /**
+     * The declared parameters: one source for both the advertised input schema and the typed
+     * argument accessors.
+     */
+    private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
+        .string(QUERY_PARAM, "Search terms. Rephrase the user's question into keywords. Supports "
+            + "\"exact phrases\", +required and -excluded terms. Matched mainly against document "
+            + "titles (high weight) and content. Leave empty to browse/list documents instead of "
+            + "searching.")
+        .string(SPACE_PARAM, "Optional local space reference (e.g. \"Help\" or \"Help.Guides\"). "
+            + "Restricts results to that space and all its children.")
+        .string(AUTHOR_PARAM, "Optional last author. Expects a serialized user reference, "
+            + "e.g. \"xwiki:XWiki.Admin\".")
+        .string(MODIFIED_WITHIN_PARAM, "Optional relative modification window. One of: day, week, "
+            + "month, year. Ignored if 'modifiedRange' is also provided.")
+        .string(MODIFIED_RANGE_PARAM, "Advanced. A raw Solr date-range expression on the last-modified "
+            + "date, e.g. \"[NOW-7DAY TO NOW]\" or \"[2026-01-01T00:00:00Z TO NOW]\". "
+            + "Overrides 'modifiedWithin' when both are given.")
+        .string(SORT_PARAM, "Result ordering. One of: relevance (default), newest, oldest, title.")
+        .integer(LIMIT_PARAM, "Maximum number of results to return (default: %d, max: %d)."
+            .formatted(DEFAULT_LIMIT, MAX_LIMIT))
+        .integer(OFFSET_PARAM, "0-based index of the first result to return (default: 0). Use with "
+            + "limit to page through results; the result footer tells you the offset of the next page.")
+        .bool(INCLUDE_HIDDEN_PARAM, "If true, also match hidden documents (technical pages excluded "
+            + "from normal browsing, e.g. configuration and class definitions). Default false.")
+        .build();
 
     @Inject
     private Logger logger;
@@ -210,57 +253,24 @@ public class MCPQueryDocumentsTool implements MCPTool
     @Inject
     private Provider<XWikiContext> contextProvider;
 
+    @Inject
+    private DocumentAccessBridge documentAccessBridge;
+
+    @Inject
+    @Named("current")
+    private DocumentReferenceResolver<String> referenceResolver;
+
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        Map<String, Object> properties = Map.of(
-            QUERY_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "Search terms. Rephrase the user's question into keywords. Supports "
-                    + "\"exact phrases\", +required and -excluded terms. Matched mainly against document "
-                    + "titles (high weight) and content. Leave empty to browse/list documents instead of "
-                    + "searching."
-            ),
-            SPACE_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "Optional local space reference (e.g. \"Help\" or \"Help.Guides\"). "
-                    + "Restricts results to that space and all its children."
-            ),
-            AUTHOR_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "Optional last author. Expects a serialized user reference, "
-                    + "e.g. \"xwiki:XWiki.Admin\"."
-            ),
-            MODIFIED_WITHIN_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "Optional relative modification window. One of: day, week, month, year. "
-                    + "Ignored if 'modifiedRange' is also provided."
-            ),
-            MODIFIED_RANGE_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "Advanced. A raw Solr date-range expression on the last-modified date, "
-                    + "e.g. \"[NOW-7DAY TO NOW]\" or \"[2026-01-01T00:00:00Z TO NOW]\". "
-                    + "Overrides 'modifiedWithin' when both are given."
-            ),
-            SORT_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "Result ordering. One of: relevance (default), newest, oldest, title."
-            ),
-            LIMIT_PARAM, Map.of(
-                TYPE, INTEGER,
-                DESCRIPTION, "Maximum number of results to return (default: %d, max: %d)."
-                    .formatted(DEFAULT_LIMIT, MAX_LIMIT)
-            )
-        );
         return McpSchema.Tool.builder()
             .name(TOOL_ID)
-            .description("Search and browse XWiki documents via the wiki's Solr index. Rephrase the user's "
-                + "question into keywords; supports \"exact phrases\", +required and -excluded terms. "
-                + "Leave 'query' empty to browse/list documents (e.g. recent changes). Optional filters: "
-                + "space (subtree), author, modification date (modifiedWithin: day|week|month|year, or "
-                + "modifiedRange for a raw Solr date range); and sort (relevance|newest|oldest|title). "
-                + "Returns title, document reference, relevance score, and a matched snippet.")
-            .inputSchema(new McpSchema.JsonSchema(OBJECT, properties, List.of(), null, null, null))
+            .description("Search and browse XWiki documents (the wiki's built-in Solr index). Rephrase the "
+                + "user's question into keywords; supports \"exact phrases\", +required and -excluded "
+                + "terms. Leave 'query' empty to browse/list, e.g. recent changes. Each result includes "
+                + "the document reference (use with get_document) and a matched snippet. "
+                + "`man query_documents` shows examples and filters.")
+            .inputSchema(PARAMS.inputSchema())
             .build();
     }
 
@@ -286,6 +296,11 @@ public class MCPQueryDocumentsTool implements MCPTool
                 In a space: query="release", space="Pro-Apps.Procedures"
                 Recent:     sort="newest"   (no query)
                 By date:    query="api", modifiedWithin="month"
+                Next page:  query="api", offset=10
+
+            SEE ALSO
+                man get_document    Read a document found here in full, by its Reference.
+                man                 (no argument) List all tools and reference pages.
             """;
     }
 
@@ -295,46 +310,56 @@ public class MCPQueryDocumentsTool implements MCPTool
         Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();
 
         try {
-            String queryText = getOptionalStringParam(args, QUERY_PARAM);
-            int limit = clampLimit(getIntParam(args, LIMIT_PARAM, DEFAULT_LIMIT));
-            String space = getOptionalStringParam(args, SPACE_PARAM);
-            String author = getOptionalStringParam(args, AUTHOR_PARAM);
-            String modifiedWithin = getOptionalStringParam(args, MODIFIED_WITHIN_PARAM);
-            String modifiedRange = getOptionalStringParam(args, MODIFIED_RANGE_PARAM);
-            String sort = resolveSort(getOptionalStringParam(args, SORT_PARAM));
+            SearchRequest searchRequest = parseRequest(args);
 
-            QueryResponse response = executeSearch(queryText, limit, space, author, modifiedWithin,
-                modifiedRange, sort);
-            return McpSchema.CallToolResult.builder()
-                .addTextContent(formatResults(response, queryText))
-                .build();
+            QueryResponse response = executeSearch(searchRequest);
+            return MCPToolSupport.result(formatResults(response, searchRequest));
         } catch (IllegalArgumentException e) {
-            return buildErrorResult(e.getMessage());
+            return MCPToolSupport.errorResult(e.getMessage());
         } catch (QueryException e) {
             this.logger.warn("MCP query_documents tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP query_documents tool failure details", e);
-            return buildErrorResult("Could not run the search. If you used query operators, check that quotes "
-                + "and parentheses are balanced, or simplify the query. Details: "
-                + ExceptionUtils.getRootCauseMessage(e));
+            return MCPToolSupport.errorResult("Could not run the search. If you used query operators, check "
+                + "that quotes and parentheses are balanced, or simplify the query. Run `man query_documents` "
+                + "for query syntax examples. Details: " + ExceptionUtils.getRootCauseMessage(e));
         }
     }
 
-    private QueryResponse executeSearch(String queryText, int limit, String space, String author,
-        String modifiedWithin, String modifiedRange, String sort) throws QueryException
+    private SearchRequest parseRequest(Map<String, Object> args)
     {
-        boolean browse = StringUtils.isBlank(queryText);
-        String statement = browse ? BROWSE_STATEMENT : queryText;
+        String queryText = PARAMS.string(args, QUERY_PARAM);
+        int limit = clampLimit(PARAMS.integer(args, LIMIT_PARAM, DEFAULT_LIMIT));
+        int offset = PARAMS.integer(args, OFFSET_PARAM, 0);
+        if (offset < 0) {
+            throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + OFFSET_PARAM + "' must be >= 0.");
+        }
+        String space = PARAMS.string(args, SPACE_PARAM);
+        String author = PARAMS.string(args, AUTHOR_PARAM);
+        String dateRange = resolveDateRange(PARAMS.string(args, MODIFIED_WITHIN_PARAM),
+            PARAMS.string(args, MODIFIED_RANGE_PARAM));
+        String sort = resolveSort(PARAMS.string(args, SORT_PARAM));
+        boolean includeHidden = PARAMS.bool(args, INCLUDE_HIDDEN_PARAM);
+        return new SearchRequest(queryText, limit, offset, space, author, dateRange, sort, includeHidden);
+    }
 
-        List<String> filterQueries = buildFilterQueries(space, author, modifiedWithin, modifiedRange);
+    private QueryResponse executeSearch(SearchRequest request) throws QueryException
+    {
+        boolean browse = request.browse();
+        String statement = browse ? BROWSE_STATEMENT : request.queryText();
+
+        List<String> filterQueries = buildFilterQueries(request);
 
         Query query = this.queryManager.createQuery(statement, "solr");
+        // Deliberate raw cast (instead of the platform's instanceof pattern): if a Solr query were ever
+        // not a SecureQuery, failing loudly here is safer than silently skipping the rights check.
         ((SecureQuery) query).checkCurrentUser(true);
-        query.setLimit(limit);
+        query.setLimit(request.limit());
+        query.setOffset(request.offset());
         query.bindValue("qf", QF_WEIGHTS);
         query.bindValue("fq", filterQueries);
         query.bindValue(TIME_ALLOWED_KEY, TIME_ALLOWED_MS);
 
-        bindSort(query, sort, browse);
+        bindSort(query, request.sort(), browse);
 
         if (!browse) {
             query.bindValue("hl", "true");
@@ -352,12 +377,13 @@ public class MCPQueryDocumentsTool implements MCPTool
         return (QueryResponse) results.get(0);
     }
 
-    private List<String> buildFilterQueries(String space, String author, String modifiedWithin,
-        String modifiedRange)
+    private List<String> buildFilterQueries(SearchRequest request)
     {
         List<String> filterQueries = new ArrayList<>();
         filterQueries.add("type:DOCUMENT");
-        filterQueries.add("hidden:false");
+        if (!request.includeHidden()) {
+            filterQueries.add("hidden:false");
+        }
 
         XWikiContext xcontext = this.contextProvider.get();
         if (xcontext != null && StringUtils.isNotBlank(xcontext.getWikiId())) {
@@ -365,19 +391,18 @@ public class MCPQueryDocumentsTool implements MCPTool
                 + this.solrUtils.toCompleteFilterQueryString(xcontext.getWikiId()));
         }
 
-        if (StringUtils.isNotBlank(space)) {
+        if (StringUtils.isNotBlank(request.space())) {
             filterQueries.add(FieldUtils.SPACE_PREFIX + COLON
-                + this.solrUtils.toCompleteFilterQueryString(space));
+                + this.solrUtils.toCompleteFilterQueryString(request.space()));
         }
 
-        if (StringUtils.isNotBlank(author)) {
+        if (StringUtils.isNotBlank(request.author())) {
             filterQueries.add(FieldUtils.AUTHOR + COLON
-                + this.solrUtils.toCompleteFilterQueryString(author));
+                + this.solrUtils.toCompleteFilterQueryString(request.author()));
         }
 
-        String dateRange = resolveDateRange(modifiedWithin, modifiedRange);
-        if (dateRange != null) {
-            filterQueries.add(FieldUtils.DATE + COLON + dateRange);
+        if (request.dateRange() != null) {
+            filterQueries.add(FieldUtils.DATE + COLON + request.dateRange());
         }
 
         return filterQueries;
@@ -388,7 +413,7 @@ public class MCPQueryDocumentsTool implements MCPTool
         if (StringUtils.isNotBlank(modifiedRange)) {
             String value = modifiedRange.trim();
             if (!DATE_RANGE_PATTERN.matcher(value).matches()) {
-                throw new IllegalArgumentException(ERROR_PREFIX + MODIFIED_RANGE_PARAM
+                throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + MODIFIED_RANGE_PARAM
                     + "' must be a Solr date range like [NOW-7DAY TO NOW] or "
                     + "[2026-01-01T00:00:00Z TO NOW].");
             }
@@ -399,15 +424,15 @@ public class MCPQueryDocumentsTool implements MCPTool
         }
         String range = MODIFIED_WITHIN_RANGES.get(modifiedWithin);
         if (range == null) {
-            throw invalidEnumValue(MODIFIED_WITHIN_PARAM, MODIFIED_WITHIN_RANGES.keySet());
+            throw invalidEnumValue(MODIFIED_WITHIN_PARAM, MODIFIED_WITHIN_VALUES);
         }
         return range;
     }
 
-    private static IllegalArgumentException invalidEnumValue(String param, Set<String> allowed)
+    private static IllegalArgumentException invalidEnumValue(String param, List<String> allowed)
     {
-        return new IllegalArgumentException(ERROR_PREFIX + param + "' must be one of: "
-            + String.join(", ", allowed) + ".");
+        return new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + param + "' must be one of: "
+            + String.join(", ", allowed) + PERIOD);
     }
 
     private String resolveSort(String sort)
@@ -415,8 +440,8 @@ public class MCPQueryDocumentsTool implements MCPTool
         if (StringUtils.isBlank(sort)) {
             return RELEVANCE;
         }
-        if (!SORT_CLAUSES.containsKey(sort)) {
-            throw invalidEnumValue(SORT_PARAM, SORT_CLAUSES.keySet());
+        if (!SORT_VALUES.contains(sort)) {
+            throw invalidEnumValue(SORT_PARAM, SORT_VALUES);
         }
         return sort;
     }
@@ -434,28 +459,82 @@ public class MCPQueryDocumentsTool implements MCPTool
         }
     }
 
-    private String formatResults(QueryResponse response, String queryText)
+    private String formatResults(QueryResponse response, SearchRequest request)
     {
-        boolean browse = StringUtils.isBlank(queryText);
-        SolrDocumentList documents = response != null ? response.getResults() : null;
-        if (documents == null || documents.isEmpty()) {
-            return browse ? "No documents found." : "No documents found matching \"" + queryText + "\".";
+        List<SolrDocument> documents = response != null ? response.getResults() : null;
+        if (CollectionUtils.isEmpty(documents)) {
+            return emptyResultsMessage(response, request);
         }
 
         Map<String, Map<String, List<String>>> highlighting = response.getHighlighting();
+        // The score is only meaningful when results are actually ordered by it.
+        boolean showScore = !request.browse() && RELEVANCE.equals(request.sort());
 
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < documents.size(); i++) {
             if (i > 0) {
                 sb.append(RESULT_SEPARATOR);
             }
-            appendDocument(sb, documents.get(i), highlighting);
+            appendDocument(sb, documents.get(i), highlighting, showScore);
         }
-        return sb.toString().trim();
+        // numFound can never be smaller than the returned page in a real Solr response; the floor only
+        // guards against a degenerate executor.
+        long total = Math.max(response.getResults().getNumFound(), documents.size());
+        return sb.toString().trim() + DOUBLE_NEW_LINE + buildFooter(total, documents.size(), request);
+    }
+
+    /**
+     * Builds the message for an empty result page: a not-found message, a paging error when the offset
+     * stepped past the last result, or a continue hint when the rights post-filter emptied a page that
+     * is within range (raw matches exist but none on this page are viewable).
+     *
+     * @param response the query response, possibly {@code null}
+     * @param request the parsed search request
+     * @return the agent-facing message
+     * @throws IllegalArgumentException when the offset is beyond the last result
+     */
+    private String emptyResultsMessage(QueryResponse response, SearchRequest request)
+    {
+        long total = response != null && response.getResults() != null
+            ? response.getResults().getNumFound() : 0;
+        if (total > 0) {
+            if (request.offset() >= total) {
+                throw new IllegalArgumentException("offset " + request.offset()
+                    + " is beyond the last result (" + total + " total matches).");
+            }
+            return "No viewable documents in this page (" + total + " total matches before access "
+                + "filtering). Continue with offset=" + (request.offset() + request.limit()) + PERIOD;
+        }
+        return request.browse() ? "No documents found."
+            : "No documents found matching \"" + request.queryText() + "\".";
+    }
+
+    /**
+     * Builds the trailing count/paging line. The continuation offset steps by {@code limit} (not by the
+     * number of returned documents): the rights post-filter can shrink a page after Solr pagination, so
+     * stepping by the returned size could skip raw results.
+     *
+     * @param total the total number of raw matches reported by Solr (before the rights post-filter)
+     * @param shown the number of documents in this page after the rights post-filter
+     * @param request the parsed search request
+     * @return the footer line
+     */
+    private String buildFooter(long total, int shown, SearchRequest request)
+    {
+        String matches = "Found " + total + (total == 1 ? " matching document." : " matching documents.");
+        if (request.offset() == 0 && shown >= total) {
+            return matches;
+        }
+        String footer = matches + " Showing " + shown + " from offset " + request.offset() + PERIOD;
+        long nextOffset = (long) request.offset() + request.limit();
+        if (nextOffset < total) {
+            footer += " Continue with offset=" + nextOffset + PERIOD;
+        }
+        return footer;
     }
 
     private void appendDocument(StringBuilder sb, SolrDocument doc,
-        Map<String, Map<String, List<String>>> highlighting)
+        Map<String, Map<String, List<String>>> highlighting, boolean showScore)
     {
         // Determine the locale for locale-specific field reads.
         String localeStr = (String) doc.get(FieldUtils.LOCALE);
@@ -466,16 +545,62 @@ public class MCPQueryDocumentsTool implements MCPTool
         String fullname = (String) doc.get(FieldUtils.FULLNAME);
 
         sb.append("Title: ").append(title != null ? title : "(untitled)").append(NEW_LINE);
-        sb.append("Reference: ").append(wiki != null ? wiki + COLON + fullname : fullname).append(NEW_LINE);
+        sb.append("Reference: ").append(serializedReference(wiki, fullname)).append(NEW_LINE);
+
+        String url = safeDocumentUrl(wiki, fullname);
+        if (StringUtils.isNotBlank(url)) {
+            sb.append("URL: ").append(url).append(NEW_LINE);
+        }
+
+        appendModified(sb, doc);
 
         Object score = doc.get(SCORE_FIELD);
-        if (score instanceof Number n) {
+        if (showScore && score instanceof Number n) {
             sb.append("Score: ").append(String.format(Locale.ROOT, "%.2f", n.doubleValue())).append(NEW_LINE);
         }
 
         String snippet = resolveSnippet(doc, locale, highlighting);
         if (StringUtils.isNotBlank(snippet)) {
             sb.append("Snippet: ").append(snippet).append(NEW_LINE);
+        }
+    }
+
+    /**
+     * Appends the {@code Modified:} line: the last modification instant (UTC, ISO-8601) and the
+     * last author as a serialized user reference — the same form the {@code author} filter parameter
+     * accepts, so the value can be fed straight back into a follow-up query.
+     *
+     * @param sb the result buffer
+     * @param doc the result document
+     */
+    private void appendModified(StringBuilder sb, SolrDocument doc)
+    {
+        String modified = MCPToolSupport.isoInstant(doc.get(FieldUtils.DATE));
+        if (modified == null) {
+            return;
+        }
+        sb.append("Modified: ").append(modified);
+        Object author = doc.get(FieldUtils.AUTHOR);
+        if (author instanceof String authorRef && StringUtils.isNotBlank(authorRef)) {
+            sb.append(" by ").append(authorRef);
+        }
+        sb.append(NEW_LINE);
+    }
+
+    private String serializedReference(String wiki, String fullname)
+    {
+        return StringUtils.isNotBlank(wiki) ? wiki + COLON + fullname : fullname;
+    }
+
+    private String safeDocumentUrl(String wiki, String fullname)
+    {
+        String serialized = serializedReference(wiki, fullname);
+        try {
+            return this.documentAccessBridge.getDocumentURL(
+                this.referenceResolver.resolve(serialized), VIEW_ACTION, null, null, true);
+        } catch (Exception e) {
+            this.logger.debug("MCP query_documents tool could not build a view URL for [{}]", serialized, e);
+            return null;
         }
     }
 
@@ -524,7 +649,7 @@ public class MCPQueryDocumentsTool implements MCPTool
 
         String contentField = FieldUtils.getFieldName(FieldUtils.DOCUMENT_RENDERED_CONTENT, locale);
         List<String> snippets = docHighlights.get(contentField);
-        if (snippets != null && !snippets.isEmpty()) {
+        if (CollectionUtils.isNotEmpty(snippets)) {
             return snippets.get(0);
         }
 
@@ -546,7 +671,7 @@ public class MCPQueryDocumentsTool implements MCPTool
                 continue;
             }
             List<String> values = entry.getValue();
-            if (values != null && !values.isEmpty()) {
+            if (CollectionUtils.isNotEmpty(values)) {
                 return values.get(0);
             }
         }
@@ -571,42 +696,29 @@ public class MCPQueryDocumentsTool implements MCPTool
         return Math.min(Math.max(limit, MIN_LIMIT), MAX_LIMIT);
     }
 
-    private String getOptionalStringParam(Map<String, Object> args, String key)
+    /**
+     * The parsed and validated arguments of a search call, bundled so the query-building and
+     * result-formatting steps share one immutable view of the request.
+     *
+     * @param queryText the search terms, or {@code null}/blank for browse mode
+     * @param limit the page size, already clamped to the allowed range
+     * @param offset the 0-based index of the first raw result to return, already validated as &gt;= 0
+     * @param space the optional local space reference filter
+     * @param author the optional last-author filter
+     * @param dateRange the resolved Solr date-range token for the last-modified filter, or {@code null}
+     * @param sort the resolved sort key, one of the allowed sort values
+     * @param includeHidden whether hidden documents are included
+     * @version $Id$
+     */
+    private record SearchRequest(String queryText, int limit, int offset, String space, String author,
+        String dateRange, String sort, boolean includeHidden)
     {
-        Object value = args.get(key);
-        if (value == null) {
-            return null;
+        /**
+         * @return whether this is a browse (blank query) rather than a search
+         */
+        boolean browse()
+        {
+            return StringUtils.isBlank(this.queryText);
         }
-        if (!(value instanceof String str)) {
-            throw new IllegalArgumentException(ERROR_PREFIX + key + STRING_PARAM_ERROR_SUFFIX);
-        }
-        return StringUtils.trimToNull(str);
-    }
-
-    private int getIntParam(Map<String, Object> args, String key, int defaultValue)
-    {
-        Object value = args.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value instanceof String str && !StringUtils.isBlank(str)) {
-            try {
-                return Integer.parseInt(str.trim());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(ERROR_PREFIX + key + INTEGER_PARAM_ERROR_SUFFIX, e);
-            }
-        }
-        throw new IllegalArgumentException(ERROR_PREFIX + key + INTEGER_PARAM_ERROR_SUFFIX);
-    }
-
-    private McpSchema.CallToolResult buildErrorResult(String message)
-    {
-        return McpSchema.CallToolResult.builder()
-            .addTextContent(message)
-            .isError(true)
-            .build();
     }
 }

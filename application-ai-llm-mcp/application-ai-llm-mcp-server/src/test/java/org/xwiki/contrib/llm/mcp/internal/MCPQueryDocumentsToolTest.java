@@ -19,9 +19,12 @@
  */
 package org.xwiki.contrib.llm.mcp.internal;
 
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import javax.inject.Named;
 import javax.inject.Provider;
 
 import org.apache.solr.client.solrj.response.QueryResponse;
@@ -31,6 +34,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
+import org.xwiki.bridge.DocumentAccessBridge;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
 import org.xwiki.query.SecureQuery;
@@ -54,6 +60,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -68,6 +76,8 @@ import static org.mockito.Mockito.when;
 class MCPQueryDocumentsToolTest
 {
     private static final String QF_WEIGHTS = "title^10.0 doccontent^2.0 doccontentraw^0.4";
+
+    private static final String VIEW_URL = "https://wiki.example/bin/view/Help/GettingStarted";
 
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
@@ -84,16 +94,26 @@ class MCPQueryDocumentsToolTest
     @MockComponent
     private Provider<XWikiContext> contextProvider;
 
+    @MockComponent
+    private DocumentAccessBridge documentAccessBridge;
+
+    @MockComponent
+    @Named("current")
+    private DocumentReferenceResolver<String> referenceResolver;
+
     @BeforeEach
     void setUp()
     {
-        // Make escaping methods passthrough so test query strings are predictable.
-        when(this.solrUtils.toFilterQueryString(anyString())).thenAnswer(inv -> inv.getArgument(0));
+        // Make escaping passthrough so test query strings are predictable.
         when(this.solrUtils.toCompleteFilterQueryString(anyString())).thenAnswer(inv -> inv.getArgument(0));
 
         XWikiContext xcontext = mock(XWikiContext.class);
         when(xcontext.getWikiId()).thenReturn("xwiki");
         when(this.contextProvider.get()).thenReturn(xcontext);
+
+        lenient().when(this.referenceResolver.resolve(anyString())).thenReturn(mock(DocumentReference.class));
+        lenient().when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), isNull(), isNull(), eq(true)))
+            .thenReturn(VIEW_URL);
     }
 
     // -------------------------------------------------------------------------
@@ -112,14 +132,22 @@ class MCPQueryDocumentsToolTest
     private SecureQuery stubQuery(List<SolrDocument> docs,
         Map<String, Map<String, List<String>>> highlighting) throws QueryException
     {
+        return stubQuery(docs, highlighting, docs.size());
+    }
+
+    private SecureQuery stubQuery(List<SolrDocument> docs,
+        Map<String, Map<String, List<String>>> highlighting, long numFound) throws QueryException
+    {
         SecureQuery query = mock(SecureQuery.class);
         when(this.queryManager.createQuery(anyString(), eq("solr"))).thenReturn(query);
         when(query.checkCurrentUser(true)).thenReturn(query);
         when(query.setLimit(anyInt())).thenReturn(query);
+        when(query.setOffset(anyInt())).thenReturn(query);
         when(query.bindValue(anyString(), any())).thenReturn(query);
 
         SolrDocumentList docList = new SolrDocumentList();
         docList.addAll(docs);
+        docList.setNumFound(numFound);
         QueryResponse response = mock(QueryResponse.class);
         when(response.getResults()).thenReturn(docList);
         when(response.getHighlighting()).thenReturn(highlighting);
@@ -480,6 +508,185 @@ class MCPQueryDocumentsToolTest
     }
 
     // -------------------------------------------------------------------------
+    // Offset / paging
+    // -------------------------------------------------------------------------
+
+    @Test
+    void explicitOffsetIsApplied() throws QueryException
+    {
+        SecureQuery query = stubQuery(List.of());
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x", "offset", 20)));
+        verify(query).setOffset(20);
+    }
+
+    @Test
+    void defaultOffsetIsZero() throws QueryException
+    {
+        SecureQuery query = stubQuery(List.of());
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
+        verify(query).setOffset(0);
+    }
+
+    @Test
+    void negativeOffsetReturnsError() throws QueryException
+    {
+        stubQuery(List.of());
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "offset", -1)));
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("offset"));
+    }
+
+    @Test
+    void offsetBeyondLastResultReturnsError() throws QueryException
+    {
+        stubQuery(List.of(), null, 12);
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "offset", 50)));
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("offset 50"), text);
+        assertTrue(text.contains("12 total matches"), text);
+    }
+
+    @Test
+    void footerShowsTotalAndContinuationOffset() throws QueryException
+    {
+        List<SolrDocument> docs = List.of(
+            buildDoc("id1", "Page One", "xwiki", "Help.PageOne", "content one"),
+            buildDoc("id2", "Page Two", "xwiki", "Help.PageTwo", "content two"));
+        stubQuery(docs, null, 12);
+
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "limit", 2)));
+
+        String text = textOf(result);
+        assertTrue(text.contains("Found 12 matching documents."), text);
+        assertTrue(text.contains("Showing 2 from offset 0."), text);
+        assertTrue(text.contains("Continue with offset=2."), text);
+    }
+
+    @Test
+    void emptyPageWithinRangeAdvisesContinuation() throws QueryException
+    {
+        // The rights post-filter can empty a page whose offset is still within the raw result range;
+        // the agent must be told to keep paging, not that it overshot.
+        stubQuery(List.of(), null, 40);
+
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "offset", 10, "limit", 10)));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("No viewable documents in this page"), text);
+        assertTrue(text.contains("Continue with offset=20"), text);
+    }
+
+    @Test
+    void footerOmitsPagingWhenAllResultsShown() throws QueryException
+    {
+        stubQuery(List.of(buildDoc("id1", "Page One", "xwiki", "Help.PageOne", "content one")));
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
+
+        String text = textOf(result);
+        assertTrue(text.contains("Found 1 matching document."), text);
+        assertFalse(text.contains("Continue with offset="), text);
+        assertFalse(text.contains("Showing 1 from offset 0"), text);
+    }
+
+    // -------------------------------------------------------------------------
+    // Hidden documents
+    // -------------------------------------------------------------------------
+
+    @Test
+    void includeHiddenDropsHiddenFilter() throws QueryException
+    {
+        SecureQuery query = stubQuery(List.of());
+        this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "includeHidden", true)));
+        List<String> fqs = captureFilterQueries(query);
+        assertFalse(fqs.contains("hidden:false"), fqs.toString());
+        assertTrue(fqs.contains("type:DOCUMENT"));
+    }
+
+    @Test
+    void nonBooleanIncludeHiddenReturnsError() throws QueryException
+    {
+        stubQuery(List.of());
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "includeHidden", 7)));
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("boolean"));
+    }
+
+    @Test
+    void nonTrueFalseBooleanStringReturnsErrorInsteadOfSilentFalse() throws QueryException
+    {
+        stubQuery(List.of());
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "includeHidden", "yes")));
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("boolean"), textOf(result));
+    }
+
+    @Test
+    void fractionalNumberForIntegerParamReturnsError() throws QueryException
+    {
+        stubQuery(List.of());
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "limit", 3.7)));
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("integer"), textOf(result));
+    }
+
+    // -------------------------------------------------------------------------
+    // Modified line
+    // -------------------------------------------------------------------------
+
+    @Test
+    void modifiedLineShowsDateAndAuthorReference() throws QueryException
+    {
+        SolrDocument doc = buildDoc("id1", "Help Page", "xwiki", "Help.Page", "content");
+        doc.addField(FieldUtils.DATE, Date.from(Instant.parse("2026-06-09T07:21:30Z")));
+        doc.addField(FieldUtils.AUTHOR, "xwiki:XWiki.Admin");
+        stubQuery(List.of(doc));
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
+
+        assertTrue(textOf(result).contains("Modified: 2026-06-09T07:21:30Z by xwiki:XWiki.Admin"),
+            textOf(result));
+    }
+
+    @Test
+    void modifiedLineOmitsAuthorWhenAbsent() throws QueryException
+    {
+        SolrDocument doc = buildDoc("id1", "Help Page", "xwiki", "Help.Page", "content");
+        doc.addField(FieldUtils.DATE, Date.from(Instant.parse("2026-06-09T07:21:30Z")));
+        stubQuery(List.of(doc));
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
+
+        String text = textOf(result);
+        assertTrue(text.contains("Modified: 2026-06-09T07:21:30Z"), text);
+        assertFalse(text.contains(" by "), text);
+    }
+
+    @Test
+    void modifiedLineOmittedWhenNoDate() throws QueryException
+    {
+        stubQuery(List.of(buildDoc("id1", "Help Page", "xwiki", "Help.Page", "content")));
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
+
+        assertFalse(textOf(result).contains("Modified:"));
+    }
+
+    // -------------------------------------------------------------------------
     // Highlighting and snippets
     // -------------------------------------------------------------------------
 
@@ -610,6 +817,34 @@ class MCPQueryDocumentsToolTest
         assertFalse(textOf(result).contains("Score:"));
     }
 
+    @Test
+    void scoreLineOmittedInBrowseMode() throws QueryException
+    {
+        SolrDocument doc = buildDoc("xwiki:Help.Page_en", "Help Page", "xwiki", "Help.Page", "content");
+        doc.addField("score", 1.0f);
+        stubQuery(List.of(doc));
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of()));
+
+        assertFalse(textOf(result).contains("Score:"),
+            "The constant browse score is noise and must be omitted: " + textOf(result));
+    }
+
+    @Test
+    void scoreLineOmittedForNonRelevanceSort() throws QueryException
+    {
+        SolrDocument doc = buildDoc("xwiki:Help.Page_en", "Help Page", "xwiki", "Help.Page", "content");
+        doc.addField("score", 3.14f);
+        stubQuery(List.of(doc));
+
+        McpSchema.CallToolResult result = this.tool.execute(new McpSchema.CallToolRequest("query_documents",
+            Map.of("query", "x", "sort", "newest")));
+
+        assertFalse(textOf(result).contains("Score:"),
+            "The score is meaningless when not ordering by it: " + textOf(result));
+    }
+
     // -------------------------------------------------------------------------
     // Result formatting and security
     // -------------------------------------------------------------------------
@@ -629,6 +864,58 @@ class MCPQueryDocumentsToolTest
         assertTrue(text.contains("Reference: xwiki:Help.GettingStarted"));
         assertTrue(text.contains("Title: XWiki Syntax"));
         assertTrue(text.contains("---"));
+    }
+
+    @Test
+    void resultsIncludeVerbatimViewUrl() throws QueryException
+    {
+        stubQuery(List.of(
+            buildDoc("id1", "Getting Started", "xwiki", "Help.GettingStarted", "Guide content.")));
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
+
+        String text = textOf(result);
+        String urlLine = text.lines().filter(l -> l.startsWith("URL: ")).findFirst().orElse("");
+        assertEquals("URL: " + VIEW_URL, urlLine, text);
+        int refIndex = text.indexOf("Reference: ");
+        int urlIndex = text.indexOf("URL: ");
+        assertTrue(refIndex < urlIndex, "URL line must sit after the Reference line: " + text);
+        assertFalse(text.contains("/xwiki/"), "No /xwiki/ prefix may be added to the factory URL: " + text);
+    }
+
+    @Test
+    void urlOmittedWhenResolveFails() throws QueryException
+    {
+        stubQuery(List.of(
+            buildDoc("id1", "Getting Started", "xwiki", "Help.GettingStarted", "Guide content.")));
+        when(this.referenceResolver.resolve(anyString())).thenThrow(new RuntimeException("boom"));
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertFalse(text.contains("URL:"), "URL line must be omitted when resolution fails: " + text);
+        assertTrue(text.contains("Title: Getting Started"), text);
+        assertTrue(text.contains("Reference: xwiki:Help.GettingStarted"), text);
+    }
+
+    @Test
+    void nullWikiUsesBareFullnameForReferenceAndUrl() throws QueryException
+    {
+        // A document with no wiki field falls back to the bare fullname for both the Reference line
+        // and the reference resolved for the URL; the two must stay consistent.
+        stubQuery(List.of(buildDoc("id1", "Getting Started", null, "Help.GettingStarted", "Guide content.")));
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(new McpSchema.CallToolRequest("query_documents", Map.of("query", "x")));
+
+        String text = textOf(result);
+        assertTrue(text.contains("Reference: Help.GettingStarted"), text);
+        assertFalse(text.contains("Reference: :Help.GettingStarted"), text);
+        verify(this.referenceResolver).resolve("Help.GettingStarted");
+        assertTrue(text.contains("URL: " + VIEW_URL), text);
     }
 
     @Test
