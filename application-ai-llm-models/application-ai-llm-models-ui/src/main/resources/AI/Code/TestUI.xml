@@ -235,8 +235,8 @@
     <property>
       <content>{{velocity}}
 {{html clean=false}}
-&lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'purify.min.js')"&gt;&lt;/script&gt;
-&lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'marked.min.js')"&gt;&lt;/script&gt;
+&lt;script src="$services.webjars.url('org.webjars.npm:dompurify', 'dist/purify.min.js')"&gt;&lt;/script&gt;
+&lt;script src="$services.webjars.url('org.webjars.npm:marked', 'lib/marked.umd.js')"&gt;&lt;/script&gt;
 {{/html}}
 {{/velocity}}</content>
     </property>

@@ -507,13 +507,13 @@
 #set($widgetIsEnabled = $widgetDocument.getObject('AI.Code.ChatWidgetConfigClass').getProperty('isEnabled').getValue())
 #if($doc == "AI.WebHome")
   {{html clean=false}}
-  &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'purify.min.js')"&gt;&lt;/script&gt;
-  &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'marked.min.js')"&gt;&lt;/script&gt;
+  &lt;script src="$services.webjars.url('org.webjars.npm:dompurify', 'dist/purify.min.js')"&gt;&lt;/script&gt;
+  &lt;script src="$services.webjars.url('org.webjars.npm:marked', 'lib/marked.umd.js')"&gt;&lt;/script&gt;
   {{/html}}
 #elseif($widgetIsEnabled == 1)
   {{html clean=false}}
-  &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'purify.min.js')"&gt;&lt;/script&gt;
-  &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'marked.min.js')"&gt;&lt;/script&gt;
+  &lt;script src="$services.webjars.url('org.webjars.npm:dompurify', 'dist/purify.min.js')"&gt;&lt;/script&gt;
+  &lt;script src="$services.webjars.url('org.webjars.npm:marked', 'lib/marked.umd.js')"&gt;&lt;/script&gt;
   &lt;script src="$services.webjars.url('org.xwiki.contrib.llm:application-ai-llm-chat-webjar', 'aillm.js')"&gt;&lt;/script&gt;
   &lt;script id="chat-widget" data-wiki-name="$widgetDocument.getDocumentReference().getWikiReference().getName()"
    data-base-url="$!{request.contextPath}"

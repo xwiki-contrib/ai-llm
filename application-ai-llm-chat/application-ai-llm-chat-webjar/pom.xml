@@ -54,6 +54,16 @@
         <version>${platform.version}</version>
         <scope>runtime</scope>
       </dependency>
+      <dependency>
+        <groupId>org.webjars.npm</groupId>
+        <artifactId>dompurify</artifactId>
+        <version>3.4.9</version>
+      </dependency>
+      <dependency>
+        <groupId>org.webjars.npm</groupId>
+        <artifactId>marked</artifactId>
+        <version>18.0.5</version>
+      </dependency>
     </dependencies>
   <build>
     <plugins>
@@ -75,8 +85,6 @@
                   <include>aillm.js</include>
                   <include>chatWidget.js</include>
                   <include>chatWidget.css</include>
-                  <include>marked.min.js</include>
-                  <include>purify.min.js</include>
                 </includes>
               </resource>
             </resources>
