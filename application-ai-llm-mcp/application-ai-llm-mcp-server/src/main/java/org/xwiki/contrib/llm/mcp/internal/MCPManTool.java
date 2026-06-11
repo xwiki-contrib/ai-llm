@@ -20,7 +20,6 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -67,10 +66,6 @@ public class MCPManTool implements MCPTool
 
     private static final String DESCRIPTION = "description";
 
-    private static final String OBJECT = "object";
-
-    private static final String STRING = "string";
-
     private static final String TOOL_PARAM = "tool";
 
     private static final String DEFAULT_CATEGORY = "General";
@@ -99,9 +94,108 @@ public class MCPManTool implements MCPTool
 
     private static final String COMMA_SPACE = ", ";
 
-    private static final String ERROR_PREFIX = "Error: '";
+    private static final String SECTION_REFERENCE = "Reference";
 
-    private static final String STRING_PARAM_ERROR_SUFFIX = "' parameter must be a string.";
+    private static final String XWIKI_SYNTAX_ID = "xwiki-syntax";
+
+    private static final String XWIKI_SYNTAX_SUMMARY = "XWiki Syntax 2.1 quick reference for writing page source.";
+
+    private static final String XWIKI_SYNTAX_CONTENT = """
+        XWiki Syntax 2.1 - the source syntax you write when creating or editing a page (syntax id xwiki/2.1).
+        It is NOT Markdown. Use the forms below; read a real page with get_document to see live examples.
+
+        PARAGRAPHS
+            Separate paragraphs with a blank line. A single newline continues the same paragraph.
+
+        HEADINGS
+            = Level 1 =
+            == Level 2 ==
+            ====== Level 6 ======
+
+        TEXT FORMATTING
+            **bold**  //italic//  __underline__  --strikethrough--  ##monospace##
+            super^^script^^   sub,,subscript,,
+
+        LINE BREAK
+            A forced line break inside a paragraph is two backslashes: \\\\
+
+        LISTS
+            * bullet
+            ** nested bullet
+            1. numbered
+            11. nested numbered
+            1*. mixed (numbered then bullet)
+            Definition list:
+            ; term
+            : definition
+
+        LINKS
+            [[Space.Page]]                        link to a page (label defaults to the page name)
+            [[Label>>Space.Page]]                 link with a label
+            [[Label>>https://xwiki.org]]          link to an external URL
+            [[Space.Page||target="_blank"]]       open in a new window
+            [[Space.Page||anchor="HMyHeading"]]   link to a heading (anchor = "H" + heading text, letters only)
+            [[Space.Page||queryString="a=1&b=2"]] link with a query string
+            [[john@x.net>>mailto:john@x.net]]     email link
+            [[attach:Space.Page@file.pdf]]        link to an attachment
+            Reference forms: Space.Page, Space.Page.WebHome (terminal), wiki:Space.Page (cross-wiki),
+            .Child or ../Sibling (relative to the current page).
+
+        IMAGES
+            image:file.png                        attachment on the current page
+            image:Space.Page@file.png             attachment on another page
+            image:https://host/img.png            image at a URL
+            [[image:file.png||width="200" alt="logo"]]   image with parameters
+
+        TABLES
+            |=Header 1|=Header 2
+            |Cell 1|Cell 2
+            (|= is a header cell, | a normal cell)
+
+        VERBATIM (content is shown as-is, no formatting)
+            Inline:  {{{ **not rendered** }}}
+            Block:   {{{
+                     multi-line raw text
+                     }}}
+
+        QUOTATIONS
+            > quoted line
+            >> nested quote
+
+        GROUPS (embed block content where one is not normally allowed, e.g. a table cell or list item)
+            (((
+            = embedded heading =
+            block content
+            )))
+
+        PARAMETERS / STYLING (apply to the block that follows; (%%) resets inline styling)
+            (% class="myClass" style="color:blue" %)
+            = styled heading =
+            Inline: some (% style="color:red" %)red(%%) text.
+
+        ESCAPING
+            Escape one character with a tilde: ~[~[not a link~]~]
+            A literal tilde is two tildes: ~~
+
+        MACROS
+            With content:  {{code language="java"}}int total = a + b;{{/code}}
+            Self-closing:  {{toc/}}   {{include reference="Space.Page"/}}
+            Common: {{info}}...{{/info}}, {{warning}}, {{error}}, {{success}} (message boxes);
+                    {{toc/}} (table of contents); {{code}} (highlighted code); {{html}}...{{/html}} (raw HTML).
+            Script macros ({{velocity}}, {{groovy}}) run only with the right script/programming rights.
+        """;
+
+    private static final Map<String, ReferencePage> REFERENCE_PAGES = Map.of(
+        XWIKI_SYNTAX_ID, new ReferencePage(XWIKI_SYNTAX_ID, XWIKI_SYNTAX_SUMMARY, XWIKI_SYNTAX_CONTENT));
+
+    /**
+     * The declared parameters: one source for both the advertised input schema and the typed
+     * argument accessors.
+     */
+    private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
+        .string(TOOL_PARAM, "Name of the tool to show the manual page for. Omit to list all "
+            + "available tools by category.")
+        .build();
 
     @Inject
     private Logger logger;
@@ -116,19 +210,12 @@ public class MCPManTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        Map<String, Object> properties = Map.of(
-            TOOL_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "Name of the tool to show the manual page for. Omit to list all "
-                    + "available tools by category."
-            )
-        );
         return McpSchema.Tool.builder()
             .name(TOOL_ID)
             .description("Show documentation for the available MCP tools. Call with no arguments for a "
                 + "categorized list of all tools; pass 'tool' with a tool name to get that tool's full "
                 + "manual page (synopsis, options, description, examples).")
-            .inputSchema(new McpSchema.JsonSchema(OBJECT, properties, List.of(), null, null, null))
+            .inputSchema(PARAMS.inputSchema())
             .build();
     }
 
@@ -160,22 +247,26 @@ public class MCPManTool implements MCPTool
 
         String toolName;
         try {
-            toolName = getOptionalStringParam(args, TOOL_PARAM);
+            toolName = PARAMS.string(args, TOOL_PARAM);
         } catch (IllegalArgumentException e) {
-            return buildErrorResult(e.getMessage());
+            return MCPToolSupport.errorResult(e.getMessage());
         }
 
         List<MCPTool> enabledTools = getEnabledTools();
 
         if (StringUtils.isBlank(toolName)) {
-            return success(renderCatalog(enabledTools));
+            return MCPToolSupport.result(renderCatalog(enabledTools));
         }
 
         MCPTool match = findByName(enabledTools, toolName);
         if (match != null) {
-            return success(renderPage(match));
+            return MCPToolSupport.result(renderPage(match));
         }
-        return buildErrorResult(renderUnknown(toolName, enabledTools));
+        ReferencePage page = REFERENCE_PAGES.get(toolName);
+        if (page != null) {
+            return MCPToolSupport.result(renderReferencePage(page));
+        }
+        return MCPToolSupport.errorResult(renderUnknown(toolName, enabledTools));
     }
 
     private List<MCPTool> getEnabledTools()
@@ -203,27 +294,30 @@ public class MCPManTool implements MCPTool
     private String renderCatalog(List<MCPTool> tools)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("Available tools — use `man <tool>` for a tool's full documentation:").append(NEW_LINE);
+        sb.append("Available tools and reference pages — use `man <name>` for full documentation:")
+            .append(NEW_LINE);
 
-        Map<String, List<MCPTool>> byCategory = new TreeMap<>();
+        Map<String, List<String>> byCategory = new TreeMap<>();
         for (MCPTool tool : tools) {
             String category = StringUtils.defaultIfBlank(tool.getCategory(), DEFAULT_CATEGORY);
-            byCategory.computeIfAbsent(category, key -> new ArrayList<>()).add(tool);
+            byCategory.computeIfAbsent(category, key -> new ArrayList<>())
+                .add(catalogLine(tool.getToolDefinition().name(), tagline(tool)));
+        }
+        for (ReferencePage page : REFERENCE_PAGES.values()) {
+            byCategory.computeIfAbsent(SECTION_REFERENCE, key -> new ArrayList<>())
+                .add(catalogLine(page.id(), page.summary()));
         }
 
-        for (Map.Entry<String, List<MCPTool>> entry : byCategory.entrySet()) {
+        for (Map.Entry<String, List<String>> entry : byCategory.entrySet()) {
             sb.append(NEW_LINE).append(entry.getKey()).append(NEW_LINE);
-            entry.getValue().stream()
-                .sorted(Comparator.comparing(tool -> tool.getToolDefinition().name()))
-                .forEach(tool -> appendCatalogLine(sb, tool));
+            entry.getValue().stream().sorted().forEach(line -> sb.append(line).append(NEW_LINE));
         }
         return sb.toString().stripTrailing();
     }
 
-    private void appendCatalogLine(StringBuilder sb, MCPTool tool)
+    private String catalogLine(String name, String tagline)
     {
-        sb.append("  ").append(tool.getToolDefinition().name()).append(NAME_SEPARATOR).append(tagline(tool))
-            .append(NEW_LINE);
+        return "  " + name + NAME_SEPARATOR + tagline;
     }
 
     private String renderPage(MCPTool tool)
@@ -296,7 +390,9 @@ public class MCPManTool implements MCPTool
 
     /**
      * Returns parameter names in render order: required params in their declared {@code required()}
-     * order, followed by the remaining (optional) params sorted alphabetically.
+     * order, followed by the remaining (optional) params in the schema's own property order. Tool
+     * authors declare parameters in importance order, so the synopsis and options list lead with what
+     * matters most (a schema built from an unordered map simply yields an arbitrary order).
      *
      * @param definition the tool definition
      * @return the ordered parameter names, possibly empty
@@ -317,7 +413,6 @@ public class MCPManTool implements MCPTool
         }
         properties.keySet().stream()
             .filter(name -> !required.contains(name))
-            .sorted()
             .forEach(ordered::add);
         return ordered;
     }
@@ -369,13 +464,22 @@ public class MCPManTool implements MCPTool
         return type + COMMA_SPACE + requiredness;
     }
 
+    private String renderReferencePage(ReferencePage page)
+    {
+        return SECTION_NAME + NEW_LINE
+            + INDENT + page.id() + NAME_SEPARATOR + page.summary() + NEW_LINE + NEW_LINE
+            + page.content().stripTrailing();
+    }
+
     private String renderUnknown(String name, List<MCPTool> tools)
     {
         String available = tools.stream()
             .map(tool -> tool.getToolDefinition().name())
             .sorted()
             .collect(Collectors.joining(COMMA_SPACE));
-        return "No manual entry for \"" + name + "\". Available tools: " + available + ".";
+        String pages = String.join(COMMA_SPACE, REFERENCE_PAGES.keySet());
+        return "No manual entry for \"" + name + "\". Available tools: " + available
+            + ". Reference pages: " + pages + ".";
     }
 
     private String typeSuffix(Object property)
@@ -416,30 +520,17 @@ public class MCPManTool implements MCPTool
         return value instanceof String str ? str : null;
     }
 
-    private String getOptionalStringParam(Map<String, Object> args, String key)
+    /**
+     * A built-in reference page served by {@code man <id>} and listed in the catalog under the
+     * {@value #SECTION_REFERENCE} category. Unlike a tool page it has no schema-derived synopsis or
+     * options; its body is fixed prose provided by the man tool itself.
+     *
+     * @param id the page identifier, used as the man argument and the catalog name
+     * @param summary the one-line tagline shown in the catalog and on the NAME line
+     * @param content the page body
+     * @version $Id$
+     */
+    private record ReferencePage(String id, String summary, String content)
     {
-        Object value = args.get(key);
-        if (value == null) {
-            return null;
-        }
-        if (!(value instanceof String str)) {
-            throw new IllegalArgumentException(ERROR_PREFIX + key + STRING_PARAM_ERROR_SUFFIX);
-        }
-        return StringUtils.trimToNull(str);
-    }
-
-    private McpSchema.CallToolResult success(String message)
-    {
-        return McpSchema.CallToolResult.builder()
-            .addTextContent(message)
-            .build();
-    }
-
-    private McpSchema.CallToolResult buildErrorResult(String message)
-    {
-        return McpSchema.CallToolResult.builder()
-            .addTextContent(message)
-            .isError(true)
-            .build();
     }
 }

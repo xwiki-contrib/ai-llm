@@ -115,6 +115,25 @@ class MCPManToolTest
     }
 
     @Test
+    void synopsisAndOptionsFollowSchemaDeclarationOrder(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        // Tool authors declare parameters in importance order; man must preserve it, not sort
+        // alphabetically (which would bury the primary parameter).
+        Map<String, Object> properties = new java.util.LinkedHashMap<>();
+        properties.put("zebra", param(STRING, "The primary parameter."));
+        properties.put("apple", param(STRING, "A secondary parameter."));
+        registerTool(componentManager, "ordered_tool", "An ordered tool.", "An ordered tool, in depth.",
+            "Demo", true, properties, List.of(), null);
+
+        String output = callMan(this.manTool, "ordered_tool");
+
+        assertTrue(output.contains("SYNOPSIS\n    ordered_tool [zebra=<string>] [apple=<string>]"), output);
+        assertTrue(output.indexOf("zebra (string, optional)") < output.indexOf("apple (string, optional)"),
+            output);
+    }
+
+    @Test
     void toolDefinitionAdvertisesOptionalToolParam()
     {
         McpSchema.Tool definition = this.manTool.getToolDefinition();
@@ -316,6 +335,41 @@ class MCPManToolTest
         // The declared property is rendered; the phantom required name is silently skipped.
         assertTrue(output.contains("    query (string, required)"));
         assertFalse(output.contains("ghost"));
+    }
+
+    @Test
+    void referencePageRendersXWikiSyntaxGuide()
+    {
+        String output = callMan(this.manTool, "xwiki-syntax");
+
+        assertTrue(output.startsWith("NAME"), output);
+        assertTrue(output.contains("xwiki-syntax - "), output);
+        // Body markers from the grounded XWiki 2.1 reference.
+        assertTrue(output.contains("XWiki Syntax 2.1"), output);
+        assertTrue(output.contains("HEADINGS"), output);
+        assertTrue(output.contains("**bold**"), output);
+    }
+
+    @Test
+    void catalogListsXWikiSyntaxUnderReference()
+    {
+        String output = callMan(this.manTool, null);
+
+        assertTrue(output.contains("Reference"), output);
+        assertTrue(output.contains("  xwiki-syntax - "), output);
+    }
+
+    @Test
+    void unknownEntryListsReferencePages(MockitoComponentManager componentManager) throws Exception
+    {
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Search pages and more.",
+            "Search & Navigation", true, Map.of(), List.of(), null);
+
+        McpSchema.CallToolResult result =
+            this.manTool.execute(new McpSchema.CallToolRequest("man", Map.of(TOOL_PARAM, "nope")));
+
+        assertTrue(result.isError());
+        assertTrue(textOf(result).contains("Reference pages: xwiki-syntax."), textOf(result));
     }
 
     @Test
