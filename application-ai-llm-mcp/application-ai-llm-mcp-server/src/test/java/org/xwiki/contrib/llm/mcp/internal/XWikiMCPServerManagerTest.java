@@ -23,7 +23,8 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,12 +32,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.mockito.MockedStatic;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
-import org.xwiki.context.Execution;
-import org.xwiki.context.ExecutionContext;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
@@ -45,21 +43,22 @@ import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.test.mockito.MockitoComponentManager;
 
+import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpStatelessServerTransport;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -70,7 +69,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for {@link XWikiMCPServerManager}.
  *
- * <p>Tool logic is tested in the tool-specific test classes (e.g. {@code MCPSearchCollectionsToolTest}).
+ * <p>Tool logic is tested in the tool-specific test classes (e.g. {@code MCPQueryDocumentsToolTest}).
  * These tests focus on the manager's lifecycle: initialise, rebuild, and dispose, and verify the correct
  * arguments are forwarded to the MCP SDK by intercepting the {@link McpServer#sync} static factory.</p>
  *
@@ -80,13 +79,10 @@ import static org.mockito.Mockito.when;
 class XWikiMCPServerManagerTest
 {
     @RegisterExtension
-    private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
+    private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.INFO);
 
     @InjectMockComponents
     private XWikiMCPServerManager mcpServerManager;
-
-    @MockComponent
-    private Execution execution;
 
     @MockComponent
     private MCPServerConfiguration mcpConfig;
@@ -104,33 +100,11 @@ class XWikiMCPServerManagerTest
         McpServer.StatelessSyncSpecification spec = mock(McpServer.StatelessSyncSpecification.class);
         when(spec.serverInfo(anyString(), anyString())).thenReturn(spec);
         when(spec.instructions(any())).thenReturn(spec);
+        when(spec.immediateExecution(anyBoolean())).thenReturn(spec);
         when(spec.capabilities(any())).thenReturn(spec);
         when(spec.toolCall(any(), any())).thenReturn(spec);
         mcpServerStatic.when(() -> McpServer.sync(any(McpStatelessServerTransport.class))).thenReturn(spec);
         return spec;
-    }
-
-    /**
-     * Captures the Reactor scheduler hook registered by {@link XWikiMCPServerManager#initialize()} so the
-     * context-propagation logic inside it can be exercised directly. {@link Schedulers} is mocked only to
-     * intercept the registration; {@link McpServer} is mocked so the rebuild triggered by initialise uses a
-     * mock server rather than building a real one.
-     */
-    private Function<Runnable, Runnable> captureSchedulerHook()
-    {
-        ArgumentCaptor<Function<Runnable, Runnable>> hookCaptor = ArgumentCaptor.captor();
-        try (MockedStatic<Schedulers> schedulersStatic = mockStatic(Schedulers.class);
-            MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
-            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(server);
-            when(server.closeGracefully()).thenReturn(Mono.empty());
-
-            this.mcpServerManager.initialize();
-
-            schedulersStatic.verify(() -> Schedulers.onScheduleHook(anyString(), hookCaptor.capture()));
-        }
-        return hookCaptor.getValue();
     }
 
     // -------------------------------------------------------------------------
@@ -168,6 +142,9 @@ class XWikiMCPServerManagerTest
             // Server metadata forwarded correctly to the SDK.
             verify(spec).serverInfo(eq("MyXWiki"), anyString());
             verify(spec).instructions("My Wiki Instructions");
+            // Tool handlers must run inline on the request thread (which the blocking servlet transport
+            // holds anyway), so XWiki's thread-locals are available to tools without context propagation.
+            verify(spec).immediateExecution(true);
             // Enabled tool registered with its exact definition.
             verify(spec).toolCall(eq(enabledDef), any());
             // toolCall called exactly once — the disabled tool is not registered.
@@ -175,6 +152,73 @@ class XWikiMCPServerManagerTest
             // The disabled tool's definition is never fetched.
             verify(disabledTool, never()).getToolDefinition();
         }
+    }
+
+    @Test
+    void duplicateToolNameIsSkippedAndServerStillBuilds(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        McpSchema.Tool definition = McpSchema.Tool.builder()
+            .name("clashing_tool")
+            .description("Two components advertise this same MCP name")
+            .inputSchema(new McpSchema.JsonSchema("object", Map.of(), List.of(), null, null, null))
+            .build();
+        for (String hint : List.of("first_contribution", "second_contribution")) {
+            MCPTool tool = componentManager.registerMockComponent(MCPTool.class, hint);
+            when(tool.isEnabled()).thenReturn(true);
+            when(tool.getToolDefinition()).thenReturn(definition);
+        }
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            // Mirror the SDK: the second registration of the same tool name is rejected.
+            when(spec.toolCall(any(), any())).thenReturn(spec)
+                .thenThrow(new IllegalArgumentException("Tool with name 'clashing_tool' already exists"));
+            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
+            when(spec.build()).thenReturn(server);
+            when(server.closeGracefully()).thenReturn(Mono.empty());
+
+            assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
+
+            verify(spec, times(2)).toolCall(any(), any());
+            verify(spec).build();
+        }
+
+        assertTrue(this.logCapture.getMessage(0).startsWith("Skipping MCP tool ["),
+            this.logCapture.getMessage(0));
+        assertTrue(this.logCapture.getMessage(0).contains("already exists"), this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void toolThrowingFromDefinitionIsSkippedAndOthersRegister(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        MCPTool broken = componentManager.registerMockComponent(MCPTool.class, "broken_tool");
+        when(broken.isEnabled()).thenReturn(true);
+        when(broken.getToolDefinition()).thenThrow(new IllegalStateException("definition exploded"));
+
+        MCPTool healthy = componentManager.registerMockComponent(MCPTool.class, "healthy_tool");
+        McpSchema.Tool healthyDef = McpSchema.Tool.builder()
+            .name("healthy_tool")
+            .description("A healthy tool")
+            .inputSchema(new McpSchema.JsonSchema("object", Map.of(), List.of(), null, null, null))
+            .build();
+        when(healthy.isEnabled()).thenReturn(true);
+        when(healthy.getToolDefinition()).thenReturn(healthyDef);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
+            when(spec.build()).thenReturn(server);
+            when(server.closeGracefully()).thenReturn(Mono.empty());
+
+            assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
+
+            verify(spec).toolCall(eq(healthyDef), any());
+            verify(spec).build();
+        }
+
+        assertTrue(this.logCapture.getMessage(0).contains("definition exploded"), this.logCapture.getMessage(0));
     }
 
     @Test
@@ -291,35 +335,122 @@ class XWikiMCPServerManagerTest
     }
 
     @Test
-    void schedulerHookPropagatesContextWhenPropagationPropertyPresent()
+    void wrappedHandlerReturnsToolResultAndEmitsAuditLine(MockitoComponentManager componentManager)
+        throws Exception
     {
-        Function<Runnable, Runnable> hook = captureSchedulerHook();
+        BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult> handler =
+            registerToolAndCaptureHandler(componentManager, tool -> when(tool.execute(any()))
+                .thenReturn(McpSchema.CallToolResult.builder().addTextContent("fine").build()));
 
-        ExecutionContext context = mock(ExecutionContext.class);
-        when(context.hasProperty(XWikiMCPServerManager.MCP_CONTEXT_PROPAGATION_PROPERTY)).thenReturn(true);
-        when(this.execution.getContext()).thenReturn(context);
+        McpSchema.CallToolResult result =
+            handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
 
-        Runnable original = mock(Runnable.class);
-        hook.apply(original).run();
-
-        // The wrapped runnable must push the captured context, run the original task, then pop the context.
-        InOrder inOrder = inOrder(this.execution, original);
-        inOrder.verify(this.execution).pushContext(context, false);
-        inOrder.verify(original).run();
-        inOrder.verify(this.execution).popContext();
+        assertEquals("fine", ((McpSchema.TextContent) result.content().get(0)).text());
+        String audit = this.logCapture.getMessage(0);
+        assertTrue(audit.contains("tool=[wrapped_tool]"), audit);
+        assertTrue(audit.contains("outcome=[ok]"), audit);
+        // The mocked context carries no user reference, which must be audited as the guest user.
+        assertTrue(audit.contains("user=[guest]"), audit);
     }
 
     @Test
-    void schedulerHookLeavesRunnableUnchangedWhenNoPropagationProperty()
+    void wrappedHandlerAuditsErrorOutcomeForErrorResult(MockitoComponentManager componentManager)
+        throws Exception
     {
-        Function<Runnable, Runnable> hook = captureSchedulerHook();
+        BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult> handler =
+            registerToolAndCaptureHandler(componentManager, tool -> when(tool.execute(any()))
+                .thenReturn(McpSchema.CallToolResult.builder().addTextContent("bad input").isError(true).build()));
 
-        // No execution context at all: the hook must return the runnable untouched.
-        when(this.execution.getContext()).thenReturn(null);
+        handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
 
-        Runnable original = mock(Runnable.class);
+        assertTrue(this.logCapture.getMessage(0).contains("outcome=[error]"), this.logCapture.getMessage(0));
+    }
 
-        assertSame(original, hook.apply(original));
+    @Test
+    void wrappedHandlerNormalizesNullResult(MockitoComponentManager componentManager) throws Exception
+    {
+        BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult> handler =
+            registerToolAndCaptureHandler(componentManager, tool -> when(tool.execute(any())).thenReturn(null));
+
+        McpSchema.CallToolResult result =
+            handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(((McpSchema.TextContent) result.content().get(0)).text()
+            .contains("Internal error in tool 'wrapped_tool'"));
+        assertEquals("MCP tool [wrapped_tool] returned a null result", this.logCapture.getMessage(0));
+        assertTrue(this.logCapture.getMessage(1).contains("outcome=[failed]"), this.logCapture.getMessage(1));
+    }
+
+    @Test
+    void wrappedHandlerNormalizesUnexpectedException(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult> handler =
+            registerToolAndCaptureHandler(componentManager, tool -> when(tool.execute(any()))
+                .thenThrow(new IllegalStateException("secret internal detail")));
+
+        McpSchema.CallToolResult result =
+            handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = ((McpSchema.TextContent) result.content().get(0)).text();
+        assertTrue(text.contains("Internal error in tool 'wrapped_tool'"), text);
+        assertFalse(text.contains("secret internal detail"), "The raw exception message must not leak: " + text);
+
+        assertEquals("MCP tool [wrapped_tool] failed with an unexpected error", this.logCapture.getMessage(0));
+        assertTrue(this.logCapture.getMessage(1).contains("outcome=[failed]"), this.logCapture.getMessage(1));
+    }
+
+    @Test
+    void wrappedHandlerNormalizesLinkageError(MockitoComponentManager componentManager) throws Exception
+    {
+        // A tool whose extension was reloaded can fail class resolution at call time; the middleware
+        // must turn that into a normal error result instead of letting it escape to the transport.
+        BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult> handler =
+            registerToolAndCaptureHandler(componentManager, tool -> when(tool.execute(any()))
+                .thenThrow(new NoClassDefFoundError("org/example/Gone")));
+
+        McpSchema.CallToolResult result =
+            handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("MCP tool [wrapped_tool] failed with an unexpected error", this.logCapture.getMessage(0));
+        assertTrue(this.logCapture.getMessage(1).contains("outcome=[failed]"), this.logCapture.getMessage(1));
+    }
+
+    /**
+     * Registers a mock tool named {@code wrapped_tool}, stubs its behavior, rebuilds the server against a
+     * mocked SDK builder, and returns the handler the manager registered — i.e. the middleware-wrapped
+     * function, ready to be invoked directly.
+     */
+    private BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult>
+        registerToolAndCaptureHandler(MockitoComponentManager componentManager, Consumer<MCPTool> stubbing)
+        throws Exception
+    {
+        MCPTool tool = componentManager.registerMockComponent(MCPTool.class, "wrapped_tool");
+        McpSchema.Tool definition = McpSchema.Tool.builder()
+            .name("wrapped_tool")
+            .description("A tool wrapped by the middleware")
+            .inputSchema(new McpSchema.JsonSchema("object", Map.of(), List.of(), null, null, null))
+            .build();
+        when(tool.isEnabled()).thenReturn(true);
+        when(tool.getToolDefinition()).thenReturn(definition);
+        stubbing.accept(tool);
+
+        ArgumentCaptor<BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult>>
+            handlerCaptor = ArgumentCaptor.captor();
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
+            when(spec.build()).thenReturn(server);
+            when(server.closeGracefully()).thenReturn(Mono.empty());
+
+            this.mcpServerManager.rebuildServer();
+
+            verify(spec).toolCall(eq(definition), handlerCaptor.capture());
+        }
+        return handlerCaptor.getValue();
     }
 
     @Test
@@ -343,7 +474,7 @@ class XWikiMCPServerManagerTest
             verify(spec, never()).toolCall(any(), any());
         }
 
-        assertEquals("Failed to look up MCPTool components; no tools will be registered",
-            this.logCapture.getMessage(0));
+        assertEquals("Failed to look up MCPTool components; no tools will be registered: "
+            + "[ComponentLookupException: lookup failed]", this.logCapture.getMessage(0));
     }
 }

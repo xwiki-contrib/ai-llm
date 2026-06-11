@@ -36,8 +36,6 @@ import org.xwiki.container.Container;
 import org.xwiki.container.Request;
 import org.xwiki.container.servlet.ServletRequest;
 import org.xwiki.container.servlet.ServletResponse;
-import org.xwiki.context.Execution;
-import org.xwiki.context.ExecutionContext;
 import org.xwiki.contrib.llm.mcp.MCPResource;
 import org.xwiki.resource.ResourceReferenceHandler;
 import org.xwiki.resource.ResourceType;
@@ -105,9 +103,6 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
 
     @Inject
     private Container container;
-
-    @Inject
-    private Execution execution;
 
     @Override
     public Response handleGetOAuthMetadata(String wikiName) throws XWikiRestException
@@ -185,10 +180,6 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
             }
 
             // --- Delegate to MCP transport ---
-            ExecutionContext executionContext = this.execution.getContext();
-            if (executionContext != null) {
-                executionContext.setProperty(XWikiMCPServerManager.MCP_CONTEXT_PROPAGATION_PROPERTY, Boolean.TRUE);
-            }
             try {
                 xcontext.setWikiId(wikiName);
                 this.mcpServerManager.handleRequest(jakartaRequest, jakartaResponse);
@@ -196,9 +187,6 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
                 throw new XWikiRestException("Failed to handle MCP request for wiki [" + wikiName + "]", e);
             } finally {
                 xcontext.setWikiId(previousWiki);
-                if (executionContext != null) {
-                    executionContext.removeProperty(XWikiMCPServerManager.MCP_CONTEXT_PROPAGATION_PROPERTY);
-                }
             }
         } else {
             throw new XWikiRestException(UNSUPPORTED_REQUEST_TYPE + request.getClass().getName());

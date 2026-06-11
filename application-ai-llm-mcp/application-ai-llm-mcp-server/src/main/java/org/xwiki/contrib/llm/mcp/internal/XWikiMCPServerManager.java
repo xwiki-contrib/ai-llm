@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -33,14 +34,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
+import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.component.phase.Disposable;
 import org.xwiki.component.phase.Initializable;
-import org.xwiki.context.Execution;
-import org.xwiki.context.ExecutionContext;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -49,7 +50,6 @@ import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport;
 import io.modelcontextprotocol.spec.McpSchema;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * Singleton component that manages the lifecycle of the MCP (Model Context Protocol) server.
@@ -59,9 +59,11 @@ import reactor.core.scheduler.Schedulers;
  * be rebuilt at any time (e.g. after a configuration change) by calling {@link #rebuildServer()}.</p>
  *
  * <p>The active {@link HttpServletStatelessServerTransport} is stored in an {@link AtomicReference}.
- * On rebuild, the reference is swapped atomically so new requests immediately go to the new transport,
- * then the old server is closed gracefully — which drains any in-flight requests on the old transport
- * before it is discarded. No locking is required in {@link #handleRequest}.</p>
+ * On rebuild, the reference is swapped atomically so new requests immediately go to the new transport.
+ * In-flight requests on the old transport complete naturally: the transport is stateless, each request
+ * holds its own reference to it, and closing releases no resource they depend on —
+ * {@code closeGracefully()} merely marks the old transport as closing so it rejects new requests.
+ * No locking is required in {@link #handleRequest}.</p>
  *
  * @version $Id$
  * @since 0.8
@@ -71,15 +73,19 @@ import reactor.core.scheduler.Schedulers;
 public class XWikiMCPServerManager implements Initializable, Disposable
 {
     /**
-     * Property key set on the {@link ExecutionContext} by {@link DefaultMCPResource} for the duration of an MCP
-     * request. The scheduler hook checks for this property so that context propagation is scoped to MCP requests only
-     * and does not interfere with unrelated Reactor work running in the same JVM.
+     * Usage hint appended to the initialization instructions whenever the man tool is enabled: the
+     * instructions are the only text a connecting agent sees unprompted, so they must point it at the
+     * tool catalog.
      */
-    static final String MCP_CONTEXT_PROPAGATION_PROPERTY = "xwiki.mcp.contextPropagation";
-
-    private static final String SCHEDULER_HOOK_KEY = "xwiki-execution-propagation";
+    private static final String MAN_HINT = "Call the 'man' tool with no arguments first for a catalog of "
+        + "the available tools and reference pages.";
 
     private static final String FALLBACK_SERVER_VERSION = "0.0.0";
+
+    /**
+     * Audit outcome for a call that did not produce a usable result (exception or {@code null}).
+     */
+    private static final String OUTCOME_FAILED = "failed";
 
     @Inject
     private Logger logger;
@@ -97,7 +103,10 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     private MCPServerConfiguration mcpConfig;
 
     @Inject
-    private Execution execution;
+    private DocumentAccessBridge documentAccessBridge;
+
+    @Inject
+    private EntityReferenceSerializer<String> userSerializer;
 
     private McpStatelessSyncServer mcpServer;
 
@@ -107,30 +116,6 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     @Override
     public void initialize()
     {
-        // Register a Reactor scheduler hook to propagate XWiki's ExecutionContext (which carries the XWikiContext
-        // with wiki identity, current user, etc.) from the JAX-RS request thread to the Reactor boundedElastic
-        // threads used by the MCP SDK internally.
-        // The JAX-RS thread is blocked in block() while the Reactor thread runs, so sharing the XWikiContext
-        // object is safe (no concurrent access).
-        // The hook is intentionally scoped: it only propagates when MCP_CONTEXT_PROPAGATION_PROPERTY is present on
-        // the captured context (set by DefaultMCPResource for the duration of each MCP request), so unrelated Reactor
-        // work running elsewhere in the JVM is not affected.
-        Schedulers.onScheduleHook(SCHEDULER_HOOK_KEY, runnable -> {
-            ExecutionContext capturedContext = this.execution.getContext();
-            if (capturedContext == null
-                || !capturedContext.hasProperty(MCP_CONTEXT_PROPAGATION_PROPERTY)) {
-                return runnable;
-            }
-            return () -> {
-                this.execution.pushContext(capturedContext, false);
-                try {
-                    runnable.run();
-                } finally {
-                    this.execution.popContext();
-                }
-            };
-        });
-
         rebuildServer();
     }
 
@@ -139,8 +124,8 @@ public class XWikiMCPServerManager implements Initializable, Disposable
      *
      * <p>A new {@link HttpServletStatelessServerTransport} and {@link McpStatelessSyncServer} are created.
      * The transport reference is then swapped atomically so new requests immediately go to the new transport.
-     * The old server is closed gracefully afterwards, which drains any in-flight requests on the old
-     * transport before discarding it.</p>
+     * The old server is then closed, which only marks its transport as closing (rejecting new requests);
+     * in-flight requests on it complete naturally because nothing they depend on is released.</p>
      *
      * <p>This method is called from {@link #initialize()} and by {@link MCPConfigChangeEventListener} whenever
      * the {@code AI.MCP.Code.MCPServerConfig} document is saved.</p>
@@ -157,29 +142,40 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         // mocks return null by default, and the MCP SDK rejects null or empty server names with
         // IllegalArgumentException. The guard keeps tests stable without requiring every test to stub this.
         String serverName = this.mcpConfig.getServerName();
-        if (serverName == null || serverName.isBlank()) {
+        if (StringUtils.isBlank(serverName)) {
             serverName = MCPServerConfiguration.DEFAULT_SERVER_NAME;
         }
         String serverDescription = this.mcpConfig.getServerDescription();
         String serverVersion = getServerVersion();
-        McpServer.StatelessSyncSpecification builder = McpServer.sync(newTransport)
-            .serverInfo(serverName, serverVersion)
-            // The UI calls this "server description"; the MCP SDK exposes it as initialization instructions.
-            .instructions(serverDescription)
-            .capabilities(McpSchema.ServerCapabilities.builder().tools(true).build());
 
         List<MCPTool> currentTools;
         try {
             currentTools = this.componentManager.getInstanceList(MCPTool.class);
         } catch (ComponentLookupException e) {
-            this.logger.warn("Failed to look up MCPTool components; no tools will be registered", e);
+            this.logger.warn("Failed to look up MCPTool components; no tools will be registered: [{}]",
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Failed to look up MCPTool components", e);
             currentTools = List.of();
         }
+
+        McpServer.StatelessSyncSpecification builder = McpServer.sync(newTransport)
+            .serverInfo(serverName, serverVersion)
+            // Run tool handlers inline on the request thread instead of offloading them to Reactor's
+            // boundedElastic scheduler (the SDK default, meant for non-blocking transports). The servlet
+            // transport blocks the request thread waiting for the handler anyway, and running inline keeps
+            // XWiki's thread-locals (ExecutionContext/XWikiContext) available to tools without any
+            // cross-thread context propagation.
+            .immediateExecution(true)
+            .capabilities(McpSchema.ServerCapabilities.builder().tools(true).build());
+
+        List<String> registeredNames = new ArrayList<>();
         for (MCPTool tool : currentTools) {
-            if (tool.isEnabled()) {
-                builder = builder.toolCall(tool.getToolDefinition(), (ctx, req) -> tool.execute(req));
-            }
+            registerTool(builder, tool, registeredNames);
         }
+
+        // The UI calls this "server description"; the MCP SDK exposes it as initialization instructions.
+        // Built from the names that actually registered, so the man hint is only sent when man is served.
+        builder.instructions(buildInstructions(serverDescription, registeredNames));
 
         McpStatelessSyncServer newServer = builder.build();
 
@@ -188,8 +184,9 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         McpStatelessSyncServer oldServer = this.mcpServer;
         this.mcpServer = newServer;
 
-        // Close the old server after the swap; closeGracefully() waits for any in-flight requests
-        // on the old transport to complete before returning.
+        // Close the old server after the swap. closeGracefully() only marks the old transport as
+        // closing (new requests get rejected); in-flight requests complete naturally since the
+        // stateless transport releases nothing they depend on.
         if (oldServer != null) {
             try {
                 oldServer.closeGracefully().block();
@@ -199,6 +196,139 @@ public class XWikiMCPServerManager implements Initializable, Disposable
                 this.logger.debug("Failed to close MCP server gracefully during rebuild", e);
             }
         }
+    }
+
+    /**
+     * Executes a tool call through the manager's middleware: every registered tool handler goes through
+     * this single seam, so per-call cross-cutting concerns are implemented once here rather than in each
+     * tool.
+     *
+     * <p>It currently does two things. It normalizes a misbehaving tool — an escaping
+     * {@link RuntimeException}, a {@link LinkageError} (realistic for a tool whose extension was
+     * reloaded), or a {@code null} result — into a regular MCP error result with a generic message;
+     * without this, the failure would surface as a transport-level HTTP 500 carrying the raw exception
+     * message (or a bare {@code null} body), leaking internals and bypassing the {@code isError}
+     * convention agents know how to recover from (other {@link Error}s, e.g. out-of-memory, are
+     * deliberately left to propagate). And it emits one INFO audit line per call (tool, acting user,
+     * outcome, duration — never the arguments, which may carry document content), giving administrators
+     * a trail of agent actions. The audit's user resolution reads the request thread's XWiki context, so
+     * it relies on tool handlers running inline on that thread ({@code immediateExecution(true)}
+     * below).</p>
+     *
+     * @param toolName the registered tool name, captured at registration time
+     * @param tool the tool implementation
+     * @param request the tool call request
+     * @return the tool result, or a normalized error result if the tool misbehaved
+     */
+    private McpSchema.CallToolResult executeWrapped(String toolName, MCPTool tool,
+        McpSchema.CallToolRequest request)
+    {
+        long startNanos = System.nanoTime();
+        try {
+            McpSchema.CallToolResult result = tool.execute(request);
+            if (result == null) {
+                this.logger.error("MCP tool [{}] returned a null result", toolName);
+                audit(toolName, OUTCOME_FAILED, startNanos);
+                return internalError(toolName);
+            }
+            audit(toolName, Boolean.TRUE.equals(result.isError()) ? "error" : "ok", startNanos);
+            return result;
+        } catch (RuntimeException | LinkageError e) {
+            this.logger.error("MCP tool [{}] failed with an unexpected error", toolName, e);
+            audit(toolName, OUTCOME_FAILED, startNanos);
+            return internalError(toolName);
+        }
+    }
+
+    private McpSchema.CallToolResult internalError(String toolName)
+    {
+        return McpSchema.CallToolResult.builder()
+            .addTextContent("Internal error in tool '" + toolName
+                + "'. Try again, and report it to the wiki administrator if it persists.")
+            .isError(true)
+            .build();
+    }
+
+    /**
+     * Emits the per-call audit line at INFO: the tool, the acting user, the outcome ({@code ok} for a
+     * normal result, {@code error} for a result the tool itself flagged as an error, {@code failed} for
+     * an unexpected exception) and the call duration.
+     *
+     * @param toolName the tool name
+     * @param outcome the call outcome
+     * @param startNanos the {@link System#nanoTime()} timestamp taken before the call
+     */
+    private void audit(String toolName, String outcome, long startNanos)
+    {
+        long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
+        this.logger.info("MCP tool call: tool=[{}] user=[{}] outcome=[{}] duration=[{}ms]",
+            toolName, currentUser(), outcome, durationMs);
+    }
+
+    /**
+     * Resolves the acting user for the audit line: the serialized user reference, {@code "guest"} for an
+     * unauthenticated caller (reachable when no OIDC provider gates the endpoint), or {@code "unknown"}
+     * when the user cannot be resolved at all.
+     *
+     * @return the audit representation of the acting user
+     */
+    private String currentUser()
+    {
+        try {
+            var user = this.documentAccessBridge.getCurrentUserReference();
+            return user != null ? this.userSerializer.serialize(user) : "guest";
+        } catch (Exception e) {
+            // No context on this thread - cannot happen on the request thread, but the audit line must
+            // never be the thing that breaks a tool call.
+            return "unknown";
+        }
+    }
+
+    /**
+     * Registers one tool on the server builder, isolating the rest of the rebuild from a misbehaving
+     * tool: if the tool throws from {@code isEnabled()} or {@code getToolDefinition()}, or the SDK
+     * rejects the registration (e.g. a duplicate tool name from another contribution), the tool is
+     * skipped with a warning instead of failing the whole server build.
+     *
+     * @param builder the server builder
+     * @param tool the tool to register
+     * @param registeredNames collector for the names that actually registered, in registration order
+     */
+    private void registerTool(McpServer.StatelessSyncSpecification builder, MCPTool tool,
+        List<String> registeredNames)
+    {
+        try {
+            if (!tool.isEnabled()) {
+                return;
+            }
+            McpSchema.Tool definition = tool.getToolDefinition();
+            builder.toolCall(definition, (ctx, req) -> executeWrapped(definition.name(), tool, req));
+            registeredNames.add(definition.name());
+        } catch (RuntimeException e) {
+            this.logger.warn("Skipping MCP tool [{}]: [{}]", tool.getClass().getName(),
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP tool registration failure", e);
+        }
+    }
+
+    /**
+     * Builds the initialization instructions sent to a connecting client: the configured server
+     * description, with the {@code man} usage hint appended whenever the man tool is registered (the
+     * instructions are the only guidance an agent receives without calling a tool).
+     *
+     * @param serverDescription the configured description, possibly blank
+     * @param registeredToolNames the names of the tools that actually registered
+     * @return the instructions text
+     */
+    private String buildInstructions(String serverDescription, List<String> registeredToolNames)
+    {
+        if (!registeredToolNames.contains(MCPManTool.TOOL_ID)) {
+            return serverDescription;
+        }
+        if (StringUtils.isBlank(serverDescription)) {
+            return MAN_HINT;
+        }
+        return serverDescription + "\n\n" + MAN_HINT;
     }
 
     private String getServerVersion()
@@ -229,7 +359,6 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     @Override
     public void dispose()
     {
-        Schedulers.resetOnScheduleHook(SCHEDULER_HOOK_KEY);
         McpStatelessSyncServer serverToClose = this.mcpServer;
         this.mcpServer = null;
         if (serverToClose != null) {
