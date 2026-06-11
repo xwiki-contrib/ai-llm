@@ -25,7 +25,7 @@
     <parent>
         <groupId>org.xwiki.contrib</groupId>
         <artifactId>parent-platform-distribution</artifactId>
-        <version>17.4.0-3</version>
+        <version>17.4.0-8</version>
     </parent>
     <groupId>org.xwiki.contrib.llm</groupId>
     <artifactId>application-ai-llm</artifactId>
@@ -84,26 +84,4 @@
         </extensions>
         <plugins />
     </build>
-
-    <!--
-      Things that should not be used through transitive dependencies (or at all, ideally):
-        * commons-lang:commons-lang
-
-      We use test scope test in case it's needed by the test framework.
-    -->
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>commons-lang</groupId>
-                <artifactId>commons-lang</artifactId>
-                <scope>test</scope>
-            </dependency>
-            <!-- Add missing dependency management for org.bouncycastle:bcutil-jdk18on. -->
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcutil-jdk18on</artifactId>
-                <version>${bouncycastle.version}</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 </project>

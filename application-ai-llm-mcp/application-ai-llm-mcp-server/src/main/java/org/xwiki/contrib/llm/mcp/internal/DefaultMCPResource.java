@@ -29,7 +29,7 @@ import javax.ws.rs.core.Response;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import org.apache.commons.lang3.Strings;
+import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.util.DefaultParameterizedType;
 import org.xwiki.container.Container;
@@ -114,7 +114,7 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
 
         // Extract the base URL of the MCP endpoint from the metadata URL.
         String metadataUrl = this.uriInfo.getAbsolutePath().toString();
-        String mcpBaseUrl = Strings.CS.removeEnd(metadataUrl, WELL_KNOWN_PATH);
+        String mcpBaseUrl = StringUtils.removeEnd(metadataUrl, WELL_KNOWN_PATH);
 
         // Produce RFC 9728 Protected Resource Metadata JSON.
         ObjectNode metadata = OBJECT_MAPPER.createObjectNode();

@@ -38,6 +38,10 @@
         <xwiki.extension.namespaces>{root}</xwiki.extension.namespaces>
     </properties>
     <dependencies>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
         <!-- Servlet API: needed to compile against jakarta.servlet.http types used by the MCP SDK.
              Provided by the servlet container at runtime. -->
         <dependency>
