@@ -102,7 +102,8 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
                 if (httpResponse.statusCode() == 200) {
                     // Read the SSE stream and call the consumer for every chunk
                     this.requestHelper.readSSEStream(body, chunk -> {
-                        if ("[DONE]\n".equals(chunk)) {
+                        // Ignore empty chunks and the [DONE] chunk.
+                        if ("[DONE]\n".equals(chunk) || StringUtils.isBlank(chunk)) {
                             return;
                         }
 
