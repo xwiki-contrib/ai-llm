@@ -128,7 +128,11 @@
       <code>require(['deferred!ckeditor'], function(ckeditorPromise) {
   ckeditorPromise.done(function(ckeditor) {
     ckeditor.plugins.addExternal('llm-action', new XWiki.Document('CKEditorPlugin', 'AI.Code').getURL('jsx'));
-    ckeditor.config.extraPlugins = 'llm-action';
+    let extraPlugins = ckeditor.config.extraPlugins ? ckeditor.config.extraPlugins.split(',') : [];
+    if (extraPlugins.indexOf('llm-action') === -1) {
+      extraPlugins.push('llm-action');
+    }
+    ckeditor.config.extraPlugins = extraPlugins.join(',');
   });
 });</code>
     </property>

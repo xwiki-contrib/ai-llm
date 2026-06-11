@@ -125,8 +125,10 @@
       <cache>forbid</cache>
     </property>
     <property>
-      <code>define('llmActionModal', ['jquery', 'modal'], function($, $modal) {
-  'use strict';
+      <code>define('llmActionModal', ['jquery'], function($) {
+  // This code is called quite late so we can assume that the modal is already defined.
+  // Before XWiki 18.3.0, the modal module was just "modal", afterwards it's "xwiki-wysiwyg-modal".
+  const $modal = require.defined('xwiki-wysiwyg-modal') ? require('xwiki-wysiwyg-modal') : require('modal');
   return $modal.createModalStep({
     'class': 'llm-action-modal',
     onLoad: function() {
@@ -167,7 +169,7 @@
             });
           }).fail(function() {
             var errorMessage = $('&lt;div class="box errormessage"&gt;&lt;/div&gt;')
-            .text(l10n.get('llm.editor.modal.failedToLoadForm'));
+              .text(l10n.get('llm.editor.modal.failedToLoadForm'));
             modalBody.empty().append(errorMessage);
           }).always(function() {
             modalBody.removeClass('loading');
@@ -191,9 +193,7 @@
     // no sure we need all this..
     requires: 'uploadwidget,notification,xwiki-localization,xwiki-macro,xwiki-dialog',
 
-    init: async function (editor) {
-      var thisPlugin = this;
-
+    init: function (editor) {
       // Fill missing configuration with default values.
       editor.config['llm-action'] = $.extend({
         enabled: false,
@@ -203,42 +203,41 @@
         }))
       }, editor.config['llm-action']);
 
-
-      var authorizedPromise;
-      // Convert require into a Promise
-      const requirePromise = new Promise((resolve, reject) =&gt; {
-        require(['xwiki-meta', 'xwiki-llm'], (xm, llm) =&gt; {
-          const csrf_token = xm.form_token;
-          const userRef = XWiki.Model.serialize(xm.userReference);
-          authorizedPromise = llm.getCheck(csrf_token, userRef);
-          resolve();
-        }, reject);
-      });
       this.initLLMButton(editor);
-      // Wait for the requirePromise to resolve before continuing.
-      await requirePromise;
-      try {
-        const authorized = await authorizedPromise;
-        if (authorized) {
-          const command = editor.getCommand('llmaction');
-          command.enable();
 
-          // loading quickaction
-          require(['xwiki-l10n!llm-translation'], function(l10n) {
-              editor.quickActions &amp;&amp; editor.quickActions.addActions([{
+      const onError = function(error) {
+        console.error('Error occurred while checking authorization:', error);
+      };
+
+      // editorReadyPromise must be set up before the require call to avoid missing instanceReady.
+      // XWiki's WYSIWYG editor resets all command states during instanceReady, so enable() must
+      // be called after it fires.
+      const editorReadyPromise = editor.status === 'ready'
+        ? Promise.resolve()
+        : new Promise((resolve) =&gt; editor.once('instanceReady', resolve));
+
+      require(['xwiki-meta', 'xwiki-llm'], function(xm, llm) {
+        llm.getCheck(xm.form_token, XWiki.Model.serialize(xm.userReference))
+          .then(function(authorized) {
+            if (!authorized) return;
+            return editorReadyPromise.then(function() {
+              const command = editor.getCommand('llmaction');
+              if (!command) return;
+              command.enable();
+              require(['xwiki-l10n!llm-translation'], function(l10n) {
+                editor.quickActions &amp;&amp; editor.quickActions.addActions([{
                   group: 'Content',
                   id: 'llm-ai',
                   name: l10n.get('quickaction.name'),
                   iconClass: 'fa fa-laptop',
                   description: l10n.get('quickaction.hint'),
                   command: 'llmaction'
-              }]);
-          });
-
-        }
-      }catch (error) {
-        console.error('Error occurred while checking authorization:', error);
-      }
+                }]);
+              });
+            });
+          })
+          .catch(onError);
+      }, onError);
     },
 
 

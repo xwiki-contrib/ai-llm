@@ -1175,7 +1175,8 @@
                     resolve(json.check);
                 })
                 .catch(e =&gt; {
-                    console.error("An error occured trying to check the rights for the LLM extension.", e)
+                    console.error("An error occured trying to check the rights for the LLM extension.", e);
+                    reject(e);
                 })
         });
     }
