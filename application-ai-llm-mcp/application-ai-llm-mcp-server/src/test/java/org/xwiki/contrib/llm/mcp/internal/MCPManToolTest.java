@@ -60,6 +60,10 @@ class MCPManToolTest
 
     private static final String STRING = "string";
 
+    private static final String PROPERTIES = "properties";
+
+    private static final String REQUIRED = "required";
+
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
 
@@ -69,10 +73,8 @@ class MCPManToolTest
     private static McpSchema.Tool toolDefinition(String name, String description, Map<String, Object> properties,
         List<String> required)
     {
-        return McpSchema.Tool.builder()
-            .name(name)
+        return McpSchema.Tool.builder(name, Map.of(TYPE, "object", PROPERTIES, properties, REQUIRED, required))
             .description(description)
-            .inputSchema(new McpSchema.JsonSchema("object", properties, required, null, null, null))
             .build();
     }
 
@@ -104,8 +106,13 @@ class MCPManToolTest
     private static String callMan(MCPManTool manTool, String toolArg)
     {
         Map<String, Object> args = toolArg == null ? Map.of() : Map.of(TOOL_PARAM, toolArg);
-        McpSchema.CallToolResult result = manTool.execute(new McpSchema.CallToolRequest("man", args));
+        McpSchema.CallToolResult result = manTool.execute(manRequest(args));
         return textOf(result);
+    }
+
+    private static McpSchema.CallToolRequest manRequest(Map<String, Object> args)
+    {
+        return McpSchema.CallToolRequest.builder("man").arguments(args).build();
     }
 
     private static String textOf(McpSchema.CallToolResult result)
@@ -138,8 +145,10 @@ class MCPManToolTest
     {
         McpSchema.Tool definition = this.manTool.getToolDefinition();
         assertEquals("man", definition.name());
-        assertTrue(definition.inputSchema().properties().containsKey(TOOL_PARAM));
-        assertTrue(definition.inputSchema().required().isEmpty());
+        Map<String, Object> schema = definition.inputSchema();
+        assertEquals("object", schema.get(TYPE));
+        assertTrue(((Map<?, ?>) schema.get(PROPERTIES)).containsKey(TOOL_PARAM));
+        assertTrue(((List<?>) schema.get(REQUIRED)).isEmpty());
         assertEquals("Help", this.manTool.getCategory());
     }
 
@@ -253,8 +262,7 @@ class MCPManToolTest
         registerTool(componentManager, "demo_tool", "A demo tool.", "A demo tool, in depth.",
             "Search & Navigation", true, Map.of(), List.of(), null);
 
-        McpSchema.CallToolResult result =
-            this.manTool.execute(new McpSchema.CallToolRequest("man", Map.of(TOOL_PARAM, "does_not_exist")));
+        McpSchema.CallToolResult result = this.manTool.execute(manRequest(Map.of(TOOL_PARAM, "does_not_exist")));
 
         assertTrue(result.isError());
         String text = textOf(result);
@@ -305,10 +313,12 @@ class MCPManToolTest
     void pageWithNullInputSchemaRendersNameWithoutSynopsisParamsOrOptions(
         MockitoComponentManager componentManager) throws Exception
     {
-        McpSchema.Tool definition = McpSchema.Tool.builder()
-            .name("ping")
-            .description("Ping the server.")
-            .build();
+        // The SDK makes a null input schema unrepresentable on a real Tool (builder and constructor reject
+        // it; deserialization substitutes an empty map), so the man tool's defensive degradation can only
+        // be pinned with a mock.
+        McpSchema.Tool definition = mock(McpSchema.Tool.class);
+        when(definition.name()).thenReturn("ping");
+        when(definition.description()).thenReturn("Ping the server.");
         registerTool(componentManager, "ping", "Ping the server.", "Help", true, "EXAMPLES\n    Just pings.",
             definition);
 
@@ -365,8 +375,7 @@ class MCPManToolTest
         registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Search pages and more.",
             "Search & Navigation", true, Map.of(), List.of(), null);
 
-        McpSchema.CallToolResult result =
-            this.manTool.execute(new McpSchema.CallToolRequest("man", Map.of(TOOL_PARAM, "nope")));
+        McpSchema.CallToolResult result = this.manTool.execute(manRequest(Map.of(TOOL_PARAM, "nope")));
 
         assertTrue(result.isError());
         assertTrue(textOf(result).contains("Reference pages: xwiki-syntax."), textOf(result));
@@ -376,8 +385,7 @@ class MCPManToolTest
     void nonStringToolArgReturnsError()
     {
         Map<String, Object> args = Map.of(TOOL_PARAM, 42);
-        McpSchema.CallToolResult result =
-            this.manTool.execute(new McpSchema.CallToolRequest("man", args));
+        McpSchema.CallToolResult result = this.manTool.execute(manRequest(args));
 
         assertTrue(result.isError());
         assertEquals("Error: 'tool' parameter must be a string.", textOf(result));

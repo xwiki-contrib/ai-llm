@@ -20,6 +20,8 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -87,6 +89,8 @@ public class MCPManTool implements MCPTool
     private static final String SENTENCE_TERMINATOR = ". ";
 
     private static final String REQUIRED = "required";
+
+    private static final String PROPERTIES = "properties";
 
     private static final String OPTIONAL = "optional";
 
@@ -169,6 +173,9 @@ public class MCPManTool implements MCPTool
             )))
 
         PARAMETERS / STYLING (apply to the block that follows; (%%) resets inline styling)
+            These parameters, and ||key="value" parameters on links and images, are mostly passed
+            through as HTML attributes on the generated element - any HTML attribute works
+            (class, style, id, title, ...). Macro parameters are macro-specific, not attributes.
             (% class="myClass" style="color:blue" %)
             = styled heading =
             Inline: some (% style="color:red" %)red(%%) text.
@@ -210,12 +217,10 @@ public class MCPManTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder()
-            .name(TOOL_ID)
+        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
             .description("Show documentation for the available MCP tools. Call with no arguments for a "
                 + "categorized list of all tools; pass 'tool' with a tool name to get that tool's full "
                 + "manual page (synopsis, options, description, examples).")
-            .inputSchema(PARAMS.inputSchema())
             .build();
     }
 
@@ -490,29 +495,46 @@ public class MCPManTool implements MCPTool
 
     private Map<String, Object> properties(McpSchema.Tool definition)
     {
-        McpSchema.JsonSchema schema = definition.inputSchema();
-        if (schema == null || schema.properties() == null) {
+        Map<String, Object> schema = definition.inputSchema();
+        if (schema == null) {
             return Map.of();
         }
-        return schema.properties();
+        return asPropertyMap(schema.get(PROPERTIES));
     }
 
+    /**
+     * Reads the {@code required} names from a tool's input schema map, null-safe and type-safe:
+     * third-party tools may advertise arbitrary maps, so anything that is not a collection of
+     * strings degrades to "nothing is required" rather than failing the page render.
+     *
+     * @param definition the tool definition
+     * @return the required parameter names, possibly empty
+     */
     private List<String> required(McpSchema.Tool definition)
     {
-        McpSchema.JsonSchema schema = definition.inputSchema();
-        if (schema == null || schema.required() == null) {
+        Map<String, Object> schema = definition.inputSchema();
+        Object value = schema == null ? null : schema.get(REQUIRED);
+        if (!(value instanceof Collection<?> names)) {
             return List.of();
         }
-        return schema.required();
+        return names.stream()
+            .filter(String.class::isInstance)
+            .map(String.class::cast)
+            .collect(Collectors.toList());
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> asPropertyMap(Object value)
     {
-        if (value instanceof Map) {
-            return (Map<String, Object>) value;
+        if (!(value instanceof Map<?, ?> map)) {
+            return Map.of();
         }
-        return Map.of();
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry.getKey() instanceof String key) {
+                result.put(key, entry.getValue());
+            }
+        }
+        return result;
     }
 
     private String stringValue(Object value)
