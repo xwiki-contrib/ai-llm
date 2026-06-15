@@ -99,11 +99,9 @@ public class MCPSearchCollectionsTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder()
-            .name(TOOL_ID)
+        return McpSchema.Tool.builder(TOOL_ID, buildInputSchema())
             .description("Search indexed collections using semantic and keyword similarity. "
                 + "Returns the most relevant content chunks from indexed pages.")
-            .inputSchema(buildInputSchema())
             .build();
     }
 
@@ -150,7 +148,7 @@ public class MCPSearchCollectionsTool implements MCPTool
         }
     }
 
-    private McpSchema.JsonSchema buildInputSchema()
+    private Map<String, Object> buildInputSchema()
     {
         Map<String, Object> properties = Map.of(
             QUERY_PARAM, Map.of(
@@ -173,7 +171,7 @@ public class MCPSearchCollectionsTool implements MCPTool
                 "Maximum number of semantic similarity results (default: %d)".formatted(DEFAULT_LIMIT)
             )
         );
-        return new McpSchema.JsonSchema(OBJECT, properties, List.of(QUERY_PARAM), null, null, null);
+        return Map.of(TYPE, OBJECT, "properties", properties, "required", List.of(QUERY_PARAM));
     }
 
     private String getQueryParam(Map<String, Object> args)

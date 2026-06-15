@@ -64,10 +64,9 @@ public class MCPListCollectionsTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder()
-            .name(TOOL_ID)
+        return McpSchema.Tool.builder(TOOL_ID,
+                Map.of("type", OBJECT, "properties", Map.of(), "required", List.of()))
             .description("List all collections available for searching.")
-            .inputSchema(new McpSchema.JsonSchema(OBJECT, Map.of(), List.of(), null, null, null))
             .build();
     }
 
