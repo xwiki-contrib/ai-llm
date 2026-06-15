@@ -6,3 +6,4 @@ org.xwiki.contrib.llm.mcp.internal.MCPQueryDocumentsTool
 org.xwiki.contrib.llm.mcp.internal.MCPManTool
 org.xwiki.contrib.llm.mcp.internal.MCPGetDocumentTool
 org.xwiki.contrib.llm.mcp.internal.MCPEditDocumentTool
+org.xwiki.contrib.llm.mcp.internal.MCPWriteDocumentTool

@@ -115,6 +115,11 @@ public class MCPEditDocumentTool implements MCPTool
      */
     private static final int MAX_CONTENT_CHARS = 1_000_000;
 
+    /**
+     * Cap on the saved version comment, comfortably under the database column limit (1023 characters).
+     */
+    private static final int MAX_COMMENT_CHARS = 1000;
+
     private static final String REFERENCE_PARAM = "reference";
 
     private static final String EDITS_PARAM = "edits";
@@ -122,6 +127,10 @@ public class MCPEditDocumentTool implements MCPTool
     private static final String TITLE_PARAM = "title";
 
     private static final String BASE_VERSION_PARAM = "base_version";
+
+    private static final String COMMENT_PARAM = "comment";
+
+    private static final String MAJOR_PARAM = "major";
 
     private static final String OLD_STRING_KEY = "old_string";
 
@@ -193,6 +202,10 @@ public class MCPEditDocumentTool implements MCPTool
         .string(BASE_VERSION_PARAM, "Optional optimistic lock: the document version you read (shown by "
             + "get_document). The save is refused (best-effort check at save time) if the document has "
             + "changed since, instead of silently overwriting the concurrent change.")
+        .string(COMMENT_PARAM, "Version comment shown in the document history. Stored prefixed with "
+            + "[AI]. Default: a generic [AI] comment.")
+        .bool(MAJOR_PARAM, "Set true to record this edit as a major version. Default false (minor). "
+            + "Creation is always major.")
         .build();
 
     @Inject
@@ -244,15 +257,13 @@ public class MCPEditDocumentTool implements MCPTool
                 + "replace_all (default false).",
             ITEMS, editItemSchema
         );
-        return McpSchema.Tool.builder()
-            .name(TOOL_ID)
-            .description("Create or edit an XWiki document by exact search-and-replace on its raw source (the "
+        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema(Map.of(EDITS_PARAM, editsProperty)))
+            .description("Edit an XWiki document by exact search-and-replace on its raw source (the "
                 + "text returned by get_document - always read first). Edits apply in order and save as one "
                 + "version; each old_string must match the current source exactly (whitespace included) and be "
-                + "unique unless replace_all is true. To create a document, send a single edit with an empty "
-                + "old_string. Write XWiki 2.1 syntax, NOT Markdown - `man xwiki-syntax` is the reference; "
+                + "unique unless replace_all is true. For targeted changes; to create a document use "
+                + "write_document. Write XWiki 2.1 syntax, NOT Markdown - `man xwiki-syntax` is the reference; "
                 + "`man edit_document` shows examples.")
-            .inputSchema(PARAMS.inputSchema(Map.of(EDITS_PARAM, editsProperty)))
             .build();
     }
 
@@ -265,7 +276,7 @@ public class MCPEditDocumentTool implements MCPTool
     @Override
     public String getSummary()
     {
-        return "Create or edit an XWiki document's content and title via exact search-and-replace.";
+        return "Edit a document's content and title by exact string replacement.";
     }
 
     @Override
@@ -283,11 +294,15 @@ public class MCPEditDocumentTool implements MCPTool
                 Replace all: edits=[{"old_string":"foo","new_string":"bar","replace_all":true}]
                 Safe edit:   reference="Sandbox.WebHome", base_version="4.3", edits=[...]
                              (refused if the document is no longer at the version you read)
+                Comment:     reference="Sandbox.WebHome", comment="fix typo in installation steps",
+                             edits=[{"old_string":"teh","new_string":"the"}]
                 Retitle:     reference="Sandbox.WebHome", title="New Title"
                 Create:      reference="Sandbox.New", title="Hello",
                              edits=[{"old_string":"","new_string":"= Hello =\\n\\nBody."}]
+                             (still supported; write_document is the preferred way to create a document)
 
             SEE ALSO
+                man write_document  Create a document or replace its entire content.
                 man xwiki-syntax    XWiki 2.1 syntax reference for writing page source.
                 man                 (no argument) List all tools and reference pages.
             """;
@@ -302,6 +317,8 @@ public class MCPEditDocumentTool implements MCPTool
             String reference = PARAMS.requireString(args, REFERENCE_PARAM);
             String title = PARAMS.string(args, TITLE_PARAM);
             String baseVersion = PARAMS.string(args, BASE_VERSION_PARAM);
+            String comment = PARAMS.string(args, COMMENT_PARAM);
+            boolean major = PARAMS.bool(args, MAJOR_PARAM);
             List<EditOp> edits = parseEdits(args);
             if (edits.isEmpty() && title == null) {
                 throw new IllegalArgumentException("Error: provide at least one edit or a title.");
@@ -315,7 +332,7 @@ public class MCPEditDocumentTool implements MCPTool
                 return MCPToolSupport.errorResult("Not authorized to edit " + QUOTE + reference + QUOTE + PERIOD);
             }
 
-            return applyAndSave(ref, reference, title, baseVersion, edits);
+            return applyAndSave(ref, reference, title, baseVersion, edits, comment, major);
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (XWikiException e) {
@@ -326,7 +343,7 @@ public class MCPEditDocumentTool implements MCPTool
     }
 
     private McpSchema.CallToolResult applyAndSave(DocumentReference ref, String reference, String title,
-        String baseVersion, List<EditOp> edits) throws XWikiException
+        String baseVersion, List<EditOp> edits, String comment, boolean major) throws XWikiException
     {
         XWikiContext xcontext = this.contextProvider.get();
         if (xcontext == null || xcontext.getUserReference() == null) {
@@ -363,9 +380,7 @@ public class MCPEditDocumentTool implements MCPTool
         if (titleChanged) {
             apiDoc.setTitle(title);
         }
-        // A creation is a normal (major) save; subsequent edits are minor, so iterative agent edits do not
-        // inflate the major version or clutter the default history view.
-        apiDoc.save(buildComment(creating, edits.size(), titleChanged), !creating);
+        apiDoc.save(buildComment(creating, edits.size(), titleChanged, comment), isMinorEdit(creating, major));
 
         SaveOutcome outcome = new SaveOutcome(ref, creating, title != null,
             titleChanged, oldVersion, apiDoc.getVersion(), edits.size(), newContent, appliedReplacements);
@@ -393,7 +408,7 @@ public class MCPEditDocumentTool implements MCPTool
             return null;
         }
         if (creating) {
-            return MCPToolSupport.errorResult(ERROR_QUOTE_PREFIX + reference + QUOTE + " does not exist; omit "
+            return MCPToolSupport.errorResult("Document " + QUOTE + reference + QUOTE + " does not exist; omit "
                 + "base_version when creating a document.");
         }
         if (!baseVersion.equals(currentVersion)) {
@@ -516,13 +531,44 @@ public class MCPEditDocumentTool implements MCPTool
         return text.substring(0, index) + replacement + text.substring(index + search.length());
     }
 
-    private String buildComment(boolean creating, int editCount, boolean titleChanged)
+    /**
+     * Decides whether the save is recorded as a minor edit. A creation is a normal (major) save - a new
+     * document is version 1.1 regardless, so an explicit {@code major} request is accepted and ignored.
+     * Subsequent edits are minor unless the caller explicitly asks for a major version, so iterative
+     * agent edits do not inflate the major version or clutter the default history view.
+     *
+     * @param creating whether the document is being created
+     * @param major whether the caller asked for a major version
+     * @return whether the save is a minor edit
+     */
+    private static boolean isMinorEdit(boolean creating, boolean major)
     {
-        if (creating) {
-            return AI_COMMENT_PREFIX + "Created document";
+        return !creating && !major;
+    }
+
+    /**
+     * Builds the version comment for the save: the agent-supplied comment when one was given, otherwise a
+     * generated summary of the change. The {@link #AI_COMMENT_PREFIX} marker is always prepended, and the
+     * combined comment is truncated to {@link #MAX_COMMENT_CHARS} to fit the history storage.
+     *
+     * @param creating whether the document is being created
+     * @param editCount the number of edits applied
+     * @param titleChanged whether the title changed
+     * @param agentComment the agent-supplied comment, or {@code null} when none was given
+     * @return the comment to record in the document history
+     */
+    private String buildComment(boolean creating, int editCount, boolean titleChanged, String agentComment)
+    {
+        String combined;
+        if (StringUtils.isNotBlank(agentComment)) {
+            combined = AI_COMMENT_PREFIX + agentComment;
+        } else if (creating) {
+            combined = AI_COMMENT_PREFIX + "Created document";
+        } else {
+            combined = AI_COMMENT_PREFIX + editCount + (editCount == 1 ? " edit" : " edits")
+                + (titleChanged ? ", retitled" : "");
         }
-        return AI_COMMENT_PREFIX + editCount + (editCount == 1 ? " edit" : " edits")
-            + (titleChanged ? ", retitled" : "");
+        return StringUtils.abbreviate(combined, MAX_COMMENT_CHARS);
     }
 
     private String buildSuccessResult(SaveOutcome outcome)

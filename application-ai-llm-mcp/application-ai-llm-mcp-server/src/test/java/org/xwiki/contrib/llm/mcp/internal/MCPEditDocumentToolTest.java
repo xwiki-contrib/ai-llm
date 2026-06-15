@@ -68,6 +68,10 @@ class MCPEditDocumentToolTest
 
     private static final String TITLE_KEY = "title";
 
+    private static final String COMMENT_KEY = "comment";
+
+    private static final String MAJOR_KEY = "major";
+
     private static final String OLD_STRING = "old_string";
 
     private static final String NEW_STRING = "new_string";
@@ -144,7 +148,8 @@ class MCPEditDocumentToolTest
 
     private McpSchema.CallToolResult call(Map<String, Object> args)
     {
-        return this.tool.execute(new McpSchema.CallToolRequest(MCPEditDocumentTool.TOOL_ID, args));
+        return this.tool.execute(
+            McpSchema.CallToolRequest.builder(MCPEditDocumentTool.TOOL_ID).arguments(args).build());
     }
 
     private static Map<String, Object> edit(String oldString, String newString)
@@ -520,8 +525,100 @@ class MCPEditDocumentToolTest
             "base_version", "1.1", EDITS_KEY, List.of(edit("", "new body"))));
 
         assertEquals(Boolean.TRUE, result.isError());
-        assertTrue(textOf(result).contains("does not exist"), textOf(result));
+        String text = textOf(result);
+        assertTrue(text.contains("does not exist"), text);
+        // A state outcome, not a malformed call: the same call succeeds once the document exists.
+        assertFalse(text.startsWith("Error:"), text);
         assertTrue(loadDocument(oldcore).isNew());
+    }
+
+    @Test
+    void agentCommentIsPrefixedAndSavedAsMinorEdit(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, "x", "Title");
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), anyString(), any(), eq(true)))
+            .thenReturn(COMPARE_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF,
+            EDITS_KEY, List.of(edit("x", "y")), COMMENT_KEY, "fix typo in installation steps"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The [AI] prefix is always prepended to the agent's comment, and the edit stays minor.
+        verify(oldcore.getSpyXWiki()).saveDocument(any(XWikiDocument.class),
+            eq("[AI] fix typo in installation steps"), eq(true), any());
+        assertEquals("[AI] fix typo in installation steps", loadDocument(oldcore).getComment());
+    }
+
+    @Test
+    void blankCommentFallsBackToDefaultComment(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, "x", "Title");
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), anyString(), any(), eq(true)))
+            .thenReturn(COMPARE_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF,
+            EDITS_KEY, List.of(edit("x", "y")), COMMENT_KEY, "   "));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertEquals("[AI] 1 edit", loadDocument(oldcore).getComment());
+    }
+
+    @Test
+    void longCommentIsTruncatedAndKeepsAiPrefix(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, "x", "Title");
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), anyString(), any(), eq(true)))
+            .thenReturn(COMPARE_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF,
+            EDITS_KEY, List.of(edit("x", "y")), COMMENT_KEY, "c".repeat(2000)));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String savedComment = loadDocument(oldcore).getComment();
+        assertTrue(savedComment.startsWith("[AI] c"), savedComment);
+        assertEquals(1000, savedComment.length());
+        assertTrue(savedComment.endsWith("..."), savedComment);
+    }
+
+    @Test
+    void majorTrueOnExistingDocumentSavesMajorVersion(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, "x", "Title");
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), anyString(), any(), eq(true)))
+            .thenReturn(COMPARE_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF,
+            EDITS_KEY, List.of(edit("x", "y")), MAJOR_KEY, true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        verify(oldcore.getSpyXWiki())
+            .saveDocument(any(XWikiDocument.class), eq("[AI] 1 edit"), eq(false), any());
+    }
+
+    @Test
+    void majorTrueOnCreationStillSavesMajorWithoutError(MockitoOldcore oldcore) throws Exception
+    {
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), any(), any(), eq(true)))
+            .thenReturn(VIEW_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, MAJOR_KEY, true,
+            EDITS_KEY, List.of(edit("", "body"))));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        verify(oldcore.getSpyXWiki())
+            .saveDocument(any(XWikiDocument.class), eq("[AI] Created document"), eq(false), any());
+        assertFalse(loadDocument(oldcore).isNew());
+    }
+
+    @Test
+    void toolDefinitionDeclaresCommentAndMajorAfterExistingParams()
+    {
+        McpSchema.Tool definition = this.tool.getToolDefinition();
+        Map<?, ?> properties = (Map<?, ?>) definition.inputSchema().get("properties");
+        // Declaration order is importance order; comment and major come after all pre-existing scalar
+        // parameters (the hand-built edits array is merged last by the schema generator).
+        assertEquals(List.of(REFERENCE_KEY, TITLE_KEY, "base_version", COMMENT_KEY, MAJOR_KEY, EDITS_KEY),
+            List.copyOf(properties.keySet()));
     }
 
     @Test
@@ -529,7 +626,7 @@ class MCPEditDocumentToolTest
     {
         McpSchema.Tool definition = this.tool.getToolDefinition();
         assertEquals(MCPEditDocumentTool.TOOL_ID, definition.name());
-        assertTrue(definition.inputSchema().required().contains(REFERENCE_KEY));
+        assertTrue(((List<?>) definition.inputSchema().get("required")).contains(REFERENCE_KEY));
     }
 
     @Test
@@ -543,6 +640,9 @@ class MCPEditDocumentToolTest
     {
         assertEquals("Authoring", this.tool.getCategory());
         assertTrue(this.tool.getManPage().contains("EXAMPLES"), this.tool.getManPage());
-        assertTrue(this.tool.getSummary().contains("Create or edit"), this.tool.getSummary());
+        // The summary is edit-only: creation is write_document's job, and the man catalog is built from
+        // the summaries.
+        assertTrue(this.tool.getSummary().startsWith("Edit"), this.tool.getSummary());
+        assertFalse(this.tool.getSummary().contains("Create"), this.tool.getSummary());
     }
 }
