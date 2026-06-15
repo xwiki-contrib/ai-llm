@@ -117,6 +117,21 @@
             <artifactId>xwiki-platform-wiki-api</artifactId>
             <version>${platform.version}</version>
         </dependency>
+        <!-- HTML5 renderer since the rendered html mode outputs html/5.0. -->
+        <dependency>
+            <groupId>org.xwiki.rendering</groupId>
+            <artifactId>xwiki-rendering-syntax-html5</artifactId>
+            <version>${rendering.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- HTMLCleaner, HTMLCleanerConfiguration and HTMLUtils used by MCPRenderedHtml to clean the
+             rendered HTML for agent output. Arrives transitively via oldcore; declared explicitly since
+             we import it directly. -->
+        <dependency>
+            <groupId>org.xwiki.commons</groupId>
+            <artifactId>xwiki-commons-xml</artifactId>
+            <version>${commons.version}</version>
+        </dependency>
         <!-- MCP SDK: core transport + Jackson 2.x JSON mapping -->
         <!-- Exclude artifacts already managed by XWiki platform:
              - jackson-annotations: provided by XWiki platform
@@ -159,6 +174,15 @@
             <groupId>org.xwiki.platform</groupId>
             <artifactId>xwiki-platform-oldcore</artifactId>
             <version>${platform.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <!-- DefaultHTMLCleanerComponentList: wires the real HTMLCleaner component into the
+             rendered-HTML tests. -->
+        <dependency>
+            <groupId>org.xwiki.commons</groupId>
+            <artifactId>xwiki-commons-xml</artifactId>
+            <version>${commons.version}</version>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>

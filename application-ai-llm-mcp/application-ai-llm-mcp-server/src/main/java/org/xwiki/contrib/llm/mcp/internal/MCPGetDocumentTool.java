@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,6 +44,7 @@ import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.xml.html.HTMLCleaner;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
@@ -106,6 +108,18 @@ public class MCPGetDocumentTool implements MCPTool
 
     private static final String RENDERED_PARAM = "rendered";
 
+    private static final String FORMAT_PARAM = "format";
+
+    private static final String PLAIN_FORMAT = "plain";
+
+    private static final String HTML_FORMAT = "html";
+
+    /**
+     * All accepted {@code format} values in display order, used for validation and the invalid-value
+     * error message.
+     */
+    private static final List<String> FORMAT_VALUES = List.of(PLAIN_FORMAT, HTML_FORMAT);
+
     private static final String NEW_LINE = "\n";
 
     private static final String DOUBLE_NEW_LINE = "\n\n";
@@ -142,13 +156,27 @@ public class MCPGetDocumentTool implements MCPTool
             + "Read a section with offset/limit to see the source.";
 
     /**
-     * Banner prepended to rendered output, warning that it is the executed view (not source) and must not be
+     * Shared tail of the rendered-mode banners: the read-only warning that the executed view must not be
      * used to form {@code edit_document} match strings.
+     */
+    private static final String RENDERED_BANNER_TAIL =
+        " READ-ONLY: do NOT copy text from here into edit_document; re-read "
+            + "with rendered=false to get the editable source.";
+
+    /**
+     * Banner prepended to plain-text rendered output, warning that it is the executed view (not source).
      */
     private static final String RENDERED_BANNER =
         "RENDERED VIEW - plain text, macros executed and includes expanded (structure such as tables and "
-            + "link targets is flattened). READ-ONLY: do NOT copy text from here into edit_document; re-read "
-            + "with rendered=false to get the editable source.";
+            + "link targets is flattened)." + RENDERED_BANNER_TAIL;
+
+    /**
+     * Banner prepended to HTML rendered output ({@code format="html"}), warning that it is the executed
+     * view (not source).
+     */
+    private static final String RENDERED_HTML_BANNER =
+        "RENDERED VIEW - cleaned HTML, macros executed and includes expanded (structure such as tables, "
+            + "links and message boxes is preserved)." + RENDERED_BANNER_TAIL;
 
     private static final String OFFSET_EQUALS = OFFSET_PARAM + "=";
 
@@ -190,6 +218,26 @@ public class MCPGetDocumentTool implements MCPTool
     private static final String LINK_PARAM_SEPARATOR = "||";
 
     /**
+     * Minimum number of consecutive JVM stack-frame lines a run must reach before it is collapsed to a
+     * single marker. Below it, the lines pass through verbatim, so an incidental one- or two-line
+     * {@code at ...} mention in prose is never touched.
+     */
+    private static final int STACK_FRAME_COLLAPSE_THRESHOLD = 3;
+
+    /**
+     * Marker substituted for a collapsed run of stack frames, parameterised by the run length.
+     */
+    private static final String STACK_FRAMES_OMITTED_MARKER = "[... %d stack frames omitted ...]";
+
+    /**
+     * Matches a JVM stack-frame line ({@code at fully.qualified.Method(Source.java:NN)}) or a frame
+     * continuation line ({@code ... N more} / {@code ... N common frames omitted}), anchored on the
+     * whole line so ordinary prose containing the word "at" is not matched.
+     */
+    private static final Pattern STACK_FRAME_LINE =
+        Pattern.compile("^\\s*at\\s+\\S.*\\(.*\\)\\s*$|^\\s*\\.\\.\\.\\s+\\d+\\s+(more|common frames omitted)\\s*$");
+
+    /**
      * The declared parameters: one source for both the advertised input schema and the typed
      * argument accessors.
      */
@@ -206,6 +254,8 @@ public class MCPGetDocumentTool implements MCPTool
             + "expanded) - useful for script-driven pages whose source is opaque. Plain text, so "
             + "structure (tables, link targets) is flattened. Read-only: do NOT form edit strings "
             + "from it. Default false (raw editable source).")
+        .string(FORMAT_PARAM, "Output format for rendered=true: \"plain\" (default) or \"html\". HTML "
+            + "preserves structure (tables, links, message boxes) at a higher token cost.")
         .build();
 
     @Inject
@@ -227,18 +277,20 @@ public class MCPGetDocumentTool implements MCPTool
     @Inject
     private Provider<XWikiContext> contextProvider;
 
+    @Inject
+    private HTMLCleaner htmlCleaner;
+
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder()
-            .name(TOOL_ID)
+        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
             .description("Read an XWiki document's raw source content. Returns the full source if it fits "
                 + "the ~" + MAX_OUTPUT_TOKENS + "-token output budget; if larger, returns a heading OUTLINE "
                 + "(a map, not the content) - then read a section with offset/limit. Output is line-numbered "
                 + "(like cat -n); when forming edit strings later, do "
                 + "NOT include the line-number prefix. Pass offset=1 with no limit to force the full document. "
-                + "Set rendered=true to read a script-driven page as executed plain text (read-only).")
-            .inputSchema(PARAMS.inputSchema())
+                + "Set rendered=true to read a script-driven page as executed plain text (read-only); add "
+                + "format=\"html\" to keep structure as cleaned HTML.")
             .build();
     }
 
@@ -263,6 +315,9 @@ public class MCPGetDocumentTool implements MCPTool
                 A range:    reference="Help.GettingStarted", offset=80, limit=40
                 Outline:    reference="Help.GettingStarted", outline=true
                 Rendered:   reference="XWiki.XWikiSyntax", rendered=true  (macros executed; read-only)
+                Rendered HTML:  reference="XWiki.XWikiSyntax", rendered=true, format="html"
+                            (keeps tables, links and message boxes as cleaned HTML; costs more tokens
+                            than the plain default - use it for structure-heavy pages)
                 Large doc:  first read with reference only (you get an OUTLINE map of headings),
                             then read a section with reference + offset + limit.
 
@@ -293,19 +348,26 @@ public class MCPGetDocumentTool implements MCPTool
             Integer offset = PARAMS.integer(args, OFFSET_PARAM);
             Integer limit = PARAMS.integer(args, LIMIT_PARAM);
             boolean outline = PARAMS.bool(args, OUTLINE_PARAM);
-            boolean rendered = PARAMS.bool(args, RENDERED_PARAM);
+            Syntax renderedSyntax =
+                resolveRenderedSyntax(PARAMS.string(args, FORMAT_PARAM), PARAMS.bool(args, RENDERED_PARAM));
 
             String title;
             String content;
-            if (rendered) {
-                RenderedDocument renderedDoc = renderDocument(ref, reference);
+            if (renderedSyntax != null) {
+                RenderedDocument renderedDoc = renderDocument(ref, reference, renderedSyntax);
                 title = renderedDoc.title();
                 content = MCPSourceText.normalizeLineEndings(renderedDoc.content());
+                // Plain-mode only: the HTML path is cleaned structurally by MCPRenderedHtml (its description
+                // block, holding the stack trace, is already removed), and it has <pre>/structure we must not
+                // disturb. Plain renders the trace as undifferentiated text, so collapse frame runs here.
+                if (Syntax.PLAIN_1_0.equals(renderedSyntax)) {
+                    content = collapseStackTraces(content);
+                }
             } else {
                 title = doc.getTitle();
                 content = MCPSourceText.normalizeLineEndings(doc.getContent());
             }
-            return render(doc, title, content, rendered, offset, limit, outline);
+            return render(doc, title, content, renderedSyntax, offset, limit, outline);
         } catch (IllegalArgumentException | DocumentLoadException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         }
@@ -336,21 +398,53 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     /**
-     * Renders the document to plain text the way a normal page view does: macros are executed and includes
-     * expanded with the document content author's rights (via the {@code sdoc} set inside
+     * Resolves the {@code format} parameter into the rendering target syntax, or {@code null} when the
+     * raw source is requested. {@code format} is only meaningful together with {@code rendered=true}, so
+     * a format given without it is rejected as a malformed call rather than silently ignored.
+     *
+     * @param format the trimmed format value, or {@code null} when absent or blank
+     * @param rendered whether rendered mode was requested
+     * @return the rendering target syntax, or {@code null} when not rendered
+     * @throws IllegalArgumentException with the agent-facing message when the format is given without
+     *         rendered mode or is not an accepted value
+     */
+    private Syntax resolveRenderedSyntax(String format, boolean rendered)
+    {
+        if (format != null && !rendered) {
+            throw new IllegalArgumentException(
+                MCPToolSupport.ERROR_PREFIX + FORMAT_PARAM + "' requires rendered=true.");
+        }
+        if (!rendered) {
+            return null;
+        }
+        String normalizedFormat = format == null ? null : format.toLowerCase(Locale.ROOT);
+        if (normalizedFormat != null && !FORMAT_VALUES.contains(normalizedFormat)) {
+            throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + FORMAT_PARAM + "' must be one of: "
+                + String.join(", ", FORMAT_VALUES) + PERIOD);
+        }
+        return HTML_FORMAT.equals(normalizedFormat) ? Syntax.HTML_5_0 : Syntax.PLAIN_1_0;
+    }
+
+    /**
+     * Renders the document to the target output syntax the way a normal page view does: macros are executed
+     * and includes expanded with the document content author's rights (via the {@code sdoc} set inside
      * {@link XWikiDocument#getRenderedContent}), not the current user's. This mirrors the platform's REST
      * rendered-content path ({@code ModelFactory}); the current user still only needs VIEW (already checked).
      *
-     * <p>Plain text (not a wiki syntax) is the target on purpose: rendering to a wiki syntax such as
+     * <p>An output syntax (not a wiki syntax) is the target on purpose: rendering to a wiki syntax such as
      * {@code xwiki/2.1} round-trips macros back into their {@code {{...}}} source calls (they are not
-     * executed), defeating the point. An output syntax like {@code plain/1.0} emits the executed result.</p>
+     * executed), defeating the point. An output syntax like {@code plain/1.0} or {@code html/5.0} emits the
+     * executed result; an HTML result is additionally stripped by {@link MCPRenderedHtml} for token
+     * economy. The title is always rendered to plain text: a marked-up title buys nothing in the header.</p>
      *
      * @param ref the resolved document reference
      * @param reference the original reference string, for error messages
-     * @return the rendered plain-text title and content
+     * @param targetSyntax the output syntax to render the content to
+     * @return the rendered title and content
      * @throws DocumentLoadException if the document cannot be loaded or rendered
      */
-    private RenderedDocument renderDocument(DocumentReference ref, String reference) throws DocumentLoadException
+    private RenderedDocument renderDocument(DocumentReference ref, String reference, Syntax targetSyntax)
+        throws DocumentLoadException
     {
         XWikiContext xcontext = this.contextProvider.get();
         XWikiDocument previousContextDocument = xcontext.getDoc();
@@ -360,7 +454,11 @@ public class MCPGetDocumentTool implements MCPTool
             // Render the title too (it may itself be a macro/translation), so the header is consistent with the
             // executed body instead of showing the raw title source.
             String renderedTitle = StringUtils.trim(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext));
-            return new RenderedDocument(renderedTitle, xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext));
+            String renderedContent = xdoc.getRenderedContent(targetSyntax, xcontext);
+            if (Syntax.HTML_5_0.equals(targetSyntax)) {
+                renderedContent = MCPRenderedHtml.strip(this.htmlCleaner, renderedContent);
+            }
+            return new RenderedDocument(renderedTitle, renderedContent);
         } catch (Exception e) {
             this.logger.warn("MCP get_document tool failed to render [{}]: [{}]", reference,
                 ExceptionUtils.getRootCauseMessage(e));
@@ -371,13 +469,14 @@ public class MCPGetDocumentTool implements MCPTool
         }
     }
 
-    private McpSchema.CallToolResult render(DocumentModelBridge doc, String title, String content, boolean rendered,
-        Integer offset, Integer limit, boolean outline)
+    private McpSchema.CallToolResult render(DocumentModelBridge doc, String title, String content,
+        Syntax renderedSyntax, Integer offset, Integer limit, boolean outline)
     {
         String version = doc.getVersion();
-        // In rendered mode the content is plain text regardless of the document's source syntax, so the
-        // header and the heading-scan (outline) reflect that rendered syntax.
-        String syntaxId = rendered ? Syntax.PLAIN_1_0.toIdString() : syntaxIdOf(doc.getSyntax());
+        boolean rendered = renderedSyntax != null;
+        // In rendered mode the content is the executed output (plain text or cleaned HTML) regardless of the
+        // document's source syntax, so the header and the heading-scan (outline) reflect that rendered syntax.
+        String syntaxId = rendered ? renderedSyntax.toIdString() : syntaxIdOf(doc.getSyntax());
         String referenceBlock = buildReferenceBlock(doc);
 
         boolean empty = content.isEmpty();
@@ -386,11 +485,9 @@ public class MCPGetDocumentTool implements MCPTool
         int totalChars = content.length();
         int approxTokens = totalChars / CHARS_PER_TOKEN;
 
-        String header =
-            buildHeader(referenceBlock, title, syntaxId, version, totalLines, totalChars, approxTokens);
-        if (rendered) {
-            header = RENDERED_BANNER + NEW_LINE + header;
-        }
+        String header = prependBanner(
+            buildHeader(referenceBlock, title, syntaxId, version, totalLines, totalChars, approxTokens),
+            renderedSyntax);
 
         if (outline) {
             return MCPToolSupport.result(header + DOUBLE_NEW_LINE + buildOutline(lines, totalLines, syntaxId));
@@ -405,6 +502,23 @@ public class MCPGetDocumentTool implements MCPTool
             return MCPToolSupport.result(header + DOUBLE_NEW_LINE + numberedBody(lines, 1, totalLines));
         }
         return MCPToolSupport.result(header + DOUBLE_NEW_LINE + renderLargeAutoDegrade(lines, totalLines, syntaxId));
+    }
+
+    /**
+     * Prepends the rendered-mode banner matching the rendered output format, or returns the header
+     * unchanged in source mode.
+     *
+     * @param header the built header
+     * @param renderedSyntax the rendered output syntax, or {@code null} in source mode
+     * @return the header, with the banner prepended in rendered mode
+     */
+    private String prependBanner(String header, Syntax renderedSyntax)
+    {
+        if (renderedSyntax == null) {
+            return header;
+        }
+        String banner = Syntax.HTML_5_0.equals(renderedSyntax) ? RENDERED_HTML_BANNER : RENDERED_BANNER;
+        return banner + NEW_LINE + header;
     }
 
     /**
@@ -520,6 +634,57 @@ public class MCPGetDocumentTool implements MCPTool
     private String numberedBody(String[] lines, int start, int end)
     {
         return MCPSourceText.numberedLines(lines, start, end);
+    }
+
+    /**
+     * Collapses runs of consecutive JVM stack-frame lines in rendered plain output for token economy. A
+     * maximal run of {@value #STACK_FRAME_COLLAPSE_THRESHOLD} or more frame lines (a frame being
+     * {@code at type.method(Source:NN)} or a {@code ... N more} continuation, matched anchored on the
+     * line so prose is untouched) is replaced by a single {@code [... N stack frames omitted ...]} marker;
+     * shorter runs and every non-frame line pass through unchanged, so the exception header, any
+     * {@code Caused by:} chain and the human message are preserved.
+     *
+     * <p>Plain-mode only: the HTML rendered path is cleaned structurally by {@link MCPRenderedHtml}.</p>
+     *
+     * @param text the LF-normalized rendered plain content
+     * @return the content with stack-frame runs collapsed
+     */
+    private static String collapseStackTraces(String text)
+    {
+        String[] lines = text.split(NEW_LINE, -1);
+        List<String> out = new ArrayList<>();
+        List<String> run = new ArrayList<>();
+        for (String line : lines) {
+            if (STACK_FRAME_LINE.matcher(line).matches()) {
+                run.add(line);
+            } else {
+                flushFrameRun(out, run);
+                out.add(line);
+            }
+        }
+        flushFrameRun(out, run);
+        return String.join(NEW_LINE, out);
+    }
+
+    /**
+     * Flushes the accumulated frame-line run into {@code out}: a run of
+     * {@value #STACK_FRAME_COLLAPSE_THRESHOLD} or more lines is replaced by a single marker, a shorter run
+     * is re-emitted verbatim, and an empty run is a no-op. The run buffer is cleared either way.
+     *
+     * @param out the output line accumulator
+     * @param run the buffered frame lines (mutated: cleared on return)
+     */
+    private static void flushFrameRun(List<String> out, List<String> run)
+    {
+        if (run.isEmpty()) {
+            return;
+        }
+        if (run.size() >= STACK_FRAME_COLLAPSE_THRESHOLD) {
+            out.add(String.format(STACK_FRAMES_OMITTED_MARKER, run.size()));
+        } else {
+            out.addAll(run);
+        }
+        run.clear();
     }
 
     private String buildOutline(String[] lines, int totalLines, String syntaxId)

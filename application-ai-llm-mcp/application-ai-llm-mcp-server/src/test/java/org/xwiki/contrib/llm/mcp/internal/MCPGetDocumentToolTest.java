@@ -19,6 +19,8 @@
  */
 package org.xwiki.contrib.llm.mcp.internal;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import javax.inject.Named;
@@ -41,6 +43,7 @@ import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.xml.html.DefaultHTMLCleanerComponentList;
 
 import com.xpn.xwiki.XWiki;
 import com.xpn.xwiki.XWikiContext;
@@ -69,6 +72,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @ComponentTest
+@DefaultHTMLCleanerComponentList
 class MCPGetDocumentToolTest
 {
     private static final String REFERENCE_KEY = "reference";
@@ -142,7 +146,8 @@ class MCPGetDocumentToolTest
 
     private McpSchema.CallToolResult call(Map<String, Object> args)
     {
-        return this.tool.execute(new McpSchema.CallToolRequest(MCPGetDocumentTool.TOOL_ID, args));
+        return this.tool.execute(
+            McpSchema.CallToolRequest.builder(MCPGetDocumentTool.TOOL_ID).arguments(args).build());
     }
 
     @Test
@@ -174,6 +179,65 @@ class MCPGetDocumentToolTest
     }
 
     @Test
+    void renderedPlainStackTraceFramesAreCollapsedToMarker() throws Exception
+    {
+        stubDoc("{{velocity}}fails{{/velocity}}", XWIKI_SYNTAX);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
+        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn(
+            "Failed to execute the [velocity] macro. Click for details.\n\n"
+                + "org.xwiki.rendering.macro.MacroExecutionException: Script rights required\n"
+                + "\tat org.xwiki.rendering.A(A.java:11)\n"
+                + "\tat org.xwiki.rendering.B(B.java:22)\n"
+                + "\tat org.xwiki.rendering.C(C.java:33)\n"
+                + "\tat org.xwiki.rendering.D(D.java:44)\n"
+                + "\tat org.xwiki.rendering.E(E.java:55)\n"
+                + "\tat org.xwiki.rendering.F(F.java:66)\n"
+                + "\t... 12 more");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        // The human message and the exception header (causal chain) survive.
+        assertTrue(text.contains("Failed to execute the [velocity] macro"), text);
+        assertTrue(text.contains("MacroExecutionException: Script rights required"), text);
+        // The frame spam is gone, replaced by a single marker.
+        assertFalse(text.contains("at org.xwiki.rendering"), text);
+        assertTrue(text.contains("stack frames omitted"), text);
+    }
+
+    @Test
+    void renderedPlainIncidentalAtLineIsNotCollapsed() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
+        // Two anchored "at ...(...)" lines: a frame run below the collapse threshold of 3, so it must
+        // survive verbatim rather than be replaced by a marker.
+        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn(
+            "Recipe step one.\nat the bar(now)\nat foo.bar.baz(x)\nRecipe step two.");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("at the bar(now)"), text);
+        assertTrue(text.contains("at foo.bar.baz(x)"), text);
+        assertFalse(text.contains("stack frames omitted"), text);
+    }
+
+    @Test
     void renderedModeRenderFailureReturnsErrorAndLogsWarning() throws Exception
     {
         stubDoc("source", XWIKI_SYNTAX);
@@ -189,6 +253,110 @@ class MCPGetDocumentToolTest
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("Could not read the document"), textOf(result));
         assertTrue(this.logCapture.getMessage(0).contains("MCP get_document tool failed to render"));
+    }
+
+    @Test
+    void formatHtmlReturnsCleanedHtmlWithBannerAndHtmlSyntax() throws Exception
+    {
+        stubDoc("{{velocity}}opaque source{{/velocity}}", XWIKI_SYNTAX);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
+        when(xdoc.getRenderedContent(Syntax.HTML_5_0, xcontext)).thenReturn(
+            "<div class=\"box warningmessage\" style=\"margin:1em\">Watch out</div>"
+                + "<table><tr><td colspan=\"2\">cell</td></tr></table><script>alert(1)</script>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("RENDERED VIEW"), text);
+        assertTrue(text.contains("Syntax: html/5.0"), text);
+        assertTrue(text.contains("class=\"box warningmessage\""), text);
+        assertTrue(text.contains("Watch out"), text);
+        assertTrue(text.contains("colspan=\"2\""), text);
+        assertFalse(text.contains("style="), "Presentation attributes must be stripped: " + text);
+        assertFalse(text.contains("alert(1)"), "Script payload must be removed: " + text);
+        verify(xdoc, never()).getRenderedContent(Syntax.PLAIN_1_0, xcontext);
+    }
+
+    @Test
+    void formatValueIsCaseInsensitive() throws Exception
+    {
+        stubDoc("{{velocity}}opaque source{{/velocity}}", XWIKI_SYNTAX);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
+        when(xdoc.getRenderedContent(Syntax.HTML_5_0, xcontext)).thenReturn("<p>body</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "HTML"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("Syntax: html/5.0"), textOf(result));
+    }
+
+    @Test
+    void formatPlainMatchesDefaultRenderedOutput() throws Exception
+    {
+        stubDoc("{{velocity}}opaque source{{/velocity}}", XWIKI_SYNTAX);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
+        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn("Expanded body.");
+
+        McpSchema.CallToolResult defaultResult = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
+        McpSchema.CallToolResult plainResult =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "plain"));
+
+        assertNotEquals(Boolean.TRUE, plainResult.isError());
+        assertEquals(textOf(defaultResult), textOf(plainResult));
+        verify(xdoc, never()).getRenderedContent(Syntax.HTML_5_0, xcontext);
+    }
+
+    @Test
+    void formatWithoutRenderedReturnsError() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "format", "html"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("Error: 'format' requires rendered=true."), textOf(result));
+    }
+
+    @Test
+    void formatInvalidValueReturnsAllowlistError() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "xml"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("Error: 'format' must be one of: plain, html."), textOf(result));
+    }
+
+    @Test
+    void formatIsDeclaredDirectlyAfterRenderedInSchema()
+    {
+        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
+        List<Object> keys = new ArrayList<>(properties.keySet());
+        assertEquals(keys.indexOf("rendered") + 1, keys.indexOf("format"),
+            "format must sit next to rendered in the advertised schema: " + keys);
     }
 
     @Test
@@ -506,7 +674,7 @@ class MCPGetDocumentToolTest
     {
         McpSchema.Tool definition = this.tool.getToolDefinition();
         assertEquals(MCPGetDocumentTool.TOOL_ID, definition.name());
-        assertTrue(definition.inputSchema().required().contains(REFERENCE_KEY));
+        assertTrue(((List<?>) definition.inputSchema().get("required")).contains(REFERENCE_KEY));
     }
 
     @Test
