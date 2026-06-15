@@ -219,10 +219,10 @@ public class MCPQueryDocumentsTool implements MCPTool
      * argument accessors.
      */
     private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
-        .string(QUERY_PARAM, "Search terms. Rephrase the user's question into keywords. Supports "
-            + "\"exact phrases\", +required and -excluded terms. Matched mainly against document "
-            + "titles (high weight) and content. Leave empty to browse/list documents instead of "
-            + "searching.")
+        .string(QUERY_PARAM, "Search terms in edismax syntax: \"exact phrases\", +required and "
+            + "-excluded terms, OR, wildcard*. Rephrase the user's question into keywords. Matched "
+            + "mainly against document titles (high weight) and content. Leave empty to browse/list "
+            + "documents instead of searching.")
         .string(SPACE_PARAM, "Optional local space reference (e.g. \"Help\" or \"Help.Guides\"). "
             + "Restricts results to that space and all its children.")
         .string(AUTHOR_PARAM, "Optional last author. Expects a serialized user reference, "
@@ -263,14 +263,11 @@ public class MCPQueryDocumentsTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder()
-            .name(TOOL_ID)
-            .description("Search and browse XWiki documents (the wiki's built-in Solr index). Rephrase the "
-                + "user's question into keywords; supports \"exact phrases\", +required and -excluded "
-                + "terms. Leave 'query' empty to browse/list, e.g. recent changes. Each result includes "
-                + "the document reference (use with get_document) and a matched snippet. "
-                + "`man query_documents` shows examples and filters.")
-            .inputSchema(PARAMS.inputSchema())
+        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
+            .description("Search and browse XWiki documents in the wiki's Solr index, queried with "
+                + "Solr Extended DisMax (edismax) syntax. Leave 'query' empty to browse/list, e.g. "
+                + "recent changes. Each result includes the document reference (use with get_document) "
+                + "and a matched snippet. `man query_documents` shows examples and filters.")
             .build();
     }
 
@@ -290,6 +287,10 @@ public class MCPQueryDocumentsTool implements MCPTool
     public String getManPage()
     {
         return """
+            NOTES
+                The total is an upper bound: it can include documents you are not allowed to view, so
+                later pages may contain fewer results than expected.
+
             EXAMPLES
                 Keywords:   query="script service groovy"
                 Phrase:     query="\\"programming rights\\" -deprecated"
@@ -521,11 +522,13 @@ public class MCPQueryDocumentsTool implements MCPTool
      */
     private String buildFooter(long total, int shown, SearchRequest request)
     {
-        String matches = "Found " + total + (total == 1 ? " matching document." : " matching documents.");
+        String suffix = total == 1 ? " matching document." : " matching documents.";
         if (request.offset() == 0 && shown >= total) {
-            return matches;
+            // Every raw match was returned and none were filtered out, so the count is exact.
+            return "Found " + total + suffix;
         }
-        String footer = matches + " Showing " + shown + " from offset " + request.offset() + PERIOD;
+        String footer = "Found about " + total + suffix + " Showing " + shown + " from offset "
+            + request.offset() + PERIOD;
         long nextOffset = (long) request.offset() + request.limit();
         if (nextOffset < total) {
             footer += " Continue with offset=" + nextOffset + PERIOD;
