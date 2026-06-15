@@ -251,23 +251,27 @@ final class MCPToolSupport
     }
 
     /**
-     * Generates the MCP input schema advertised for this parameter set.
+     * Generates the MCP input schema advertised for this parameter set, as the JSON Schema 2020-12
+     * object map expected by {@code McpSchema.Tool.builder(String, Map)}.
      *
-     * @return the input schema
+     * @return the input schema map
      */
-    McpSchema.JsonSchema inputSchema()
+    Map<String, Object> inputSchema()
     {
         return inputSchema(Map.of());
     }
 
     /**
-     * Generates the MCP input schema for this parameter set, merged with extra hand-built
-     * properties (for the rare non-scalar parameter, e.g. an array of edit objects).
+     * Generates the MCP input schema map for this parameter set, merged with extra hand-built
+     * properties (for the rare non-scalar parameter, e.g. an array of edit objects). The
+     * {@code properties} map preserves declaration order (the man tool derives its SYNOPSIS/OPTIONS
+     * ordering from it), and the {@code required} key is always present (an empty list is valid JSON
+     * Schema 2020-12).
      *
      * @param extraProperties additional schema properties to merge in, keyed by parameter name
-     * @return the input schema
+     * @return the input schema map
      */
-    McpSchema.JsonSchema inputSchema(Map<String, Object> extraProperties)
+    Map<String, Object> inputSchema(Map<String, Object> extraProperties)
     {
         Map<String, Object> properties = new LinkedHashMap<>();
         for (Map.Entry<String, DeclaredParam> entry : this.params.entrySet()) {
@@ -281,7 +285,11 @@ final class MCPToolSupport
                     + "] collides with a declared parameter.");
             }
         }
-        return new McpSchema.JsonSchema(OBJECT_TYPE, properties, this.requiredNames, null, null, null);
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put(TYPE_KEY, OBJECT_TYPE);
+        schema.put("properties", properties);
+        schema.put("required", this.requiredNames);
+        return schema;
     }
 
     /**

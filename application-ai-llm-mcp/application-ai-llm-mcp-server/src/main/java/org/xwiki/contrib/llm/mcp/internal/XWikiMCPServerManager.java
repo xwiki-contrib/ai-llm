@@ -45,7 +45,9 @@ import org.xwiki.model.reference.EntityReferenceSerializer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapper;
+import io.modelcontextprotocol.json.schema.JsonSchemaValidator;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport;
@@ -166,6 +168,10 @@ public class XWikiMCPServerManager implements Initializable, Disposable
             // XWiki's thread-locals (ExecutionContext/XWikiContext) available to tools without any
             // cross-thread context propagation.
             .immediateExecution(true)
+            // The declarative parameter layer in MCPToolSupport is the validation gate: it produces the
+            // curated agent-facing error messages. SDK-side input validation would reject calls before
+            // the tool runs, with generic SDK text instead.
+            .validateToolInputs(false)
             .capabilities(McpSchema.ServerCapabilities.builder().tools(true).build());
 
         List<String> registeredNames = new ArrayList<>();
@@ -189,7 +195,7 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         // stateless transport releases nothing they depend on.
         if (oldServer != null) {
             try {
-                oldServer.closeGracefully().block();
+                oldServer.closeGracefully();
             } catch (Exception e) {
                 this.logger.warn("Failed to close MCP server gracefully during rebuild: {}",
                     ExceptionUtils.getRootCauseMessage(e));
@@ -286,9 +292,14 @@ public class XWikiMCPServerManager implements Initializable, Disposable
 
     /**
      * Registers one tool on the server builder, isolating the rest of the rebuild from a misbehaving
-     * tool: if the tool throws from {@code isEnabled()} or {@code getToolDefinition()}, or the SDK
-     * rejects the registration (e.g. a duplicate tool name from another contribution), the tool is
-     * skipped with a warning instead of failing the whole server build.
+     * tool: if the tool throws from {@code isEnabled()} or {@code getToolDefinition()}, advertises a
+     * malformed schema, or the SDK rejects the registration (e.g. a duplicate tool name from another
+     * contribution), the tool is skipped with a warning instead of failing the whole server build.
+     *
+     * <p>The schemas are meta-validated here, per tool, with the same validator the SDK uses: the SDK
+     * runs that validation for all registered tools at {@code build()}, where one malformed
+     * third-party schema fails the whole server build. Validating before {@code toolCall(...)} keeps
+     * the fault isolated to the offending tool.</p>
      *
      * @param builder the server builder
      * @param tool the tool to register
@@ -302,6 +313,10 @@ public class XWikiMCPServerManager implements Initializable, Disposable
                 return;
             }
             McpSchema.Tool definition = tool.getToolDefinition();
+            JsonSchemaValidator validator = McpJsonDefaults.getSchemaValidator();
+            String schemaContext = "Tool '" + definition.name() + "'";
+            validator.assertConforms(schemaContext + " inputSchema", definition.inputSchema());
+            validator.assertConforms(schemaContext + " outputSchema", definition.outputSchema());
             builder.toolCall(definition, (ctx, req) -> executeWrapped(definition.name(), tool, req));
             registeredNames.add(definition.name());
         } catch (RuntimeException e) {
@@ -363,7 +378,7 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         this.mcpServer = null;
         if (serverToClose != null) {
             try {
-                serverToClose.closeGracefully().block();
+                serverToClose.closeGracefully();
             } catch (Exception e) {
                 this.logger.warn("Failed to close MCP server gracefully: {}", ExceptionUtils.getRootCauseMessage(e));
                 this.logger.debug("Failed to close MCP server gracefully", e);

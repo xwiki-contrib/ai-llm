@@ -49,7 +49,6 @@ import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpStatelessServerTransport;
-import reactor.core.publisher.Mono;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,6 +58,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -101,10 +101,22 @@ class XWikiMCPServerManagerTest
         when(spec.serverInfo(anyString(), anyString())).thenReturn(spec);
         when(spec.instructions(any())).thenReturn(spec);
         when(spec.immediateExecution(anyBoolean())).thenReturn(spec);
+        when(spec.validateToolInputs(anyBoolean())).thenReturn(spec);
         when(spec.capabilities(any())).thenReturn(spec);
         when(spec.toolCall(any(), any())).thenReturn(spec);
         mcpServerStatic.when(() -> McpServer.sync(any(McpStatelessServerTransport.class))).thenReturn(spec);
         return spec;
+    }
+
+    /**
+     * Builds a well-formed tool definition with an empty (but valid JSON Schema 2020-12) input schema.
+     */
+    private static McpSchema.Tool toolDefinition(String name, String description)
+    {
+        return McpSchema.Tool
+            .builder(name, Map.of("type", "object", "properties", Map.of(), "required", List.of()))
+            .description(description)
+            .build();
     }
 
     // -------------------------------------------------------------------------
@@ -118,11 +130,7 @@ class XWikiMCPServerManagerTest
         MCPTool enabledTool = componentManager.registerMockComponent(MCPTool.class, "enabled_tool");
         MCPTool disabledTool = componentManager.registerMockComponent(MCPTool.class, "disabled_tool");
 
-        McpSchema.Tool enabledDef = McpSchema.Tool.builder()
-            .name("enabled_tool")
-            .description("An enabled tool")
-            .inputSchema(new McpSchema.JsonSchema("object", Map.of(), List.of(), null, null, null))
-            .build();
+        McpSchema.Tool enabledDef = toolDefinition("enabled_tool", "An enabled tool");
 
         when(enabledTool.isEnabled()).thenReturn(true);
         when(enabledTool.getToolDefinition()).thenReturn(enabledDef);
@@ -135,7 +143,6 @@ class XWikiMCPServerManagerTest
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer builtServer = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(builtServer);
-            when(builtServer.closeGracefully()).thenReturn(Mono.empty());
 
             this.mcpServerManager.rebuildServer();
 
@@ -145,6 +152,9 @@ class XWikiMCPServerManagerTest
             // Tool handlers must run inline on the request thread (which the blocking servlet transport
             // holds anyway), so XWiki's thread-locals are available to tools without context propagation.
             verify(spec).immediateExecution(true);
+            // SDK-side input validation must stay off: MCPToolSupport is the validation gate and owns
+            // the agent-facing error messages.
+            verify(spec).validateToolInputs(false);
             // Enabled tool registered with its exact definition.
             verify(spec).toolCall(eq(enabledDef), any());
             // toolCall called exactly once — the disabled tool is not registered.
@@ -158,11 +168,7 @@ class XWikiMCPServerManagerTest
     void duplicateToolNameIsSkippedAndServerStillBuilds(MockitoComponentManager componentManager)
         throws Exception
     {
-        McpSchema.Tool definition = McpSchema.Tool.builder()
-            .name("clashing_tool")
-            .description("Two components advertise this same MCP name")
-            .inputSchema(new McpSchema.JsonSchema("object", Map.of(), List.of(), null, null, null))
-            .build();
+        McpSchema.Tool definition = toolDefinition("clashing_tool", "Two components advertise this same MCP name");
         for (String hint : List.of("first_contribution", "second_contribution")) {
             MCPTool tool = componentManager.registerMockComponent(MCPTool.class, hint);
             when(tool.isEnabled()).thenReturn(true);
@@ -176,7 +182,6 @@ class XWikiMCPServerManagerTest
                 .thenThrow(new IllegalArgumentException("Tool with name 'clashing_tool' already exists"));
             McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(server);
-            when(server.closeGracefully()).thenReturn(Mono.empty());
 
             assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
 
@@ -198,11 +203,7 @@ class XWikiMCPServerManagerTest
         when(broken.getToolDefinition()).thenThrow(new IllegalStateException("definition exploded"));
 
         MCPTool healthy = componentManager.registerMockComponent(MCPTool.class, "healthy_tool");
-        McpSchema.Tool healthyDef = McpSchema.Tool.builder()
-            .name("healthy_tool")
-            .description("A healthy tool")
-            .inputSchema(new McpSchema.JsonSchema("object", Map.of(), List.of(), null, null, null))
-            .build();
+        McpSchema.Tool healthyDef = toolDefinition("healthy_tool", "A healthy tool");
         when(healthy.isEnabled()).thenReturn(true);
         when(healthy.getToolDefinition()).thenReturn(healthyDef);
 
@@ -210,7 +211,6 @@ class XWikiMCPServerManagerTest
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(server);
-            when(server.closeGracefully()).thenReturn(Mono.empty());
 
             assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
 
@@ -222,6 +222,43 @@ class XWikiMCPServerManagerTest
     }
 
     @Test
+    void toolWithMalformedInputSchemaIsSkippedAndOthersRegister(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        // "type" must be a string or an array of strings in JSON Schema 2020-12; a number is malformed.
+        // The manager meta-validates per tool before handing the definition to the SDK builder, so the
+        // bad schema is skipped with a warning instead of failing the whole rebuild at build().
+        MCPTool malformed = componentManager.registerMockComponent(MCPTool.class, "bad_tool");
+        McpSchema.Tool badDef = McpSchema.Tool.builder("bad_tool", Map.of("type", 123))
+            .description("Advertises a malformed input schema")
+            .build();
+        when(malformed.isEnabled()).thenReturn(true);
+        when(malformed.getToolDefinition()).thenReturn(badDef);
+
+        MCPTool healthy = componentManager.registerMockComponent(MCPTool.class, "well_formed_tool");
+        McpSchema.Tool healthyDef = toolDefinition("well_formed_tool", "A well-formed tool");
+        when(healthy.isEnabled()).thenReturn(true);
+        when(healthy.getToolDefinition()).thenReturn(healthyDef);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
+            when(spec.build()).thenReturn(server);
+
+            assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
+
+            // Only the well-formed tool reaches the SDK builder; the malformed one never gets there.
+            verify(spec).toolCall(eq(healthyDef), any());
+            verify(spec, times(1)).toolCall(any(), any());
+            verify(spec).build();
+        }
+
+        assertTrue(this.logCapture.getMessage(0).startsWith("Skipping MCP tool ["),
+            this.logCapture.getMessage(0));
+        assertTrue(this.logCapture.getMessage(0).contains("bad_tool"), this.logCapture.getMessage(0));
+    }
+
+    @Test
     void rebuildServerDefaultsBlankServerName()
     {
         when(this.mcpConfig.getServerName()).thenReturn("   ");
@@ -230,7 +267,6 @@ class XWikiMCPServerManagerTest
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer builtServer = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(builtServer);
-            when(builtServer.closeGracefully()).thenReturn(Mono.empty());
 
             this.mcpServerManager.rebuildServer();
 
@@ -246,8 +282,6 @@ class XWikiMCPServerManagerTest
             McpStatelessSyncServer firstServer = mock(McpStatelessSyncServer.class);
             McpStatelessSyncServer secondServer = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(firstServer).thenReturn(secondServer);
-            when(firstServer.closeGracefully()).thenReturn(Mono.empty());
-            when(secondServer.closeGracefully()).thenReturn(Mono.empty());
 
             this.mcpServerManager.rebuildServer();
             this.mcpServerManager.rebuildServer();
@@ -270,7 +304,6 @@ class XWikiMCPServerManagerTest
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(server);
-            when(server.closeGracefully()).thenReturn(Mono.empty());
 
             this.mcpServerManager.rebuildServer();
             this.mcpServerManager.dispose();
@@ -286,7 +319,7 @@ class XWikiMCPServerManagerTest
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(server);
-            when(server.closeGracefully()).thenReturn(Mono.error(new RuntimeException("close failed")));
+            doThrow(new RuntimeException("close failed")).when(server).closeGracefully();
 
             this.mcpServerManager.rebuildServer();
             assertDoesNotThrow(() -> this.mcpServerManager.dispose());
@@ -304,8 +337,7 @@ class XWikiMCPServerManagerTest
             McpStatelessSyncServer firstServer = mock(McpStatelessSyncServer.class);
             McpStatelessSyncServer secondServer = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(firstServer).thenReturn(secondServer);
-            when(firstServer.closeGracefully()).thenReturn(Mono.error(new RuntimeException("close failed")));
-            when(secondServer.closeGracefully()).thenReturn(Mono.empty());
+            doThrow(new RuntimeException("close failed")).when(firstServer).closeGracefully();
 
             this.mcpServerManager.rebuildServer();
             assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
@@ -343,7 +375,7 @@ class XWikiMCPServerManagerTest
                 .thenReturn(McpSchema.CallToolResult.builder().addTextContent("fine").build()));
 
         McpSchema.CallToolResult result =
-            handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
+            handler.apply(null, McpSchema.CallToolRequest.builder("wrapped_tool").arguments(Map.of()).build());
 
         assertEquals("fine", ((McpSchema.TextContent) result.content().get(0)).text());
         String audit = this.logCapture.getMessage(0);
@@ -361,7 +393,7 @@ class XWikiMCPServerManagerTest
             registerToolAndCaptureHandler(componentManager, tool -> when(tool.execute(any()))
                 .thenReturn(McpSchema.CallToolResult.builder().addTextContent("bad input").isError(true).build()));
 
-        handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
+        handler.apply(null, McpSchema.CallToolRequest.builder("wrapped_tool").arguments(Map.of()).build());
 
         assertTrue(this.logCapture.getMessage(0).contains("outcome=[error]"), this.logCapture.getMessage(0));
     }
@@ -373,7 +405,7 @@ class XWikiMCPServerManagerTest
             registerToolAndCaptureHandler(componentManager, tool -> when(tool.execute(any())).thenReturn(null));
 
         McpSchema.CallToolResult result =
-            handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
+            handler.apply(null, McpSchema.CallToolRequest.builder("wrapped_tool").arguments(Map.of()).build());
 
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(((McpSchema.TextContent) result.content().get(0)).text()
@@ -391,7 +423,7 @@ class XWikiMCPServerManagerTest
                 .thenThrow(new IllegalStateException("secret internal detail")));
 
         McpSchema.CallToolResult result =
-            handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
+            handler.apply(null, McpSchema.CallToolRequest.builder("wrapped_tool").arguments(Map.of()).build());
 
         assertEquals(Boolean.TRUE, result.isError());
         String text = ((McpSchema.TextContent) result.content().get(0)).text();
@@ -412,7 +444,7 @@ class XWikiMCPServerManagerTest
                 .thenThrow(new NoClassDefFoundError("org/example/Gone")));
 
         McpSchema.CallToolResult result =
-            handler.apply(null, new McpSchema.CallToolRequest("wrapped_tool", Map.of()));
+            handler.apply(null, McpSchema.CallToolRequest.builder("wrapped_tool").arguments(Map.of()).build());
 
         assertEquals(Boolean.TRUE, result.isError());
         assertEquals("MCP tool [wrapped_tool] failed with an unexpected error", this.logCapture.getMessage(0));
@@ -429,11 +461,7 @@ class XWikiMCPServerManagerTest
         throws Exception
     {
         MCPTool tool = componentManager.registerMockComponent(MCPTool.class, "wrapped_tool");
-        McpSchema.Tool definition = McpSchema.Tool.builder()
-            .name("wrapped_tool")
-            .description("A tool wrapped by the middleware")
-            .inputSchema(new McpSchema.JsonSchema("object", Map.of(), List.of(), null, null, null))
-            .build();
+        McpSchema.Tool definition = toolDefinition("wrapped_tool", "A tool wrapped by the middleware");
         when(tool.isEnabled()).thenReturn(true);
         when(tool.getToolDefinition()).thenReturn(definition);
         stubbing.accept(tool);
@@ -444,7 +472,6 @@ class XWikiMCPServerManagerTest
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(server);
-            when(server.closeGracefully()).thenReturn(Mono.empty());
 
             this.mcpServerManager.rebuildServer();
 
@@ -467,7 +494,6 @@ class XWikiMCPServerManagerTest
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(server);
-            when(server.closeGracefully()).thenReturn(Mono.empty());
 
             // The server must still be built (with no tools) even though tool lookup failed.
             assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());

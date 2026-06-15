@@ -24,8 +24,6 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import io.modelcontextprotocol.spec.McpSchema;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -50,6 +48,10 @@ class MCPToolSupportTest
 
     private static final String DESCRIPTION = "description";
 
+    private static final String PROPERTIES = "properties";
+
+    private static final String REQUIRED = "required";
+
     private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
         .requiredString(REF, "The reference.")
         .integer(LIMIT, "The limit.")
@@ -59,21 +61,23 @@ class MCPToolSupportTest
     @Test
     void inputSchemaContainsDeclaredParametersWithTypesAndDescriptions()
     {
-        McpSchema.JsonSchema schema = PARAMS.inputSchema();
+        Map<String, Object> schema = PARAMS.inputSchema();
 
-        assertEquals("object", schema.type());
-        assertEquals(Map.of(TYPE, "string", DESCRIPTION, "The reference."), schema.properties().get(REF));
-        assertEquals(Map.of(TYPE, "integer", DESCRIPTION, "The limit."), schema.properties().get(LIMIT));
-        assertEquals(Map.of(TYPE, "boolean", DESCRIPTION, "Include hidden."), schema.properties().get(HIDDEN));
-        assertEquals(List.of(REF), schema.required());
+        assertEquals("object", schema.get(TYPE));
+        Map<?, ?> properties = (Map<?, ?>) schema.get(PROPERTIES);
+        assertEquals(Map.of(TYPE, "string", DESCRIPTION, "The reference."), properties.get(REF));
+        assertEquals(Map.of(TYPE, "integer", DESCRIPTION, "The limit."), properties.get(LIMIT));
+        assertEquals(Map.of(TYPE, "boolean", DESCRIPTION, "Include hidden."), properties.get(HIDDEN));
+        assertEquals(List.of(REF), schema.get(REQUIRED));
     }
 
     @Test
     void inputSchemaPreservesDeclarationOrder()
     {
-        McpSchema.JsonSchema schema = PARAMS.inputSchema();
+        Map<String, Object> schema = PARAMS.inputSchema();
 
-        assertEquals(List.of(REF, LIMIT, HIDDEN), List.copyOf(schema.properties().keySet()));
+        Map<?, ?> properties = (Map<?, ?>) schema.get(PROPERTIES);
+        assertEquals(List.of(REF, LIMIT, HIDDEN), List.copyOf(properties.keySet()));
     }
 
     @Test
@@ -81,10 +85,11 @@ class MCPToolSupportTest
     {
         Map<String, Object> arrayProperty = Map.of(TYPE, "array", DESCRIPTION, "Bespoke edits.");
 
-        McpSchema.JsonSchema schema = PARAMS.inputSchema(Map.of("edits", arrayProperty));
+        Map<String, Object> schema = PARAMS.inputSchema(Map.of("edits", arrayProperty));
 
-        assertEquals(arrayProperty, schema.properties().get("edits"));
-        assertTrue(schema.properties().containsKey(REF), "Declared parameters must be kept");
+        Map<?, ?> properties = (Map<?, ?>) schema.get(PROPERTIES);
+        assertEquals(arrayProperty, properties.get("edits"));
+        assertTrue(properties.containsKey(REF), "Declared parameters must be kept");
     }
 
     @Test
