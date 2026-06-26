@@ -52,6 +52,10 @@ AI.MCP.Code.dashboard.button.apply=Apply changes
 AI.MCP.Code.dashboard.error.csrf=The form token is invalid. No change was applied. Please try again.
 AI.MCP.Code.dashboard.status.applied={0} wiki(s) updated.
 AI.MCP.Code.dashboard.status.applied.skipped={0} wiki(s) updated, {1} skipped (insufficient rights).
+# Tools
+AI.MCP.Code.tools.heading=Tools
+AI.MCP.Code.tools.intro=Choose which tools this wiki's MCP endpoint exposes. Authoring (write) tools are off by default.
+AI.MCP.Code.tools.mandatory=(always on)
 </content>
   <object>
     <name>AI.MCP.Code.Translations</name>

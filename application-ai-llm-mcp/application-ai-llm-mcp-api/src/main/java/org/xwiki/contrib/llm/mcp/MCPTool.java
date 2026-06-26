@@ -88,6 +88,19 @@ public interface MCPTool
     }
 
     /**
+     * Returns whether this tool can modify wiki content (create, edit or delete documents, objects, etc.).
+     * Write tools are disabled by default per wiki until an admin opts them in. The default is
+     * {@code false}; override to return {@code true} in a tool that performs writes.
+     *
+     * @return {@code true} if the tool can modify wiki content
+     * @since 0.9
+     */
+    default boolean isWrite()
+    {
+        return false;
+    }
+
+    /**
      * Returns the long-form documentation prose shown by the {@code man} tool below the
      * auto-generated NAME/SYNOPSIS/OPTIONS sections (typically DESCRIPTION, EXAMPLES and
      * SEE ALSO). Kept out of {@link #getToolDefinition()} so it is not shipped in the

@@ -465,4 +465,10 @@ class MCPWriteDocumentToolTest
         assertTrue(this.tool.getManPage().contains("EXAMPLES"), this.tool.getManPage());
         assertTrue(this.tool.getSummary().contains("replace"), this.tool.getSummary());
     }
+
+    @Test
+    void isWriteIsTrue()
+    {
+        assertTrue(this.tool.isWrite());
+    }
 }

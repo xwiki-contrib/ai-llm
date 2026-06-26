@@ -37,6 +37,7 @@
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>true</hidden>
   <content>{{velocity}}
+#set ($discard = $xwiki.jsx.use('AI.MCP.Code.MCPServerConfigSheet'))
 #set ($redirect = $xwiki.relativeRequestURL)
 #set ($configDocRef = 'AI.MCP.Code.MCPServerConfig')
 #set ($configClassName = 'AI.MCP.Code.MCPServerConfigClass')
@@ -80,6 +81,41 @@
         &lt;dd&gt;{{/html}}$configObject.display('serverDescription', 'edit'){{html clean="false"}}&lt;/dd&gt;
       &lt;/dl&gt;
     &lt;/fieldset&gt;
+## Per-wiki tool toggles: a category-grouped checkbox tree submitted by the identity form's Save. The tools
+## map to the object's enabledTools list property via the platform field name below. Category checkboxes have
+## no name (UI only); each non-mandatory tool posts under that field; mandatory tools post via a hidden input
+## so enabledTools is always present and the list is always updated.
+#set ($toolFieldName = "${configClassName}_${configObject.number}_enabledTools")
+#set ($toolStates = $services.mcp.getToolStates($services.wiki.currentWikiId))
+    &lt;h2&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.tools.heading'))&lt;/h2&gt;
+    &lt;p&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.tools.intro'))&lt;/p&gt;
+#set ($lastCat = '')
+#foreach ($state in $toolStates)
+  #set ($cat = $state.category)
+  #if ($cat != $lastCat)
+    #if ($lastCat != '')
+    &lt;/div&gt;
+    #end
+    &lt;div class="mcp-tool-group"&gt;
+      &lt;label&gt;&lt;input type="checkbox" class="mcp-tool-category" data-mcp-category="$escapetool.xml($cat)" /&gt; &lt;strong&gt;$escapetool.xml($cat)&lt;/strong&gt;&lt;/label&gt;
+    #set ($lastCat = $cat)
+  #end
+      &lt;div class="mcp-tool-leaf" style="margin-left: 1.5em;"&gt;
+        &lt;label&gt;
+#if ($state.mandatory)
+          &lt;input type="checkbox" class="mcp-tool" data-mcp-category="$escapetool.xml($cat)" checked="checked" disabled="disabled" /&gt;
+          &lt;input type="hidden" name="$escapetool.xml($toolFieldName)" value="$escapetool.xml($state.id)" /&gt;
+#else
+          &lt;input type="checkbox" class="mcp-tool" data-mcp-category="$escapetool.xml($cat)" name="$escapetool.xml($toolFieldName)" value="$escapetool.xml($state.id)"#if ($state.enabled) checked="checked"#end /&gt;
+#end
+          $escapetool.xml($state.id)#if ($state.mandatory) $escapetool.xml($services.localization.render('AI.MCP.Code.tools.mandatory'))#end
+        &lt;/label&gt;
+#if ("$!state.summary" != '')        &lt;span class="xHint"&gt;$escapetool.xml($state.summary)&lt;/span&gt;#end
+      &lt;/div&gt;
+#end
+#if ($lastCat != '')
+    &lt;/div&gt;
+#end
     &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
     &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" /&gt;
   &lt;/form&gt;
@@ -143,4 +179,144 @@
 {{/html}}
 #end
 {{/velocity}}</content>
+  <object>
+    <name>AI.MCP.Code.MCPServerConfigSheet</name>
+    <number>0</number>
+    <className>XWiki.JavaScriptExtension</className>
+    <guid>7ecf4d58-e367-4541-89ce-71d8d8d83e14</guid>
+    <class>
+      <name>XWiki.JavaScriptExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>  (function () {
+    var form = document.getElementById('mcp-server-config');
+    if (!form) {
+      return;
+    }
+    function tools(cat) {
+      return form.querySelectorAll('.mcp-tool[data-mcp-category="' + cat + '"]');
+    }
+    function updateCategory(cat) {
+      var all = tools(cat);
+      var checked = 0;
+      all.forEach(function (t) {
+        if (t.checked) {
+          checked += 1;
+        }
+      });
+      var box = form.querySelector('.mcp-tool-category[data-mcp-category="' + cat + '"]');
+      if (box) {
+        box.checked = (checked === all.length);
+        box.indeterminate = (checked !== 0 &amp;&amp; checked !== all.length);
+      }
+    }
+    form.querySelectorAll('.mcp-tool-category').forEach(function (box) {
+      box.addEventListener('change', function () {
+        var cat = box.getAttribute('data-mcp-category');
+        tools(cat).forEach(function (t) {
+          if (!t.disabled) {
+            t.checked = box.checked;
+          }
+        });
+        updateCategory(cat);
+      });
+    });
+    form.querySelectorAll('.mcp-tool').forEach(function (t) {
+      t.addEventListener('change', function () {
+        updateCategory(t.getAttribute('data-mcp-category'));
+      });
+    });
+    form.querySelectorAll('.mcp-tool-category').forEach(function (box) {
+      updateCategory(box.getAttribute('data-mcp-category'));
+    });
+  })();</code>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse>0</parse>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
 </xwikidoc>

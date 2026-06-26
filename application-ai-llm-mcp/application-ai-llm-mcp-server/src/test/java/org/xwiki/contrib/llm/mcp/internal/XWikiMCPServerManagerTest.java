@@ -22,12 +22,14 @@ package org.xwiki.contrib.llm.mcp.internal;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
@@ -58,6 +60,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -91,6 +94,23 @@ class XWikiMCPServerManagerTest
 
     @MockComponent
     private MCPServerConfiguration mcpConfig;
+
+    /**
+     * The set of tool names every test in this class registers. By default the manager is told all of them
+     * are enabled for any wiki, so the registration tests exercise the registration path; the per-wiki
+     * filter test overrides this with a narrower set.
+     */
+    private static final Set<String> ALL_TEST_TOOL_NAMES = Set.of("enabled_tool", "disabled_tool",
+        "clashing_tool", "healthy_tool", "well_formed_tool", "bad_tool", "wrapped_tool", "kept_tool",
+        "dropped_tool");
+
+    @BeforeEach
+    void setUp()
+    {
+        // Default: every tool name is enabled for any wiki, so the registration-path tests are not gated by
+        // the per-wiki tool filter. The filter test below overrides this for its wiki.
+        lenient().when(this.mcpConfig.getEnabledToolIds(anyString())).thenReturn(ALL_TEST_TOOL_NAMES);
+    }
 
     // -------------------------------------------------------------------------
     // Helpers
@@ -289,6 +309,41 @@ class XWikiMCPServerManagerTest
             verify(spec, times(1)).toolCall(any(), any());
             // The disabled tool's definition is never fetched.
             verify(disabledTool, never()).getToolDefinition();
+        }
+    }
+
+    @Test
+    void buildServerRegistersOnlyToolsEnabledForTheWiki(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        MCPTool keptTool = componentManager.registerMockComponent(MCPTool.class, "kept_tool");
+        MCPTool droppedTool = componentManager.registerMockComponent(MCPTool.class, "dropped_tool");
+
+        McpSchema.Tool keptDef = toolDefinition("kept_tool", "A tool enabled for this wiki");
+        McpSchema.Tool droppedDef = toolDefinition("dropped_tool", "A tool not enabled for this wiki");
+
+        when(keptTool.isEnabled()).thenReturn(true);
+        when(keptTool.getToolDefinition()).thenReturn(keptDef);
+        when(droppedTool.isEnabled()).thenReturn(true);
+        when(droppedTool.getToolDefinition()).thenReturn(droppedDef);
+
+        // Only kept_tool is enabled for this wiki; dropped_tool is excluded by the per-wiki tool filter.
+        when(this.mcpConfig.getEnabledToolIds(WIKI)).thenReturn(Set.of("kept_tool"));
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
+
+            // The enabled tool registers; the excluded one is silently skipped.
+            verify(spec).toolCall(eq(keptDef), any());
+            verify(spec, times(1)).toolCall(any(), any());
+            verify(spec, never()).toolCall(eq(droppedDef), any());
         }
     }
 

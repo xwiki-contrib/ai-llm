@@ -19,7 +19,13 @@
  */
 package org.xwiki.contrib.llm.mcp.script;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.junit.jupiter.api.Test;
+import org.xwiki.component.manager.ComponentManager;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.internal.MCPServerConfiguration;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
@@ -31,8 +37,10 @@ import org.xwiki.test.junit5.mockito.MockComponent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -55,6 +63,9 @@ class MCPFarmScriptServiceTest
 
     @MockComponent
     private ContextualAuthorizationManager authorization;
+
+    @MockComponent
+    private ComponentManager componentManager;
 
     @Test
     void isEnabledDelegatesToConfig()
@@ -193,5 +204,78 @@ class MCPFarmScriptServiceTest
         assertEquals(0, emptyManaged.getSkipped());
 
         verify(this.mcpConfig, never()).setEnabled(anyString(), anyBoolean());
+    }
+
+    private MCPTool tool(String category, String summary, boolean write)
+    {
+        MCPTool tool = mock(MCPTool.class);
+        when(tool.getCategory()).thenReturn(category);
+        when(tool.getSummary()).thenReturn(summary);
+        when(tool.isWrite()).thenReturn(write);
+        return tool;
+    }
+
+    @Test
+    void getToolStatesReflectsEnabledSetAndSortsByCategoryThenId() throws Exception
+    {
+        Map<String, MCPTool> tools = Map.of(
+            "query_documents", tool("Search & Navigation", "Search the wiki", false),
+            "write_document", tool("Authoring", null, true),
+            "man", tool("Help", "Tool catalog", false));
+        when(this.componentManager.<MCPTool>getInstanceMap(MCPTool.class)).thenReturn(tools);
+        when(this.mcpConfig.getEnabledToolIds(WIKI)).thenReturn(Set.of("query_documents", "man"));
+        when(this.mcpConfig.isMandatoryTool("man")).thenReturn(true);
+
+        List<MCPToolState> states = this.service.getToolStates(WIKI);
+
+        // Sorted by category then id: Authoring/write_document, Help/man, Search & Navigation/query_documents.
+        assertEquals(List.of("write_document", "man", "query_documents"),
+            states.stream().map(MCPToolState::getId).toList());
+
+        MCPToolState write = states.get(0);
+        assertEquals("Authoring", write.getCategory());
+        // A null summary surfaces as the empty string.
+        assertEquals("", write.getSummary());
+        assertTrue(write.isWrite());
+        assertFalse(write.isMandatory());
+        assertFalse(write.isEnabled());
+
+        MCPToolState man = states.get(1);
+        assertEquals("Tool catalog", man.getSummary());
+        assertTrue(man.isMandatory());
+        assertFalse(man.isWrite());
+        assertTrue(man.isEnabled());
+
+        assertFalse(states.get(2).isWrite());
+        assertTrue(states.get(2).isEnabled());
+    }
+
+    @Test
+    void setEnabledToolsRefusesAndDoesNotWriteWhenNotAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(false);
+
+        assertFalse(this.service.setEnabledTools(WIKI, new String[] {"man"}));
+        verify(this.mcpConfig, never()).setEnabledToolIds(anyString(), any());
+    }
+
+    @Test
+    void setEnabledToolsDelegatesWhenAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.setEnabledToolIds(WIKI, List.of("man", "query_documents"))).thenReturn(true);
+
+        assertTrue(this.service.setEnabledTools(WIKI, new String[] {"man", "query_documents"}));
+        verify(this.mcpConfig).setEnabledToolIds(WIKI, List.of("man", "query_documents"));
+    }
+
+    @Test
+    void setEnabledToolsStoresEmptyListForNullWhenAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.setEnabledToolIds(WIKI, List.of())).thenReturn(true);
+
+        assertTrue(this.service.setEnabledTools(WIKI, null));
+        verify(this.mcpConfig).setEnabledToolIds(WIKI, List.of());
     }
 }

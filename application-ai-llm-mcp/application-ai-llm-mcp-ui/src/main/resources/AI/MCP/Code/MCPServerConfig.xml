@@ -66,6 +66,31 @@
         <validationRegExp/>
         <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
       </enabled>
+      <enabledTools>
+        <cache>0</cache>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayType>input</displayType>
+        <freeText/>
+        <hint>Tool ids this wiki's MCP endpoint exposes. Managed by the tool tree in this section; when unset the defaults apply (read and navigation tools on, authoring tools off).</hint>
+        <largeStorage>0</largeStorage>
+        <multiSelect>1</multiSelect>
+        <name>enabledTools</name>
+        <number>4</number>
+        <picker>0</picker>
+        <prettyName>Enabled Tools</prettyName>
+        <relationalStorage>1</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>20</size>
+        <sort>none</sort>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <values/>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </enabledTools>
       <serverDescription>
         <contenttype>PureText</contenttype>
         <customDisplay/>

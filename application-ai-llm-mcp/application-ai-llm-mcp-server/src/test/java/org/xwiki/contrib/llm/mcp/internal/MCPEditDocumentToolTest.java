@@ -645,4 +645,10 @@ class MCPEditDocumentToolTest
         assertTrue(this.tool.getSummary().startsWith("Edit"), this.tool.getSummary());
         assertFalse(this.tool.getSummary().contains("Create"), this.tool.getSummary());
     }
+
+    @Test
+    void isWriteIsTrue()
+    {
+        assertTrue(this.tool.isWrite());
+    }
 }

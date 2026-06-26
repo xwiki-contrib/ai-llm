@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Inject;
@@ -174,9 +175,10 @@ public class XWikiMCPServerManager implements Disposable
             .validateToolInputs(false)
             .capabilities(McpSchema.ServerCapabilities.builder().tools(true).build());
 
+        Set<String> enabledToolIds = this.mcpConfig.getEnabledToolIds(wikiId);
         List<String> registeredNames = new ArrayList<>();
         for (MCPTool tool : currentTools) {
-            registerTool(builder, tool, registeredNames);
+            registerTool(builder, tool, registeredNames, enabledToolIds);
         }
 
         // The UI calls this "server description"; the MCP SDK exposes it as initialization instructions.
@@ -318,15 +320,19 @@ public class XWikiMCPServerManager implements Disposable
      * @param builder the server builder
      * @param tool the tool to register
      * @param registeredNames collector for the names that actually registered, in registration order
+     * @param enabledToolIds the tool ids enabled for this wiki; a tool whose name is absent is skipped
      */
     private void registerTool(McpServer.StatelessSyncSpecification builder, MCPTool tool,
-        List<String> registeredNames)
+        List<String> registeredNames, Set<String> enabledToolIds)
     {
         try {
             if (!tool.isEnabled()) {
                 return;
             }
             McpSchema.Tool definition = tool.getToolDefinition();
+            if (!enabledToolIds.contains(definition.name())) {
+                return;
+            }
             JsonSchemaValidator validator = McpJsonDefaults.getSchemaValidator();
             String schemaContext = "Tool '" + definition.name() + "'";
             validator.assertConforms(schemaContext + " inputSchema", definition.inputSchema());

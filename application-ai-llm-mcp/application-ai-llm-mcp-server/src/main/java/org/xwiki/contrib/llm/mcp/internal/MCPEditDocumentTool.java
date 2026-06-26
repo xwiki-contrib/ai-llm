@@ -268,6 +268,12 @@ public class MCPEditDocumentTool implements MCPTool
     }
 
     @Override
+    public boolean isWrite()
+    {
+        return true;
+    }
+
+    @Override
     public String getCategory()
     {
         return "Authoring";

@@ -19,12 +19,18 @@
  */
 package org.xwiki.contrib.llm.mcp.internal;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import javax.inject.Provider;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.xwiki.bridge.DocumentAccessBridge;
+import org.xwiki.component.manager.ComponentManager;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
@@ -40,11 +46,13 @@ import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.PropertyInterface;
 
 import org.mockito.Mock;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -80,6 +88,9 @@ class MCPServerConfigurationTest
 
     @MockComponent
     private Provider<XWikiContext> contextProvider;
+
+    @MockComponent
+    private ComponentManager componentManager;
 
     @Mock
     private XWikiContext context;
@@ -310,6 +321,162 @@ class MCPServerConfigurationTest
 
         assertFalse(this.mcpServerConfiguration.setEnabled(SUB_WIKI, true));
         assertEquals("Failed to set the MCP enabled flag for wiki [subwiki]: "
+            + "[XWikiException: Error number 0 in 0: Save down]", this.logCapture.getMessage(0));
+    }
+
+    private MCPTool tool(boolean write)
+    {
+        MCPTool tool = mock(MCPTool.class);
+        when(tool.isWrite()).thenReturn(write);
+        return tool;
+    }
+
+    private void mockToolMap() throws Exception
+    {
+        Map<String, MCPTool> tools = Map.of(
+            "query_documents", tool(false),
+            "write_document", tool(true),
+            "man", tool(false));
+        when(this.componentManager.<MCPTool>getInstanceMap(MCPTool.class)).thenReturn(tools);
+    }
+
+    @Test
+    void getEnabledToolIdsReturnsDefaultPolicyWhenFieldUnset() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        // getListValue returns an empty List when the field has never been set.
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_ENABLED_TOOLS))
+            .thenReturn(List.of());
+        mockToolMap();
+
+        // The write tool is off by default; the read tools stay on and the mandatory man tool is included.
+        assertEquals(Set.of("query_documents", "man"),
+            this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI));
+    }
+
+    @Test
+    void getEnabledToolIdsEmptyListFallsBackToDefault() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        // An explicit empty stored list is not "all tools off": it resolves to the default policy.
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_ENABLED_TOOLS))
+            .thenReturn(List.of());
+        mockToolMap();
+
+        assertEquals(Set.of("query_documents", "man"),
+            this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI));
+    }
+
+    @Test
+    void getEnabledToolIdsReturnsDefaultPolicyWhenNoConfigObject() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(null);
+        mockToolMap();
+
+        assertEquals(Set.of("query_documents", "man"),
+            this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI));
+    }
+
+    @Test
+    void getEnabledToolIdsReturnsStoredSetWhenFieldSet() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_ENABLED_TOOLS))
+            .thenReturn(List.of("write_document"));
+
+        // The explicit set overrides the default policy; the component manager is never consulted. The
+        // mandatory man tool is still unioned in even though the stored set does not list it.
+        assertEquals(Set.of("write_document", "man"),
+            this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI));
+        verify(this.componentManager, never()).getInstanceMap(MCPTool.class);
+    }
+
+    @Test
+    void getEnabledToolIdsKeepsMandatoryToolOnReadFailure() throws Exception
+    {
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Store down"));
+        mockToolMap();
+
+        assertTrue(this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI).contains("man"));
+        assertEquals("Could not read the MCP enabled tools for wiki [subwiki]; applying the default "
+            + "policy: [XWikiException: Error number 0 in 0: Store down]", this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void getEnabledToolIdsAppliesDefaultPolicyOnReadFailure() throws Exception
+    {
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Store down"));
+        mockToolMap();
+
+        assertEquals(Set.of("query_documents", "man"),
+            this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI));
+        assertEquals("Could not read the MCP enabled tools for wiki [subwiki]; applying the default "
+            + "policy: [XWikiException: Error number 0 in 0: Store down]", this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void getConfiguredToolIdsReturnsNullWhenUnset() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ENABLED_TOOLS)).thenReturn(null);
+
+        assertNull(this.mcpServerConfiguration.getConfiguredToolIds(SUB_WIKI));
+    }
+
+    @Test
+    void getConfiguredToolIdsReturnsStoredListWhenSet() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ENABLED_TOOLS))
+            .thenReturn(mock(PropertyInterface.class));
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_ENABLED_TOOLS))
+            .thenReturn(List.of("man", "query_documents"));
+
+        assertEquals(List.of("man", "query_documents"),
+            this.mcpServerConfiguration.getConfiguredToolIds(SUB_WIKI));
+    }
+
+    @Test
+    void setEnabledToolIdsWritesListAndSaves() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI), true, this.context)).thenReturn(this.configObject);
+
+        List<String> toolIds = List.of("man", "query_documents");
+        assertTrue(this.mcpServerConfiguration.setEnabledToolIds(SUB_WIKI, toolIds));
+
+        verify(this.configObject).set(MCPServerConfiguration.FIELD_ENABLED_TOOLS, toolIds, this.context);
+        verify(this.xwiki).saveDocument(eq(this.configDoc), eq("Updated MCP tool configuration"),
+            eq(true), eq(this.context));
+    }
+
+    @Test
+    void setEnabledToolIdsWritesEmptyListForNull() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI), true, this.context)).thenReturn(this.configObject);
+
+        assertTrue(this.mcpServerConfiguration.setEnabledToolIds(SUB_WIKI, null));
+
+        verify(this.configObject).set(MCPServerConfiguration.FIELD_ENABLED_TOOLS, List.of(), this.context);
+    }
+
+    @Test
+    void setEnabledToolIdsReturnsFalseAndLogsWhenWriteThrows() throws Exception
+    {
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Save down"));
+
+        assertFalse(this.mcpServerConfiguration.setEnabledToolIds(SUB_WIKI, List.of("man")));
+        assertEquals("Failed to set the MCP enabled tools for wiki [subwiki]: "
             + "[XWikiException: Error number 0 in 0: Save down]", this.logCapture.getMessage(0));
     }
 }

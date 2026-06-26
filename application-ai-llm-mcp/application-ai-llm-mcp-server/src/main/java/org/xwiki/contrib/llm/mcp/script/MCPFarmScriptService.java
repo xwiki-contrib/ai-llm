@@ -19,17 +19,25 @@
  */
 package org.xwiki.contrib.llm.mcp.script;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.component.manager.ComponentLookupException;
+import org.xwiki.component.manager.ComponentManager;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.internal.MCPServerConfiguration;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.script.service.ScriptService;
@@ -50,11 +58,16 @@ import org.xwiki.stability.Unstable;
 @Unstable
 public class MCPFarmScriptService implements ScriptService
 {
+    private static final String DEFAULT_CATEGORY = "General";
+
     @Inject
     private MCPServerConfiguration mcpConfig;
 
     @Inject
     private ContextualAuthorizationManager authorization;
+
+    @Inject
+    private ComponentManager componentManager;
 
     @Inject
     private Logger logger;
@@ -95,6 +108,59 @@ public class MCPFarmScriptService implements ScriptService
             return false;
         }
         return this.mcpConfig.setEnabled(wikiId, enabled);
+    }
+
+    /**
+     * Returns the per-wiki state of every registered MCP tool, sorted by category then id for a stable tree
+     * order, with each tool's {@code enabled} flag reflecting the wiki's effective tool policy. Read-only;
+     * no rights gate, consistent with {@link #isEnabled(String)}.
+     *
+     * @param wikiId the wiki whose tool states to read
+     * @return the tool states, or an empty list if the tools could not be looked up
+     * @since 0.9
+     */
+    public List<MCPToolState> getToolStates(String wikiId)
+    {
+        try {
+            Map<String, MCPTool> tools = this.componentManager.getInstanceMap(MCPTool.class);
+            Set<String> enabled = this.mcpConfig.getEnabledToolIds(wikiId);
+            List<MCPToolState> states = new ArrayList<>();
+            for (Map.Entry<String, MCPTool> entry : tools.entrySet()) {
+                String id = entry.getKey();
+                MCPTool tool = entry.getValue();
+                String category = StringUtils.defaultIfBlank(tool.getCategory(), DEFAULT_CATEGORY);
+                String summary = tool.getSummary() == null ? "" : tool.getSummary();
+                states.add(new MCPToolState(id, category, summary, this.mcpConfig.isMandatoryTool(id),
+                    tool.isWrite(), enabled.contains(id)));
+            }
+            states.sort(Comparator.comparing(MCPToolState::getCategory).thenComparing(MCPToolState::getId));
+            return states;
+        } catch (ComponentLookupException e) {
+            this.logger.warn("Could not look up MCP tools for wiki [{}]: [{}]", wikiId,
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP tool lookup failure for wiki [{}]", wikiId, e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Stores the explicit set of enabled MCP tool ids for the given wiki, gated by the current user's admin
+     * rights on that wiki. A {@code null} array stores an explicit empty set.
+     *
+     * @param wikiId the wiki whose tool set to write
+     * @param toolIds the tool ids to enable, or {@code null} to store an empty set
+     * @return {@code true} if the set was written, {@code false} when the user lacks admin rights on the
+     *     wiki or the write failed
+     * @since 0.9
+     */
+    public boolean setEnabledTools(String wikiId, String[] toolIds)
+    {
+        if (!canAdmin(wikiId)) {
+            this.logger.debug("Refused MCP tool-set change for wiki [{}]: missing admin rights", wikiId);
+            return false;
+        }
+        return this.mcpConfig.setEnabledToolIds(wikiId,
+            toolIds == null ? List.of() : Arrays.asList(toolIds));
     }
 
     /**
