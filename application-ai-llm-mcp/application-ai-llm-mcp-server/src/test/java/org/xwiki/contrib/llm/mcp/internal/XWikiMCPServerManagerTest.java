@@ -22,7 +22,6 @@ package org.xwiki.contrib.llm.mcp.internal;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -70,14 +69,20 @@ import static org.mockito.Mockito.when;
  * Tests for {@link XWikiMCPServerManager}.
  *
  * <p>Tool logic is tested in the tool-specific test classes (e.g. {@code MCPQueryDocumentsToolTest}).
- * These tests focus on the manager's lifecycle: initialise, rebuild, and dispose, and verify the correct
- * arguments are forwarded to the MCP SDK by intercepting the {@link McpServer#sync} static factory.</p>
+ * These tests focus on the manager's per-wiki lifecycle: lazy build on first request, caching, invalidation
+ * and dispose. The MCP SDK is intercepted by mocking the {@link McpServer#sync} static factory and the
+ * {@link HttpServletStatelessServerTransport#builder()} static factory, so no real server or transport is
+ * created.</p>
  *
  * @version $Id$
  */
 @ComponentTest
 class XWikiMCPServerManagerTest
 {
+    private static final String WIKI = "testwiki";
+
+    private static final String OTHER_WIKI = "otherwiki";
+
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.INFO);
 
@@ -88,7 +93,7 @@ class XWikiMCPServerManagerTest
     private MCPServerConfiguration mcpConfig;
 
     // -------------------------------------------------------------------------
-    // Helper
+    // Helpers
     // -------------------------------------------------------------------------
 
     /**
@@ -109,6 +114,20 @@ class XWikiMCPServerManagerTest
     }
 
     /**
+     * Stubs {@link HttpServletStatelessServerTransport#builder()} to return a builder that yields the given
+     * mock transport, so {@code buildServer} produces a controllable transport for routing assertions.
+     */
+    private static void stubTransport(MockedStatic<HttpServletStatelessServerTransport> transportStatic,
+        HttpServletStatelessServerTransport transport)
+    {
+        HttpServletStatelessServerTransport.Builder builder =
+            mock(HttpServletStatelessServerTransport.Builder.class);
+        when(builder.jsonMapper(any())).thenReturn(builder);
+        when(builder.build()).thenReturn(transport);
+        transportStatic.when(HttpServletStatelessServerTransport::builder).thenReturn(builder);
+    }
+
+    /**
      * Builds a well-formed tool definition with an empty (but valid JSON Schema 2020-12) input schema.
      */
     private static McpSchema.Tool toolDefinition(String name, String description)
@@ -119,9 +138,121 @@ class XWikiMCPServerManagerTest
             .build();
     }
 
+    /**
+     * Reads the manager's per-wiki cache by reflection, to assert build-once / invalidation semantics.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> serversCache() throws Exception
+    {
+        Field serversField = XWikiMCPServerManager.class.getDeclaredField("servers");
+        serversField.setAccessible(true);
+        return (Map<String, Object>) serversField.get(this.mcpServerManager);
+    }
+
     // -------------------------------------------------------------------------
-    // Tests
+    // Build / routing / caching
     // -------------------------------------------------------------------------
+
+    @Test
+    void handleRequestBuildsServerForWikiAndRoutesToItsTransport() throws Exception
+    {
+        when(this.mcpConfig.getServerName(WIKI)).thenReturn("MyXWiki");
+        when(this.mcpConfig.getServerDescription(WIKI)).thenReturn("My Wiki Instructions");
+
+        HttpServletStatelessServerTransport transport = mock(HttpServletStatelessServerTransport.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, transport);
+
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+
+            // This wiki's configured name and instructions were forwarded to the SDK.
+            verify(spec).serverInfo(eq("MyXWiki"), anyString());
+            verify(spec).instructions("My Wiki Instructions");
+            // The request is routed to that wiki's transport.
+            verify(transport).service(request, response);
+        }
+    }
+
+    @Test
+    void handleRequestReusesCachedServerForSameWiki() throws Exception
+    {
+        when(this.mcpConfig.getServerName(WIKI)).thenReturn("MyXWiki");
+
+        HttpServletStatelessServerTransport transport = mock(HttpServletStatelessServerTransport.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, transport);
+
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+
+            // The server is built once and reused: config read once, transport serves both requests.
+            verify(this.mcpConfig, times(1)).getServerName(WIKI);
+            verify(transport, times(2)).service(request, response);
+        }
+    }
+
+    @Test
+    void handleRequestBuildsSeparateServersPerWiki() throws Exception
+    {
+        when(this.mcpConfig.getServerName(WIKI)).thenReturn("WikiOne");
+        when(this.mcpConfig.getServerName(OTHER_WIKI)).thenReturn("WikiTwo");
+
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            this.mcpServerManager.handleRequest(OTHER_WIKI, request, response);
+
+            // Each wiki's own identity is read and a distinct server built.
+            verify(this.mcpConfig).getServerName(WIKI);
+            verify(this.mcpConfig).getServerDescription(WIKI);
+            verify(this.mcpConfig).getServerName(OTHER_WIKI);
+            verify(this.mcpConfig).getServerDescription(OTHER_WIKI);
+            verify(spec).serverInfo(eq("WikiOne"), anyString());
+            verify(spec).serverInfo(eq("WikiTwo"), anyString());
+            assertEquals(2, serversCache().size());
+        }
+    }
+
+    @Test
+    void buildDefaultsBlankServerName() throws Exception
+    {
+        when(this.mcpConfig.getServerName(WIKI)).thenReturn("   ");
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
+
+            verify(spec).serverInfo(eq(MCPServerConfiguration.DEFAULT_SERVER_NAME), anyString());
+        }
+    }
 
     @Test
     void rebuildServerRegistersEnabledToolAndIgnoresDisabledTool(MockitoComponentManager componentManager)
@@ -136,19 +267,16 @@ class XWikiMCPServerManagerTest
         when(enabledTool.getToolDefinition()).thenReturn(enabledDef);
         when(disabledTool.isEnabled()).thenReturn(false);
 
-        when(this.mcpConfig.getServerName()).thenReturn("MyXWiki");
-        when(this.mcpConfig.getServerDescription()).thenReturn("My Wiki Instructions");
-
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer builtServer = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(builtServer);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
-            this.mcpServerManager.rebuildServer();
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
 
-            // Server metadata forwarded correctly to the SDK.
-            verify(spec).serverInfo(eq("MyXWiki"), anyString());
-            verify(spec).instructions("My Wiki Instructions");
             // Tool handlers must run inline on the request thread (which the blocking servlet transport
             // holds anyway), so XWiki's thread-locals are available to tools without context propagation.
             verify(spec).immediateExecution(true);
@@ -175,15 +303,18 @@ class XWikiMCPServerManagerTest
             when(tool.getToolDefinition()).thenReturn(definition);
         }
 
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             // Mirror the SDK: the second registration of the same tool name is rejected.
             when(spec.toolCall(any(), any())).thenReturn(spec)
                 .thenThrow(new IllegalArgumentException("Tool with name 'clashing_tool' already exists"));
-            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(server);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
-            assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
+            assertDoesNotThrow(() -> this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class)));
 
             verify(spec, times(2)).toolCall(any(), any());
             verify(spec).build();
@@ -207,12 +338,15 @@ class XWikiMCPServerManagerTest
         when(healthy.isEnabled()).thenReturn(true);
         when(healthy.getToolDefinition()).thenReturn(healthyDef);
 
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(server);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
-            assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
+            assertDoesNotThrow(() -> this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class)));
 
             verify(spec).toolCall(eq(healthyDef), any());
             verify(spec).build();
@@ -227,7 +361,7 @@ class XWikiMCPServerManagerTest
     {
         // "type" must be a string or an array of strings in JSON Schema 2020-12; a number is malformed.
         // The manager meta-validates per tool before handing the definition to the SDK builder, so the
-        // bad schema is skipped with a warning instead of failing the whole rebuild at build().
+        // bad schema is skipped with a warning instead of failing the whole build at build().
         MCPTool malformed = componentManager.registerMockComponent(MCPTool.class, "bad_tool");
         McpSchema.Tool badDef = McpSchema.Tool.builder("bad_tool", Map.of("type", 123))
             .description("Advertises a malformed input schema")
@@ -240,12 +374,15 @@ class XWikiMCPServerManagerTest
         when(healthy.isEnabled()).thenReturn(true);
         when(healthy.getToolDefinition()).thenReturn(healthyDef);
 
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(server);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
-            assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
+            assertDoesNotThrow(() -> this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class)));
 
             // Only the well-formed tool reaches the SDK builder; the malformed one never gets there.
             verify(spec).toolCall(eq(healthyDef), any());
@@ -258,37 +395,61 @@ class XWikiMCPServerManagerTest
         assertTrue(this.logCapture.getMessage(0).contains("bad_tool"), this.logCapture.getMessage(0));
     }
 
-    @Test
-    void rebuildServerDefaultsBlankServerName()
-    {
-        when(this.mcpConfig.getServerName()).thenReturn("   ");
-
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
-            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer builtServer = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(builtServer);
-
-            this.mcpServerManager.rebuildServer();
-
-            verify(spec).serverInfo(eq(MCPServerConfiguration.DEFAULT_SERVER_NAME), anyString());
-        }
-    }
+    // -------------------------------------------------------------------------
+    // Invalidation / dispose
+    // -------------------------------------------------------------------------
 
     @Test
-    void rebuildCanBeCalledMultipleTimesWithoutResourceLeak()
+    void invalidateClosesServerAndNextRequestRebuilds() throws Exception
     {
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer firstServer = mock(McpStatelessSyncServer.class);
             McpStatelessSyncServer secondServer = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(firstServer).thenReturn(secondServer);
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
-            this.mcpServerManager.rebuildServer();
-            this.mcpServerManager.rebuildServer();
-
-            // The first server must be closed when the second rebuild replaces it.
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            this.mcpServerManager.invalidate(WIKI);
+            // The invalidated wiki's server is closed.
             verify(firstServer).closeGracefully();
+
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            // A fresh server is built for the wiki on the next request.
+            verify(spec, times(2)).build();
         }
+    }
+
+    @Test
+    void invalidateUnknownWikiIsNoOp()
+    {
+        assertDoesNotThrow(() -> this.mcpServerManager.invalidate("never-built"));
+    }
+
+    @Test
+    void invalidateLogsWarningWhenCloseGracefullyFails() throws Exception
+    {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
+            when(spec.build()).thenReturn(server);
+            doThrow(new RuntimeException("close failed")).when(server).closeGracefully();
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
+            assertDoesNotThrow(() -> this.mcpServerManager.invalidate(WIKI));
+        }
+
+        assertEquals("Failed to close MCP server gracefully: RuntimeException: close failed",
+            this.logCapture.getMessage(0));
     }
 
     @Test
@@ -298,30 +459,44 @@ class XWikiMCPServerManagerTest
     }
 
     @Test
-    void disposeClosesServerGracefully()
+    void disposeClosesEveryCachedServer() throws Exception
     {
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(server);
+            McpStatelessSyncServer firstServer = mock(McpStatelessSyncServer.class);
+            McpStatelessSyncServer secondServer = mock(McpStatelessSyncServer.class);
+            when(spec.build()).thenReturn(firstServer).thenReturn(secondServer);
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
-            this.mcpServerManager.rebuildServer();
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
+            this.mcpServerManager.handleRequest(OTHER_WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
+
             this.mcpServerManager.dispose();
 
-            verify(server).closeGracefully();
+            verify(firstServer).closeGracefully();
+            verify(secondServer).closeGracefully();
+            assertEquals(0, serversCache().size());
         }
     }
 
     @Test
-    void disposeLogsWarningWhenCloseGracefullyFails()
+    void disposeLogsWarningWhenCloseGracefullyFails() throws Exception
     {
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
             McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
             when(spec.build()).thenReturn(server);
             doThrow(new RuntimeException("close failed")).when(server).closeGracefully();
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
-            this.mcpServerManager.rebuildServer();
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
             assertDoesNotThrow(() -> this.mcpServerManager.dispose());
         }
 
@@ -329,42 +504,9 @@ class XWikiMCPServerManagerTest
             this.logCapture.getMessage(0));
     }
 
-    @Test
-    void rebuildLogsWarningWhenOldServerCloseGracefullyFails()
-    {
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
-            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer firstServer = mock(McpStatelessSyncServer.class);
-            McpStatelessSyncServer secondServer = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(firstServer).thenReturn(secondServer);
-            doThrow(new RuntimeException("close failed")).when(firstServer).closeGracefully();
-
-            this.mcpServerManager.rebuildServer();
-            assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
-        }
-
-        assertEquals("Failed to close MCP server gracefully during rebuild: RuntimeException: close failed",
-            this.logCapture.getMessage(0));
-    }
-
-    @Test
-    void handleRequestDelegatesToCurrentTransport() throws Exception
-    {
-        HttpServletStatelessServerTransport transport = mock(HttpServletStatelessServerTransport.class);
-        Field transportField = XWikiMCPServerManager.class.getDeclaredField("transport");
-        transportField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        AtomicReference<HttpServletStatelessServerTransport> transportRef =
-            (AtomicReference<HttpServletStatelessServerTransport>) transportField.get(this.mcpServerManager);
-        transportRef.set(transport);
-
-        HttpServletRequest request = mock(HttpServletRequest.class);
-        HttpServletResponse response = mock(HttpServletResponse.class);
-
-        this.mcpServerManager.handleRequest(request, response);
-
-        verify(transport).service(request, response);
-    }
+    // -------------------------------------------------------------------------
+    // Middleware (executeWrapped / audit)
+    // -------------------------------------------------------------------------
 
     @Test
     void wrappedHandlerReturnsToolResultAndEmitsAuditLine(MockitoComponentManager componentManager)
@@ -452,9 +594,9 @@ class XWikiMCPServerManagerTest
     }
 
     /**
-     * Registers a mock tool named {@code wrapped_tool}, stubs its behavior, rebuilds the server against a
-     * mocked SDK builder, and returns the handler the manager registered — i.e. the middleware-wrapped
-     * function, ready to be invoked directly.
+     * Registers a mock tool named {@code wrapped_tool}, stubs its behavior, builds the server for a fixed
+     * test wiki against a mocked SDK builder, and returns the handler the manager registered — i.e. the
+     * middleware-wrapped function, ready to be invoked directly.
      */
     private BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult>
         registerToolAndCaptureHandler(MockitoComponentManager componentManager, Consumer<MCPTool> stubbing)
@@ -468,12 +610,15 @@ class XWikiMCPServerManagerTest
 
         ArgumentCaptor<BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult>>
             handlerCaptor = ArgumentCaptor.captor();
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(server);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
-            this.mcpServerManager.rebuildServer();
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
 
             verify(spec).toolCall(eq(definition), handlerCaptor.capture());
         }
@@ -481,7 +626,7 @@ class XWikiMCPServerManagerTest
     }
 
     @Test
-    void rebuildLogsWarningWhenToolLookupFails() throws Exception
+    void buildLogsWarningWhenToolLookupFails() throws Exception
     {
         ComponentManager failingComponentManager = mock(ComponentManager.class);
         when(failingComponentManager.getInstanceList(MCPTool.class))
@@ -490,13 +635,16 @@ class XWikiMCPServerManagerTest
         componentManagerField.setAccessible(true);
         componentManagerField.set(this.mcpServerManager, failingComponentManager);
 
-        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class)) {
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
             McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
-            McpStatelessSyncServer server = mock(McpStatelessSyncServer.class);
-            when(spec.build()).thenReturn(server);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
 
             // The server must still be built (with no tools) even though tool lookup failed.
-            assertDoesNotThrow(() -> this.mcpServerManager.rebuildServer());
+            assertDoesNotThrow(() -> this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class)));
             verify(spec, never()).toolCall(any(), any());
         }
 

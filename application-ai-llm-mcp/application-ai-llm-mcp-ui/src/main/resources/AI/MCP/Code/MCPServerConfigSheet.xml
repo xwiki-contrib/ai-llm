@@ -31,7 +31,7 @@
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>MCPServerConfigSheet</title>
+  <title/>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
@@ -42,10 +42,17 @@
 #set ($configClassName = 'AI.MCP.Code.MCPServerConfigClass')
 #set ($configDoc = $xwiki.getDocument($configDocRef))
 #set ($configObject = $configDoc.getObject($configClassName))
+#set ($isMainWiki = $services.wiki.currentWikiId == $services.wiki.mainWikiId)
 ## Auto-create the XObject on first access (e.g. after installing the extension without defaults)
 #if ($xcontext.action == 'admin' &amp;&amp; "$!configObject" == '')
   #set ($configObject = $configDoc.newObject($configClassName))
   #set ($discard = $configDoc.save('Created MCP server configuration', true))
+#end
+## Seed the displayed default for the unset enabled switch on subwikis (unticked). The main wiki manages
+## enable/disable through the dashboard below and does not render this switch. The Java reader remains the
+## source of truth at request time; this only affects the subwiki admin form display.
+#if (!$isMainWiki &amp;&amp; "$!configObject" != '' &amp;&amp; "$!configObject.getProperty('enabled').value" == '')
+  #set ($discard = $configObject.set('enabled', 0))
 #end
 #set ($configClass = $xwiki.getDocument($configClassName).getxWikiClass())
 {{html clean="false"}}
@@ -54,6 +61,13 @@
         class="withLock xform"&gt;
     &lt;fieldset&gt;
       &lt;dl&gt;
+#if (!$isMainWiki)
+        &lt;dt&gt;
+          &lt;label for="mcp-enabled"&gt;$configClass.get('enabled').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;span class="xHint"&gt;$configClass.get('enabled').getHint()&lt;/span&gt;
+        &lt;/dt&gt;
+        &lt;dd&gt;{{/html}}$configObject.display('enabled', 'edit'){{html clean="false"}}&lt;/dd&gt;
+#end
         &lt;dt&gt;
           &lt;label for="mcp-serverName"&gt;$configClass.get('serverName').getTranslatedPrettyName()&lt;/label&gt;
           &lt;span class="xHint"&gt;$configClass.get('serverName').getHint()&lt;/span&gt;
@@ -70,5 +84,63 @@
     &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" /&gt;
   &lt;/form&gt;
 {{/html}}
+## Farm dashboard: shown only on the main wiki. Lists every wiki with a checkbox reflecting its real MCP
+## enabled state and applies the chosen states in one action. The cross-wiki write is gated per wiki in
+## $services.mcp.
+#if ($isMainWiki)
+  ## The admin section id of the per-wiki MCP config. MUST match the displayInSection value of the
+  ## ConfigurableClass object in AI.MCP.Code.MCPServerConfig (currently "MCP Server"). If the Configure
+  ## links 404 after deploy, this is the only value to adjust.
+  #set ($mcpSectionId = 'MCP Server')
+  ## Handle the apply POST in place. Require POST so this state change is never reachable via a GET (which
+  ## would leak the CSRF token through the URL in logs/Referer and run on link prefetch).
+  #if ($request.method == 'POST' &amp;&amp; $request.get('do') == 'mcpApply')
+    #if (!$services.csrf.isTokenValid($request.get('form_token')))
+      {{error}}$services.localization.render('AI.MCP.Code.dashboard.error.csrf'){{/error}}
+    #else
+      #set ($result = $services.mcp.applyEnabled($request.getParameterValues('mcpManaged'), $request.getParameterValues('mcpEnabled')))
+      #if ($result.skipped &gt; 0)
+        {{info}}$services.localization.render('AI.MCP.Code.dashboard.status.applied.skipped', [$result.changed, $result.skipped]){{/info}}
+      #else
+        {{info}}$services.localization.render('AI.MCP.Code.dashboard.status.applied', [$result.changed]){{/info}}
+      #end
+    #end
+  #end
+  == $services.localization.render('AI.MCP.Code.dashboard.heading') ==
+
+  $services.localization.render('AI.MCP.Code.dashboard.intro')
+
+{{html clean="false"}}
+  &lt;form id="mcp-farm-dashboard" method="post" action="$xwiki.relativeRequestURL"&gt;
+    &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
+    &lt;input type="hidden" name="do" value="mcpApply" /&gt;
+    &lt;table class="xwiki-table"&gt;
+      &lt;thead&gt;
+        &lt;tr&gt;
+          &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.enabled'))&lt;/th&gt;
+          &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.wiki'))&lt;/th&gt;
+          &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.configure'))&lt;/th&gt;
+        &lt;/tr&gt;
+      &lt;/thead&gt;
+      &lt;tbody&gt;
+        #foreach ($w in $services.wiki.getAll())
+          #set ($wikiName = "$!w.prettyName")
+          #if ($wikiName == '')
+            #set ($wikiName = $w.id)
+          #end
+          #set ($canAdmin = $services.mcp.canAdmin($w.id))
+          #set ($enabled = $services.mcp.isEnabled($w.id))
+          &lt;tr&gt;
+            &lt;td&gt;#if ($canAdmin)&lt;input type="hidden" name="mcpManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpEnabled" value="$escapetool.xml($w.id)"#if ($enabled) checked="checked"#end /&gt;#else#if ($enabled)$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.enabled'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.disabled'))#end#end&lt;/td&gt;
+            &lt;td&gt;$escapetool.xml($wikiName)&lt;/td&gt;
+            &lt;td&gt;#if ($canAdmin)#set ($configRef = $services.model.createDocumentReference($w.id, 'XWiki', 'XWikiPreferences'))&lt;a href="$escapetool.xml($xwiki.getURL($configRef, 'admin', "section=$escapetool.url($mcpSectionId)"))"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.configure.link'))&lt;/a&gt;#end&lt;/td&gt;
+          &lt;/tr&gt;
+        #end
+      &lt;/tbody&gt;
+    &lt;/table&gt;
+    &lt;span class="buttonwrapper"&gt;&lt;button type="submit" name="mcpApply" id="mcpApply" class="button"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.button.apply'))&lt;/button&gt;&lt;/span&gt;
+  &lt;/form&gt;
+{{/html}}
+#end
 {{/velocity}}</content>
 </xwikidoc>

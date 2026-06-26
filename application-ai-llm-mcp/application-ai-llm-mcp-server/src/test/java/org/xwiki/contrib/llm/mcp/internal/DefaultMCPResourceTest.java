@@ -93,6 +93,9 @@ class DefaultMCPResourceTest
     private XWikiMCPServerManager mcpServerManager;
 
     @MockComponent
+    private MCPServerConfiguration mcpConfig;
+
+    @MockComponent
     private Container container;
 
     // Mock the presence of the OIDC resource reference handler to ensure the authentication logic is executed in the
@@ -114,6 +117,7 @@ class DefaultMCPResourceTest
     void setUp() throws Exception
     {
         this.oldcore.getXWikiContext().setWikiId(INITIAL_WIKI);
+        when(this.mcpConfig.isEnabled(WIKI_NAME)).thenReturn(true);
         ServletRequest servletRequest = mock();
         when(servletRequest.getRequest()).thenReturn(this.mockRequest);
         ServletResponse servletResponse = mock();
@@ -138,11 +142,11 @@ class DefaultMCPResourceTest
             // Assert the wiki was set on the XWiki context while service() is running
             assertEquals(WIKI_NAME, this.oldcore.getXWikiContext().getWikiId());
             return null;
-        }).when(this.mcpServerManager).handleRequest(any(), any());
+        }).when(this.mcpServerManager).handleRequest(any(), any(), any());
 
         this.mcpResource.delegateToMcp(WIKI_NAME);
 
-        verify(this.mcpServerManager).handleRequest(this.mockRequest, this.mockResponse);
+        verify(this.mcpServerManager).handleRequest(WIKI_NAME, this.mockRequest, this.mockResponse);
     }
 
     @Test
@@ -161,7 +165,7 @@ class DefaultMCPResourceTest
         this.oldcore.getXWikiContext().setUserReference(TEST_USER);
 
         doThrow(new ServletException("transport error"))
-            .when(this.mcpServerManager).handleRequest(any(), any());
+            .when(this.mcpServerManager).handleRequest(any(), any(), any());
 
         assertThrows(XWikiRestException.class,
             () -> this.mcpResource.delegateToMcp(WIKI_NAME));
@@ -175,7 +179,7 @@ class DefaultMCPResourceTest
         this.oldcore.getXWikiContext().setUserReference(TEST_USER);
 
         doThrow(new IOException("network error"))
-            .when(this.mcpServerManager).handleRequest(any(), any());
+            .when(this.mcpServerManager).handleRequest(any(), any(), any());
 
         assertThrows(XWikiRestException.class,
             () -> this.mcpResource.delegateToMcp(WIKI_NAME));
@@ -202,7 +206,7 @@ class DefaultMCPResourceTest
             response.getHeaderString("WWW-Authenticate")
         );
         // The MCP transport must NOT be invoked for an unauthenticated request.
-        verify(this.mcpServerManager, never()).handleRequest(any(), any());
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
     }
 
     @Test
@@ -217,11 +221,41 @@ class DefaultMCPResourceTest
             // Assert the wiki was set on the XWiki context while service() is running
             assertEquals(WIKI_NAME, this.oldcore.getXWikiContext().getWikiId());
             return null;
-        }).when(this.mcpServerManager).handleRequest(any(), any());
+        }).when(this.mcpServerManager).handleRequest(any(), any(), any());
 
         this.mcpResource.delegateToMcp(WIKI_NAME);
 
-        verify(this.mcpServerManager).handleRequest(this.mockRequest, this.mockResponse);
+        verify(this.mcpServerManager).handleRequest(WIKI_NAME, this.mockRequest, this.mockResponse);
+    }
+
+    @Test
+    void delegateToMcpReturns404WhenWikiDisabled() throws Exception
+    {
+        when(this.mcpConfig.isEnabled(WIKI_NAME)).thenReturn(false);
+        // An authenticated user must still be refused with 404 when the wiki is disabled.
+        this.oldcore.getXWikiContext().setUserReference(TEST_USER);
+
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+            () -> this.mcpResource.delegateToMcp(WIKI_NAME));
+
+        assertEquals(HttpServletResponse.SC_NOT_FOUND, ex.getResponse().getStatus());
+        // The MCP transport must NOT be invoked and the target wiki must never be activated.
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
+        assertEquals(INITIAL_WIKI, this.oldcore.getXWikiContext().getWikiId());
+    }
+
+    @Test
+    void handlePostReturns404WhenWikiDisabled() throws Exception
+    {
+        when(this.mcpConfig.isEnabled(WIKI_NAME)).thenReturn(false);
+        this.oldcore.getXWikiContext().setUserReference(TEST_USER);
+
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+            () -> this.mcpResource.handlePost(WIKI_NAME));
+
+        assertEquals(HttpServletResponse.SC_NOT_FOUND, ex.getResponse().getStatus());
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
+        assertEquals(INITIAL_WIKI, this.oldcore.getXWikiContext().getWikiId());
     }
 
     @Test

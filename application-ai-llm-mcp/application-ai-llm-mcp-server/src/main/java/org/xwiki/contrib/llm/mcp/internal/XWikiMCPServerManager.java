@@ -22,7 +22,8 @@ package org.xwiki.contrib.llm.mcp.internal;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -39,7 +40,6 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.component.phase.Disposable;
-import org.xwiki.component.phase.Initializable;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 
@@ -54,26 +54,37 @@ import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransp
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
- * Singleton component that manages the lifecycle of the MCP (Model Context Protocol) server.
+ * Singleton component that manages the lifecycle of one MCP (Model Context Protocol) server per wiki.
  *
- * <p>At initialisation it queries the component manager for all registered {@link MCPTool} implementations,
- * filters by {@link MCPTool#isEnabled()}, and registers the enabled tools with the MCP SDK. The server can
- * be rebuilt at any time (e.g. after a configuration change) by calling {@link #rebuildServer()}.</p>
+ * <p>Each wiki advertises its own server name and instructions, read from that wiki's
+ * {@code AI.MCP.Code.MCPServerConfig} document. The first request for a wiki builds that wiki's server
+ * lazily: it queries the component manager for all registered {@link MCPTool} implementations, filters by
+ * {@link MCPTool#isEnabled()}, and registers the enabled tools with the MCP SDK.</p>
  *
- * <p>The active {@link HttpServletStatelessServerTransport} is stored in an {@link AtomicReference}.
- * On rebuild, the reference is swapped atomically so new requests immediately go to the new transport.
- * In-flight requests on the old transport complete naturally: the transport is stateless, each request
- * holds its own reference to it, and closing releases no resource they depend on —
- * {@code closeGracefully()} merely marks the old transport as closing so it rejects new requests.
- * No locking is required in {@link #handleRequest}.</p>
+ * <p>Per-wiki servers are cached in a {@link ConcurrentHashMap}. {@code computeIfAbsent} builds a wiki's
+ * server once on first request; {@link #invalidate(String)} removes and closes a wiki's server so the next
+ * request rebuilds it with fresh configuration. No global lock is required: each request resolves its own
+ * {@link ServerHolder} and routes to its transport. Closing a removed server only marks its transport as
+ * closing (rejecting new requests); in-flight requests on it complete naturally because the stateless
+ * transport releases nothing they depend on.</p>
  *
  * @version $Id$
  * @since 0.8
  */
 @Component(roles = XWikiMCPServerManager.class)
 @Singleton
-public class XWikiMCPServerManager implements Initializable, Disposable
+public class XWikiMCPServerManager implements Disposable
 {
+    /**
+     * Pairs a built MCP server with the transport that serves it. One holder is cached per wiki; a request
+     * routes to {@link #transport()} and {@link #invalidate(String)} closes {@link #server()}.
+     *
+     * @version $Id$
+     */
+    private record ServerHolder(McpStatelessSyncServer server, HttpServletStatelessServerTransport transport)
+    {
+    }
+
     /**
      * Usage hint appended to the initialization instructions whenever the man tool is enabled: the
      * instructions are the only text a connecting agent sees unprompted, so they must point it at the
@@ -110,29 +121,18 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     @Inject
     private EntityReferenceSerializer<String> userSerializer;
 
-    private McpStatelessSyncServer mcpServer;
-
-    /** Holds the active transport; swapped atomically on each {@link #rebuildServer()} call. */
-    private final AtomicReference<HttpServletStatelessServerTransport> transport = new AtomicReference<>();
-
-    @Override
-    public void initialize()
-    {
-        rebuildServer();
-    }
+    /** One MCP server per wiki, built lazily on first request and invalidated when that wiki's config saves. */
+    private final Map<String, ServerHolder> servers = new ConcurrentHashMap<>();
 
     /**
-     * Rebuilds the MCP server from the current set of enabled {@link MCPTool} components.
+     * Builds a fresh MCP server and transport for the given wiki from its configured name, description and
+     * the current set of enabled {@link MCPTool} components. Pure builder: it mutates no shared state and
+     * closes nothing, so it is safe to call from {@link Map#computeIfAbsent}.
      *
-     * <p>A new {@link HttpServletStatelessServerTransport} and {@link McpStatelessSyncServer} are created.
-     * The transport reference is then swapped atomically so new requests immediately go to the new transport.
-     * The old server is then closed, which only marks its transport as closing (rejecting new requests);
-     * in-flight requests on it complete naturally because nothing they depend on is released.</p>
-     *
-     * <p>This method is called from {@link #initialize()} and by {@link MCPConfigChangeEventListener} whenever
-     * the {@code AI.MCP.Code.MCPServerConfig} document is saved.</p>
+     * @param wikiId the wiki whose server to build
+     * @return the holder pairing the new server with its transport
      */
-    public void rebuildServer()
+    private ServerHolder buildServer(String wikiId)
     {
         JacksonMcpJsonMapper jsonMapper = new JacksonMcpJsonMapper(new ObjectMapper());
 
@@ -143,11 +143,11 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         // Guard against null/blank: MCPServerConfiguration never returns null in production, but Mockito
         // mocks return null by default, and the MCP SDK rejects null or empty server names with
         // IllegalArgumentException. The guard keeps tests stable without requiring every test to stub this.
-        String serverName = this.mcpConfig.getServerName();
+        String serverName = this.mcpConfig.getServerName(wikiId);
         if (StringUtils.isBlank(serverName)) {
             serverName = MCPServerConfiguration.DEFAULT_SERVER_NAME;
         }
-        String serverDescription = this.mcpConfig.getServerDescription();
+        String serverDescription = this.mcpConfig.getServerDescription(wikiId);
         String serverVersion = getServerVersion();
 
         List<MCPTool> currentTools;
@@ -183,24 +183,38 @@ public class XWikiMCPServerManager implements Initializable, Disposable
         // Built from the names that actually registered, so the man hint is only sent when man is served.
         builder.instructions(buildInstructions(serverDescription, registeredNames));
 
-        McpStatelessSyncServer newServer = builder.build();
+        return new ServerHolder(builder.build(), newTransport);
+    }
 
-        // Atomically publish the new transport; handleRequest() will use it for all subsequent requests.
-        this.transport.set(newTransport);
-        McpStatelessSyncServer oldServer = this.mcpServer;
-        this.mcpServer = newServer;
+    /**
+     * Invalidates the cached MCP server for the given wiki so its name, description and instructions are
+     * re-read from configuration on the next connection. The removed server is closed: {@code
+     * closeGracefully()} only marks its transport as closing (rejecting new requests); in-flight requests
+     * on the removed holder complete naturally since the stateless transport releases nothing they depend on.
+     *
+     * @param wikiId the wiki whose cached server to drop
+     */
+    public void invalidate(String wikiId)
+    {
+        ServerHolder removed = this.servers.remove(wikiId);
+        if (removed != null) {
+            closeQuietly(removed.server());
+        }
+    }
 
-        // Close the old server after the swap. closeGracefully() only marks the old transport as
-        // closing (new requests get rejected); in-flight requests complete naturally since the
-        // stateless transport releases nothing they depend on.
-        if (oldServer != null) {
-            try {
-                oldServer.closeGracefully();
-            } catch (Exception e) {
-                this.logger.warn("Failed to close MCP server gracefully during rebuild: {}",
-                    ExceptionUtils.getRootCauseMessage(e));
-                this.logger.debug("Failed to close MCP server gracefully during rebuild", e);
-            }
+    /**
+     * Closes one MCP server gracefully, logging at WARN (with a DEBUG stack trace) instead of propagating
+     * if the close fails.
+     *
+     * @param server the server to close
+     */
+    private void closeQuietly(McpStatelessSyncServer server)
+    {
+        try {
+            server.closeGracefully();
+        } catch (Exception e) {
+            this.logger.warn("Failed to close MCP server gracefully: {}", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Failed to close MCP server gracefully", e);
         }
     }
 
@@ -358,31 +372,28 @@ public class XWikiMCPServerManager implements Initializable, Disposable
     }
 
     /**
-     * Handle an incoming request by delegating to the current transport.
+     * Handle an incoming request by routing it to the given wiki's MCP server, building and caching that
+     * server lazily on the first request for the wiki.
      *
+     * @param wikiId the wiki whose server should serve the request
      * @param request the incoming request
      * @param response the outgoing response
      * @throws ServletException if the transport throws
      * @throws IOException if the transport throws
      */
-    public void handleRequest(HttpServletRequest request, HttpServletResponse response)
+    public void handleRequest(String wikiId, HttpServletRequest request, HttpServletResponse response)
         throws ServletException, IOException
     {
-        this.transport.get().service(request, response);
+        ServerHolder holder = this.servers.computeIfAbsent(wikiId, this::buildServer);
+        holder.transport().service(request, response);
     }
 
     @Override
     public void dispose()
     {
-        McpStatelessSyncServer serverToClose = this.mcpServer;
-        this.mcpServer = null;
-        if (serverToClose != null) {
-            try {
-                serverToClose.closeGracefully();
-            } catch (Exception e) {
-                this.logger.warn("Failed to close MCP server gracefully: {}", ExceptionUtils.getRootCauseMessage(e));
-                this.logger.debug("Failed to close MCP server gracefully", e);
-            }
+        for (ServerHolder holder : this.servers.values()) {
+            closeQuietly(holder.server());
         }
+        this.servers.clear();
     }
 }

@@ -34,7 +34,9 @@
     <properties>
         <xwiki.extension.name>MCP Server (BETA)</xwiki.extension.name>
         <xwiki.extension.category>application</xwiki.extension.category>
-        <xwiki.extension.namespaces>wiki:xwiki</xwiki.extension.namespaces>
+        <!-- Install on every wiki (root namespace) so each wiki has its own MCP config + admin section;
+             the XAR wiki-creation listener also provisions it into wikis created later. -->
+        <xwiki.extension.namespaces>{root}</xwiki.extension.namespaces>
     </properties>
     <dependencies>
         <dependency>

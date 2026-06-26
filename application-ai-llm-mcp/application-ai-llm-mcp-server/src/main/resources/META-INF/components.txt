@@ -7,3 +7,4 @@ org.xwiki.contrib.llm.mcp.internal.MCPManTool
 org.xwiki.contrib.llm.mcp.internal.MCPGetDocumentTool
 org.xwiki.contrib.llm.mcp.internal.MCPEditDocumentTool
 org.xwiki.contrib.llm.mcp.internal.MCPWriteDocumentTool
+org.xwiki.contrib.llm.mcp.script.MCPFarmScriptService

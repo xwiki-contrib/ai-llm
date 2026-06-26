@@ -21,7 +21,6 @@ package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.Arrays;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
@@ -29,7 +28,6 @@ import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
-import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -46,23 +44,16 @@ class MCPConfigChangeEventListenerTest
 {
     private static final String MAIN_WIKI = "xwiki";
 
+    private static final String SUB_WIKI = "subwikiX";
+
     @InjectMockComponents
     private MCPConfigChangeEventListener listener;
 
     @MockComponent
     private XWikiMCPServerManager mcpServerManager;
 
-    @MockComponent
-    private WikiDescriptorManager wikiDescriptorManager;
-
-    @BeforeEach
-    void setUp()
-    {
-        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
-    }
-
     @Test
-    void onEventTriggersRebuildForConfigDoc()
+    void onEventInvalidatesMainWikiForMainWikiConfigDoc()
     {
         DocumentReference configRef = new DocumentReference(MAIN_WIKI,
             Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
@@ -71,7 +62,20 @@ class MCPConfigChangeEventListenerTest
 
         this.listener.onEvent(new DocumentUpdatedEvent(configRef), doc, null);
 
-        verify(this.mcpServerManager).rebuildServer();
+        verify(this.mcpServerManager).invalidate(MAIN_WIKI);
+    }
+
+    @Test
+    void onEventInvalidatesSavedWikiForSubWikiConfigDoc()
+    {
+        DocumentReference configRef = new DocumentReference(SUB_WIKI,
+            Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
+        DocumentModelBridge doc = mock(DocumentModelBridge.class);
+        when(doc.getDocumentReference()).thenReturn(configRef);
+
+        this.listener.onEvent(new DocumentUpdatedEvent(configRef), doc, null);
+
+        verify(this.mcpServerManager).invalidate(SUB_WIKI);
     }
 
     @Test
@@ -88,19 +92,6 @@ class MCPConfigChangeEventListenerTest
     }
 
     @Test
-    void onEventIgnoresSubWikiConfigDoc()
-    {
-        DocumentReference subWikiRef = new DocumentReference("subwiki",
-            Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
-        DocumentModelBridge doc = mock(DocumentModelBridge.class);
-        when(doc.getDocumentReference()).thenReturn(subWikiRef);
-
-        this.listener.onEvent(new DocumentUpdatedEvent(subWikiRef), doc, null);
-
-        verifyNoInteractions(this.mcpServerManager);
-    }
-
-    @Test
     void onEventFallsBackToSourceDocumentReference()
     {
         DocumentReference configRef = new DocumentReference(MAIN_WIKI,
@@ -110,7 +101,7 @@ class MCPConfigChangeEventListenerTest
 
         this.listener.onEvent(new DocumentUpdatedEvent(), doc, null);
 
-        verify(this.mcpServerManager).rebuildServer();
+        verify(this.mcpServerManager).invalidate(MAIN_WIKI);
     }
 
     @Test

@@ -31,12 +31,15 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.observation.AbstractEventListener;
 import org.xwiki.observation.event.Event;
-import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 /**
- * Listens for saves to the MCP server configuration document ({@code AI.MCP.Code.MCPServerConfig})
- * and triggers a {@link XWikiMCPServerManager#rebuildServer() rebuild} so the new name / description
- * take effect immediately without restarting XWiki.
+ * Listens for saves to any wiki's MCP server configuration document ({@code AI.MCP.Code.MCPServerConfig})
+ * and {@link XWikiMCPServerManager#invalidate(String) invalidates} that wiki's MCP server, so its name,
+ * description and instructions are re-read on the next connection without restarting XWiki.
+ *
+ * <p>This is a global {@link AbstractEventListener} (not a {@code LocalEventListener}) by design: each
+ * cluster node keeps its own per-wiki server cache, so the invalidation must fire on every node. A
+ * local listener would leave other nodes serving stale configuration.</p>
  *
  * @version $Id$
  * @since 0.9
@@ -52,9 +55,6 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
 
     @Inject
     private XWikiMCPServerManager mcpServerManager;
-
-    @Inject
-    private WikiDescriptorManager wikiDescriptorManager;
 
     @Inject
     private Logger logger;
@@ -75,16 +75,12 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
             return;
         }
         DocumentReference ref = ((DocumentModelBridge) source).getDocumentReference();
-        if (getConfigDocumentReference().equals(ref)) {
-            this.logger.debug("MCP server configuration changed, triggering server rebuild");
-            this.mcpServerManager.rebuildServer();
-        }
-    }
-
-    // Not cached as a field: getMainWikiId() may not be available at component initialisation time.
-    private DocumentReference getConfigDocumentReference()
-    {
-        return new DocumentReference(this.wikiDescriptorManager.getMainWikiId(),
+        String wikiId = ref.getWikiReference().getName();
+        DocumentReference configRef = new DocumentReference(wikiId,
             MCPServerConfiguration.CONFIG_SPACES, MCPServerConfiguration.CONFIG_DOC_NAME);
+        if (configRef.equals(ref)) {
+            this.logger.debug("MCP server configuration changed for wiki [{}], invalidating its server", wikiId);
+            this.mcpServerManager.invalidate(wikiId);
+        }
     }
 }

@@ -102,6 +102,9 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
     private XWikiMCPServerManager mcpServerManager;
 
     @Inject
+    private MCPServerConfiguration mcpConfig;
+
+    @Inject
     private Container container;
 
     @Override
@@ -164,6 +167,10 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
      */
     void delegateToMcp(String wikiName) throws XWikiRestException
     {
+        if (!this.mcpConfig.isEnabled(wikiName)) {
+            throw notFoundException();
+        }
+
         XWikiContext xcontext = this.xcontextProvider.get();
         String previousWiki = xcontext.getWikiId();
 
@@ -182,7 +189,7 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
             // --- Delegate to MCP transport ---
             try {
                 xcontext.setWikiId(wikiName);
-                this.mcpServerManager.handleRequest(jakartaRequest, jakartaResponse);
+                this.mcpServerManager.handleRequest(wikiName, jakartaRequest, jakartaResponse);
             } catch (Exception e) {
                 throw new XWikiRestException("Failed to handle MCP request for wiki [" + wikiName + "]", e);
             } finally {
@@ -211,6 +218,17 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
                     "Bearer realm=\"XWiki MCP\", resource_metadata=\"" + metadataUrl + "\"")
                 .build()
         );
+    }
+
+    /**
+     * Builds a {@code 404 Not Found} {@link WebApplicationException}. Returned when the MCP endpoint is
+     * disabled for the target wiki, so a disabled wiki's endpoint looks absent regardless of authentication.
+     *
+     * @return the exception to throw
+     */
+    private WebApplicationException notFoundException()
+    {
+        return new WebApplicationException(Response.status(Response.Status.NOT_FOUND).build());
     }
 
     /**

@@ -41,7 +41,7 @@
     <name>AI.MCP.Code.MCPServerConfig</name>
     <number>0</number>
     <className>AI.MCP.Code.MCPServerConfigClass</className>
-    <guid>f4ed49cd-2564-472d-ae48-ceec8cce08a7</guid>
+    <guid>aaae5e1e-beb8-475a-bac4-4db1542ba2af</guid>
     <class>
       <name>AI.MCP.Code.MCPServerConfigClass</name>
       <customClass/>
@@ -51,15 +51,30 @@
       <defaultWeb/>
       <nameField/>
       <validationScript/>
+      <enabled>
+        <customDisplay/>
+        <defaultValue/>
+        <disabled>0</disabled>
+        <displayFormType>checkbox</displayFormType>
+        <displayType/>
+        <hint>Whether the MCP endpoint is active for this wiki. When off, the wiki's MCP URL returns 404.</hint>
+        <name>enabled</name>
+        <number>3</number>
+        <prettyName>Enabled</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </enabled>
       <serverDescription>
         <contenttype>PureText</contenttype>
         <customDisplay/>
         <disabled>0</disabled>
         <editor>---</editor>
-        <hint>A short description of this MCP server shown to connecting agents.</hint>
+        <hint>Sent to connecting AI agents as the MCP server instructions - intended to describe what this wiki contains (e.g. policies, onboarding, org charts). Whether it reaches the agent is client-dependent: some clients (such as Claude Code) keep it in the session context, others (such as LMStudio) do not surface it - so treat it as helpful when available, not guaranteed.</hint>
         <name>serverDescription</name>
         <number>2</number>
-        <picker>0</picker>
+        <picker>1</picker>
         <prettyName>Server Description</prettyName>
         <restricted>0</restricted>
         <rows>4</rows>
@@ -72,7 +87,7 @@
       <serverName>
         <customDisplay/>
         <disabled>0</disabled>
-        <hint>The name advertised to MCP clients. Defaults to "XWiki" if left empty.</hint>
+        <hint>Server identity sent in the MCP protocol handshake. Many clients (including Claude Code) show the connection name configured on the client instead, so this is often not visible. Defaults to the wiki name if left empty.</hint>
         <name>serverName</name>
         <number>1</number>
         <picker>0</picker>
@@ -85,6 +100,9 @@
       </serverName>
     </class>
     <property>
+      <enabled>0</enabled>
+    </property>
+    <property>
       <serverDescription>XWiki MCP Server</serverDescription>
     </property>
     <property>
@@ -95,7 +113,7 @@
     <name>AI.MCP.Code.MCPServerConfig</name>
     <number>0</number>
     <className>XWiki.ConfigurableClass</className>
-    <guid>322a1d93-a3ab-45a7-b0c2-ede322fb6906</guid>
+    <guid>f9196eb1-b3b3-4372-aedd-cb6a8d4afed5</guid>
     <class>
       <name>XWiki.ConfigurableClass</name>
       <customClass/>

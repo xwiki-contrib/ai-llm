@@ -31,7 +31,7 @@
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>Translations</title>
+  <title/>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>plain/1.0</syntaxId>
@@ -39,12 +39,25 @@
   <content># Class fields
 AI.MCP.Code.MCPServerConfigClass_serverName=Server Name
 AI.MCP.Code.MCPServerConfigClass_serverDescription=Server Description
+# Farm dashboard
+AI.MCP.Code.dashboard.heading=MCP across all wikis
+AI.MCP.Code.dashboard.intro=Enable or disable the MCP endpoint for each wiki of this farm. You can only change wikis on which you have admin rights.
+AI.MCP.Code.dashboard.column.enabled=MCP enabled
+AI.MCP.Code.dashboard.column.wiki=Wiki
+AI.MCP.Code.dashboard.column.configure=Configure
+AI.MCP.Code.dashboard.status.enabled=Enabled
+AI.MCP.Code.dashboard.status.disabled=Disabled
+AI.MCP.Code.dashboard.configure.link=Configure
+AI.MCP.Code.dashboard.button.apply=Apply changes
+AI.MCP.Code.dashboard.error.csrf=The form token is invalid. No change was applied. Please try again.
+AI.MCP.Code.dashboard.status.applied={0} wiki(s) updated.
+AI.MCP.Code.dashboard.status.applied.skipped={0} wiki(s) updated, {1} skipped (insufficient rights).
 </content>
   <object>
     <name>AI.MCP.Code.Translations</name>
     <number>0</number>
     <className>XWiki.TranslationDocumentClass</className>
-    <guid>bfff8c05-6d0e-4f64-9fa4-05726ac22ac7</guid>
+    <guid>ea7600b2-304f-4846-ba3f-ff95a47b954d</guid>
     <class>
       <name>XWiki.TranslationDocumentClass</name>
       <customClass/>
