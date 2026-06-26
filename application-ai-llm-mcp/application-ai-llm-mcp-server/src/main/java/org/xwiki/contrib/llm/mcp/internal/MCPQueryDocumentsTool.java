@@ -27,7 +27,6 @@ import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -42,12 +41,8 @@ import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
-import org.xwiki.query.QueryManager;
-import org.xwiki.query.SecureQuery;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.search.solr.internal.api.FieldUtils;
-
-import com.xpn.xwiki.XWikiContext;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -63,9 +58,10 @@ import io.modelcontextprotocol.spec.McpSchema;
  * default is relied upon and {@code defType} is never bound, so multilingual title expansion
  * is preserved.</p>
  *
- * <p>Authorization is enforced by {@link SecureQuery#checkCurrentUser(boolean)}: the
- * {@code SolrQueryExecutor} post-filters results to remove any documents the current
- * user does not have view access to.</p>
+ * <p>The query is created through {@link MCPDocumentSearch#createQuery(String, java.util.List)}, which
+ * scopes it to the current wiki, applies the per-wiki space filter and enables current-user view-rights
+ * post-filtering, so that the {@code SolrQueryExecutor} removes any documents the current user cannot
+ * view. This tool only adds its own non-fq parameters and its content/date filter queries.</p>
  *
  * @version $Id$
  * @since 0.9
@@ -245,13 +241,10 @@ public class MCPQueryDocumentsTool implements MCPTool
     private Logger logger;
 
     @Inject
-    private QueryManager queryManager;
+    private MCPDocumentSearch documentSearch;
 
     @Inject
     private SolrUtils solrUtils;
-
-    @Inject
-    private Provider<XWikiContext> contextProvider;
 
     @Inject
     private DocumentAccessBridge documentAccessBridge;
@@ -348,16 +341,12 @@ public class MCPQueryDocumentsTool implements MCPTool
         boolean browse = request.browse();
         String statement = browse ? BROWSE_STATEMENT : request.queryText();
 
-        List<String> filterQueries = buildFilterQueries(request);
-
-        Query query = this.queryManager.createQuery(statement, "solr");
-        // Deliberate raw cast (instead of the platform's instanceof pattern): if a Solr query were ever
-        // not a SecureQuery, failing loudly here is safer than silently skipping the rights check.
-        ((SecureQuery) query).checkCurrentUser(true);
+        // The door creates the secure query, scopes it to the wiki, applies the space filter and binds the
+        // combined fq (wiki scope + space filter + these additional fqs); the tool only adds non-fq params.
+        Query query = this.documentSearch.createQuery(statement, buildFilterQueries(request));
         query.setLimit(request.limit());
         query.setOffset(request.offset());
         query.bindValue("qf", QF_WEIGHTS);
-        query.bindValue("fq", filterQueries);
         query.bindValue(TIME_ALLOWED_KEY, TIME_ALLOWED_MS);
 
         bindSort(query, request.sort(), browse);
@@ -384,12 +373,6 @@ public class MCPQueryDocumentsTool implements MCPTool
         filterQueries.add("type:DOCUMENT");
         if (!request.includeHidden()) {
             filterQueries.add("hidden:false");
-        }
-
-        XWikiContext xcontext = this.contextProvider.get();
-        if (xcontext != null && StringUtils.isNotBlank(xcontext.getWikiId())) {
-            filterQueries.add(FieldUtils.WIKI + COLON
-                + this.solrUtils.toCompleteFilterQueryString(xcontext.getWikiId()));
         }
 
         if (StringUtils.isNotBlank(request.space())) {

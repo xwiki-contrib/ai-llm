@@ -33,9 +33,7 @@ import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
-import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 
 import com.xpn.xwiki.XWiki;
@@ -58,10 +56,10 @@ import io.modelcontextprotocol.spec.McpSchema;
  * {@link MCPSourceText#normalizeLineEndings(String)}, matching the representation the read and edit
  * tools operate on.</p>
  *
- * <p>Authorization is enforced with {@link ContextualAuthorizationManager#hasAccess(Right,
- * org.xwiki.model.reference.EntityReference)} for {@link Right#EDIT} before the document is loaded, so the
- * existence of a protected document is never leaked. The save goes through {@link com.xpn.xwiki.api.Document}
- * so author attribution and save-time rights are applied.</p>
+ * <p>Resolution and authorization both go through {@link MCPDocumentAccess#resolveAndAuthorize(String,
+ * Right)} for {@link Right#EDIT} before the document is loaded, so the per-wiki space filter is applied
+ * and the existence of a protected document is never leaked. The save goes through
+ * {@link com.xpn.xwiki.api.Document} so author attribution and save-time rights are applied.</p>
  *
  * @version $Id$
  * @since 0.9
@@ -142,11 +140,7 @@ public class MCPWriteDocumentTool implements MCPTool
     private Logger logger;
 
     @Inject
-    @Named("current")
-    private DocumentReferenceResolver<String> referenceResolver;
-
-    @Inject
-    private ContextualAuthorizationManager authorization;
+    private MCPDocumentAccess documentAccess;
 
     @Inject
     private EntityReferenceSerializer<String> serializer;
@@ -231,9 +225,11 @@ public class MCPWriteDocumentTool implements MCPTool
             String comment = PARAMS.string(args, COMMENT_PARAM);
             boolean major = PARAMS.bool(args, MAJOR_PARAM);
 
-            DocumentReference ref = this.referenceResolver.resolve(reference);
-            if (!this.authorization.hasAccess(Right.EDIT, ref)) {
-                return MCPToolSupport.errorResult("Not authorized to edit " + QUOTE + reference + QUOTE + PERIOD);
+            DocumentReference ref;
+            try {
+                ref = this.documentAccess.resolveAndAuthorize(reference, Right.EDIT);
+            } catch (MCPAccessDeniedException e) {
+                return MCPToolSupport.errorResult(e.getMessage());
             }
 
             return writeAndSave(ref, reference, content, title, baseVersion, comment, major);

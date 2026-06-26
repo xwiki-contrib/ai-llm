@@ -39,10 +39,8 @@ import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
-import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.xml.html.HTMLCleaner;
 
@@ -62,9 +60,9 @@ import io.modelcontextprotocol.spec.McpSchema;
  * <p>The content returned is the document's raw, unrendered source with line endings normalized to LF,
  * so that an agent can later match the exact source it read when forming edits.</p>
  *
- * <p>Authorization is enforced with {@link ContextualAuthorizationManager#hasAccess(Right,
- * org.xwiki.model.reference.EntityReference)} for {@link Right#VIEW} before the document is loaded,
- * so the existence of a protected document is never leaked.</p>
+ * <p>Resolution and authorization both go through {@link MCPDocumentAccess#resolveAndAuthorize(String,
+ * Right)} for {@link Right#VIEW} before the document is loaded, so the per-wiki space filter is applied
+ * and the existence of a protected document is never leaked.</p>
  *
  * @version $Id$
  * @since 0.9
@@ -258,18 +256,24 @@ public class MCPGetDocumentTool implements MCPTool
             + "preserves structure (tables, links, message boxes) at a higher token cost.")
         .build();
 
+    /**
+     * Error returned when an agent requests rendered output on a wiki where rendered content is disabled.
+     */
+    private static final String RENDERED_DISABLED_ERROR =
+        "Rendered content is disabled for this wiki. Request the document without rendering (the raw wiki "
+            + "source) instead.";
+
     @Inject
     private Logger logger;
 
     @Inject
-    @Named("current")
-    private DocumentReferenceResolver<String> referenceResolver;
+    private MCPDocumentAccess documentAccess;
+
+    @Inject
+    private MCPServerConfiguration mcpConfig;
 
     @Inject
     private DocumentAccessBridge documentAccessBridge;
-
-    @Inject
-    private ContextualAuthorizationManager authorization;
 
     @Inject
     private EntityReferenceSerializer<String> serializer;
@@ -335,9 +339,11 @@ public class MCPGetDocumentTool implements MCPTool
         try {
             String reference = PARAMS.requireString(args, REFERENCE_PARAM);
 
-            DocumentReference ref = this.referenceResolver.resolve(reference);
-            if (!this.authorization.hasAccess(Right.VIEW, ref)) {
-                return MCPToolSupport.errorResult("Not authorized to view " + QUOTE + reference + QUOTE + PERIOD);
+            DocumentReference ref;
+            try {
+                ref = this.documentAccess.resolveAndAuthorize(reference, Right.VIEW);
+            } catch (MCPAccessDeniedException e) {
+                return MCPToolSupport.errorResult(e.getMessage());
             }
 
             if (!documentExists(ref, reference)) {
@@ -350,6 +356,14 @@ public class MCPGetDocumentTool implements MCPTool
             boolean outline = PARAMS.bool(args, OUTLINE_PARAM);
             Syntax renderedSyntax =
                 resolveRenderedSyntax(PARAMS.string(args, FORMAT_PARAM), PARAMS.bool(args, RENDERED_PARAM));
+
+            // Gate rendered mode after resolution/authorization (and existence), so a disabled-rendering refusal
+            // never leaks existence beyond the normal flow. Refuse clearly rather than silently returning the
+            // raw source, so the agent re-requests with rendered=false.
+            if (renderedSyntax != null
+                && !this.mcpConfig.isRenderedContentAllowed(this.contextProvider.get().getWikiId())) {
+                return MCPToolSupport.errorResult(RENDERED_DISABLED_ERROR);
+            }
 
             String title;
             String content;

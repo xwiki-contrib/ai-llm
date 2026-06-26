@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 import javax.inject.Named;
-import javax.inject.Provider;
 
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
@@ -37,9 +36,8 @@ import org.mockito.ArgumentCaptor;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
-import org.xwiki.query.QueryManager;
-import org.xwiki.query.SecureQuery;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.search.solr.internal.api.FieldUtils;
 import org.xwiki.test.LogLevel;
@@ -47,8 +45,6 @@ import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
-
-import com.xpn.xwiki.XWikiContext;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -58,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -86,13 +83,10 @@ class MCPQueryDocumentsToolTest
     private MCPQueryDocumentsTool tool;
 
     @MockComponent
-    private QueryManager queryManager;
+    private MCPDocumentSearch documentSearch;
 
     @MockComponent
     private SolrUtils solrUtils;
-
-    @MockComponent
-    private Provider<XWikiContext> contextProvider;
 
     @MockComponent
     private DocumentAccessBridge documentAccessBridge;
@@ -107,10 +101,6 @@ class MCPQueryDocumentsToolTest
         // Make escaping passthrough so test query strings are predictable.
         when(this.solrUtils.toCompleteFilterQueryString(anyString())).thenAnswer(inv -> inv.getArgument(0));
 
-        XWikiContext xcontext = mock(XWikiContext.class);
-        when(xcontext.getWikiId()).thenReturn("xwiki");
-        when(this.contextProvider.get()).thenReturn(xcontext);
-
         lenient().when(this.referenceResolver.resolve(anyString())).thenReturn(mock(DocumentReference.class));
         lenient().when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), isNull(), isNull(), eq(true)))
             .thenReturn(VIEW_URL);
@@ -120,27 +110,27 @@ class MCPQueryDocumentsToolTest
     // Helpers
     // -------------------------------------------------------------------------
 
-    private SecureQuery stubQuery(List<SolrDocument> docs) throws QueryException
+    private Query stubQuery(List<SolrDocument> docs) throws QueryException
     {
         return stubQuery(docs, null);
     }
 
     /**
-     * Wires up the QueryManager so the next createQuery call returns a SecureQuery that executes and
-     * returns the given documents, optionally with the given highlighting map.
+     * Wires up the document-search door so the next createQuery call returns a Query that executes and
+     * returns the given documents, optionally with the given highlighting map. The door owns the secure
+     * flag and the wiki/space filter queries, so the mock here is a plain Query.
      */
-    private SecureQuery stubQuery(List<SolrDocument> docs,
+    private Query stubQuery(List<SolrDocument> docs,
         Map<String, Map<String, List<String>>> highlighting) throws QueryException
     {
         return stubQuery(docs, highlighting, docs.size());
     }
 
-    private SecureQuery stubQuery(List<SolrDocument> docs,
+    private Query stubQuery(List<SolrDocument> docs,
         Map<String, Map<String, List<String>>> highlighting, long numFound) throws QueryException
     {
-        SecureQuery query = mock(SecureQuery.class);
-        when(this.queryManager.createQuery(anyString(), eq("solr"))).thenReturn(query);
-        when(query.checkCurrentUser(true)).thenReturn(query);
+        Query query = mock(Query.class);
+        when(this.documentSearch.createQuery(anyString(), anyList())).thenReturn(query);
         when(query.setLimit(anyInt())).thenReturn(query);
         when(query.setOffset(anyInt())).thenReturn(query);
         when(query.bindValue(anyString(), any())).thenReturn(query);
@@ -183,11 +173,11 @@ class MCPQueryDocumentsToolTest
     }
 
     @SuppressWarnings("unchecked")
-    private static List<String> captureFilterQueries(SecureQuery query)
+    private List<String> captureFilterQueries() throws QueryException
     {
-        ArgumentCaptor<Object> fqCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(query).bindValue(eq("fq"), fqCaptor.capture());
-        return (List<String>) fqCaptor.getValue();
+        ArgumentCaptor<List<String>> fqCaptor = ArgumentCaptor.forClass(List.class);
+        verify(this.documentSearch).createQuery(anyString(), fqCaptor.capture());
+        return fqCaptor.getValue();
     }
 
     // -------------------------------------------------------------------------
@@ -197,13 +187,13 @@ class MCPQueryDocumentsToolTest
     @Test
     void nonBlankQueryPassesStatementVerbatimAndBindsQfAndHighlighting() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
 
         this.tool.execute(request("query_documents",
             Map.of("query", "+foo -bar \"exact phrase\"")));
 
         ArgumentCaptor<String> statementCaptor = ArgumentCaptor.forClass(String.class);
-        verify(this.queryManager).createQuery(statementCaptor.capture(), eq("solr"));
+        verify(this.documentSearch).createQuery(statementCaptor.capture(), anyList());
         assertEquals("+foo -bar \"exact phrase\"", statementCaptor.getValue());
 
         verify(query).bindValue("qf", QF_WEIGHTS);
@@ -213,7 +203,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void defTypeAndFlAreNeverBound() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
 
         this.tool.execute(request("query_documents", Map.of("query", "hello")));
 
@@ -224,7 +214,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void qfWeightsAreBound() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
 
         this.tool.execute(request("query_documents", Map.of("query", "hello")));
 
@@ -234,7 +224,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void timeAllowedIsBound() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
 
         this.tool.execute(request("query_documents", Map.of("query", "hello")));
 
@@ -244,7 +234,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void nonBlankQueryBindsHighlightingParams() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
 
         this.tool.execute(request("query_documents", Map.of("query", "hello")));
 
@@ -263,12 +253,12 @@ class MCPQueryDocumentsToolTest
     @Test
     void blankQueryBrowsesAllAndSortsByDateDesc() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
 
         this.tool.execute(request("query_documents", Map.of()));
 
         ArgumentCaptor<String> statementCaptor = ArgumentCaptor.forClass(String.class);
-        verify(this.queryManager).createQuery(statementCaptor.capture(), eq("solr"));
+        verify(this.documentSearch).createQuery(statementCaptor.capture(), anyList());
         assertEquals("*", statementCaptor.getValue());
 
         verify(query).bindValue("sort", "date desc");
@@ -306,7 +296,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void sortNewestBindsDateDesc() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "sort", "newest")));
         verify(query).bindValue("sort", "date desc");
@@ -315,7 +305,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void sortOldestBindsDateAsc() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "sort", "oldest")));
         verify(query).bindValue("sort", "date asc");
@@ -324,7 +314,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void sortTitleBindsTitleSortAsc() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "sort", "title")));
         verify(query).bindValue("sort", FieldUtils.TITLE_SORT + " asc");
@@ -333,7 +323,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void sortRelevanceWithQueryBindsNoSort() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "sort", "relevance")));
         verify(query, never()).bindValue(eq("sort"), any());
@@ -359,50 +349,51 @@ class MCPQueryDocumentsToolTest
     @Test
     void baseFiltersAreAlwaysApplied() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x")));
-        List<String> fqs = captureFilterQueries(query);
+        List<String> fqs = captureFilterQueries();
         assertTrue(fqs.contains("type:DOCUMENT"));
         assertTrue(fqs.contains("hidden:false"));
-        assertTrue(fqs.stream().anyMatch(f -> f.contains("wiki:")));
+        // The wiki scope is now the door's responsibility, so the tool must not add it itself.
+        assertFalse(fqs.stream().anyMatch(f -> f.contains("wiki:")), fqs.toString());
     }
 
     @Test
     void spaceProducesEscapedSpacePrefixFilter() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "space", "Help.Guides")));
         verify(this.solrUtils).toCompleteFilterQueryString("Help.Guides");
-        assertTrue(captureFilterQueries(query).contains("space_prefix:Help.Guides"));
+        assertTrue(captureFilterQueries().contains("space_prefix:Help.Guides"));
     }
 
     @Test
     void authorProducesEscapedAuthorFilter() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "author", "xwiki:XWiki.Admin")));
         verify(this.solrUtils).toCompleteFilterQueryString("xwiki:XWiki.Admin");
-        assertTrue(captureFilterQueries(query).contains("author:xwiki:XWiki.Admin"));
+        assertTrue(captureFilterQueries().contains("author:xwiki:XWiki.Admin"));
     }
 
     @Test
     void modifiedWithinWeekProducesDateRangeFilter() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "modifiedWithin", "week")));
-        assertTrue(captureFilterQueries(query).contains("date:[NOW-7DAY TO NOW]"));
+        assertTrue(captureFilterQueries().contains("date:[NOW-7DAY TO NOW]"));
     }
 
     @Test
     void modifiedRangeOverridesModifiedWithin() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "modifiedWithin", "week", "modifiedRange", "[2026-01-01T00:00:00Z TO NOW]")));
-        List<String> fqs = captureFilterQueries(query);
+        List<String> fqs = captureFilterQueries();
         assertTrue(fqs.contains("date:[2026-01-01T00:00:00Z TO NOW]"));
         assertFalse(fqs.contains("date:[NOW-7DAY TO NOW]"));
         // Raw range must not be escaped.
@@ -435,11 +426,11 @@ class MCPQueryDocumentsToolTest
     @Test
     void modifiedRangeAcceptsValidRange() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        stubQuery(List.of());
         McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
             Map.of("query", "x", "modifiedRange", "[NOW-7DAY TO NOW]")));
         assertNotEquals(Boolean.TRUE, result.isError());
-        assertTrue(captureFilterQueries(query).contains("date:[NOW-7DAY TO NOW]"));
+        assertTrue(captureFilterQueries().contains("date:[NOW-7DAY TO NOW]"));
     }
 
     // -------------------------------------------------------------------------
@@ -465,7 +456,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void limitIsClampedToMaximum() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x", "limit", 999)));
         verify(query).setLimit(50);
     }
@@ -473,7 +464,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void explicitLimitIsApplied() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x", "limit", 5)));
         verify(query).setLimit(5);
     }
@@ -481,7 +472,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void defaultLimitWhenNotProvided() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x")));
         verify(query).setLimit(10);
     }
@@ -489,7 +480,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void limitIsClampedToMinimum() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x", "limit", 0)));
         verify(query).setLimit(1);
     }
@@ -497,7 +488,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void negativeLimitIsClampedToMinimum() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x", "limit", -5)));
         verify(query).setLimit(1);
     }
@@ -519,7 +510,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void explicitOffsetIsApplied() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x", "offset", 20)));
         verify(query).setOffset(20);
     }
@@ -527,7 +518,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void defaultOffsetIsZero() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x")));
         verify(query).setOffset(0);
     }
@@ -609,10 +600,10 @@ class MCPQueryDocumentsToolTest
     @Test
     void includeHiddenDropsHiddenFilter() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "includeHidden", true)));
-        List<String> fqs = captureFilterQueries(query);
+        List<String> fqs = captureFilterQueries();
         assertFalse(fqs.contains("hidden:false"), fqs.toString());
         assertTrue(fqs.contains("type:DOCUMENT"));
     }
@@ -925,11 +916,14 @@ class MCPQueryDocumentsToolTest
     }
 
     @Test
-    void usesSecureQueryForAuthorization() throws QueryException
+    void delegatesQueryCreationToDoorAndDoesNotBindFqItself() throws QueryException
     {
-        SecureQuery query = stubQuery(List.of());
+        Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x")));
-        verify(query).checkCurrentUser(true);
+        // The door owns query creation, the secure flag and the fq binding; the tool obtains its query
+        // from the door and must never bind fq itself (that would drop the door's wiki/space scope).
+        verify(this.documentSearch).createQuery(anyString(), anyList());
+        verify(query, never()).bindValue(eq("fq"), any());
     }
 
     // -------------------------------------------------------------------------
@@ -939,7 +933,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void queryExceptionReturnsActionableError() throws QueryException
     {
-        when(this.queryManager.createQuery(anyString(), anyString()))
+        when(this.documentSearch.createQuery(anyString(), anyList()))
             .thenThrow(new QueryException("unbalanced parentheses", null, null));
 
         McpSchema.CallToolResult result =

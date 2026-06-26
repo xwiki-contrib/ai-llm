@@ -23,15 +23,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import javax.inject.Named;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
-import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
@@ -96,11 +92,7 @@ class MCPEditDocumentToolTest
     private MCPEditDocumentTool tool;
 
     @MockComponent
-    @Named("current")
-    private DocumentReferenceResolver<String> referenceResolver;
-
-    @MockComponent
-    private ContextualAuthorizationManager authorization;
+    private MCPDocumentAccess documentAccess;
 
     @MockComponent
     private EntityReferenceSerializer<String> serializer;
@@ -111,8 +103,7 @@ class MCPEditDocumentToolTest
     @BeforeEach
     void setUp(MockitoOldcore oldcore) throws Exception
     {
-        when(this.referenceResolver.resolve(anyString())).thenReturn(DOC_REFERENCE);
-        when(this.authorization.hasAccess(eq(Right.EDIT), any())).thenReturn(true);
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.EDIT))).thenReturn(DOC_REFERENCE);
         when(this.serializer.serialize(any())).thenReturn(CANONICAL);
 
         // Take the simple save path in api.Document.save (skip the saveAsAuthor branch).
@@ -297,7 +288,8 @@ class MCPEditDocumentToolTest
     void notAuthorizedErrorsWithoutLeakingExistenceOrLoading(MockitoOldcore oldcore) throws Exception
     {
         storeDocument(oldcore, "secret content", "Secret");
-        when(this.authorization.hasAccess(eq(Right.EDIT), any())).thenReturn(false);
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.EDIT)))
+            .thenThrow(new MCPAccessDeniedException("Not authorized to edit \"" + REF + "\"."));
 
         McpSchema.CallToolResult result =
             call(Map.of(REFERENCE_KEY, REF, EDITS_KEY, List.of(edit("secret", "x"))));
@@ -313,7 +305,8 @@ class MCPEditDocumentToolTest
     @Test
     void notAuthorizedDoesNotSave(MockitoOldcore oldcore) throws Exception
     {
-        when(this.authorization.hasAccess(eq(Right.EDIT), any())).thenReturn(false);
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.EDIT)))
+            .thenThrow(new MCPAccessDeniedException("Not authorized to edit \"" + REF + "\"."));
 
         McpSchema.CallToolResult result =
             call(Map.of(REFERENCE_KEY, REF, EDITS_KEY, List.of(edit("a", "b"))));
@@ -385,7 +378,7 @@ class MCPEditDocumentToolTest
 
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("at least one edit or a title"), textOf(result));
-        verify(this.referenceResolver, never()).resolve(anyString());
+        verify(this.documentAccess, never()).resolveAndAuthorize(anyString(), any());
     }
 
     @Test

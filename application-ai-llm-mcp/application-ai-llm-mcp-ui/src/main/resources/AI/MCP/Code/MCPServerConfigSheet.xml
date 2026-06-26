@@ -56,6 +56,8 @@
   #set ($discard = $configObject.set('enabled', 0))
 #end
 #set ($configClass = $xwiki.getDocument($configClassName).getxWikiClass())
+{{info}}$services.localization.render('AI.MCP.Code.security.notice'){{/info}}
+
 {{html clean="false"}}
   &lt;form id="mcp-server-config" method="post"
         action="$configDoc.getURL('save', "xredirect=$escapetool.url(${redirect})")"
@@ -116,6 +118,36 @@
 #if ($lastCat != '')
     &lt;/div&gt;
 #end
+    &lt;fieldset&gt;
+      &lt;dl&gt;
+        &lt;dt&gt;
+          &lt;label for="mcp-allowRenderedContent"&gt;$configClass.get('allowRenderedContent').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;span class="xHint"&gt;$configClass.get('allowRenderedContent').getHint()&lt;/span&gt;
+        &lt;/dt&gt;
+        &lt;dd&gt;{{/html}}$configObject.display('allowRenderedContent', 'edit'){{html clean="false"}}&lt;/dd&gt;
+      &lt;/dl&gt;
+    &lt;/fieldset&gt;
+    &lt;h2&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.heading'))&lt;/h2&gt;
+    &lt;p&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.intro'))&lt;/p&gt;
+    &lt;fieldset&gt;
+      &lt;dl&gt;
+        &lt;dt&gt;
+          &lt;label for="mcp-spaceFilterMode"&gt;$configClass.get('spaceFilterMode').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;span class="xHint"&gt;$configClass.get('spaceFilterMode').getHint()&lt;/span&gt;
+        &lt;/dt&gt;
+        &lt;dd&gt;{{/html}}$configObject.display('spaceFilterMode', 'edit'){{html clean="false"}}&lt;/dd&gt;
+        &lt;dt&gt;
+          &lt;label for="mcp-spaceFilterSpaces"&gt;$configClass.get('spaceFilterSpaces').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;span class="xHint"&gt;$configClass.get('spaceFilterSpaces').getHint()&lt;/span&gt;
+        &lt;/dt&gt;
+        &lt;dd&gt;{{/html}}$configObject.display('spaceFilterSpaces', 'edit'){{html clean="false"}}&lt;/dd&gt;
+        &lt;dt&gt;
+          &lt;label for="mcp-spaceFilterDocuments"&gt;$configClass.get('spaceFilterDocuments').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;span class="xHint"&gt;$configClass.get('spaceFilterDocuments').getHint()&lt;/span&gt;
+        &lt;/dt&gt;
+        &lt;dd&gt;{{/html}}$configObject.display('spaceFilterDocuments', 'edit'){{html clean="false"}}&lt;/dd&gt;
+      &lt;/dl&gt;
+    &lt;/fieldset&gt;
     &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
     &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" /&gt;
   &lt;/form&gt;

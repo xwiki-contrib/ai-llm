@@ -42,6 +42,7 @@ import org.xwiki.wiki.descriptor.WikiDescriptor;
 import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 
@@ -76,6 +77,23 @@ public class MCPServerConfiguration
     static final String FIELD_ENABLED = "enabled";
 
     static final String FIELD_ENABLED_TOOLS = "enabledTools";
+
+    static final String FIELD_SPACE_FILTER_MODE = "spaceFilterMode";
+
+    static final String FIELD_SPACE_FILTER_SPACES = "spaceFilterSpaces";
+
+    static final String FIELD_SPACE_FILTER_DOCUMENTS = "spaceFilterDocuments";
+
+    static final String FIELD_ALLOW_RENDERED_CONTENT = "allowRenderedContent";
+
+    /** Space filter mode value disabling the filter: every document is allowed. */
+    static final String SPACE_FILTER_MODE_NONE = "none";
+
+    /** Space filter mode value: only the configured spaces and documents are allowed. */
+    static final String SPACE_FILTER_MODE_WHITELIST = "whitelist";
+
+    /** Space filter mode value: every document except the configured spaces and documents is allowed. */
+    static final String SPACE_FILTER_MODE_BLACKLIST = "blacklist";
 
     /**
      * Tool ids that are always part of the effective enabled set, regardless of the stored or default
@@ -159,6 +177,37 @@ public class MCPServerConfiguration
                 wikiId, ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP enabled flag read failure for wiki [{}]", wikiId, e);
             return false;
+        }
+    }
+
+    /**
+     * Returns whether {@code get_document}'s rendered mode is allowed for the given wiki. Rendering executes
+     * the page's macros with the page author's rights (equivalent to viewing the page), so this toggle lets an
+     * admin restrict the agent to the raw wiki source. It defaults to on: an unset field, a missing config
+     * object and a failed read all resolve to {@code true}. Rendering is a capability, not a confidentiality
+     * boundary - the space filter is the boundary and already fails closed - so this fails open to the default.
+     *
+     * @param wikiId the wiki to check
+     * @return whether rendered content is allowed for the given wiki
+     * @since 0.9
+     */
+    public boolean isRenderedContentAllowed(String wikiId)
+    {
+        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
+        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
+        try {
+            XWikiContext context = this.contextProvider.get();
+            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
+            BaseObject configObject = configDoc.getXObject(classRef);
+            if (configObject == null || configObject.getField(FIELD_ALLOW_RENDERED_CONTENT) == null) {
+                return true;
+            }
+            return configObject.getIntValue(FIELD_ALLOW_RENDERED_CONTENT) == 1;
+        } catch (Exception e) {
+            this.logger.warn("Could not read the MCP allow-rendered-content flag for wiki [{}]; allowing "
+                + "rendered content: [{}]", wikiId, ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP allow-rendered-content flag read failure for wiki [{}]", wikiId, e);
+            return true;
         }
     }
 
@@ -333,6 +382,106 @@ public class MCPServerConfiguration
             this.logger.debug("Failed to set the MCP enabled tools for wiki [{}]", wikiId, e);
             return false;
         }
+    }
+
+    /**
+     * Returns the space filter mode configured for the given wiki: one of {@code none}, {@code whitelist}
+     * or {@code blacklist}. This filter narrows the set of documents the wiki's MCP tools may reach on top
+     * of the regular rights checks; it never grants access. A blank or absent value (the read succeeded but
+     * the field is empty) resolves to {@code none}, imposing no restriction. A genuine read failure is
+     * propagated as a {@link RuntimeException} so the caller can fail closed: a configuration glitch must not
+     * silently defeat a blacklist.
+     *
+     * @param wikiId the wiki whose space filter mode to read
+     * @return the configured mode, or {@code none} when unset or blank
+     * @throws RuntimeException if the configuration document cannot be read
+     * @since 0.9
+     */
+    public String getSpaceFilterMode(String wikiId)
+    {
+        BaseObject configObject = loadSpaceFilterObject(wikiId);
+        if (configObject == null) {
+            return SPACE_FILTER_MODE_NONE;
+        }
+        String mode = configObject.getStringValue(FIELD_SPACE_FILTER_MODE);
+        return StringUtils.isBlank(mode) ? SPACE_FILTER_MODE_NONE : mode.trim();
+    }
+
+    /**
+     * Returns the local space references configured for the given wiki's space filter. Each reference covers
+     * that space and everything nested under it. An absent field (the read succeeded) yields an empty list; a
+     * genuine read failure is propagated so the caller can fail closed.
+     *
+     * @param wikiId the wiki whose filtered spaces to read
+     * @return the configured local space references, never {@code null}
+     * @throws RuntimeException if the configuration document cannot be read
+     * @since 0.9
+     */
+    public List<String> getSpaceFilterSpaces(String wikiId)
+    {
+        return getSpaceFilterList(wikiId, FIELD_SPACE_FILTER_SPACES);
+    }
+
+    /**
+     * Returns the local document references configured for the given wiki's space filter, filtered
+     * individually (not as subtrees). An absent field (the read succeeded) yields an empty list; a genuine
+     * read failure is propagated so the caller can fail closed.
+     *
+     * @param wikiId the wiki whose filtered documents to read
+     * @return the configured local document references, never {@code null}
+     * @throws RuntimeException if the configuration document cannot be read
+     * @since 0.9
+     */
+    public List<String> getSpaceFilterDocuments(String wikiId)
+    {
+        return getSpaceFilterList(wikiId, FIELD_SPACE_FILTER_DOCUMENTS);
+    }
+
+    private List<String> getSpaceFilterList(String wikiId, String fieldName)
+    {
+        BaseObject configObject = loadSpaceFilterObject(wikiId);
+        if (configObject == null) {
+            return List.of();
+        }
+        // getListValue returns an empty List when the field is absent, never null.
+        @SuppressWarnings("unchecked")
+        List<String> stored = configObject.getListValue(fieldName);
+        return new ArrayList<>(stored);
+    }
+
+    /**
+     * Loads the configuration XObject for a space-filter read, translating a read failure into an unchecked
+     * exception so the three space-filter getters can propagate it and the space filter can fail closed.
+     *
+     * @param wikiId the wiki whose configuration object to load
+     * @return the configuration XObject, or {@code null} when the document has no such object
+     * @throws RuntimeException if the configuration document cannot be read
+     */
+    private BaseObject loadSpaceFilterObject(String wikiId)
+    {
+        try {
+            return loadConfigObject(wikiId);
+        } catch (XWikiException e) {
+            throw new IllegalStateException(
+                "Could not read the MCP space filter configuration for wiki [" + wikiId + "]", e);
+        }
+    }
+
+    /**
+     * Loads the MCP configuration XObject for the given wiki, reading the config document uncached so a
+     * just-saved value is reflected on the next request.
+     *
+     * @param wikiId the wiki whose configuration object to load
+     * @return the configuration XObject, or {@code null} when the document has no such object
+     * @throws XWikiException if the configuration document cannot be read
+     */
+    private BaseObject loadConfigObject(String wikiId) throws XWikiException
+    {
+        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
+        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
+        XWikiContext context = this.contextProvider.get();
+        XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
+        return configDoc.getXObject(classRef);
     }
 
     private String getStringProperty(String wikiId, String fieldName, String defaultValue)

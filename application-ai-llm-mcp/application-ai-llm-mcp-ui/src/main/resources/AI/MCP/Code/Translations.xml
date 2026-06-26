@@ -36,7 +36,9 @@
   <minorEdit>false</minorEdit>
   <syntaxId>plain/1.0</syntaxId>
   <hidden>true</hidden>
-  <content># Class fields
+  <content># Security guidance
+AI.MCP.Code.security.notice=For the strongest access control, run the agent as a dedicated XWiki user whose rights are scoped to what it should access. The tool and space settings here narrow what the agent sees on top of that user's rights - they do not replace them.
+# Class fields
 AI.MCP.Code.MCPServerConfigClass_serverName=Server Name
 AI.MCP.Code.MCPServerConfigClass_serverDescription=Server Description
 # Farm dashboard
@@ -56,6 +58,9 @@ AI.MCP.Code.dashboard.status.applied.skipped={0} wiki(s) updated, {1} skipped (i
 AI.MCP.Code.tools.heading=Tools
 AI.MCP.Code.tools.intro=Choose which tools this wiki's MCP endpoint exposes. Authoring (write) tools are off by default.
 AI.MCP.Code.tools.mandatory=(always on)
+# Space access
+AI.MCP.Code.spaceFilter.heading=Space access
+AI.MCP.Code.spaceFilter.intro=Restrict which spaces and documents this wiki's tools can reach. This does not affect semantic/collection search, which is governed by collection rights.
 </content>
   <object>
     <name>AI.MCP.Code.Translations</name>

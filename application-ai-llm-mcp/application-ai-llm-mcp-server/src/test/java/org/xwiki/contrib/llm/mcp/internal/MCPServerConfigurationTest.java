@@ -53,6 +53,7 @@ import org.mockito.Mock;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -291,6 +292,62 @@ class MCPServerConfigurationTest
     }
 
     @Test
+    void isRenderedContentAllowedIsTrueByDefaultWhenFieldUnset() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ALLOW_RENDERED_CONTENT)).thenReturn(null);
+
+        assertTrue(this.mcpServerConfiguration.isRenderedContentAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isRenderedContentAllowedIsTrueByDefaultWhenNoXObject() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(null);
+
+        assertTrue(this.mcpServerConfiguration.isRenderedContentAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isRenderedContentAllowedIsTrueWhenExplicitOne() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ALLOW_RENDERED_CONTENT))
+            .thenReturn(mock(PropertyInterface.class));
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_ALLOW_RENDERED_CONTENT)).thenReturn(1);
+
+        assertTrue(this.mcpServerConfiguration.isRenderedContentAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isRenderedContentAllowedIsFalseWhenExplicitZero() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ALLOW_RENDERED_CONTENT))
+            .thenReturn(mock(PropertyInterface.class));
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_ALLOW_RENDERED_CONTENT)).thenReturn(0);
+
+        assertFalse(this.mcpServerConfiguration.isRenderedContentAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isRenderedContentAllowedFailsOpenWhenReadThrows() throws Exception
+    {
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Store down"));
+
+        // Rendering is a capability, not a confidentiality boundary: a read glitch fails open to the default.
+        assertTrue(this.mcpServerConfiguration.isRenderedContentAllowed(SUB_WIKI));
+        assertEquals("Could not read the MCP allow-rendered-content flag for wiki [subwiki]; allowing "
+            + "rendered content: [XWikiException: Error number 0 in 0: Store down]",
+            this.logCapture.getMessage(0));
+    }
+
+    @Test
     void setEnabledWritesOneForEnable() throws Exception
     {
         DocumentReference configRef = new DocumentReference(SUB_WIKI, MCPServerConfiguration.CONFIG_SPACES,
@@ -478,5 +535,103 @@ class MCPServerConfigurationTest
         assertFalse(this.mcpServerConfiguration.setEnabledToolIds(SUB_WIKI, List.of("man")));
         assertEquals("Failed to set the MCP enabled tools for wiki [subwiki]: "
             + "[XWikiException: Error number 0 in 0: Save down]", this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void getSpaceFilterModeReturnsNoneWhenNoXObject() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(null);
+
+        assertEquals(MCPServerConfiguration.SPACE_FILTER_MODE_NONE,
+            this.mcpServerConfiguration.getSpaceFilterMode(SUB_WIKI));
+    }
+
+    @Test
+    void getSpaceFilterModeReturnsNoneWhenFieldBlank() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getStringValue(MCPServerConfiguration.FIELD_SPACE_FILTER_MODE)).thenReturn("  ");
+
+        assertEquals(MCPServerConfiguration.SPACE_FILTER_MODE_NONE,
+            this.mcpServerConfiguration.getSpaceFilterMode(SUB_WIKI));
+    }
+
+    @Test
+    void getSpaceFilterModeReadsStoredValue() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getStringValue(MCPServerConfiguration.FIELD_SPACE_FILTER_MODE))
+            .thenReturn("whitelist");
+
+        assertEquals(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST,
+            this.mcpServerConfiguration.getSpaceFilterMode(SUB_WIKI));
+    }
+
+    @Test
+    void getSpaceFilterModePropagatesOnReadFailure() throws Exception
+    {
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Store down"));
+
+        // A genuine read failure propagates so the caller (the space filter) can fail closed.
+        assertThrows(IllegalStateException.class,
+            () -> this.mcpServerConfiguration.getSpaceFilterMode(SUB_WIKI));
+    }
+
+    @Test
+    void getSpaceFilterSpacesReadsListValue() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_SPACE_FILTER_SPACES))
+            .thenReturn(List.of("Help.Guides", "Sandbox"));
+
+        assertEquals(List.of("Help.Guides", "Sandbox"),
+            this.mcpServerConfiguration.getSpaceFilterSpaces(SUB_WIKI));
+    }
+
+    @Test
+    void getSpaceFilterSpacesEmptyWhenNoXObject() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(null);
+
+        assertTrue(this.mcpServerConfiguration.getSpaceFilterSpaces(SUB_WIKI).isEmpty());
+    }
+
+    @Test
+    void getSpaceFilterDocumentsReadsListValue() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_SPACE_FILTER_DOCUMENTS))
+            .thenReturn(List.of("Help.FAQ"));
+
+        assertEquals(List.of("Help.FAQ"),
+            this.mcpServerConfiguration.getSpaceFilterDocuments(SUB_WIKI));
+    }
+
+    @Test
+    void getSpaceFilterDocumentsPropagatesOnReadFailure() throws Exception
+    {
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Store down"));
+
+        // A genuine read failure propagates so the caller (the space filter) can fail closed.
+        assertThrows(IllegalStateException.class,
+            () -> this.mcpServerConfiguration.getSpaceFilterDocuments(SUB_WIKI));
+    }
+
+    @Test
+    void getSpaceFilterSpacesPropagatesOnReadFailure() throws Exception
+    {
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Store down"));
+
+        assertThrows(IllegalStateException.class,
+            () -> this.mcpServerConfiguration.getSpaceFilterSpaces(SUB_WIKI));
     }
 }

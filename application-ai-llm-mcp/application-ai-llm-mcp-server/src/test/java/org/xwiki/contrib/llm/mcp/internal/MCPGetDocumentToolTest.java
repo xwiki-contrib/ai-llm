@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import javax.inject.Named;
 import javax.inject.Provider;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -33,10 +32,8 @@ import org.mockito.Mock;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
-import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
@@ -96,14 +93,13 @@ class MCPGetDocumentToolTest
     private MCPGetDocumentTool tool;
 
     @MockComponent
-    @Named("current")
-    private DocumentReferenceResolver<String> referenceResolver;
+    private MCPDocumentAccess documentAccess;
+
+    @MockComponent
+    private MCPServerConfiguration mcpConfig;
 
     @MockComponent
     private DocumentAccessBridge documentAccessBridge;
-
-    @MockComponent
-    private ContextualAuthorizationManager authorization;
 
     @MockComponent
     private EntityReferenceSerializer<String> serializer;
@@ -115,11 +111,14 @@ class MCPGetDocumentToolTest
     private DocumentReference documentReference;
 
     @BeforeEach
-    void setUp()
+    void setUp() throws Exception
     {
-        when(this.referenceResolver.resolve(anyString())).thenReturn(this.documentReference);
-        when(this.authorization.hasAccess(eq(Right.VIEW), any())).thenReturn(true);
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW)))
+            .thenReturn(this.documentReference);
         when(this.serializer.serialize(any())).thenReturn(CANONICAL);
+        // Rendered content is allowed by default; the disabled-rendering test overrides this. Lenient so the
+        // many non-rendered tests, which never reach the gate, do not fail on an unused stub.
+        lenient().when(this.mcpConfig.isRenderedContentAllowed(any())).thenReturn(true);
     }
 
     private DocumentModelBridge stubDoc(String content, String syntaxId) throws Exception
@@ -176,6 +175,27 @@ class MCPGetDocumentToolTest
         assertTrue(text.contains("Rendered heading"), text);
         assertTrue(text.contains("Expanded body."), text);
         assertFalse(text.contains("opaque source"), "Rendered mode must not return the raw source");
+    }
+
+    @Test
+    void renderedRequestRefusedAndNotRenderedWhenDisabledForWiki() throws Exception
+    {
+        stubDoc("{{velocity}}opaque source{{/velocity}}", MARKDOWN_SYNTAX);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWikiId()).thenReturn("subwiki");
+        lenient().when(xcontext.getWiki()).thenReturn(xwiki);
+        lenient().when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(this.mcpConfig.isRenderedContentAllowed("subwiki")).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("Rendered content is disabled for this wiki"), textOf(result));
+        // The refusal happens before any rendering: the executed view must never be produced.
+        verify(xdoc, never()).getRenderedContent(any(Syntax.class), any(XWikiContext.class));
     }
 
     @Test
@@ -541,7 +561,8 @@ class MCPGetDocumentToolTest
     @Test
     void accessDeniedReturnsErrorWithoutLoadingDocument() throws Exception
     {
-        when(this.authorization.hasAccess(eq(Right.VIEW), any())).thenReturn(false);
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW)))
+            .thenThrow(new MCPAccessDeniedException("Not authorized to view \"" + REF + "\"."));
 
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
 

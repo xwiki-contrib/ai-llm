@@ -86,6 +86,96 @@
       <values/>
       <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
     </enabledTools>
+    <allowRenderedContent>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint>When on, get_document can return HTML-rendered content, which executes the page's macros with the page author's rights (equivalent to viewing the page). Turn off to restrict the agent to raw wiki source.</hint>
+      <name>allowRenderedContent</name>
+      <number>8</number>
+      <prettyName>Allow Rendered Content</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </allowRenderedContent>
+    <spaceFilterDocuments>
+      <cache>0</cache>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayType>input</displayType>
+      <freeText/>
+      <hint>Local document references (e.g. Help.FAQ) to filter individually.</hint>
+      <largeStorage>0</largeStorage>
+      <multiSelect>1</multiSelect>
+      <name>spaceFilterDocuments</name>
+      <number>7</number>
+      <picker>0</picker>
+      <prettyName>Filtered Documents</prettyName>
+      <relationalStorage>1</relationalStorage>
+      <separator> </separator>
+      <separators>|, </separators>
+      <size>20</size>
+      <sort>none</sort>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <values/>
+      <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+    </spaceFilterDocuments>
+    <spaceFilterMode>
+      <cache>0</cache>
+      <customDisplay/>
+      <defaultValue>none</defaultValue>
+      <disabled>0</disabled>
+      <displayType>select</displayType>
+      <freeText/>
+      <hint>Restrict which spaces/documents this wiki's MCP tools can access: none, a whitelist (only the listed ones), or a blacklist (everything except them).</hint>
+      <largeStorage>0</largeStorage>
+      <multiSelect>0</multiSelect>
+      <name>spaceFilterMode</name>
+      <number>5</number>
+      <picker>0</picker>
+      <prettyName>Space Filter Mode</prettyName>
+      <relationalStorage>0</relationalStorage>
+      <separator> </separator>
+      <separators>|, </separators>
+      <size>1</size>
+      <sort>none</sort>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <values>none|whitelist|blacklist</values>
+      <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+    </spaceFilterMode>
+    <spaceFilterSpaces>
+      <cache>0</cache>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayType>input</displayType>
+      <freeText/>
+      <hint>Local space references (e.g. Help.Guides). Each covers that space and everything nested under it.</hint>
+      <largeStorage>0</largeStorage>
+      <multiSelect>1</multiSelect>
+      <name>spaceFilterSpaces</name>
+      <number>6</number>
+      <picker>0</picker>
+      <prettyName>Filtered Spaces</prettyName>
+      <relationalStorage>1</relationalStorage>
+      <separator> </separator>
+      <separators>|, </separators>
+      <size>20</size>
+      <sort>none</sort>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <values/>
+      <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+    </spaceFilterSpaces>
     <serverDescription>
       <contenttype>PureText</contenttype>
       <customDisplay/>
