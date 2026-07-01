@@ -61,6 +61,10 @@ AI.MCP.Code.tools.mandatory=(always on)
 # Space access
 AI.MCP.Code.spaceFilter.heading=Space access
 AI.MCP.Code.spaceFilter.intro=Restrict which spaces and documents this wiki's tools can reach. This does not affect semantic/collection search, which is governed by collection rights.
+AI.MCP.Code.spaceFilter.spaces.label=Spaces (each covers its subtree)
+AI.MCP.Code.spaceFilter.documents.label=Documents (matched exactly)
+AI.MCP.Code.spaceFilter.empty=None selected yet.
+AI.MCP.Code.spaceFilter.remove=Remove
 </content>
   <object>
     <name>AI.MCP.Code.Translations</name>

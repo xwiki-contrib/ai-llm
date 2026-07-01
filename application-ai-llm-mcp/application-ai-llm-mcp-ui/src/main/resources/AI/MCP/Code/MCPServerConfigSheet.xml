@@ -38,6 +38,8 @@
   <hidden>true</hidden>
   <content>{{velocity}}
 #set ($discard = $xwiki.jsx.use('AI.MCP.Code.MCPServerConfigSheet'))
+#set ($discard = $xwiki.jsx.use('AI.MCP.Code.MCPSpacePickerJSX'))
+#set ($discard = $xwiki.ssx.use('AI.MCP.Code.MCPSpacePickerSSX'))
 #set ($redirect = $xwiki.relativeRequestURL)
 #set ($configDocRef = 'AI.MCP.Code.MCPServerConfig')
 #set ($configClassName = 'AI.MCP.Code.MCPServerConfigClass')
@@ -127,6 +129,23 @@
         &lt;dd&gt;{{/html}}$configObject.display('allowRenderedContent', 'edit'){{html clean="false"}}&lt;/dd&gt;
       &lt;/dl&gt;
     &lt;/fieldset&gt;
+## Space/document picker. Each reference is submitted as its own atomic hidden input under the multi-value list
+## property field name, so references containing spaces are stored verbatim instead of being split on the list
+## separator. An always-present empty baseline input guarantees the field is posted: with zero chips the list is
+## cleared, and with a single chip the value still arrives as a multi-value array (never re-parsed/split).
+#set ($spacesField = "${configClassName}_${configObject.number}_spaceFilterSpaces")
+#set ($docsField = "${configClassName}_${configObject.number}_spaceFilterDocuments")
+#set ($spacesProp = $configObject.getProperty('spaceFilterSpaces'))
+#set ($docsProp = $configObject.getProperty('spaceFilterDocuments'))
+#set ($storedSpaces = [])
+#if ("$!spacesProp" != '' &amp;&amp; $spacesProp.value)
+  #set ($storedSpaces = $spacesProp.value)
+#end
+#set ($storedDocs = [])
+#if ("$!docsProp" != '' &amp;&amp; $docsProp.value)
+  #set ($storedDocs = $docsProp.value)
+#end
+#set ($removeLabel = $services.localization.render('AI.MCP.Code.spaceFilter.remove'))
     &lt;h2&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.heading'))&lt;/h2&gt;
     &lt;p&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.intro'))&lt;/p&gt;
     &lt;fieldset&gt;
@@ -136,17 +155,34 @@
           &lt;span class="xHint"&gt;$configClass.get('spaceFilterMode').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('spaceFilterMode', 'edit'){{html clean="false"}}&lt;/dd&gt;
-        &lt;dt&gt;
-          &lt;label for="mcp-spaceFilterSpaces"&gt;$configClass.get('spaceFilterSpaces').getTranslatedPrettyName()&lt;/label&gt;
-          &lt;span class="xHint"&gt;$configClass.get('spaceFilterSpaces').getHint()&lt;/span&gt;
-        &lt;/dt&gt;
-        &lt;dd&gt;{{/html}}$configObject.display('spaceFilterSpaces', 'edit'){{html clean="false"}}&lt;/dd&gt;
-        &lt;dt&gt;
-          &lt;label for="mcp-spaceFilterDocuments"&gt;$configClass.get('spaceFilterDocuments').getTranslatedPrettyName()&lt;/label&gt;
-          &lt;span class="xHint"&gt;$configClass.get('spaceFilterDocuments').getHint()&lt;/span&gt;
-        &lt;/dt&gt;
-        &lt;dd&gt;{{/html}}$configObject.display('spaceFilterDocuments', 'edit'){{html clean="false"}}&lt;/dd&gt;
       &lt;/dl&gt;
+      &lt;div class="mcp-space-picker"&gt;
+        &lt;div class="mcp-chip-section"&gt;
+          &lt;div class="label"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.spaces.label'))&lt;/div&gt;
+          &lt;div id="mcp-space-chips" class="mcp-chip-list" data-field="$escapetool.xml($spacesField)" data-remove-label="$escapetool.xml($removeLabel)"&gt;
+            &lt;input type="hidden" name="$escapetool.xml($spacesField)" value="" class="mcp-space-baseline" /&gt;
+#foreach ($ref in $storedSpaces)
+            &lt;span class="mcp-chip"&gt;&lt;span class="mcp-chip-label"&gt;$escapetool.xml($ref)&lt;/span&gt;&lt;button type="button" class="mcp-chip-remove" aria-label="$escapetool.xml($removeLabel) $escapetool.xml($ref)"&gt;&amp;#215;&lt;/button&gt;&lt;input type="hidden" name="$escapetool.xml($spacesField)" value="$escapetool.xml($ref)" class="mcp-space-chip-input" /&gt;&lt;/span&gt;
+#end
+            &lt;span class="mcp-chip-empty xHint"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.empty'))&lt;/span&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class="mcp-chip-section"&gt;
+          &lt;div class="label"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.documents.label'))&lt;/div&gt;
+          &lt;div id="mcp-doc-chips" class="mcp-chip-list" data-field="$escapetool.xml($docsField)" data-remove-label="$escapetool.xml($removeLabel)"&gt;
+            &lt;input type="hidden" name="$escapetool.xml($docsField)" value="" class="mcp-doc-baseline" /&gt;
+#foreach ($ref in $storedDocs)
+            &lt;span class="mcp-chip"&gt;&lt;span class="mcp-chip-label"&gt;$escapetool.xml($ref)&lt;/span&gt;&lt;button type="button" class="mcp-chip-remove" aria-label="$escapetool.xml($removeLabel) $escapetool.xml($ref)"&gt;&amp;#215;&lt;/button&gt;&lt;input type="hidden" name="$escapetool.xml($docsField)" value="$escapetool.xml($ref)" class="mcp-doc-chip-input" /&gt;&lt;/span&gt;
+#end
+            &lt;span class="mcp-chip-empty xHint"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.empty'))&lt;/span&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class="mcp-picker-tree"&gt;{{/html}}
+
+{{documentTree id="mcp-space-picker-tree" links="false" checkboxes="true" finder="true" showRoot="false" showWikis="false" showSpaces="true" showAttachments="false" showTranslations="false" /}}
+
+{{html clean="false"}}        &lt;/div&gt;
+      &lt;/div&gt;
     &lt;/fieldset&gt;
     &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
     &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" /&gt;

@@ -1,0 +1,317 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.6" reference="AI.MCP.Code.MCPSpacePickerJSX" locale="">
+  <web>AI.MCP.Code</web>
+  <name>MCPSpacePickerJSX</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>AI.MCP.Code.WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title>MCPSpacePickerJSX</title>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content/>
+  <object>
+    <name>AI.MCP.Code.MCPSpacePickerJSX</name>
+    <number>0</number>
+    <className>XWiki.JavaScriptExtension</className>
+    <guid>28496268-6d5e-48bb-b2b5-e55b06a6cff0</guid>
+    <class>
+      <name>XWiki.JavaScriptExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>require(['jquery'], $ =&gt; {
+  'use strict';
+  $(() =&gt; {
+    const form = document.getElementById('mcp-server-config');
+    if (!form) {
+      return;
+    }
+    const treeElement = document.getElementById('mcp-space-picker-tree');
+    if (!treeElement) {
+      return;
+    }
+
+    const spaceList = $('#mcp-space-chips');
+    const docList = $('#mcp-doc-chips');
+
+    // node.data.id is the wiki-prefixed serialized reference (e.g. "xwiki:Space.Page"); the configuration stores
+    // local references, so drop everything up to and including the first colon (the wiki separator).
+    const localReference = rawId =&gt; {
+      const separatorIndex = rawId.indexOf(':');
+      return separatorIndex &gt;= 0 ? rawId.substring(separatorIndex + 1) : rawId;
+    };
+
+    const listValues = list =&gt;
+      list.find('.mcp-chip input[type="hidden"]').map((index, input) =&gt; input.value).get();
+
+    const refreshEmpty = list =&gt; {
+      list.find('.mcp-chip-empty').toggle(list.find('.mcp-chip').length === 0);
+    };
+
+    const chipExists = (list, value) =&gt; listValues(list).includes(value);
+
+    const addChip = (list, inputClass, value) =&gt; {
+      if (chipExists(list, value)) {
+        return;
+      }
+      const fieldName = list.data('field');
+      const removeLabel = list.data('remove-label') || 'Remove';
+      const chip = $('&lt;span class="mcp-chip"&gt;&lt;/span&gt;');
+      $('&lt;span class="mcp-chip-label"&gt;&lt;/span&gt;').text(value).appendTo(chip);
+      $('&lt;button type="button" class="mcp-chip-remove"&gt;&lt;/button&gt;')
+        .attr('aria-label', `${removeLabel} ${value}`).text('×').appendTo(chip);
+      $('&lt;input type="hidden" /&gt;').attr('name', fieldName).addClass(inputClass).val(value).appendTo(chip);
+      list.find('.mcp-chip-empty').before(chip);
+      refreshEmpty(list);
+    };
+
+    const removeChipByValue = (list, value) =&gt; {
+      list.find('.mcp-chip input[type="hidden"]').each((index, input) =&gt; {
+        if (input.value === value) {
+          $(input).closest('.mcp-chip').remove();
+        }
+      });
+      refreshEmpty(list);
+    };
+
+    // A space reference covers itself and its whole subtree, so it "covers" any document or sub-space reference
+    // prefixed by "&lt;space&gt;." — the trailing dot prevents "Sand" from matching "Sandbox".
+    const coversRef = (spaceRef, ref) =&gt; ref === spaceRef || ref.startsWith(`${spaceRef}.`);
+
+    // Remove every chip in the list whose reference is covered by (but not equal to) the given space reference.
+    const removeCovered = (list, spaceRef) =&gt; {
+      listValues(list)
+        .filter(value =&gt; value !== spaceRef &amp;&amp; coversRef(spaceRef, value))
+        .forEach(value =&gt; removeChipByValue(list, value));
+    };
+
+    const isCoveredByExistingSpace = ref =&gt; listValues(spaceList).some(spaceRef =&gt; coversRef(spaceRef, ref));
+
+    const addNodeChip = node =&gt; {
+      if (!node || !node.data || !node.data.id) {
+        return;
+      }
+      const ref = localReference(node.data.id);
+      if (node.data.type === 'space') {
+        // A whole subtree collapses to a single space chip: drop any document or sub-space chip it now covers.
+        removeCovered(spaceList, ref);
+        removeCovered(docList, ref);
+        addChip(spaceList, 'mcp-space-chip-input', ref);
+      } else if (node.data.type === 'document' &amp;&amp; !isCoveredByExistingSpace(ref)) {
+        // A document already covered by a space chip is skipped (redundant with the subtree the space stands for).
+        addChip(docList, 'mcp-doc-chip-input', ref);
+      }
+    };
+
+    const removeNodeChip = node =&gt; {
+      if (!node || !node.data || !node.data.id) {
+        return;
+      }
+      const ref = localReference(node.data.id);
+      if (node.data.type === 'space') {
+        removeChipByValue(spaceList, ref);
+      } else if (node.data.type === 'document') {
+        removeChipByValue(docList, ref);
+      }
+    };
+
+    // Navigation is suppressed at the source by the documentTree macro's links="false" option (set in the sheet).
+
+    // The checkbox plugin keeps its jsTree defaults (three_state cascade, tie_selection), so checking a space also
+    // checks its descendants. jsTree's core 'changed' event carries the full selection (data.selected) but not the
+    // per-change delta (that lives in the optional 'changed' plugin, which is not loaded), so on every change we
+    // recompute the "top selected" set — selected nodes whose parent is not also selected — and reconcile the chips to
+    // it. A checked sub-tree therefore collapses to its single top node (one space chip), mirroring the export tree;
+    // and when a sub-page is unchecked the space drops back to individual chips for the pages that stay checked.
+    // Stored chips are never in the tree selection, so this pass leaves them untouched unless the tree covers them.
+    let chippedNodes = [];
+    $(treeElement).on('changed.jstree', (event, data) =&gt; {
+      const tree = data.instance;
+      const current = data.selected || [];
+      const currentSet = new Set(current);
+      const topSelected = current.filter(nodeId =&gt; {
+        const node = tree.get_node(nodeId);
+        return node &amp;&amp; !(node.parent &amp;&amp; currentSet.has(node.parent));
+      });
+      const topSet = new Set(topSelected);
+      // Drop chips for nodes no longer top-selected first, then add chips for the newly top-selected ones.
+      chippedNodes
+        .filter(nodeId =&gt; !topSet.has(nodeId))
+        .forEach(nodeId =&gt; removeNodeChip(tree.get_node(nodeId)));
+      topSelected
+        .filter(nodeId =&gt; !chippedNodes.includes(nodeId))
+        .forEach(nodeId =&gt; addNodeChip(tree.get_node(nodeId)));
+      chippedNodes = topSelected;
+    });
+
+    $(form).on('click', '.mcp-chip-remove', event =&gt; {
+      const target = $(event.currentTarget);
+      const list = target.closest('.mcp-chip-list');
+      target.closest('.mcp-chip').remove();
+      refreshEmpty(list);
+    });
+
+    // On load the saved configuration is rendered as chips but the lazily-loaded tree starts unchecked. Re-check the
+    // stored references so the tree reflects the saved state. The node id is "&lt;type&gt;:&lt;serialized reference&gt;" where the
+    // serialized reference is wiki-prefixed (e.g. "space:xwiki:Sandbox", "document:xwiki:Sandbox.WebHome"); the
+    // configuration stores wiki-local references, so we read the current wiki off any already-loaded node and rebuild
+    // the ids. openTo lazily loads the path to each node and selects it, which feeds back through the changed handler
+    // above where the chipExists dedup keeps it from duplicating the server-rendered chips. This runs once, when ready.
+    const preselectStoredReferences = tree =&gt; {
+      const rootChildren = tree.get_node($.jstree.root).children || [];
+      let wiki = null;
+      for (const childId of rootChildren) {
+        const rootNode = tree.get_node(childId);
+        if (rootNode &amp;&amp; rootNode.data &amp;&amp; rootNode.data.id &amp;&amp; rootNode.data.id.indexOf(':') &gt; 0) {
+          wiki = rootNode.data.id.substring(0, rootNode.data.id.indexOf(':'));
+          break;
+        }
+      }
+      if (!wiki) {
+        return;
+      }
+      const nodeIds = [
+        ...listValues(spaceList).map(ref =&gt; `space:${wiki}:${ref}`),
+        ...listValues(docList).map(ref =&gt; `document:${wiki}:${ref}`)
+      ];
+      if (nodeIds.length) {
+        tree.openTo(nodeIds);
+      }
+    };
+
+    let preselected = false;
+    const runPreselect = () =&gt; {
+      if (preselected) {
+        return;
+      }
+      const tree = $.jstree.reference(treeElement);
+      if (!tree || !tree._data || !tree._data.core || !tree._data.core.ready) {
+        return;
+      }
+      preselected = true;
+      preselectStoredReferences(tree);
+    };
+    $(treeElement).on('ready.jstree', runPreselect);
+    runPreselect();
+
+    refreshEmpty(spaceList);
+    refreshEmpty(docList);
+  });
+});</code>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse>0</parse>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
+</xwikidoc>
