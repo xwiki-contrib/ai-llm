@@ -20,9 +20,14 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import javax.inject.Provider;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.xwiki.component.manager.ComponentLookupException;
@@ -32,13 +37,18 @@ import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
+import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.test.mockito.MockitoComponentManager;
+
+import com.xpn.xwiki.XWikiContext;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,11 +74,34 @@ class MCPManToolTest
 
     private static final String REQUIRED = "required";
 
+    private static final String WIKI = "testwiki";
+
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
 
     @InjectMockComponents
     private MCPManTool manTool;
+
+    @MockComponent
+    private MCPServerConfiguration mcpConfig;
+
+    @MockComponent
+    private Provider<XWikiContext> contextProvider;
+
+    @BeforeEach
+    void setUp()
+    {
+        XWikiContext xcontext = mock(XWikiContext.class);
+        lenient().when(this.contextProvider.get()).thenReturn(xcontext);
+        lenient().when(xcontext.getWikiId()).thenReturn(WIKI);
+        // Default: the wiki's configured tool set does not restrict anything, so the existing tests exercise
+        // man rendering and the isEnabled()-based exclusion unchanged. The per-wiki filtering test overrides
+        // this with a concrete set. The man tool only queries the set with contains(), never iterates it.
+        @SuppressWarnings("unchecked")
+        Set<String> everyTool = mock(Set.class);
+        lenient().when(everyTool.contains(any())).thenReturn(true);
+        lenient().when(this.mcpConfig.getEnabledToolIds(WIKI)).thenReturn(everyTool);
+    }
 
     private static McpSchema.Tool toolDefinition(String name, String description, Map<String, Object> properties,
         List<String> required)
@@ -177,6 +210,27 @@ class MCPManToolTest
         // Disabled tool excluded.
         assertFalse(output.contains("secret"));
         assertFalse(output.contains("Hidden tool"));
+    }
+
+    @Test
+    void catalogAndPagesExcludeToolsDisabledForTheWiki(MockitoComponentManager componentManager) throws Exception
+    {
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Search pages and more.",
+            "Search & Navigation", true, Map.of(), List.of(), null);
+        registerTool(componentManager, "write_document", "Write a page.", "Write a page and more.",
+            "Authoring", true, Map.of(), List.of(), null);
+        // The wiki's tool set enables query_documents (and the mandatory man) but not write_document, even
+        // though write_document is a globally enabled component.
+        when(this.mcpConfig.getEnabledToolIds(WIKI)).thenReturn(new HashSet<>(List.of(QUERY_DOCUMENTS, "man")));
+
+        String catalog = callMan(this.manTool, null);
+        assertTrue(catalog.contains(QUERY_DOCUMENTS), catalog);
+        assertFalse(catalog.contains("write_document"), catalog);
+
+        // A man page for a tool disabled on this wiki is not served; it is reported as unknown.
+        McpSchema.CallToolResult page = this.manTool.execute(manRequest(Map.of(TOOL_PARAM, "write_document")));
+        assertTrue(page.isError());
+        assertTrue(textOf(page).contains("No manual entry for \"write_document\""), textOf(page));
     }
 
     @Test

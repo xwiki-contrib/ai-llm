@@ -24,11 +24,13 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
@@ -39,12 +41,14 @@ import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 
+import com.xpn.xwiki.XWikiContext;
+
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
  * MCP tool that documents the other MCP tools, in the style of the Unix {@code man} command.
  *
- * <p>Called with no arguments it prints a catalog of all enabled tools grouped by
+ * <p>Called with no arguments it prints a catalog of the tools enabled for the current wiki, grouped by
  * {@link MCPTool#getCategory()}. Called with a {@code tool} argument it prints that tool's full
  * manual page: a NAME/SYNOPSIS/OPTIONS block derived from the tool's
  * {@link MCPTool#getToolDefinition() input schema}, a DESCRIPTION section taken from the tool's
@@ -214,6 +218,20 @@ public class MCPManTool implements MCPTool
     @Inject
     private ComponentManager componentManager;
 
+    /**
+     * Reads the current wiki's enabled tool set so the catalog matches the tools the endpoint actually
+     * registered (per-tool toggles).
+     */
+    @Inject
+    private MCPServerConfiguration mcpConfig;
+
+    /**
+     * Provides the current wiki id: the man tool runs inside a per-wiki MCP request whose wiki is set on the
+     * {@link XWikiContext} by the resource, mirroring the other document tools.
+     */
+    @Inject
+    private Provider<XWikiContext> contextProvider;
+
     @Override
     public McpSchema.Tool getToolDefinition()
     {
@@ -285,7 +303,14 @@ public class MCPManTool implements MCPTool
             this.logger.debug("MCP man tool failed to enumerate MCPTool components", e);
             return List.of();
         }
-        return tools.stream().filter(MCPTool::isEnabled).collect(Collectors.toList());
+        // Mirror the per-wiki registration filter (XWikiMCPServerManager#registerTool): a tool is catalogued
+        // only when it is both globally enabled and in the current wiki's configured tool set, so man never
+        // advertises (or serves a page for) a tool the endpoint did not actually register on this wiki.
+        Set<String> enabledToolIds = this.mcpConfig.getEnabledToolIds(this.contextProvider.get().getWikiId());
+        return tools.stream()
+            .filter(MCPTool::isEnabled)
+            .filter(tool -> enabledToolIds.contains(tool.getToolDefinition().name()))
+            .collect(Collectors.toList());
     }
 
     private MCPTool findByName(List<MCPTool> tools, String name)
