@@ -173,8 +173,10 @@ public class MCPGetDocumentTool implements MCPTool
      * view (not source).
      */
     private static final String RENDERED_HTML_BANNER =
-        "RENDERED VIEW - cleaned HTML, macros executed and includes expanded (structure such as tables, "
-            + "links and message boxes is preserved)." + RENDERED_BANNER_TAIL;
+        "RENDERED VIEW - HTML with presentation stripped: macros executed and includes expanded, and "
+            + "structure (tables, links, message boxes) is preserved, but CSS classes, inline styles, colors "
+            + "and layout are REMOVED and will differ from the browser - do NOT use this to verify styling or "
+            + "appearance changes." + RENDERED_BANNER_TAIL;
 
     private static final String OFFSET_EQUALS = OFFSET_PARAM + "=";
 
@@ -294,7 +296,7 @@ public class MCPGetDocumentTool implements MCPTool
                 + "(like cat -n); when forming edit strings later, do "
                 + "NOT include the line-number prefix. Pass offset=1 with no limit to force the full document. "
                 + "Set rendered=true to read a script-driven page as executed plain text (read-only); add "
-                + "format=\"html\" to keep structure as cleaned HTML.")
+                + "format=\"html\" to keep structure as HTML (presentation stripped - not browser-faithful).")
             .build();
     }
 
@@ -320,8 +322,9 @@ public class MCPGetDocumentTool implements MCPTool
                 Outline:    reference="Help.GettingStarted", outline=true
                 Rendered:   reference="XWiki.XWikiSyntax", rendered=true  (macros executed; read-only)
                 Rendered HTML:  reference="XWiki.XWikiSyntax", rendered=true, format="html"
-                            (keeps tables, links and message boxes as cleaned HTML; costs more tokens
-                            than the plain default - use it for structure-heavy pages)
+                            (keeps tables, links and message boxes as HTML, but presentation - CSS
+                            classes, styles, colors - is stripped and NOT browser-faithful; costs more
+                            tokens than the plain default - use it for structure-heavy pages)
                 Large doc:  first read with reference only (you get an OUTLINE map of headings),
                             then read a section with reference + offset + limit.
 

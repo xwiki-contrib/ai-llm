@@ -297,9 +297,6 @@ public class MCPEditDocumentTool implements MCPTool
                 Comment:     reference="Sandbox.WebHome", comment="fix typo in installation steps",
                              edits=[{"old_string":"teh","new_string":"the"}]
                 Retitle:     reference="Sandbox.WebHome", title="New Title"
-                Create:      reference="Sandbox.New", title="Hello",
-                             edits=[{"old_string":"","new_string":"= Hello =\\n\\nBody."}]
-                             (still supported; write_document is the preferred way to create a document)
 
             SEE ALSO
                 man write_document  Create a document or replace its entire content.
