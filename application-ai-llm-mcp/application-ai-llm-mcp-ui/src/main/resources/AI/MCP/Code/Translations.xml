@@ -59,9 +59,11 @@ AI.MCP.Code.dashboard.status.applied.skipped={0} wiki(s) updated, {1} skipped (i
 AI.MCP.Code.tools.heading=Tools
 AI.MCP.Code.tools.intro=Choose which tools this wiki's MCP endpoint exposes. Authoring (write) tools are off by default.
 AI.MCP.Code.tools.mandatory=(always on)
+# Additional filters (collapsible group wrapping the scope filters below)
+AI.MCP.Code.additionalFilters.heading=Additional filters
 # Space access
 AI.MCP.Code.spaceFilter.heading=Space access
-AI.MCP.Code.spaceFilter.intro=Restrict which spaces and documents this wiki's tools can reach. This does not affect semantic/collection search, which is governed by collection rights.
+AI.MCP.Code.spaceFilter.intro=Scope these tools to specific spaces and documents, on top of the acting user's document rights - this narrows results but is not an access-control boundary. It does not affect semantic/collection search, which is governed by collection rights.
 AI.MCP.Code.spaceFilter.spaces.label=Spaces (each covers its subtree)
 AI.MCP.Code.spaceFilter.documents.label=Documents (matched exactly)
 AI.MCP.Code.spaceFilter.empty=None selected yet.

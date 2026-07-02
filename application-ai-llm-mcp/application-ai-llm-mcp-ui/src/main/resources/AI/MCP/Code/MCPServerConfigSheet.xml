@@ -147,7 +147,9 @@
 #end
 #set ($removeLabel = $services.localization.render('AI.MCP.Code.spaceFilter.remove'))
 #set ($mcpReachOn = $services.mcp.isCrossWikiReach($services.wiki.currentWikiId))
-    &lt;h2&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.heading'))&lt;/h2&gt;
+    &lt;details class="mcp-additional-filters"&gt;
+      &lt;summary&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.additionalFilters.heading'))&lt;/summary&gt;
+    &lt;h3&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.heading'))&lt;/h3&gt;
     &lt;p&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.intro'))&lt;/p&gt;
 #if ($mcpReachOn)
     &lt;p class="xHint"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.crossWikiHint'))&lt;/p&gt;
@@ -188,6 +190,7 @@
 {{html clean="false"}}        &lt;/div&gt;
       &lt;/div&gt;
     &lt;/fieldset&gt;
+    &lt;/details&gt;
     &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
     &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" /&gt;
   &lt;/form&gt;

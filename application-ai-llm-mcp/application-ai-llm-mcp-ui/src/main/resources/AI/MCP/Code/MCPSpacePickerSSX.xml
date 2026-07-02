@@ -146,6 +146,57 @@
   margin-bottom: 1.5em;
 }
 
+/* Collapsible "Additional filters" group: a bordered panel with a disclosure arrow. */
+.mcp-additional-filters {
+  margin: 1em 0 1.5em;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.mcp-additional-filters &gt; summary {
+  cursor: pointer;
+  padding: 0.6em 1em;
+  font-weight: bold;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  list-style: none;
+  user-select: none;
+}
+
+/* Hide the browser's default disclosure marker so only the drawn arrow shows. */
+.mcp-additional-filters &gt; summary::-webkit-details-marker {
+  display: none;
+}
+
+.mcp-additional-filters &gt; summary::before {
+  content: "\25B8";
+  display: inline-block;
+  width: 1em;
+  margin-right: 0.3em;
+  transition: transform 0.15s ease;
+}
+
+.mcp-additional-filters[open] &gt; summary {
+  border-bottom: 1px solid #ccc;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.mcp-additional-filters[open] &gt; summary::before {
+  transform: rotate(90deg);
+}
+
+/* Inset the panel body from the border. */
+.mcp-additional-filters &gt; summary ~ * {
+  margin-left: 1em;
+  margin-right: 1em;
+}
+
+/* Breathing room between the summary bar and the first body element. */
+.mcp-additional-filters &gt; summary + * {
+  margin-top: 1em;
+}
+
 /* Separate the configuration form (its Save button is the last element) from the farm dashboard section below it. */
 #mcp-server-config {
   margin-bottom: 2em;
