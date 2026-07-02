@@ -442,6 +442,24 @@ final class MCPToolSupport
         }
 
         /**
+         * Declares an optional string parameter only when {@code condition} holds, so a variant of the
+         * schema can omit a parameter without breaking the fluent chain. Preserves declaration order:
+         * the parameter, when added, keeps the position of this call in the chain.
+         *
+         * @param condition whether to declare the parameter
+         * @param name the parameter name
+         * @param description the agent-facing description
+         * @return this builder
+         */
+        Builder stringIf(boolean condition, String name, String description)
+        {
+            if (condition) {
+                string(name, description);
+            }
+            return this;
+        }
+
+        /**
          * Declares a required string parameter.
          *
          * @param name the parameter name

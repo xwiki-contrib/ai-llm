@@ -33,9 +33,13 @@ import org.xwiki.security.authorization.Right;
 import com.xpn.xwiki.XWikiContext;
 
 /**
- * Default {@link MCPDocumentAccess}: resolves a request reference with the {@code current} resolver, confines
- * access to the endpoint's own wiki, enforces the required right via {@link ContextualAuthorizationManager},
- * and applies the per-wiki space filter.
+ * Default {@link MCPDocumentAccess}: resolves a request reference with the {@code current} resolver, enforces the
+ * required right via {@link ContextualAuthorizationManager}, and applies the per-wiki space filter.
+ *
+ * <p>A reference is not strictly confined to the endpoint's own wiki: a reference in another wiki is permitted
+ * whenever this endpoint has cross-wiki reach enabled (see {@link MCPWikiReach#canReachWiki}), regardless of whether
+ * the target wiki has its own MCP endpoint enabled. The endpoint's own space filter and the usual rights check still
+ * apply, so reaching a wiki never widens what may be read or edited there.</p>
  *
  * @version $Id$
  * @since 0.9
@@ -45,6 +49,8 @@ import com.xpn.xwiki.XWikiContext;
 public class DefaultMCPDocumentAccess implements MCPDocumentAccess
 {
     private static final String OPEN_BRACKET = "[";
+
+    private static final String CLOSE_BRACKET_DOT = "].";
 
     @Inject
     @Named("current")
@@ -57,16 +63,23 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
     private MCPSpaceFilter spaceFilter;
 
     @Inject
+    private MCPWikiReach wikiReach;
+
+    @Inject
     private Provider<XWikiContext> contextProvider;
 
     @Override
     public DocumentReference resolveAndAuthorize(String reference, Right right) throws MCPAccessDeniedException
     {
         DocumentReference target = this.referenceResolver.resolve(reference);
+        String targetWiki = target.getWikiReference().getName();
         String currentWiki = this.contextProvider.get().getWikiId();
-        if (currentWiki != null && !currentWiki.equals(target.getWikiReference().getName())) {
-            throw new MCPAccessDeniedException(OPEN_BRACKET + reference
-                + "] is in another wiki; this MCP endpoint only serves the [" + currentWiki + "] wiki.");
+        // Fail closed when the context wiki is unknown: a null current wiki is treated as a cross-wiki reference,
+        // so it is denied unless reach explicitly allows it (which it will not without a context wiki).
+        boolean sameWiki = currentWiki != null && currentWiki.equals(targetWiki);
+        if (!sameWiki && !this.wikiReach.canReachWiki(targetWiki)) {
+            throw new MCPAccessDeniedException(OPEN_BRACKET + reference + "] is in another wiki [" + targetWiki
+                + "]; cross-wiki reach is not enabled for this endpoint.");
         }
         if (!this.authorization.hasAccess(right, target)) {
             throw new MCPAccessDeniedException(rightsDeniedMessage(reference, right));
@@ -81,6 +94,6 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
     private String rightsDeniedMessage(String reference, Right right)
     {
         String verb = Right.EDIT.equals(right) ? "edit" : "view";
-        return "You do not have permission to " + verb + " " + OPEN_BRACKET + reference + "].";
+        return "You do not have permission to " + verb + " " + OPEN_BRACKET + reference + CLOSE_BRACKET_DOT;
     }
 }

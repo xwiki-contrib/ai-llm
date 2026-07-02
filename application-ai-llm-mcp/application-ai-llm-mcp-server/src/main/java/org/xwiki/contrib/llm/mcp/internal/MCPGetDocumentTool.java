@@ -126,6 +126,8 @@ public class MCPGetDocumentTool implements MCPTool
 
     private static final String PERIOD = ".";
 
+    private static final String WEBHOME = "WebHome";
+
     private static final String MUST_BE_AT_LEAST_ONE = "' must be >= 1.";
 
     private static final String UNKNOWN_SYNTAX = "unknown";
@@ -238,25 +240,18 @@ public class MCPGetDocumentTool implements MCPTool
         Pattern.compile("^\\s*at\\s+\\S.*\\(.*\\)\\s*$|^\\s*\\.\\.\\.\\s+\\d+\\s+(more|common frames omitted)\\s*$");
 
     /**
-     * The declared parameters: one source for both the advertised input schema and the typed
-     * argument accessors.
+     * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input
+     * schema and the typed argument accessors. This variant's {@code reference} description mentions cross-wiki
+     * reach, and is also the variant used for argument parsing.
      */
-    private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
-        .requiredString(REFERENCE_PARAM, "The document reference to read, e.g. \"Help.GettingStarted\" or "
-            + "\"xwiki:Sandbox.WebHome\".")
-        .integer(OFFSET_PARAM, "1-based line number to start reading from. Use with limit to read a slice "
-            + "of a large document.")
-        .integer(LIMIT_PARAM, "Number of lines to read from offset. Omit (with offset=1) to read the whole "
-            + "document regardless of size.")
-        .bool(OUTLINE_PARAM, "If true, return the document's heading outline (a map with line numbers) "
-            + "instead of its content. Default false.")
-        .bool(RENDERED_PARAM, "If true, return the page RENDERED to plain text (macros executed, includes "
-            + "expanded) - useful for script-driven pages whose source is opaque. Plain text, so "
-            + "structure (tables, link targets) is flattened. Read-only: do NOT form edit strings "
-            + "from it. Default false (raw editable source).")
-        .string(FORMAT_PARAM, "Output format for rendered=true: \"plain\" (default) or \"html\". HTML "
-            + "preserves structure (tables, links, message boxes) at a higher token cost.")
-        .build();
+    private static final MCPToolSupport PARAMS = params(true);
+
+    /**
+     * The declared parameters advertised by a reach-off endpoint: the cross-wiki sentence is dropped from the
+     * {@code reference} description so no cross-wiki capability is surfaced. Used only to build the advertised
+     * schema, never for parsing.
+     */
+    private static final MCPToolSupport PARAMS_LOCAL = params(false);
 
     /**
      * Error returned when an agent requests rendered output on a wiki where rendered content is disabled.
@@ -286,10 +281,46 @@ public class MCPGetDocumentTool implements MCPTool
     @Inject
     private HTMLCleaner htmlCleaner;
 
+    @Inject
+    private MCPWikiReach wikiReach;
+
+    /**
+     * Builds the declared parameter set, appending the cross-wiki sentence to the {@code reference} description
+     * only when cross-wiki reach is advertised.
+     *
+     * @param crossWiki whether to advertise cross-wiki reach in the {@code reference} description
+     * @return the declared parameter set
+     */
+    private static MCPToolSupport params(boolean crossWiki)
+    {
+        String referenceDescription = "The document reference to read, e.g. \"Help.GettingStarted\" or "
+            + "\"xwiki:Sandbox.WebHome\".";
+        if (crossWiki) {
+            referenceDescription += " A wiki-id prefix reaches another wiki when this endpoint has cross-wiki "
+                + "reach (see list_wikis).";
+        }
+        return MCPToolSupport.builder()
+            .requiredString(REFERENCE_PARAM, referenceDescription)
+            .integer(OFFSET_PARAM, "1-based line number to start reading from. Use with limit to read a slice "
+                + "of a large document.")
+            .integer(LIMIT_PARAM, "Number of lines to read from offset. Omit (with offset=1) to read the whole "
+                + "document regardless of size.")
+            .bool(OUTLINE_PARAM, "If true, return the document's heading outline (a map with line numbers) "
+                + "instead of its content. Default false.")
+            .bool(RENDERED_PARAM, "If true, return the page RENDERED to plain text (macros executed, includes "
+                + "expanded) - useful for script-driven pages whose source is opaque. Plain text, so "
+                + "structure (tables, link targets) is flattened. Read-only: do NOT form edit strings "
+                + "from it. Default false (raw editable source).")
+            .string(FORMAT_PARAM, "Output format for rendered=true: \"plain\" (default) or \"html\". HTML "
+                + "preserves structure (tables, links, message boxes) at a higher token cost.")
+            .build();
+    }
+
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
+        MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
+        return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Read an XWiki document's raw source content. Returns the full source if it fits "
                 + "the ~" + MAX_OUTPUT_TOKENS + "-token output budget; if larger, returns a heading OUTLINE "
                 + "(a map, not the content) - then read a section with offset/limit. Output is line-numbered "
@@ -350,7 +381,7 @@ public class MCPGetDocumentTool implements MCPTool
             }
 
             if (!documentExists(ref, reference)) {
-                return MCPToolSupport.errorResult("No such document: " + QUOTE + reference + QUOTE + PERIOD);
+                return MCPToolSupport.errorResult(notFoundMessage(ref, reference));
             }
 
             DocumentModelBridge doc = loadDocument(ref, reference);
@@ -361,8 +392,10 @@ public class MCPGetDocumentTool implements MCPTool
                 resolveRenderedSyntax(PARAMS.string(args, FORMAT_PARAM), PARAMS.bool(args, RENDERED_PARAM));
 
             // Gate rendered mode after resolution/authorization (and existence), so a disabled-rendering refusal
-            // never leaks existence beyond the normal flow. Refuse clearly rather than silently returning the
-            // raw source, so the agent re-requests with rendered=false.
+            // never leaks existence beyond the normal flow. The gate reads the SOURCE endpoint's (context wiki's)
+            // flag, since rendered mode is a capability of the endpoint being used, not of the wiki the document
+            // happens to live in. Refuse clearly rather than silently returning the raw source, so the agent
+            // re-requests with rendered=false.
             if (renderedSyntax != null
                 && !this.mcpConfig.isRenderedContentAllowed(this.contextProvider.get().getWikiId())) {
                 return MCPToolSupport.errorResult(RENDERED_DISABLED_ERROR);
@@ -385,12 +418,12 @@ public class MCPGetDocumentTool implements MCPTool
                 content = MCPSourceText.normalizeLineEndings(doc.getContent());
             }
             return render(doc, title, content, renderedSyntax, offset, limit, outline);
-        } catch (IllegalArgumentException | DocumentLoadException e) {
+        } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         }
     }
 
-    private boolean documentExists(DocumentReference ref, String reference) throws DocumentLoadException
+    private boolean documentExists(DocumentReference ref, String reference)
     {
         try {
             return this.documentAccessBridge.exists(ref);
@@ -398,11 +431,61 @@ public class MCPGetDocumentTool implements MCPTool
             this.logger.warn("MCP get_document tool failed to check existence of [{}]: [{}]", reference,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP get_document tool existence-check failure details", e);
-            throw new DocumentLoadException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
+            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
         }
     }
 
-    private DocumentModelBridge loadDocument(DocumentReference ref, String reference) throws DocumentLoadException
+    /**
+     * Builds the not-found error, appending a space-home suggestion when the missing reference looks like a
+     * space path an agent meant as the space home.
+     *
+     * @param ref the resolved reference that was found not to exist
+     * @param reference the raw reference argument, echoed verbatim
+     * @return the agent-facing error message
+     */
+    private String notFoundMessage(DocumentReference ref, String reference)
+    {
+        String message = "No such document: " + QUOTE + reference + QUOTE + PERIOD;
+        String spaceHome = suggestSpaceHome(ref);
+        if (spaceHome != null) {
+            message += " Did you mean " + QUOTE + spaceHome + QUOTE + " (the home page of that space)?";
+        }
+        return message;
+    }
+
+    /**
+     * When a reference resolves to a terminal document that does not exist, an agent has often passed a
+     * space path (e.g. {@code "Docs.Guides"}) meaning the space home {@code Docs.Guides.WebHome}. This
+     * reinterprets the missing document's own name as a nested space and returns that {@code WebHome}
+     * reference when the page exists and the caller may view it, so the error can offer it as a
+     * suggestion. Returns {@code null} when there is nothing safe to suggest.
+     *
+     * @param ref the resolved reference that was found not to exist
+     * @return the serialized space-home reference to suggest, or {@code null}
+     */
+    private String suggestSpaceHome(DocumentReference ref)
+    {
+        // A missing "...WebHome" would only yield "...WebHome.WebHome"; never suggest that.
+        if (WEBHOME.equals(ref.getName())) {
+            return null;
+        }
+        // Reinterpret the missing document's own name as a nested space: "A.B" -> "A.B.WebHome". Appending
+        // to the serialized (already-escaped) reference keeps names with dots correct.
+        String candidate = this.serializer.serialize(ref) + PERIOD + WEBHOME;
+        try {
+            // Route the candidate through the same door as a real read so a space-filtered or view-denied
+            // page is never surfaced as a suggestion.
+            DocumentReference spaceHome = this.documentAccess.resolveAndAuthorize(candidate, Right.VIEW);
+            return this.documentAccessBridge.exists(spaceHome) ? candidate : null;
+        } catch (MCPAccessDeniedException e) {
+            return null;
+        } catch (Exception e) {
+            this.logger.debug("MCP get_document tool space-home suggestion check failed", e);
+            return null;
+        }
+    }
+
+    private DocumentModelBridge loadDocument(DocumentReference ref, String reference)
     {
         try {
             return this.documentAccessBridge.getDocumentInstance(ref);
@@ -410,7 +493,7 @@ public class MCPGetDocumentTool implements MCPTool
             this.logger.warn("MCP get_document tool failed to load [{}]: [{}]", reference,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP get_document tool load failure details", e);
-            throw new DocumentLoadException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
+            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
         }
     }
 
@@ -458,14 +541,17 @@ public class MCPGetDocumentTool implements MCPTool
      * @param reference the original reference string, for error messages
      * @param targetSyntax the output syntax to render the content to
      * @return the rendered title and content
-     * @throws DocumentLoadException if the document cannot be loaded or rendered
+     * @throws IllegalArgumentException with an agent-facing message if the document cannot be loaded or rendered
      */
     private RenderedDocument renderDocument(DocumentReference ref, String reference, Syntax targetSyntax)
-        throws DocumentLoadException
     {
         XWikiContext xcontext = this.contextProvider.get();
         XWikiDocument previousContextDocument = xcontext.getDoc();
+        String originalWiki = xcontext.getWikiId();
         try {
+            // Rendering must resolve in the document's own wiki (macros, rights, class resolution) for a
+            // cross-wiki read, so switch the context wiki to the target for the duration of the render.
+            xcontext.setWikiId(ref.getWikiReference().getName());
             XWikiDocument xdoc = xcontext.getWiki().getDocument(ref, xcontext);
             xcontext.setDoc(xdoc);
             // Render the title too (it may itself be a macro/translation), so the header is consistent with the
@@ -480,9 +566,10 @@ public class MCPGetDocumentTool implements MCPTool
             this.logger.warn("MCP get_document tool failed to render [{}]: [{}]", reference,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP get_document tool render failure details", e);
-            throw new DocumentLoadException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
+            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
         } finally {
             xcontext.setDoc(previousContextDocument);
+            xcontext.setWikiId(originalWiki);
         }
     }
 
@@ -794,20 +881,6 @@ public class MCPGetDocumentTool implements MCPTool
     private String syntaxIdOf(Syntax syntax)
     {
         return syntax != null ? syntax.toIdString() : UNKNOWN_SYNTAX;
-    }
-
-    /**
-     * Internal carrier for a document-load failure whose message is already agent-facing, so that
-     * {@link #execute(McpSchema.CallToolRequest)} can convert it to an error result uniformly.
-     *
-     * @version $Id$
-     */
-    private static final class DocumentLoadException extends Exception
-    {
-        DocumentLoadException(String message)
-        {
-            super(message);
-        }
     }
 
     /**

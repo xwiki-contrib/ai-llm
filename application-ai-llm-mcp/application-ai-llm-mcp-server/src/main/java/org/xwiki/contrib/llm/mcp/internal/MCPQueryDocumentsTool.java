@@ -38,7 +38,9 @@ import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.search.solr.SolrUtils;
@@ -58,10 +60,12 @@ import io.modelcontextprotocol.spec.McpSchema;
  * default is relied upon and {@code defType} is never bound, so multilingual title expansion
  * is preserved.</p>
  *
- * <p>The query is created through {@link MCPDocumentSearch#createQuery(String, java.util.List)}, which
- * scopes it to the current wiki, applies the per-wiki space filter and enables current-user view-rights
- * post-filtering, so that the {@code SolrQueryExecutor} removes any documents the current user cannot
- * view. This tool only adds its own non-fq parameters and its content/date filter queries.</p>
+ * <p>The query is created through
+ * {@link MCPDocumentSearch#createQuery(String, java.util.List, java.util.List)}, which scopes it to the resolved
+ * target wiki(s), applies each wiki's space filter and enables current-user view-rights post-filtering, so that
+ * the {@code SolrQueryExecutor} removes any documents the current user cannot view. The target wiki(s) come from
+ * the {@code wiki} parameter via {@link MCPWikiReach}; this tool only adds its own non-fq parameters and its
+ * content/date filter queries.</p>
  *
  * @version $Id$
  * @since 0.9
@@ -69,6 +73,9 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPQueryDocumentsTool.TOOL_ID)
 @Singleton
+// Author normalization pulls in a user reference resolver and serializer; the extra collaborators push the
+// fan-out one over the limit on an otherwise cohesive tool.
+@SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class MCPQueryDocumentsTool implements MCPTool
 {
     /**
@@ -100,13 +107,17 @@ public class MCPQueryDocumentsTool implements MCPTool
 
     private static final int DEFAULT_LIMIT = 10;
 
-    private static final int MAX_LIMIT = 50;
+    private static final int MAX_LIMIT = 25;
 
     private static final int MIN_LIMIT = 1;
 
     private static final int SNIPPET_MAX_LENGTH = 200;
 
+    private static final String LIST_SEPARATOR = ", ";
+
     private static final String QUERY_PARAM = "query";
+
+    private static final String WIKI_PARAM = "wiki";
 
     private static final String LIMIT_PARAM = "limit";
 
@@ -211,37 +222,27 @@ public class MCPQueryDocumentsTool implements MCPTool
     private static final List<String> SORT_VALUES = List.of(RELEVANCE, NEWEST, OLDEST, TITLE);
 
     /**
-     * The declared parameters: one source for both the advertised input schema and the typed
-     * argument accessors.
+     * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input
+     * schema and the typed argument accessors. This variant carries the {@code wiki} parameter, and is also
+     * the variant used for argument parsing (so a {@code wiki} argument sent to a reach-off endpoint is still
+     * read and hits the reach gate's clear refusal).
      */
-    private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
-        .string(QUERY_PARAM, "Search terms in edismax syntax: \"exact phrases\", +required and "
-            + "-excluded terms, OR, wildcard*. Rephrase the user's question into keywords. Matched "
-            + "mainly against document titles (high weight) and content. Leave empty to browse/list "
-            + "documents instead of searching.")
-        .string(SPACE_PARAM, "Optional local space reference (e.g. \"Help\" or \"Help.Guides\"). "
-            + "Restricts results to that space and all its children.")
-        .string(AUTHOR_PARAM, "Optional last author. Expects a serialized user reference, "
-            + "e.g. \"xwiki:XWiki.Admin\".")
-        .string(MODIFIED_WITHIN_PARAM, "Optional relative modification window. One of: day, week, "
-            + "month, year. Ignored if 'modifiedRange' is also provided.")
-        .string(MODIFIED_RANGE_PARAM, "Advanced. A raw Solr date-range expression on the last-modified "
-            + "date, e.g. \"[NOW-7DAY TO NOW]\" or \"[2026-01-01T00:00:00Z TO NOW]\". "
-            + "Overrides 'modifiedWithin' when both are given.")
-        .string(SORT_PARAM, "Result ordering. One of: relevance (default), newest, oldest, title.")
-        .integer(LIMIT_PARAM, "Maximum number of results to return (default: %d, max: %d)."
-            .formatted(DEFAULT_LIMIT, MAX_LIMIT))
-        .integer(OFFSET_PARAM, "0-based index of the first result to return (default: 0). Use with "
-            + "limit to page through results; the result footer tells you the offset of the next page.")
-        .bool(INCLUDE_HIDDEN_PARAM, "If true, also match hidden documents (technical pages excluded "
-            + "from normal browsing, e.g. configuration and class definitions). Default false.")
-        .build();
+    private static final MCPToolSupport PARAMS = params(true);
+
+    /**
+     * The declared parameters advertised by a reach-off endpoint: the {@code wiki} parameter is omitted so no
+     * cross-wiki capability is surfaced. Used only to build the advertised schema, never for parsing.
+     */
+    private static final MCPToolSupport PARAMS_LOCAL = params(false);
 
     @Inject
     private Logger logger;
 
     @Inject
     private MCPDocumentSearch documentSearch;
+
+    @Inject
+    private MCPWikiReach wikiReach;
 
     @Inject
     private SolrUtils solrUtils;
@@ -253,10 +254,54 @@ public class MCPQueryDocumentsTool implements MCPTool
     @Named("current")
     private DocumentReferenceResolver<String> referenceResolver;
 
+    @Inject
+    @Named("user")
+    private DocumentReferenceResolver<String> userReferenceResolver;
+
+    @Inject
+    private EntityReferenceSerializer<String> entityReferenceSerializer;
+
+    /**
+     * Builds the declared parameter set, optionally including the cross-wiki {@code wiki} parameter, preserving
+     * the parameter order in the advertised schema.
+     *
+     * @param crossWiki whether to advertise the cross-wiki {@code wiki} parameter
+     * @return the declared parameter set
+     */
+    private static MCPToolSupport params(boolean crossWiki)
+    {
+        return MCPToolSupport.builder()
+            .string(QUERY_PARAM, "Search terms in edismax syntax: \"exact phrases\", +required and "
+                + "-excluded terms, OR, wildcard*. Rephrase the user's question into keywords. Matched "
+                + "mainly against document titles (high weight) and content. Leave empty to browse/list "
+                + "documents instead of searching.")
+            .stringIf(crossWiki, WIKI_PARAM, "Which wiki to search: omit for this wiki, a wiki id for one "
+                + "specific wiki, or \"all\" for every reachable wiki. Cross-wiki search requires this endpoint "
+                + "to have cross-wiki reach enabled; list_wikis shows what is reachable.")
+            .string(SPACE_PARAM, "Optional local space reference (e.g. \"Help\" or \"Help.Guides\"). "
+                + "Restricts results to that space and all its children.")
+            .string(AUTHOR_PARAM, "Optional last author. A user name or reference - \"Admin\", "
+                + "\"XWiki.Admin\" and \"xwiki:XWiki.Admin\" all resolve to the same user.")
+            .string(MODIFIED_WITHIN_PARAM, "Optional relative modification window. One of: day, week, "
+                + "month, year. Ignored if 'modifiedRange' is also provided.")
+            .string(MODIFIED_RANGE_PARAM, "Advanced. A raw Solr date-range expression on the last-modified "
+                + "date, e.g. \"[NOW-7DAY TO NOW]\" or \"[2026-01-01T00:00:00Z TO NOW]\". "
+                + "Overrides 'modifiedWithin' when both are given.")
+            .string(SORT_PARAM, "Result ordering. One of: relevance (default), newest, oldest, title.")
+            .integer(LIMIT_PARAM, "Maximum number of results to return (default: %d, max: %d)."
+                .formatted(DEFAULT_LIMIT, MAX_LIMIT))
+            .integer(OFFSET_PARAM, "0-based index of the first result to return (default: 0). Use with "
+                + "limit to page through results; the result footer tells you the offset of the next page.")
+            .bool(INCLUDE_HIDDEN_PARAM, "If true, also match hidden documents (technical pages excluded "
+                + "from normal browsing, e.g. configuration and class definitions). Default false.")
+            .build();
+    }
+
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
+        MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
+        return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Search and browse XWiki documents in the wiki's Solr index, queried with "
                 + "Solr Extended DisMax (edismax) syntax. Leave 'query' empty to browse/list, e.g. "
                 + "recent changes. Each result includes the document reference (use with get_document) "
@@ -306,7 +351,14 @@ public class MCPQueryDocumentsTool implements MCPTool
         try {
             SearchRequest searchRequest = parseRequest(args);
 
-            QueryResponse response = executeSearch(searchRequest);
+            List<String> targetWikis;
+            try {
+                targetWikis = this.wikiReach.resolveSearchWikis(searchRequest.wiki());
+            } catch (MCPAccessDeniedException e) {
+                return MCPToolSupport.errorResult(e.getMessage());
+            }
+
+            QueryResponse response = executeSearch(searchRequest, targetWikis);
             return MCPToolSupport.result(formatResults(response, searchRequest));
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
@@ -322,28 +374,33 @@ public class MCPQueryDocumentsTool implements MCPTool
     private SearchRequest parseRequest(Map<String, Object> args)
     {
         String queryText = PARAMS.string(args, QUERY_PARAM);
-        int limit = clampLimit(PARAMS.integer(args, LIMIT_PARAM, DEFAULT_LIMIT));
+        String wiki = PARAMS.string(args, WIKI_PARAM);
+        int requestedLimit = PARAMS.integer(args, LIMIT_PARAM, DEFAULT_LIMIT);
+        int limit = clampLimit(requestedLimit);
+        boolean limitCapped = requestedLimit > MAX_LIMIT;
         int offset = PARAMS.integer(args, OFFSET_PARAM, 0);
         if (offset < 0) {
             throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + OFFSET_PARAM + "' must be >= 0.");
         }
         String space = PARAMS.string(args, SPACE_PARAM);
-        String author = PARAMS.string(args, AUTHOR_PARAM);
+        String author = normalizeAuthor(PARAMS.string(args, AUTHOR_PARAM));
         String dateRange = resolveDateRange(PARAMS.string(args, MODIFIED_WITHIN_PARAM),
             PARAMS.string(args, MODIFIED_RANGE_PARAM));
         String sort = resolveSort(PARAMS.string(args, SORT_PARAM));
         boolean includeHidden = PARAMS.bool(args, INCLUDE_HIDDEN_PARAM);
-        return new SearchRequest(queryText, limit, offset, space, author, dateRange, sort, includeHidden);
+        return new SearchRequest(queryText, limit, offset, space, author, dateRange, sort, includeHidden, wiki,
+            limitCapped);
     }
 
-    private QueryResponse executeSearch(SearchRequest request) throws QueryException
+    private QueryResponse executeSearch(SearchRequest request, List<String> targetWikis) throws QueryException
     {
         boolean browse = request.browse();
         String statement = browse ? BROWSE_STATEMENT : request.queryText();
 
-        // The door creates the secure query, scopes it to the wiki, applies the space filter and binds the
-        // combined fq (wiki scope + space filter + these additional fqs); the tool only adds non-fq params.
-        Query query = this.documentSearch.createQuery(statement, buildFilterQueries(request));
+        // The door creates the secure query, scopes it to the target wikis, applies each wiki's space filter and
+        // binds the combined fq (wiki scope + space filter + these additional fqs); the tool only adds non-fq
+        // params.
+        Query query = this.documentSearch.createQuery(statement, buildFilterQueries(request), targetWikis);
         query.setLimit(request.limit());
         query.setOffset(request.offset());
         query.bindValue("qf", QF_WEIGHTS);
@@ -416,7 +473,7 @@ public class MCPQueryDocumentsTool implements MCPTool
     private static IllegalArgumentException invalidEnumValue(String param, List<String> allowed)
     {
         return new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + param + "' must be one of: "
-            + String.join(", ", allowed) + PERIOD);
+            + String.join(LIST_SEPARATOR, allowed) + PERIOD);
     }
 
     private String resolveSort(String sort)
@@ -489,8 +546,9 @@ public class MCPQueryDocumentsTool implements MCPTool
             return "No viewable documents in this page (" + total + " total matches before access "
                 + "filtering). Continue with offset=" + (request.offset() + request.limit()) + PERIOD;
         }
-        return request.browse() ? "No documents found."
+        String base = request.browse() ? "No documents found."
             : "No documents found matching \"" + request.queryText() + "\".";
+        return base + describeActiveFilters(request);
     }
 
     /**
@@ -515,6 +573,9 @@ public class MCPQueryDocumentsTool implements MCPTool
         long nextOffset = (long) request.offset() + request.limit();
         if (nextOffset < total) {
             footer += " Continue with offset=" + nextOffset + PERIOD;
+        }
+        if (request.limitCapped() && total > MAX_LIMIT) {
+            footer += " (The requested limit was capped to the maximum of " + MAX_LIMIT + " per page.)";
         }
         return footer;
     }
@@ -683,6 +744,57 @@ public class MCPQueryDocumentsTool implements MCPTool
     }
 
     /**
+     * Normalizes an author filter into the serialized user reference the Solr {@code author} field stores,
+     * so that a bare user name matches. Resolving through the {@code user} resolver defaults the space to
+     * {@code XWiki} and the wiki to the current one, so {@code "Admin"}, {@code "XWiki.Admin"} and
+     * {@code "xwiki:XWiki.Admin"} all normalize to the same reference. A blank value is returned unchanged;
+     * a value that cannot be resolved is left as-is so it is still applied (and surfaced by the
+     * empty-result filter echo).
+     *
+     * @param author the raw author argument, possibly blank
+     * @return the serialized user reference, or the original value when blank or unresolvable
+     */
+    private String normalizeAuthor(String author)
+    {
+        if (StringUtils.isBlank(author)) {
+            return author;
+        }
+        try {
+            DocumentReference userReference = this.userReferenceResolver.resolve(author);
+            return userReference != null ? this.entityReferenceSerializer.serialize(userReference) : author;
+        } catch (RuntimeException e) {
+            this.logger.debug("MCP query_documents could not normalize author [{}]", author, e);
+            return author;
+        }
+    }
+
+    /**
+     * Describes the narrowing filters that were applied, so an empty result set tells the agent what it
+     * constrained by (a wrong space or author is otherwise indistinguishable from a query that matched
+     * nothing). The author is shown in its normalized form.
+     *
+     * @param request the parsed search request
+     * @return a trailing sentence listing the active filters, or an empty string when none were set
+     */
+    private String describeActiveFilters(SearchRequest request)
+    {
+        List<String> parts = new ArrayList<>();
+        if (StringUtils.isNotBlank(request.space())) {
+            parts.add("space=" + request.space());
+        }
+        if (StringUtils.isNotBlank(request.author())) {
+            parts.add("author=" + request.author());
+        }
+        if (request.dateRange() != null) {
+            parts.add("modified=" + request.dateRange());
+        }
+        if (StringUtils.isNotBlank(request.wiki())) {
+            parts.add("wiki=" + request.wiki());
+        }
+        return parts.isEmpty() ? "" : " Active filters: " + String.join(LIST_SEPARATOR, parts) + PERIOD;
+    }
+
+    /**
      * The parsed and validated arguments of a search call, bundled so the query-building and
      * result-formatting steps share one immutable view of the request.
      *
@@ -694,10 +806,12 @@ public class MCPQueryDocumentsTool implements MCPTool
      * @param dateRange the resolved Solr date-range token for the last-modified filter, or {@code null}
      * @param sort the resolved sort key, one of the allowed sort values
      * @param includeHidden whether hidden documents are included
+     * @param wiki the raw {@code wiki} parameter value (blank for this wiki, a wiki id, or {@code "all"})
+     * @param limitCapped whether the requested limit exceeded {@link #MAX_LIMIT} and was reduced to it
      * @version $Id$
      */
     private record SearchRequest(String queryText, int limit, int offset, String space, String author,
-        String dateRange, String sort, boolean includeHidden)
+        String dateRange, String sort, boolean includeHidden, String wiki, boolean limitCapped)
     {
         /**
          * @return whether this is a browse (blank query) rather than a search

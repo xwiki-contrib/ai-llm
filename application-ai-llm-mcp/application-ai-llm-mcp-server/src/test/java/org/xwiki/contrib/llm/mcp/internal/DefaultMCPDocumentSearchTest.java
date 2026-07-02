@@ -21,8 +21,6 @@ package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.List;
 
-import javax.inject.Provider;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -33,8 +31,6 @@ import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
-
-import com.xpn.xwiki.XWikiContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -67,9 +63,6 @@ class DefaultMCPDocumentSearchTest
     private MCPSpaceFilter spaceFilter;
 
     @MockComponent
-    private Provider<XWikiContext> contextProvider;
-
-    @MockComponent
     private SolrUtils solrUtils;
 
     private SecureQuery query;
@@ -78,10 +71,6 @@ class DefaultMCPDocumentSearchTest
     void setUp() throws Exception
     {
         when(this.solrUtils.toCompleteFilterQueryString(anyString())).thenAnswer(inv -> inv.getArgument(0));
-
-        XWikiContext context = mock(XWikiContext.class);
-        when(context.getWikiId()).thenReturn(WIKI);
-        when(this.contextProvider.get()).thenReturn(context);
 
         this.query = mock(SecureQuery.class);
         when(this.queryManager.createQuery(anyString(), eq("solr"))).thenReturn(this.query);
@@ -100,44 +89,74 @@ class DefaultMCPDocumentSearchTest
     @Test
     void createQueryEnablesRightsPostFilteringAndReturnsTheQuery() throws Exception
     {
-        when(this.spaceFilter.filterQueries(WIKI)).thenReturn(List.of());
+        when(this.spaceFilter.filterQueries()).thenReturn(List.of());
 
-        assertSame(this.query, this.search.createQuery(STATEMENT, null));
+        assertSame(this.query, this.search.createQuery(STATEMENT, null, List.of(WIKI)));
         verify(this.query).checkCurrentUser(true);
     }
 
     @Test
-    void createQueryBindsWikiScopeSpaceFilterAndAdditionalFilterQueries() throws Exception
+    void singleWikiBindsWikiScopeSourceFilterAndAdditionalFilterQueriesAsSeparateEntries() throws Exception
     {
-        when(this.spaceFilter.filterQueries(WIKI)).thenReturn(List.of("space_prefix:(A.B)"));
+        when(this.spaceFilter.filterQueries()).thenReturn(List.of("(wiki:xwiki AND space_prefix:A.B)"));
 
-        this.search.createQuery(STATEMENT, List.of("type:DOCUMENT", "hidden:false"));
+        this.search.createQuery(STATEMENT, List.of("type:DOCUMENT", "hidden:false"), List.of(WIKI));
 
-        assertEquals(List.of("wiki:xwiki", "space_prefix:(A.B)", "type:DOCUMENT", "hidden:false"),
+        assertEquals(List.of("wiki:xwiki", "(wiki:xwiki AND space_prefix:A.B)", "type:DOCUMENT", "hidden:false"),
             captureFilterQueries());
     }
 
     @Test
-    void createQueryWithoutAdditionalFilterQueriesBindsScopeAndSpaceFilterOnly() throws Exception
+    void singleWikiWithoutAdditionalFilterQueriesBindsScopeAndSourceFilterOnly() throws Exception
     {
-        when(this.spaceFilter.filterQueries(WIKI)).thenReturn(List.of("-(space_prefix:(A.B))"));
+        when(this.spaceFilter.filterQueries()).thenReturn(List.of("-((wiki:xwiki AND space_prefix:A.B))"));
 
-        this.search.createQuery(STATEMENT, null);
+        this.search.createQuery(STATEMENT, null, List.of(WIKI));
 
-        assertEquals(List.of("wiki:xwiki", "-(space_prefix:(A.B))"), captureFilterQueries());
+        assertEquals(List.of("wiki:xwiki", "-((wiki:xwiki AND space_prefix:A.B))"), captureFilterQueries());
     }
 
     @Test
-    void createQueryWithBlankContextWikiAddsNoWikiScope() throws Exception
+    void nullTargetWikisBindsNoWikiScopeJustSourceFilterAndAdditional() throws Exception
     {
-        XWikiContext context = mock(XWikiContext.class);
-        when(context.getWikiId()).thenReturn(null);
-        when(this.contextProvider.get()).thenReturn(context);
-        when(this.spaceFilter.filterQueries(null)).thenReturn(List.of());
+        // A null target list means the whole farm: no wiki-scope clause is added, only the source endpoint's
+        // space filter (which carries its own per-entry wiki scope) and the additional filter queries.
+        when(this.spaceFilter.filterQueries()).thenReturn(List.of("(wiki:second AND space_prefix:Sandbox)"));
 
-        this.search.createQuery(STATEMENT, List.of("type:DOCUMENT"));
+        this.search.createQuery(STATEMENT, List.of("type:DOCUMENT"), null);
 
-        // No wiki:... scope clause is added when the context has no wiki id.
+        assertEquals(List.of("(wiki:second AND space_prefix:Sandbox)", "type:DOCUMENT"), captureFilterQueries());
+    }
+
+    @Test
+    void nullTargetWikisWithNoSourceFilterBindsOnlyAdditional() throws Exception
+    {
+        when(this.spaceFilter.filterQueries()).thenReturn(List.of());
+
+        this.search.createQuery(STATEMENT, List.of("type:DOCUMENT"), null);
+
         assertEquals(List.of("type:DOCUMENT"), captureFilterQueries());
+    }
+
+    @Test
+    void emptyTargetWikisBindsMatchNothing() throws Exception
+    {
+        when(this.spaceFilter.filterQueries()).thenReturn(List.of());
+
+        this.search.createQuery(STATEMENT, List.of("type:DOCUMENT"), List.of());
+
+        assertEquals(List.of("-*:*", "type:DOCUMENT"), captureFilterQueries());
+    }
+
+    @Test
+    void multipleTargetWikisBindOneOrJoinedWikiScopeClause() throws Exception
+    {
+        // resolveSearchWikis yields only null/empty/singleton today, but the OR-join branch stays correct for a
+        // multi-wiki list so a future change cannot silently mis-scope a cross-wiki search.
+        when(this.spaceFilter.filterQueries()).thenReturn(List.of());
+
+        this.search.createQuery(STATEMENT, null, List.of("alpha", "beta"));
+
+        assertEquals(List.of("(wiki:alpha OR wiki:beta)"), captureFilterQueries());
     }
 }

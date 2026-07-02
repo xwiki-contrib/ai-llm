@@ -188,23 +188,20 @@ public class MCPEditDocumentTool implements MCPTool
             + "and retry.";
 
     /**
-     * The declared scalar parameters: one source for both the advertised input schema and the typed
-     * argument accessors. The {@code edits} array parameter is hand-built in
-     * {@link #getToolDefinition()} and merged into the schema, as nested schemas are out of the
+     * The declared scalar parameters for a cross-wiki-capable endpoint: one source for both the advertised
+     * input schema and the typed argument accessors. This variant's {@code reference} description mentions
+     * cross-wiki reach, and is also the variant used for argument parsing. The {@code edits} array parameter is
+     * hand-built in {@link #getToolDefinition()} and merged into the schema, as nested schemas are out of the
      * declaration's scope.
      */
-    private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
-        .requiredString(REFERENCE_PARAM, "The document reference to edit or create, e.g. \"Sandbox.WebHome\" "
-            + "or \"xwiki:Help.Foo\".")
-        .string(TITLE_PARAM, "Optional new title. May be set alone (retitle) or together with edits.")
-        .string(BASE_VERSION_PARAM, "Optional optimistic lock: the document version you read (shown by "
-            + "get_document). The save is refused (best-effort check at save time) if the document has "
-            + "changed since, instead of silently overwriting the concurrent change.")
-        .string(COMMENT_PARAM, "Version comment shown in the document history. Stored prefixed with "
-            + "[AI]. Default: a generic [AI] comment.")
-        .bool(MAJOR_PARAM, "Set true to record this edit as a major version. Default false (minor). "
-            + "Creation is always major.")
-        .build();
+    private static final MCPToolSupport PARAMS = params(true);
+
+    /**
+     * The declared scalar parameters advertised by a reach-off endpoint: the cross-wiki sentence is dropped from
+     * the {@code reference} description so no cross-wiki capability is surfaced. Used only to build the
+     * advertised schema, never for parsing.
+     */
+    private static final MCPToolSupport PARAMS_LOCAL = params(false);
 
     @Inject
     private Logger logger;
@@ -220,6 +217,37 @@ public class MCPEditDocumentTool implements MCPTool
 
     @Inject
     private Provider<XWikiContext> contextProvider;
+
+    @Inject
+    private MCPWikiReach wikiReach;
+
+    /**
+     * Builds the declared scalar parameter set, appending the cross-wiki sentence to the {@code reference}
+     * description only when cross-wiki reach is advertised.
+     *
+     * @param crossWiki whether to advertise cross-wiki reach in the {@code reference} description
+     * @return the declared scalar parameter set
+     */
+    private static MCPToolSupport params(boolean crossWiki)
+    {
+        String referenceDescription = "The document reference to edit or create, e.g. \"Sandbox.WebHome\" "
+            + "or \"xwiki:Help.Foo\".";
+        if (crossWiki) {
+            referenceDescription += " A wiki-id prefix targets another wiki when this endpoint has cross-wiki "
+                + "reach (see list_wikis).";
+        }
+        return MCPToolSupport.builder()
+            .requiredString(REFERENCE_PARAM, referenceDescription)
+            .string(TITLE_PARAM, "Optional new title. May be set alone (retitle) or together with edits.")
+            .string(BASE_VERSION_PARAM, "Optional optimistic lock: the document version you read (shown by "
+                + "get_document). The save is refused (best-effort check at save time) if the document has "
+                + "changed since, instead of silently overwriting the concurrent change.")
+            .string(COMMENT_PARAM, "Version comment shown in the document history. Stored prefixed with "
+                + "[AI]. Default: a generic [AI] comment.")
+            .bool(MAJOR_PARAM, "Set true to record this edit as a major version. Default false (minor). "
+                + "Creation is always major.")
+            .build();
+    }
 
     @Override
     public McpSchema.Tool getToolDefinition()
@@ -251,7 +279,8 @@ public class MCPEditDocumentTool implements MCPTool
                 + "replace_all (default false).",
             ITEMS, editItemSchema
         );
-        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema(Map.of(EDITS_PARAM, editsProperty)))
+        MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
+        return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema(Map.of(EDITS_PARAM, editsProperty)))
             .description("Edit an XWiki document by exact search-and-replace on its raw source (the "
                 + "text returned by get_document - always read first). Edits apply in order and save as one "
                 + "version; each old_string must match the current source exactly (whitespace included) and be "
@@ -348,42 +377,51 @@ public class MCPEditDocumentTool implements MCPTool
         if (xcontext == null || xcontext.getUserReference() == null) {
             return MCPToolSupport.errorResult("No authenticated user in context.");
         }
-        XWiki xwiki = xcontext.getWiki();
+        String originalWiki = xcontext.getWikiId();
+        String targetWiki = ref.getWikiReference().getName();
+        // The save must run in the target wiki so save-time rights and class resolution are correct for a
+        // cross-wiki write; restore the original context wiki afterwards.
+        try {
+            xcontext.setWikiId(targetWiki);
+            XWiki xwiki = xcontext.getWiki();
 
-        XWikiDocument xdoc = xwiki.getDocument(ref, xcontext);
-        boolean creating = xdoc.isNew();
-        String oldVersion = xdoc.getVersion();
-        String original = MCPSourceText.normalizeLineEndings(xdoc.getContent());
+            XWikiDocument xdoc = xwiki.getDocument(ref, xcontext);
+            boolean creating = xdoc.isNew();
+            String oldVersion = xdoc.getVersion();
+            String original = MCPSourceText.normalizeLineEndings(xdoc.getContent());
 
-        McpSchema.CallToolResult versionConflict = checkBaseVersion(reference, baseVersion, creating, oldVersion);
-        if (versionConflict != null) {
-            return versionConflict;
+            McpSchema.CallToolResult versionConflict = checkBaseVersion(reference, baseVersion, creating, oldVersion);
+            if (versionConflict != null) {
+                return versionConflict;
+            }
+
+            List<AppliedEdit> appliedReplacements = new ArrayList<>();
+            String newContent = computeNewContent(reference, creating, original, edits, appliedReplacements);
+            if (newContent.length() > MAX_CONTENT_CHARS) {
+                throw new IllegalArgumentException("Error: the resulting content exceeds the maximum size ("
+                    + MAX_CONTENT_CHARS + CHARACTERS_SUFFIX);
+            }
+
+            boolean titleChanged = title != null && !title.equals(xdoc.getTitle());
+
+            if (!creating && newContent.equals(original) && !titleChanged) {
+                return MCPToolSupport.result("No changes: the edits produced content identical to the current "
+                    + "document. Nothing was saved.");
+            }
+
+            Document apiDoc = new Document(xdoc, xcontext);
+            apiDoc.setContent(newContent);
+            if (titleChanged) {
+                apiDoc.setTitle(title);
+            }
+            apiDoc.save(buildComment(creating, edits.size(), titleChanged, comment), isMinorEdit(creating, major));
+
+            SaveOutcome outcome = new SaveOutcome(ref, creating, title != null,
+                titleChanged, oldVersion, apiDoc.getVersion(), edits.size(), newContent, appliedReplacements);
+            return MCPToolSupport.result(buildSuccessResult(outcome));
+        } finally {
+            xcontext.setWikiId(originalWiki);
         }
-
-        List<AppliedEdit> appliedReplacements = new ArrayList<>();
-        String newContent = computeNewContent(reference, creating, original, edits, appliedReplacements);
-        if (newContent.length() > MAX_CONTENT_CHARS) {
-            throw new IllegalArgumentException("Error: the resulting content exceeds the maximum size ("
-                + MAX_CONTENT_CHARS + CHARACTERS_SUFFIX);
-        }
-
-        boolean titleChanged = title != null && !title.equals(xdoc.getTitle());
-
-        if (!creating && newContent.equals(original) && !titleChanged) {
-            return MCPToolSupport.result("No changes: the edits produced content identical to the current "
-                + "document. Nothing was saved.");
-        }
-
-        Document apiDoc = new Document(xdoc, xcontext);
-        apiDoc.setContent(newContent);
-        if (titleChanged) {
-            apiDoc.setTitle(title);
-        }
-        apiDoc.save(buildComment(creating, edits.size(), titleChanged, comment), isMinorEdit(creating, major));
-
-        SaveOutcome outcome = new SaveOutcome(ref, creating, title != null,
-            titleChanged, oldVersion, apiDoc.getVersion(), edits.size(), newContent, appliedReplacements);
-        return MCPToolSupport.result(buildSuccessResult(outcome));
     }
 
     /**

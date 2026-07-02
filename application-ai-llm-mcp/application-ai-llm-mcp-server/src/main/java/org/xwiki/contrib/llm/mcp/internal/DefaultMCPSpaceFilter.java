@@ -24,6 +24,7 @@ import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -31,21 +32,30 @@ import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.model.reference.SpaceReferenceResolver;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.search.solr.internal.api.FieldUtils;
 
+import com.xpn.xwiki.XWikiContext;
+
 /**
- * Default {@link MCPSpaceFilter}: reads the per-wiki space whitelist/blacklist from
- * {@link MCPServerConfiguration} and decides, per document or as Solr filter queries, what the wiki's MCP
+ * Default {@link MCPSpaceFilter}: reads the source endpoint's space whitelist/blacklist from
+ * {@link MCPServerConfiguration} and decides, per document or as Solr filter queries, what the endpoint's MCP
  * tools may reach.
+ *
+ * <p>The configuration is always the current (source) endpoint's own configuration; the target wiki's own filter
+ * is never consulted cross-wiki. Each configured entry is resolved with the {@code current} resolver without a
+ * wiki hint, so a wiki-qualified entry (e.g. {@code second:Sandbox}) resolves to its own wiki and an unqualified
+ * entry to the source wiki. Reference equality already includes the wiki, so an entry only ever matches content in
+ * the wiki it names.</p>
  *
  * <p>This is a content-visibility narrowing layered <em>on top of</em> the regular rights checks, never a
  * replacement: a document the filter allows must still pass the usual {@code VIEW}/{@code EDIT}
  * authorization. A legitimately empty configuration or {@code mode=none} imposes no restriction. On a
  * configuration-read error, however, the filter fails closed: {@link #isAllowed(DocumentReference)} denies the
- * document and {@link #filterQueries(String)} returns a match-nothing clause so the search yields no results,
+ * document and {@link #filterQueries()} returns a match-nothing clause so the search yields no results,
  * so a transient glitch cannot silently defeat a blacklist.</p>
  *
  * @version $Id$
@@ -55,13 +65,13 @@ import org.xwiki.search.solr.internal.api.FieldUtils;
 @Singleton
 public class DefaultMCPSpaceFilter implements MCPSpaceFilter
 {
-    private static final String CLAUSE_OPEN = ":(";
+    private static final String OPEN_PAREN = "(";
 
-    private static final String CLAUSE_CLOSE = ")";
+    private static final String CLOSE_PAREN = ")";
 
-    private static final String SPACE_CLAUSE_START = FieldUtils.SPACE_PREFIX + CLAUSE_OPEN;
+    private static final String COLON = ":";
 
-    private static final String DOC_CLAUSE_START = FieldUtils.FULLNAME + CLAUSE_OPEN;
+    private static final String AND = " AND ";
 
     private static final String OR = " OR ";
 
@@ -83,7 +93,14 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
     private DocumentReferenceResolver<String> documentResolver;
 
     @Inject
+    @Named("local")
+    private EntityReferenceSerializer<String> localSerializer;
+
+    @Inject
     private SolrUtils solrUtils;
+
+    @Inject
+    private Provider<XWikiContext> contextProvider;
 
     @Inject
     private Logger logger;
@@ -91,7 +108,7 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
     @Override
     public boolean isAllowed(DocumentReference target)
     {
-        String wikiId = target.getWikiReference().getName();
+        String wikiId = sourceWikiId();
         try {
             String mode = this.configuration.getSpaceFilterMode(wikiId);
             if (isNoRestriction(mode)) {
@@ -118,14 +135,12 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
     {
         SpaceReference targetSpace = target.getLastSpaceReference();
         for (String configured : spaces) {
-            try {
-                SpaceReference configuredSpace = this.spaceResolver.resolve(configured);
-                // hasParent is strict ancestry, so equals covers a document directly in the configured space.
-                if (targetSpace.equals(configuredSpace) || targetSpace.hasParent(configuredSpace)) {
-                    return true;
-                }
-            } catch (Exception e) {
-                this.logger.debug("Skipping malformed MCP space filter space entry [{}]", configured, e);
+            SpaceReference configuredSpace = resolveSpace(configured);
+            // hasParent is strict ancestry, so equals covers a document directly in the configured space.
+            // SpaceReference equality includes the wiki, so a wiki-qualified entry matches only its own wiki.
+            if (configuredSpace != null
+                && (targetSpace.equals(configuredSpace) || targetSpace.hasParent(configuredSpace))) {
+                return true;
             }
         }
         return false;
@@ -134,20 +149,18 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
     private boolean matchesDocument(DocumentReference target, List<String> documents)
     {
         for (String configured : documents) {
-            try {
-                if (target.equals(this.documentResolver.resolve(configured))) {
-                    return true;
-                }
-            } catch (Exception e) {
-                this.logger.debug("Skipping malformed MCP space filter document entry [{}]", configured, e);
+            DocumentReference configuredDoc = resolveDocument(configured);
+            if (configuredDoc != null && target.equals(configuredDoc)) {
+                return true;
             }
         }
         return false;
     }
 
     @Override
-    public List<String> filterQueries(String wikiId)
+    public List<String> filterQueries()
     {
+        String wikiId = sourceWikiId();
         try {
             String mode = this.configuration.getSpaceFilterMode(wikiId);
             if (isNoRestriction(mode)) {
@@ -160,11 +173,16 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
                 return List.of();
             }
 
-            String inner = buildInnerClause(spaces, documents);
-            if (MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST.equals(mode)) {
-                return List.of(inner);
+            boolean whitelist = MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST.equals(mode);
+            List<String> clauses = buildEntryClauses(spaces, documents);
+            if (clauses.isEmpty()) {
+                // Every configured entry was malformed. A whitelist matches nothing (deny all), a blacklist
+                // excludes nothing (allow all), consistent with isAllowed skipping the malformed entries.
+                return whitelist ? List.of(MATCH_NOTHING) : List.of();
             }
-            return List.of("-(" + inner + CLAUSE_CLOSE);
+
+            String inner = String.join(OR, clauses);
+            return whitelist ? List.of(inner) : List.of("-" + OPEN_PAREN + inner + CLOSE_PAREN);
         } catch (Exception e) {
             this.logger.warn("Could not build the MCP space filter queries for wiki [{}]; returning no "
                 + "results: [{}]", wikiId, ExceptionUtils.getRootCauseMessage(e));
@@ -174,32 +192,77 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
     }
 
     /**
-     * Builds the inner clause matching the configured spaces and documents, e.g.
-     * {@code space_prefix:(A.B OR C.D) OR fullname:(E.F)}. When both a space part and a document part are
-     * present the two are wrapped in parentheses so the surrounding mode (whitelist plain, blacklist negated)
-     * applies to the whole disjunction.
+     * Builds one Solr clause per configured entry, each carrying its own wiki so entries targeting different
+     * wikis coexist in a single search. A malformed entry is skipped (logged at debug), mirroring
+     * {@link #isAllowed(DocumentReference)}.
      *
-     * @param spaces the configured local space references
-     * @param documents the configured local document references
-     * @return the inner Solr clause
+     * @param spaces the configured space references (wiki-qualified or unqualified)
+     * @param documents the configured document references (wiki-qualified or unqualified)
+     * @return the per-entry clauses, empty when every entry was malformed
      */
-    private String buildInnerClause(List<String> spaces, List<String> documents)
+    private List<String> buildEntryClauses(List<String> spaces, List<String> documents)
     {
-        String spacePart = spaces.isEmpty() ? null : SPACE_CLAUSE_START + joinEscaped(spaces) + CLAUSE_CLOSE;
-        String docPart = documents.isEmpty() ? null : DOC_CLAUSE_START + joinEscaped(documents) + CLAUSE_CLOSE;
-        if (spacePart != null && docPart != null) {
-            return "(" + spacePart + OR + docPart + CLAUSE_CLOSE;
+        List<String> clauses = new ArrayList<>();
+        for (String configured : spaces) {
+            SpaceReference space = resolveSpace(configured);
+            if (space != null) {
+                clauses.add(scopedClause(space.getWikiReference().getName(), FieldUtils.SPACE_PREFIX,
+                    this.localSerializer.serialize(space)));
+            }
         }
-        return spacePart != null ? spacePart : docPart;
+        for (String configured : documents) {
+            DocumentReference document = resolveDocument(configured);
+            if (document != null) {
+                clauses.add(scopedClause(document.getWikiReference().getName(), FieldUtils.FULLNAME,
+                    this.localSerializer.serialize(document)));
+            }
+        }
+        return clauses;
     }
 
-    private String joinEscaped(List<String> values)
+    /**
+     * Builds one wiki-scoped Solr clause, e.g. {@code (wiki:second AND space_prefix:Sandbox)}, so the entry only
+     * ever matches content in the wiki it names.
+     *
+     * @param wiki the wiki the entry targets
+     * @param field the Solr field to match the local reference against
+     * @param localReference the wiki-less local reference (e.g. {@code Sandbox} or {@code Sandbox.Foo})
+     * @return the wiki-scoped clause
+     */
+    private String scopedClause(String wiki, String field, String localReference)
     {
-        List<String> escaped = new ArrayList<>(values.size());
-        for (String value : values) {
-            escaped.add(this.solrUtils.toCompleteFilterQueryString(value));
+        return OPEN_PAREN + FieldUtils.WIKI + COLON + esc(wiki) + AND + field + COLON + esc(localReference)
+            + CLOSE_PAREN;
+    }
+
+    private String esc(String value)
+    {
+        return this.solrUtils.toCompleteFilterQueryString(value);
+    }
+
+    private SpaceReference resolveSpace(String configured)
+    {
+        try {
+            return this.spaceResolver.resolve(configured);
+        } catch (Exception e) {
+            this.logger.debug("Skipping malformed MCP space filter space entry [{}]", configured, e);
+            return null;
         }
-        return String.join(OR, escaped);
+    }
+
+    private DocumentReference resolveDocument(String configured)
+    {
+        try {
+            return this.documentResolver.resolve(configured);
+        } catch (Exception e) {
+            this.logger.debug("Skipping malformed MCP space filter document entry [{}]", configured, e);
+            return null;
+        }
+    }
+
+    private String sourceWikiId()
+    {
+        return this.contextProvider.get().getWikiId();
     }
 
     private boolean isNoRestriction(String mode)

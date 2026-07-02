@@ -205,6 +205,18 @@ public class XWikiMCPServerManager implements Disposable
     }
 
     /**
+     * Invalidates every cached wiki server, e.g. after a farm-level configuration change such as a cross-wiki
+     * reach grant, which affects the reach-gated tool registration of every wiki's endpoint, not only the wiki
+     * whose config document was saved.
+     */
+    public void invalidateAll()
+    {
+        for (String wikiId : new ArrayList<>(this.servers.keySet())) {
+            invalidate(wikiId);
+        }
+    }
+
+    /**
      * Closes one MCP server gracefully, logging at WARN (with a DEBUG stack trace) instead of propagating
      * if the close fails.
      *

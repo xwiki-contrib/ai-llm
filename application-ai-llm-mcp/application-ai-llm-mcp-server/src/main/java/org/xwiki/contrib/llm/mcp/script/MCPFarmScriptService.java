@@ -44,6 +44,7 @@ import org.xwiki.script.service.ScriptService;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.stability.Unstable;
+import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 /**
  * Provides the farm-level MCP administration Script APIs used by the main wiki's MCP admin dashboard:
@@ -65,6 +66,9 @@ public class MCPFarmScriptService implements ScriptService
 
     @Inject
     private ContextualAuthorizationManager authorization;
+
+    @Inject
+    private WikiDescriptorManager wikiDescriptorManager;
 
     @Inject
     private ComponentManager componentManager;
@@ -90,6 +94,17 @@ public class MCPFarmScriptService implements ScriptService
     public boolean canAdmin(String wikiId)
     {
         return this.authorization.hasAccess(Right.ADMIN, new WikiReference(wikiId));
+    }
+
+    /**
+     * @return whether the current user has admin rights on the MAIN wiki, i.e. is a farm administrator. The
+     *     cross-wiki reach grant is a farm-level decision, so only a farm administrator may change it.
+     * @since 0.9
+     */
+    public boolean canFarmAdmin()
+    {
+        return this.authorization.hasAccess(Right.ADMIN,
+            new WikiReference(this.wikiDescriptorManager.getMainWikiId()));
     }
 
     /**
@@ -127,6 +142,11 @@ public class MCPFarmScriptService implements ScriptService
             List<MCPToolState> states = new ArrayList<>();
             for (Map.Entry<String, MCPTool> entry : tools.entrySet()) {
                 String id = entry.getKey();
+                // Reach-gated tools (e.g. list_wikis) are not admin-togglable, so they never render as a
+                // checkbox in the admin tree; their presence is governed by the cross-wiki reach grant.
+                if (this.mcpConfig.isReachGatedTool(id)) {
+                    continue;
+                }
                 MCPTool tool = entry.getValue();
                 String category = StringUtils.defaultIfBlank(tool.getCategory(), DEFAULT_CATEGORY);
                 String summary = tool.getSummary() == null ? "" : tool.getSummary();
@@ -191,6 +211,73 @@ public class MCPFarmScriptService implements ScriptService
                     continue;
                 }
                 if (this.mcpConfig.setEnabled(wiki, desired)) {
+                    changed++;
+                } else {
+                    skipped++;
+                }
+            }
+        }
+        return new BulkResult(changed, skipped);
+    }
+
+    /**
+     * @param wikiId the wiki to check
+     * @return whether the given wiki's MCP endpoint may reach across other wikis
+     * @since 0.9
+     */
+    public boolean isCrossWikiReach(String wikiId)
+    {
+        return this.mcpConfig.isCrossWikiReachAllowed(wikiId);
+    }
+
+    /**
+     * Sets the MCP cross-wiki reach grant for the given wiki, gated by the current user's admin rights on the
+     * MAIN wiki. Cross-wiki reach is a farm-level decision, so a subwiki admin cannot self-grant it.
+     *
+     * @param wikiId the wiki whose reach grant to set
+     * @param allowed whether cross-wiki reach should be allowed for that wiki
+     * @return {@code true} if the grant was written, {@code false} when the user is not a farm administrator
+     *     or the write failed
+     * @since 0.9
+     */
+    public boolean setCrossWikiReach(String wikiId, boolean allowed)
+    {
+        if (!canFarmAdmin()) {
+            this.logger.debug("Refused MCP cross-wiki reach change: missing farm admin rights");
+            return false;
+        }
+        return this.mcpConfig.setCrossWikiReach(wikiId, allowed);
+    }
+
+    /**
+     * Applies a desired MCP cross-wiki reach state across a set of managed wikis, gated once by the current
+     * user's admin rights on the MAIN wiki: cross-wiki reach is a farm-level decision, so a caller who is not a
+     * farm administrator changes nothing. Each wiki in {@code managedWikiIds} is granted reach if and only if
+     * it also appears in {@code reachWikiIds}, and is only written when its current state actually differs from
+     * the desired one.
+     *
+     * @param managedWikiIds the wikis whose state should be reconciled (may be {@code null} or empty)
+     * @param reachWikiIds the subset of those wikis that should end up with reach (may be {@code null} or empty)
+     * @return the outcome counts of the apply
+     * @since 0.9
+     */
+    public BulkResult applyReach(String[] managedWikiIds, String[] reachWikiIds)
+    {
+        if (!canFarmAdmin()) {
+            this.logger.debug("Refused MCP cross-wiki reach apply: missing farm admin rights");
+            return new BulkResult(0, managedWikiIds == null ? 0 : managedWikiIds.length);
+        }
+        Set<String> reachSet =
+            new HashSet<>(reachWikiIds == null ? List.of() : Arrays.asList(reachWikiIds));
+        int changed = 0;
+        int skipped = 0;
+        if (managedWikiIds != null) {
+            for (String wiki : managedWikiIds) {
+                boolean desired = reachSet.contains(wiki);
+                if (this.mcpConfig.isCrossWikiReachAllowed(wiki) == desired) {
+                    continue;
+                }
+                if (this.mcpConfig.setCrossWikiReach(wiki, desired)) {
                     changed++;
                 } else {
                     skipped++;

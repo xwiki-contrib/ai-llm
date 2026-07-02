@@ -25,9 +25,14 @@ import org.xwiki.component.annotation.Role;
 import org.xwiki.model.reference.DocumentReference;
 
 /**
- * Applies the per-wiki MCP space whitelist/blacklist configured in {@link MCPServerConfiguration}.
+ * Applies the source endpoint's MCP space whitelist/blacklist configured in {@link MCPServerConfiguration}.
  *
- * <p>This filter narrows the set of documents the wiki's MCP tools may reach; it is a content-visibility
+ * <p>The filter always reads the current (source) endpoint's own configuration, and its configured entries are
+ * interpreted by their own wiki: an entry may be wiki-qualified (e.g. {@code second:Sandbox}) to target another
+ * wiki's content, or unqualified (e.g. {@code Docs}) to target the source wiki. The target wiki's own filter is
+ * never consulted cross-wiki.</p>
+ *
+ * <p>This filter narrows the set of documents the endpoint's MCP tools may reach; it is a content-visibility
  * restriction layered <em>on top of</em> the regular rights checks, never a replacement for them. A document
  * that the space filter allows must still pass the usual {@code VIEW}/{@code EDIT} authorization. A
  * legitimately empty configuration or {@code mode=none} imposes no restriction; on a configuration-read error
@@ -40,21 +45,21 @@ import org.xwiki.model.reference.DocumentReference;
 public interface MCPSpaceFilter
 {
     /**
-     * Returns whether the given document may be accessed under its wiki's space filter. This answers only
-     * the space-filter question; callers must still perform the regular rights check.
+     * Returns whether the given document may be accessed under the source endpoint's space filter. This answers
+     * only the space-filter question; callers must still perform the regular rights check.
      *
      * @param target the document being accessed
-     * @return {@code true} when the wiki's space filter allows the document (or imposes no restriction)
+     * @return {@code true} when the endpoint's space filter allows the document (or imposes no restriction)
      */
     boolean isAllowed(DocumentReference target);
 
     /**
-     * Returns the Solr filter-query clauses that restrict a document search to the wiki's allowed spaces and
-     * documents. Each returned clause is an independent {@code fq} entry to be ANDed into the search. The list
-     * is empty when the wiki imposes no restriction.
+     * Returns the Solr filter-query clauses that restrict a document search to the source endpoint's allowed
+     * spaces and documents. Each returned clause is an independent {@code fq} entry to be ANDed into the search;
+     * a wiki-qualified entry carries its own {@code wiki} scope, so entries targeting different wikis coexist in
+     * one search. The list is empty when the endpoint imposes no restriction.
      *
-     * @param wikiId the wiki whose space filter to translate into filter queries
      * @return the filter-query clauses to AND into a search, or an empty list when unrestricted
      */
-    List<String> filterQueries(String wikiId);
+    List<String> filterQueries();
 }

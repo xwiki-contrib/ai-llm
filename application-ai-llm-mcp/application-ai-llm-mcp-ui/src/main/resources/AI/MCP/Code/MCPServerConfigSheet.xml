@@ -146,8 +146,12 @@
   #set ($storedDocs = $docsProp.value)
 #end
 #set ($removeLabel = $services.localization.render('AI.MCP.Code.spaceFilter.remove'))
+#set ($mcpReachOn = $services.mcp.isCrossWikiReach($services.wiki.currentWikiId))
     &lt;h2&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.heading'))&lt;/h2&gt;
     &lt;p&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.intro'))&lt;/p&gt;
+#if ($mcpReachOn)
+    &lt;p class="xHint"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.crossWikiHint'))&lt;/p&gt;
+#end
     &lt;fieldset&gt;
       &lt;dl&gt;
         &lt;dt&gt;
@@ -156,7 +160,7 @@
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('spaceFilterMode', 'edit'){{html clean="false"}}&lt;/dd&gt;
       &lt;/dl&gt;
-      &lt;div class="mcp-space-picker"&gt;
+      &lt;div class="mcp-space-picker" data-current-wiki="$escapetool.xml($services.wiki.currentWikiId)"&gt;
         &lt;div class="mcp-chip-section"&gt;
           &lt;div class="label"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.spaceFilter.spaces.label'))&lt;/div&gt;
           &lt;div id="mcp-space-chips" class="mcp-chip-list" data-field="$escapetool.xml($spacesField)" data-remove-label="$escapetool.xml($removeLabel)"&gt;
@@ -179,7 +183,7 @@
         &lt;/div&gt;
         &lt;div class="mcp-picker-tree"&gt;{{/html}}
 
-{{documentTree id="mcp-space-picker-tree" links="false" checkboxes="true" finder="true" showRoot="false" showWikis="false" showSpaces="true" showAttachments="false" showTranslations="false" /}}
+{{documentTree id="mcp-space-picker-tree" links="false" checkboxes="true" finder="true" showRoot="false" showWikis="$mcpReachOn" showSpaces="true" showAttachments="false" showTranslations="false" /}}
 
 {{html clean="false"}}        &lt;/div&gt;
       &lt;/div&gt;
@@ -196,6 +200,9 @@
   ## ConfigurableClass object in AI.MCP.Code.MCPServerConfig (currently "MCP Server"). If the Configure
   ## links 404 after deploy, this is the only value to adjust.
   #set ($mcpSectionId = 'MCP Server')
+  ## Cross-wiki reach is a farm-level grant: only a main-wiki admin may toggle it. Subwiki admins see the
+  ## read-only status in the reach column.
+  #set ($canFarmAdmin = $services.mcp.canFarmAdmin())
   ## Handle the apply POST in place. Require POST so this state change is never reachable via a GET (which
   ## would leak the CSRF token through the URL in logs/Referer and run on link prefetch).
   #if ($request.method == 'POST' &amp;&amp; $request.get('do') == 'mcpApply')
@@ -203,10 +210,12 @@
       {{error}}$services.localization.render('AI.MCP.Code.dashboard.error.csrf'){{/error}}
     #else
       #set ($result = $services.mcp.applyEnabled($request.getParameterValues('mcpManaged'), $request.getParameterValues('mcpEnabled')))
+      #set ($reachResult = $services.mcp.applyReach($request.getParameterValues('mcpReachManaged'), $request.getParameterValues('mcpReach')))
+      #set ($totalChanged = $result.changed + $reachResult.changed)
       #if ($result.skipped &gt; 0)
-        {{info}}$services.localization.render('AI.MCP.Code.dashboard.status.applied.skipped', [$result.changed, $result.skipped]){{/info}}
+        {{info}}$services.localization.render('AI.MCP.Code.dashboard.status.applied.skipped', [$totalChanged, $result.skipped]){{/info}}
       #else
-        {{info}}$services.localization.render('AI.MCP.Code.dashboard.status.applied', [$result.changed]){{/info}}
+        {{info}}$services.localization.render('AI.MCP.Code.dashboard.status.applied', [$totalChanged]){{/info}}
       #end
     #end
   #end
@@ -222,6 +231,7 @@
       &lt;thead&gt;
         &lt;tr&gt;
           &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.enabled'))&lt;/th&gt;
+          &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.reach'))&lt;/th&gt;
           &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.wiki'))&lt;/th&gt;
           &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.configure'))&lt;/th&gt;
         &lt;/tr&gt;
@@ -236,6 +246,7 @@
           #set ($enabled = $services.mcp.isEnabled($w.id))
           &lt;tr&gt;
             &lt;td&gt;#if ($canAdmin)&lt;input type="hidden" name="mcpManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpEnabled" value="$escapetool.xml($w.id)"#if ($enabled) checked="checked"#end /&gt;#else#if ($enabled)$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.enabled'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.disabled'))#end#end&lt;/td&gt;
+            &lt;td&gt;#if ($canFarmAdmin)&lt;input type="hidden" name="mcpReachManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpReach" value="$escapetool.xml($w.id)"#if ($services.mcp.isCrossWikiReach($w.id)) checked="checked"#end /&gt;#else#if ($services.mcp.isCrossWikiReach($w.id))$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.enabled'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.disabled'))#end#end&lt;/td&gt;
             &lt;td&gt;$escapetool.xml($wikiName)&lt;/td&gt;
             &lt;td&gt;#if ($canAdmin)#set ($configRef = $services.model.createDocumentReference($w.id, 'XWiki', 'XWikiPreferences'))&lt;a href="$escapetool.xml($xwiki.getURL($configRef, 'admin', "section=$escapetool.url($mcpSectionId)"))"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.configure.link'))&lt;/a&gt;#end&lt;/td&gt;
           &lt;/tr&gt;

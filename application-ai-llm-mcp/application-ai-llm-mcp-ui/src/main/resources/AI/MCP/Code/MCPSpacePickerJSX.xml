@@ -139,11 +139,19 @@
     const spaceList = $('#mcp-space-chips');
     const docList = $('#mcp-doc-chips');
 
-    // node.data.id is the wiki-prefixed serialized reference (e.g. "xwiki:Space.Page"); the configuration stores
-    // local references, so drop everything up to and including the first colon (the wiki separator).
-    const localReference = rawId =&gt; {
+    // The endpoint's own wiki id, carried on the picker container. Chips for this wiki are stored unqualified.
+    const currentWiki = $('.mcp-space-picker').attr('data-current-wiki');
+
+    // node.data.id is the wiki-prefixed serialized reference (e.g. "xwiki:Space.Page"). A chip for the current wiki
+    // is stored unqualified (drop the wiki prefix); a chip for any other wiki keeps its "&lt;wiki&gt;:&lt;localRef&gt;" form so
+    // the stored entry stays wiki-qualified and is interpreted against that other wiki.
+    const chipRef = rawId =&gt; {
       const separatorIndex = rawId.indexOf(':');
-      return separatorIndex &gt;= 0 ? rawId.substring(separatorIndex + 1) : rawId;
+      if (separatorIndex &lt; 0) {
+        return rawId;
+      }
+      const wiki = rawId.substring(0, separatorIndex);
+      return wiki === currentWiki ? rawId.substring(separatorIndex + 1) : rawId;
     };
 
     const listValues = list =&gt;
@@ -196,7 +204,7 @@
       if (!node || !node.data || !node.data.id) {
         return;
       }
-      const ref = localReference(node.data.id);
+      const ref = chipRef(node.data.id);
       if (node.data.type === 'space') {
         // A whole subtree collapses to a single space chip: drop any document or sub-space chip it now covers.
         removeCovered(spaceList, ref);
@@ -212,7 +220,7 @@
       if (!node || !node.data || !node.data.id) {
         return;
       }
-      const ref = localReference(node.data.id);
+      const ref = chipRef(node.data.id);
       if (node.data.type === 'space') {
         removeChipByValue(spaceList, ref);
       } else if (node.data.type === 'document') {
@@ -232,11 +240,33 @@
     let chippedNodes = [];
     $(treeElement).on('changed.jstree', (event, data) =&gt; {
       const tree = data.instance;
+      if (data.action === 'deselect_all') {
+        // The tree finder (finder.js) deselects everything before selecting its result, which would otherwise
+        // wipe every existing chip. Re-apply the committed selection so a finder pick ADDS to the chips instead
+        // of replacing them; this picker exposes no other deselect-all action.
+        if (chippedNodes.length) {
+          tree.select_node(chippedNodes);
+        }
+        return;
+      }
       const current = data.selected || [];
       const currentSet = new Set(current);
-      const topSelected = current.filter(nodeId =&gt; {
+      const isWiki = nodeId =&gt; {
         const node = tree.get_node(nodeId);
-        return node &amp;&amp; !(node.parent &amp;&amp; currentSet.has(node.parent));
+        return !!(node &amp;&amp; node.data &amp;&amp; node.data.type === 'wiki');
+      };
+      const topSelected = current.filter(nodeId =&gt; {
+        if (isWiki(nodeId)) {
+          return false;
+        }
+        const node = tree.get_node(nodeId);
+        if (!node) {
+          return false;
+        }
+        const parent = node.parent;
+        // Top-selected = has no selected non-wiki ancestor directly above it. A selected wiki parent does not
+        // "cover" its spaces (wikis are not chips), so a space under a checked wiki is itself top-selected.
+        return !(parent &amp;&amp; currentSet.has(parent) &amp;&amp; !isWiki(parent));
       });
       const topSet = new Set(topSelected);
       // Drop chips for nodes no longer top-selected first, then add chips for the newly top-selected ones.
@@ -258,26 +288,21 @@
 
     // On load the saved configuration is rendered as chips but the lazily-loaded tree starts unchecked. Re-check the
     // stored references so the tree reflects the saved state. The node id is "&lt;type&gt;:&lt;serialized reference&gt;" where the
-    // serialized reference is wiki-prefixed (e.g. "space:xwiki:Sandbox", "document:xwiki:Sandbox.WebHome"); the
-    // configuration stores wiki-local references, so we read the current wiki off any already-loaded node and rebuild
-    // the ids. openTo lazily loads the path to each node and selects it, which feeds back through the changed handler
-    // above where the chipExists dedup keeps it from duplicating the server-rendered chips. This runs once, when ready.
+    // serialized reference is wiki-prefixed (e.g. "space:xwiki:Sandbox", "document:second:Sandbox.WebHome"); a stored
+    // ref is already wiki-qualified for other wikis and unqualified for the current wiki, so we qualify with the
+    // current wiki only when needed and rebuild the ids. openTo lazily loads the path to each node and selects it,
+    // which feeds back through the changed handler above where the chipExists dedup keeps it from duplicating the
+    // server-rendered chips. This runs once, when ready.
     const preselectStoredReferences = tree =&gt; {
-      const rootChildren = tree.get_node($.jstree.root).children || [];
-      let wiki = null;
-      for (const childId of rootChildren) {
-        const rootNode = tree.get_node(childId);
-        if (rootNode &amp;&amp; rootNode.data &amp;&amp; rootNode.data.id &amp;&amp; rootNode.data.id.indexOf(':') &gt; 0) {
-          wiki = rootNode.data.id.substring(0, rootNode.data.id.indexOf(':'));
-          break;
-        }
-      }
-      if (!wiki) {
+      if (!currentWiki) {
         return;
       }
+      // A stored ref is wiki-qualified when it contains a ':' (e.g. "second:Sandbox"); an unqualified ref
+      // (e.g. "Sandbox" or "Sandbox.WebHome") belongs to the current wiki.
+      const qualify = ref =&gt; ref.indexOf(':') &gt;= 0 ? ref : `${currentWiki}:${ref}`;
       const nodeIds = [
-        ...listValues(spaceList).map(ref =&gt; `space:${wiki}:${ref}`),
-        ...listValues(docList).map(ref =&gt; `document:${wiki}:${ref}`)
+        ...listValues(spaceList).map(ref =&gt; `space:${qualify(ref)}`),
+        ...listValues(docList).map(ref =&gt; `document:${qualify(ref)}`)
       ];
       if (nodeIds.length) {
         tree.openTo(nodeIds);
@@ -287,6 +312,9 @@
     let preselected = false;
     const runPreselect = () =&gt; {
       if (preselected) {
+        return;
+      }
+      if (!$.jstree) {
         return;
       }
       const tree = $.jstree.reference(treeElement);

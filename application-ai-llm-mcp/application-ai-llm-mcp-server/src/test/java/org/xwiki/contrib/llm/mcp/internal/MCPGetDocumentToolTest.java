@@ -28,11 +28,13 @@ import javax.inject.Provider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
+import org.xwiki.model.reference.WikiReference;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.LogLevel;
@@ -57,6 +59,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -107,6 +110,9 @@ class MCPGetDocumentToolTest
     @MockComponent
     private Provider<XWikiContext> contextProvider;
 
+    @MockComponent
+    private MCPWikiReach wikiReach;
+
     @Mock
     private DocumentReference documentReference;
 
@@ -116,9 +122,16 @@ class MCPGetDocumentToolTest
         when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW)))
             .thenReturn(this.documentReference);
         when(this.serializer.serialize(any())).thenReturn(CANONICAL);
+        // Same-wiki by default: the resolved reference lives in the endpoint's own wiki. The cross-wiki gate
+        // test overrides this with the target wiki. Lenient so non-rendered tests, which never read the ref
+        // wiki, do not fail on an unused stub.
+        lenient().when(this.documentReference.getWikiReference()).thenReturn(new WikiReference("xwiki"));
         // Rendered content is allowed by default; the disabled-rendering test overrides this. Lenient so the
         // many non-rendered tests, which never reach the gate, do not fail on an unused stub.
         lenient().when(this.mcpConfig.isRenderedContentAllowed(any())).thenReturn(true);
+        // By default the endpoint has cross-wiki reach, so the advertised reference description mentions it;
+        // the reach-off test overrides this.
+        lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
     }
 
     private DocumentModelBridge stubDoc(String content, String syntaxId) throws Exception
@@ -178,24 +191,52 @@ class MCPGetDocumentToolTest
     }
 
     @Test
-    void renderedRequestRefusedAndNotRenderedWhenDisabledForWiki() throws Exception
+    void renderedRequestRefusedKeyingOffSourceContextWikiNotTarget() throws Exception
     {
         stubDoc("{{velocity}}opaque source{{/velocity}}", MARKDOWN_SYNTAX);
         XWikiContext xcontext = mock(XWikiContext.class);
-        XWiki xwiki = mock(XWiki.class);
         XWikiDocument xdoc = mock(XWikiDocument.class);
         when(this.contextProvider.get()).thenReturn(xcontext);
-        when(xcontext.getWikiId()).thenReturn("subwiki");
-        lenient().when(xcontext.getWiki()).thenReturn(xwiki);
-        lenient().when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
-        when(this.mcpConfig.isRenderedContentAllowed("subwiki")).thenReturn(false);
+        when(xcontext.getWikiId()).thenReturn("xwiki");
+        // Rendering is disabled for the SOURCE (context) wiki, so the request is refused regardless of the wiki
+        // the document itself lives in.
+        when(this.mcpConfig.isRenderedContentAllowed("xwiki")).thenReturn(false);
 
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
 
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("Rendered content is disabled for this wiki"), textOf(result));
+        // The gate consulted the source context wiki, not the target ref's wiki.
+        verify(this.mcpConfig).isRenderedContentAllowed("xwiki");
         // The refusal happens before any rendering: the executed view must never be produced.
         verify(xdoc, never()).getRenderedContent(any(Syntax.class), any(XWikiContext.class));
+    }
+
+    @Test
+    void renderedModeSwitchesContextWikiToTargetAndRestoresAfterRender() throws Exception
+    {
+        stubDoc("{{velocity}}opaque source{{/velocity}}", MARKDOWN_SYNTAX);
+        // Cross-wiki read: the resolved reference lives in "targetwiki"; the endpoint's context wiki is "xwiki".
+        when(this.documentReference.getWikiReference()).thenReturn(new WikiReference("targetwiki"));
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xcontext.getWikiId()).thenReturn("xwiki");
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
+        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn("body");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The render runs in the target wiki: the context wiki is switched to it before rendering and restored
+        // to the original wiki afterwards.
+        InOrder ordered = inOrder(xcontext, xdoc);
+        ordered.verify(xcontext).setWikiId("targetwiki");
+        ordered.verify(xdoc).getRenderedContent(Syntax.PLAIN_1_0, xcontext);
+        ordered.verify(xcontext).setWikiId("xwiki");
     }
 
     @Test
@@ -584,6 +625,38 @@ class MCPGetDocumentToolTest
     }
 
     @Test
+    void nonExistentDocumentSuggestsSpaceHomeWhenItExists() throws Exception
+    {
+        DocumentReference spaceHomeReference = mock(DocumentReference.class);
+        // The requested terminal document does not exist, but reinterpreting it as a space, its WebHome does.
+        when(this.documentReference.getName()).thenReturn("GettingStarted");
+        when(this.documentAccessBridge.exists(this.documentReference)).thenReturn(false);
+        when(this.documentAccess.resolveAndAuthorize(CANONICAL + ".WebHome", Right.VIEW))
+            .thenReturn(spaceHomeReference);
+        when(this.documentAccessBridge.exists(spaceHomeReference)).thenReturn(true);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("No such document"), text);
+        assertTrue(text.contains("Did you mean \"" + CANONICAL + ".WebHome\""), text);
+    }
+
+    @Test
+    void nonExistentDocumentOmitsSuggestionWhenSpaceHomeDoesNotExist() throws Exception
+    {
+        // Neither the requested document nor its would-be space home exists: no suggestion.
+        when(this.documentReference.getName()).thenReturn("GettingStarted");
+        when(this.documentAccessBridge.exists(any(DocumentReference.class))).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertFalse(textOf(result).contains("Did you mean"), textOf(result));
+    }
+
+    @Test
     void existenceCheckFailureIsHandled() throws Exception
     {
         when(this.documentAccessBridge.exists(any(DocumentReference.class)))
@@ -696,6 +769,29 @@ class MCPGetDocumentToolTest
         McpSchema.Tool definition = this.tool.getToolDefinition();
         assertEquals(MCPGetDocumentTool.TOOL_ID, definition.name());
         assertTrue(((List<?>) definition.inputSchema().get("required")).contains(REFERENCE_KEY));
+    }
+
+    @Test
+    void reachOnMentionsCrossWikiInReferenceDescription()
+    {
+        when(this.wikiReach.isReachEnabled()).thenReturn(true);
+
+        assertTrue(referenceDescription().contains("cross-wiki"), referenceDescription());
+    }
+
+    @Test
+    void reachOffDropsCrossWikiFromReferenceDescription()
+    {
+        when(this.wikiReach.isReachEnabled()).thenReturn(false);
+
+        assertFalse(referenceDescription().contains("cross-wiki"), referenceDescription());
+    }
+
+    private String referenceDescription()
+    {
+        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
+        Map<?, ?> reference = (Map<?, ?>) properties.get(REFERENCE_KEY);
+        return (String) reference.get("description");
     }
 
     @Test

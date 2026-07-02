@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm.mcp.internal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -100,11 +103,17 @@ class MCPEditDocumentToolTest
     @MockComponent
     private DocumentAccessBridge documentAccessBridge;
 
+    @MockComponent
+    private MCPWikiReach wikiReach;
+
     @BeforeEach
     void setUp(MockitoOldcore oldcore) throws Exception
     {
         when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.EDIT))).thenReturn(DOC_REFERENCE);
         when(this.serializer.serialize(any())).thenReturn(CANONICAL);
+        // By default the endpoint has cross-wiki reach, so the advertised reference description mentions it;
+        // the reach-off test overrides this.
+        lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
 
         // Take the simple save path in api.Document.save (skip the saveAsAuthor branch).
         oldcore.getConfigurationSource().setProperty("security.script.save.checkAuthor", false);
@@ -623,6 +632,29 @@ class MCPEditDocumentToolTest
     }
 
     @Test
+    void reachOnMentionsCrossWikiInReferenceDescription()
+    {
+        when(this.wikiReach.isReachEnabled()).thenReturn(true);
+
+        assertTrue(referenceDescription().contains("cross-wiki"), referenceDescription());
+    }
+
+    @Test
+    void reachOffDropsCrossWikiFromReferenceDescription()
+    {
+        when(this.wikiReach.isReachEnabled()).thenReturn(false);
+
+        assertFalse(referenceDescription().contains("cross-wiki"), referenceDescription());
+    }
+
+    private String referenceDescription()
+    {
+        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
+        Map<?, ?> reference = (Map<?, ?>) properties.get(REFERENCE_KEY);
+        return (String) reference.get("description");
+    }
+
+    @Test
     void isEnabledReturnsTrueByDefault()
     {
         assertTrue(this.tool.isEnabled());
@@ -637,6 +669,35 @@ class MCPEditDocumentToolTest
         // the summaries.
         assertTrue(this.tool.getSummary().startsWith("Edit"), this.tool.getSummary());
         assertFalse(this.tool.getSummary().contains("Create"), this.tool.getSummary());
+    }
+
+    @Test
+    void crossWikiSaveRunsInTargetWikiAndRestoresContextWiki(MockitoOldcore oldcore) throws Exception
+    {
+        DocumentReference otherRef = new DocumentReference("otherwiki", "Sandbox", "WebHome");
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.EDIT))).thenReturn(otherRef);
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), any(), any(), eq(true)))
+            .thenReturn(VIEW_URL);
+
+        String originalWiki = oldcore.getXWikiContext().getWikiId();
+        AtomicReference<String> wikiAtSave = new AtomicReference<>();
+        // Record the context wiki at save time without persisting: oldcore only registers components for the
+        // main wiki, so a real save under the switched "otherwiki" namespace cannot resolve its serializers.
+        doAnswer(invocation -> {
+            wikiAtSave.set(oldcore.getXWikiContext().getWikiId());
+            return null;
+        }).when(oldcore.getSpyXWiki())
+            .saveDocument(any(XWikiDocument.class), anyString(), anyBoolean(), any());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, "otherwiki:Sandbox.WebHome",
+            EDITS_KEY, List.of(edit("", "new body"))));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The save ran with the context wiki switched to the target wiki, so save-time rights and class
+        // resolution apply in that wiki.
+        assertEquals("otherwiki", wikiAtSave.get());
+        // The original context wiki is restored once the save completes.
+        assertEquals(originalWiki, oldcore.getXWikiContext().getWikiId());
     }
 
     @Test

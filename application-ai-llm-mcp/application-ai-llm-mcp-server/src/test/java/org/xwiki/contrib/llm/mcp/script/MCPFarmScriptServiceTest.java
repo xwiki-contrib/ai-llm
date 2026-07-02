@@ -33,6 +33,7 @@ import org.xwiki.security.authorization.Right;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -55,6 +56,8 @@ class MCPFarmScriptServiceTest
 {
     private static final String WIKI = "subwiki";
 
+    private static final String MAIN_WIKI = "xwiki";
+
     @InjectMockComponents
     private MCPFarmScriptService service;
 
@@ -65,7 +68,16 @@ class MCPFarmScriptServiceTest
     private ContextualAuthorizationManager authorization;
 
     @MockComponent
+    private WikiDescriptorManager wikiDescriptorManager;
+
+    @MockComponent
     private ComponentManager componentManager;
+
+    private void farmAdmin(boolean allowed)
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(MAIN_WIKI))).thenReturn(allowed);
+    }
 
     @Test
     void isEnabledDelegatesToConfig()
@@ -206,6 +218,77 @@ class MCPFarmScriptServiceTest
         verify(this.mcpConfig, never()).setEnabled(anyString(), anyBoolean());
     }
 
+    @Test
+    void canFarmAdminReflectsMainWikiAdminRights()
+    {
+        farmAdmin(true);
+        assertTrue(this.service.canFarmAdmin());
+
+        farmAdmin(false);
+        assertFalse(this.service.canFarmAdmin());
+    }
+
+    @Test
+    void setCrossWikiReachRefusesAndDoesNotWriteWhenNotFarmAdmin()
+    {
+        farmAdmin(false);
+
+        assertFalse(this.service.setCrossWikiReach(WIKI, true));
+        verify(this.mcpConfig, never()).setCrossWikiReach(WIKI, true);
+    }
+
+    @Test
+    void setCrossWikiReachDelegatesAndPropagatesTrueWhenFarmAdmin()
+    {
+        farmAdmin(true);
+        when(this.mcpConfig.setCrossWikiReach(WIKI, true)).thenReturn(true);
+
+        assertTrue(this.service.setCrossWikiReach(WIKI, true));
+        verify(this.mcpConfig).setCrossWikiReach(WIKI, true);
+    }
+
+    @Test
+    void applyReachWritesWhenDesiredStateDiffersAndFarmAdmin()
+    {
+        farmAdmin(true);
+        when(this.mcpConfig.isCrossWikiReachAllowed(WIKI)).thenReturn(false);
+        when(this.mcpConfig.setCrossWikiReach(WIKI, true)).thenReturn(true);
+
+        BulkResult result = this.service.applyReach(new String[] {WIKI}, new String[] {WIKI});
+
+        verify(this.mcpConfig).setCrossWikiReach(WIKI, true);
+        assertEquals(1, result.getChanged());
+        assertEquals(0, result.getSkipped());
+    }
+
+    @Test
+    void applyReachSkipsWriteWhenAlreadyInDesiredState()
+    {
+        farmAdmin(true);
+        when(this.mcpConfig.isCrossWikiReachAllowed(WIKI)).thenReturn(true);
+
+        BulkResult result = this.service.applyReach(new String[] {WIKI}, new String[] {WIKI});
+
+        verify(this.mcpConfig, never()).setCrossWikiReach(anyString(), anyBoolean());
+        assertEquals(0, result.getChanged());
+        assertEquals(0, result.getSkipped());
+    }
+
+    @Test
+    void applyReachRefusesEveryWikiWhenNotFarmAdmin()
+    {
+        farmAdmin(false);
+
+        BulkResult result = this.service.applyReach(new String[] {WIKI, "another"}, new String[] {WIKI});
+
+        // The farm gate governs all managed wikis at once: nothing is read or written, and every managed
+        // wiki is counted as skipped.
+        verify(this.mcpConfig, never()).setCrossWikiReach(anyString(), anyBoolean());
+        verify(this.mcpConfig, never()).isCrossWikiReachAllowed(anyString());
+        assertEquals(0, result.getChanged());
+        assertEquals(2, result.getSkipped());
+    }
+
     private MCPTool tool(String category, String summary, boolean write)
     {
         MCPTool tool = mock(MCPTool.class);
@@ -221,13 +304,19 @@ class MCPFarmScriptServiceTest
         Map<String, MCPTool> tools = Map.of(
             "query_documents", tool("Search & Navigation", "Search the wiki", false),
             "write_document", tool("Authoring", null, true),
-            "man", tool("Help", "Tool catalog", false));
+            "man", tool("Help", "Tool catalog", false),
+            // list_wikis is reach-gated: it is skipped before any of its metadata is read, so a bare mock
+            // suffices (stubbing its category/summary would be unnecessary).
+            "list_wikis", mock(MCPTool.class));
         when(this.componentManager.<MCPTool>getInstanceMap(MCPTool.class)).thenReturn(tools);
-        when(this.mcpConfig.getEnabledToolIds(WIKI)).thenReturn(Set.of("query_documents", "man"));
+        when(this.mcpConfig.getEnabledToolIds(WIKI)).thenReturn(Set.of("query_documents", "man", "list_wikis"));
         when(this.mcpConfig.isMandatoryTool("man")).thenReturn(true);
+        when(this.mcpConfig.isReachGatedTool("list_wikis")).thenReturn(true);
 
         List<MCPToolState> states = this.service.getToolStates(WIKI);
 
+        // The reach-gated list_wikis never becomes a togglable tree entry, so it is absent from the states.
+        assertFalse(states.stream().anyMatch(state -> "list_wikis".equals(state.getId())));
         // Sorted by category then id: Authoring/write_document, Help/man, Search & Navigation/query_documents.
         assertEquals(List.of("write_document", "man", "query_documents"),
             states.stream().map(MCPToolState::getId).toList());

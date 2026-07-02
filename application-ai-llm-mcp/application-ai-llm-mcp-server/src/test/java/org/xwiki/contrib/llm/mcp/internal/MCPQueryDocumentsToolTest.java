@@ -36,6 +36,7 @@ import org.mockito.ArgumentCaptor;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.search.solr.SolrUtils;
@@ -76,6 +77,8 @@ class MCPQueryDocumentsToolTest
 
     private static final String VIEW_URL = "https://wiki.example/bin/view/Help/GettingStarted";
 
+    private static final String WIKI = "xwiki";
+
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
 
@@ -84,6 +87,9 @@ class MCPQueryDocumentsToolTest
 
     @MockComponent
     private MCPDocumentSearch documentSearch;
+
+    @MockComponent
+    private MCPWikiReach wikiReach;
 
     @MockComponent
     private SolrUtils solrUtils;
@@ -95,8 +101,15 @@ class MCPQueryDocumentsToolTest
     @Named("current")
     private DocumentReferenceResolver<String> referenceResolver;
 
+    @MockComponent
+    @Named("user")
+    private DocumentReferenceResolver<String> userReferenceResolver;
+
+    @MockComponent
+    private EntityReferenceSerializer<String> entityReferenceSerializer;
+
     @BeforeEach
-    void setUp()
+    void setUp() throws Exception
     {
         // Make escaping passthrough so test query strings are predictable.
         when(this.solrUtils.toCompleteFilterQueryString(anyString())).thenAnswer(inv -> inv.getArgument(0));
@@ -104,6 +117,12 @@ class MCPQueryDocumentsToolTest
         lenient().when(this.referenceResolver.resolve(anyString())).thenReturn(mock(DocumentReference.class));
         lenient().when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), isNull(), isNull(), eq(true)))
             .thenReturn(VIEW_URL);
+        // By default the wiki reach door resolves any wiki parameter to the current wiki; cross-wiki tests
+        // override this per case.
+        lenient().when(this.wikiReach.resolveSearchWikis(any())).thenReturn(List.of(WIKI));
+        // By default the endpoint has cross-wiki reach, so the advertised schema is the full (cross-wiki)
+        // variant; the reach-off test overrides this.
+        lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
     }
 
     // -------------------------------------------------------------------------
@@ -130,7 +149,7 @@ class MCPQueryDocumentsToolTest
         Map<String, Map<String, List<String>>> highlighting, long numFound) throws QueryException
     {
         Query query = mock(Query.class);
-        when(this.documentSearch.createQuery(anyString(), anyList())).thenReturn(query);
+        when(this.documentSearch.createQuery(anyString(), anyList(), anyList())).thenReturn(query);
         when(query.setLimit(anyInt())).thenReturn(query);
         when(query.setOffset(anyInt())).thenReturn(query);
         when(query.bindValue(anyString(), any())).thenReturn(query);
@@ -176,8 +195,16 @@ class MCPQueryDocumentsToolTest
     private List<String> captureFilterQueries() throws QueryException
     {
         ArgumentCaptor<List<String>> fqCaptor = ArgumentCaptor.forClass(List.class);
-        verify(this.documentSearch).createQuery(anyString(), fqCaptor.capture());
+        verify(this.documentSearch).createQuery(anyString(), fqCaptor.capture(), anyList());
         return fqCaptor.getValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> captureTargetWikis() throws QueryException
+    {
+        ArgumentCaptor<List<String>> wikisCaptor = ArgumentCaptor.forClass(List.class);
+        verify(this.documentSearch).createQuery(anyString(), anyList(), wikisCaptor.capture());
+        return wikisCaptor.getValue();
     }
 
     // -------------------------------------------------------------------------
@@ -193,7 +220,7 @@ class MCPQueryDocumentsToolTest
             Map.of("query", "+foo -bar \"exact phrase\"")));
 
         ArgumentCaptor<String> statementCaptor = ArgumentCaptor.forClass(String.class);
-        verify(this.documentSearch).createQuery(statementCaptor.capture(), anyList());
+        verify(this.documentSearch).createQuery(statementCaptor.capture(), anyList(), anyList());
         assertEquals("+foo -bar \"exact phrase\"", statementCaptor.getValue());
 
         verify(query).bindValue("qf", QF_WEIGHTS);
@@ -258,7 +285,7 @@ class MCPQueryDocumentsToolTest
         this.tool.execute(request("query_documents", Map.of()));
 
         ArgumentCaptor<String> statementCaptor = ArgumentCaptor.forClass(String.class);
-        verify(this.documentSearch).createQuery(statementCaptor.capture(), anyList());
+        verify(this.documentSearch).createQuery(statementCaptor.capture(), anyList(), anyList());
         assertEquals("*", statementCaptor.getValue());
 
         verify(query).bindValue("sort", "date desc");
@@ -379,6 +406,37 @@ class MCPQueryDocumentsToolTest
     }
 
     @Test
+    void authorNameIsNormalizedToUserReference() throws QueryException
+    {
+        DocumentReference adminReference = mock(DocumentReference.class);
+        when(this.userReferenceResolver.resolve("Admin")).thenReturn(adminReference);
+        when(this.entityReferenceSerializer.serialize(adminReference)).thenReturn("xwiki:XWiki.Admin");
+        stubQuery(List.of());
+
+        this.tool.execute(request("query_documents", Map.of("query", "x", "author", "Admin")));
+
+        assertTrue(captureFilterQueries().contains("author:xwiki:XWiki.Admin"), "bare author name not normalized");
+    }
+
+    @Test
+    void emptyResultEchoesActiveFilters() throws QueryException
+    {
+        DocumentReference adminReference = mock(DocumentReference.class);
+        when(this.userReferenceResolver.resolve("Admin")).thenReturn(adminReference);
+        when(this.entityReferenceSerializer.serialize(adminReference)).thenReturn("xwiki:XWiki.Admin");
+        stubQuery(List.of(), null, 0);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "nomatch", "author", "Admin", "space", "Help")));
+
+        String text = textOf(result);
+        assertTrue(text.contains("No documents found matching \"nomatch\""), text);
+        assertTrue(text.contains("Active filters:"), text);
+        assertTrue(text.contains("space=Help"), text);
+        assertTrue(text.contains("author=xwiki:XWiki.Admin"), text);
+    }
+
+    @Test
     void modifiedWithinWeekProducesDateRangeFilter() throws QueryException
     {
         stubQuery(List.of());
@@ -458,7 +516,7 @@ class MCPQueryDocumentsToolTest
     {
         Query query = stubQuery(List.of());
         this.tool.execute(request("query_documents", Map.of("query", "x", "limit", 999)));
-        verify(query).setLimit(50);
+        verify(query).setLimit(25);
     }
 
     @Test
@@ -560,6 +618,35 @@ class MCPQueryDocumentsToolTest
         assertTrue(text.contains("Found about 12 matching documents."), text);
         assertTrue(text.contains("Showing 2 from offset 0."), text);
         assertTrue(text.contains("Continue with offset=2."), text);
+    }
+
+    @Test
+    void footerNotesWhenRequestedLimitWasCapped() throws QueryException
+    {
+        List<SolrDocument> docs = List.of(
+            buildDoc("id1", "Page One", "xwiki", "Help.PageOne", "content one"),
+            buildDoc("id2", "Page Two", "xwiki", "Help.PageTwo", "content two"));
+        stubQuery(docs, null, 40);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "x", "limit", 999)));
+
+        String text = textOf(result);
+        assertTrue(text.contains("capped to the maximum of 25 per page"), text);
+    }
+
+    @Test
+    void footerOmitsCapNoticeWhenAllResultsFitUnderMaximum() throws QueryException
+    {
+        // A large requested limit that did not actually hide anything (total below the maximum) must not
+        // nag with a cap notice.
+        stubQuery(List.of(buildDoc("id1", "Page One", "xwiki", "Help.PageOne", "content one")), null, 3);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "x", "limit", 999)));
+
+        String text = textOf(result);
+        assertFalse(text.contains("capped"), text);
     }
 
     @Test
@@ -922,8 +1009,58 @@ class MCPQueryDocumentsToolTest
         this.tool.execute(request("query_documents", Map.of("query", "x")));
         // The door owns query creation, the secure flag and the fq binding; the tool obtains its query
         // from the door and must never bind fq itself (that would drop the door's wiki/space scope).
-        verify(this.documentSearch).createQuery(anyString(), anyList());
+        verify(this.documentSearch).createQuery(anyString(), anyList(), anyList());
         verify(query, never()).bindValue(eq("fq"), any());
+    }
+
+    // -------------------------------------------------------------------------
+    // Wiki parameter / cross-wiki reach
+    // -------------------------------------------------------------------------
+
+    @Test
+    void omittingWikiResolvesToCurrentWikiAndForwardsItToTheDoor() throws Exception
+    {
+        stubQuery(List.of());
+
+        this.tool.execute(request("query_documents", Map.of("query", "x")));
+
+        // A blank wiki parameter is passed to the door as null, and the door's resolved wikis are forwarded.
+        verify(this.wikiReach).resolveSearchWikis(null);
+        assertEquals(List.of(WIKI), captureTargetWikis());
+    }
+
+    @Test
+    void allWikisResolvesToNullScopeAndForwardsNullToTheDoor() throws Exception
+    {
+        // "all" resolves to a null wiki scope (the whole farm); the tool must forward that null to the door.
+        Query query = mock(Query.class);
+        when(this.documentSearch.createQuery(anyString(), anyList(), isNull())).thenReturn(query);
+        when(query.setLimit(anyInt())).thenReturn(query);
+        when(query.setOffset(anyInt())).thenReturn(query);
+        when(query.bindValue(anyString(), any())).thenReturn(query);
+        when(query.execute()).thenReturn(List.of());
+        when(this.wikiReach.resolveSearchWikis("all")).thenReturn(null);
+
+        McpSchema.CallToolResult result =
+            this.tool.execute(request("query_documents", Map.of("query", "x", "wiki", "all")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        verify(this.wikiReach).resolveSearchWikis("all");
+        verify(this.documentSearch).createQuery(anyString(), anyList(), isNull());
+    }
+
+    @Test
+    void reachDeniedWikiReturnsTheDenialMessageAndDoesNotSearch() throws Exception
+    {
+        when(this.wikiReach.resolveSearchWikis("secret"))
+            .thenThrow(new MCPAccessDeniedException("Cross-wiki search is not enabled for this endpoint."));
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "x", "wiki", "secret")));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Cross-wiki search is not enabled for this endpoint.", textOf(result));
+        verify(this.documentSearch, never()).createQuery(anyString(), anyList(), anyList());
     }
 
     // -------------------------------------------------------------------------
@@ -933,7 +1070,7 @@ class MCPQueryDocumentsToolTest
     @Test
     void queryExceptionReturnsActionableError() throws QueryException
     {
-        when(this.documentSearch.createQuery(anyString(), anyList()))
+        when(this.documentSearch.createQuery(anyString(), anyList(), anyList()))
             .thenThrow(new QueryException("unbalanced parentheses", null, null));
 
         McpSchema.CallToolResult result =
@@ -958,6 +1095,26 @@ class MCPQueryDocumentsToolTest
         assertEquals("query_documents", definition.name());
         assertTrue(((List<?>) definition.inputSchema().get("required")).isEmpty(),
             "query is now optional, so no parameters should be required");
+    }
+
+    @Test
+    void reachOnAdvertisesWikiParameter()
+    {
+        when(this.wikiReach.isReachEnabled()).thenReturn(true);
+
+        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
+
+        assertTrue(properties.containsKey("wiki"), properties.keySet().toString());
+    }
+
+    @Test
+    void reachOffDropsWikiParameterFromAdvertisedSchema()
+    {
+        when(this.wikiReach.isReachEnabled()).thenReturn(false);
+
+        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
+
+        assertFalse(properties.containsKey("wiki"), properties.keySet().toString());
     }
 
     @Test

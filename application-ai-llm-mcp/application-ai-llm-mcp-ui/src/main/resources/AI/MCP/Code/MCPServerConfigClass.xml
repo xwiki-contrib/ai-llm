@@ -101,6 +101,31 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
     </allowRenderedContent>
+    <reachEnabledWikis>
+      <cache>0</cache>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayType>input</displayType>
+      <freeText/>
+      <hint>Farm-level list of wiki ids granted cross-wiki reach. Managed only from the main wiki's "MCP across all wikis" dashboard, and only the copy stored on the main wiki is read - editing this field on a subwiki has no effect.</hint>
+      <largeStorage>0</largeStorage>
+      <multiSelect>1</multiSelect>
+      <name>reachEnabledWikis</name>
+      <number>9</number>
+      <picker>0</picker>
+      <prettyName>Reach-Enabled Wikis</prettyName>
+      <relationalStorage>1</relationalStorage>
+      <separator> </separator>
+      <separators>|, </separators>
+      <size>20</size>
+      <sort>none</sort>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <values/>
+      <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+    </reachEnabledWikis>
     <spaceFilterDocuments>
       <cache>0</cache>
       <customDisplay/>

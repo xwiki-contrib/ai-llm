@@ -31,11 +31,16 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.observation.AbstractEventListener;
 import org.xwiki.observation.event.Event;
+import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 /**
  * Listens for saves to any wiki's MCP server configuration document ({@code AI.MCP.Code.MCPServerConfig})
  * and {@link XWikiMCPServerManager#invalidate(String) invalidates} that wiki's MCP server, so its name,
  * description and instructions are re-read on the next connection without restarting XWiki.
+ *
+ * <p>The MAIN wiki's config document carries the farm-level cross-wiki reach grant, which affects the
+ * reach-gated tool set of every wiki's endpoint, not only the main wiki's. A save to the main wiki's config
+ * therefore invalidates all cached servers; a save to any other wiki's config invalidates only that wiki.</p>
  *
  * <p>This is a global {@link AbstractEventListener} (not a {@code LocalEventListener}) by design: each
  * cluster node keeps its own per-wiki server cache, so the invalidation must fire on every node. A
@@ -55,6 +60,9 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
 
     @Inject
     private XWikiMCPServerManager mcpServerManager;
+
+    @Inject
+    private WikiDescriptorManager wikiDescriptorManager;
 
     @Inject
     private Logger logger;
@@ -78,7 +86,14 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
         String wikiId = ref.getWikiReference().getName();
         DocumentReference configRef = new DocumentReference(wikiId,
             MCPServerConfiguration.CONFIG_SPACES, MCPServerConfiguration.CONFIG_DOC_NAME);
-        if (configRef.equals(ref)) {
+        if (!configRef.equals(ref)) {
+            return;
+        }
+        if (wikiId.equals(this.wikiDescriptorManager.getMainWikiId())) {
+            this.logger.debug("Main MCP configuration changed; invalidating all wiki servers, farm-level reach "
+                + "may have changed");
+            this.mcpServerManager.invalidateAll();
+        } else {
             this.logger.debug("MCP server configuration changed for wiki [{}], invalidating its server", wikiId);
             this.mcpServerManager.invalidate(wikiId);
         }

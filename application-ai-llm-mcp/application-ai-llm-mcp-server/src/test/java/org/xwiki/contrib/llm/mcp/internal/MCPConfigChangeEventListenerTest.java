@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.Arrays;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
@@ -28,7 +29,9 @@ import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -52,8 +55,18 @@ class MCPConfigChangeEventListenerTest
     @MockComponent
     private XWikiMCPServerManager mcpServerManager;
 
+    @MockComponent
+    private WikiDescriptorManager wikiDescriptorManager;
+
+    @BeforeEach
+    void setUp()
+    {
+        // The ignore path returns before the main-wiki check, so this stub is only used by the config-doc tests.
+        lenient().when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+    }
+
     @Test
-    void onEventInvalidatesMainWikiForMainWikiConfigDoc()
+    void onEventInvalidatesAllServersForMainWikiConfigDoc()
     {
         DocumentReference configRef = new DocumentReference(MAIN_WIKI,
             Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
@@ -62,7 +75,8 @@ class MCPConfigChangeEventListenerTest
 
         this.listener.onEvent(new DocumentUpdatedEvent(configRef), doc, null);
 
-        verify(this.mcpServerManager).invalidate(MAIN_WIKI);
+        // The main-wiki config carries the farm-level reach grant, so a main-wiki save invalidates all servers.
+        verify(this.mcpServerManager).invalidateAll();
     }
 
     @Test
@@ -101,7 +115,8 @@ class MCPConfigChangeEventListenerTest
 
         this.listener.onEvent(new DocumentUpdatedEvent(), doc, null);
 
-        verify(this.mcpServerManager).invalidate(MAIN_WIKI);
+        // The source document reference is the main-wiki config, so the fallback path invalidates all servers.
+        verify(this.mcpServerManager).invalidateAll();
     }
 
     @Test

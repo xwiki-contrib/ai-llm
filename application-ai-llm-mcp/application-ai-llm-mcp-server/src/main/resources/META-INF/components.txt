@@ -5,9 +5,11 @@ org.xwiki.contrib.llm.mcp.internal.MCPConfigChangeEventListener
 org.xwiki.contrib.llm.mcp.internal.DefaultMCPSpaceFilter
 org.xwiki.contrib.llm.mcp.internal.DefaultMCPDocumentAccess
 org.xwiki.contrib.llm.mcp.internal.DefaultMCPDocumentSearch
+org.xwiki.contrib.llm.mcp.internal.DefaultMCPWikiReach
 org.xwiki.contrib.llm.mcp.internal.MCPQueryDocumentsTool
 org.xwiki.contrib.llm.mcp.internal.MCPManTool
 org.xwiki.contrib.llm.mcp.internal.MCPGetDocumentTool
 org.xwiki.contrib.llm.mcp.internal.MCPEditDocumentTool
 org.xwiki.contrib.llm.mcp.internal.MCPWriteDocumentTool
+org.xwiki.contrib.llm.mcp.internal.MCPListWikisTool
 org.xwiki.contrib.llm.mcp.script.MCPFarmScriptService

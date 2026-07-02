@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm.mcp.internal;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,8 +57,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -106,10 +110,18 @@ class MCPServerConfigurationTest
     private BaseObject configObject;
 
     @BeforeEach
-    void setUp()
+    void setUp() throws Exception
     {
         when(this.contextProvider.get()).thenReturn(this.context);
         when(this.context.getWiki()).thenReturn(this.xwiki);
+        // getEnabledToolIds applies a cross-wiki reach gate that reads the MAIN wiki's config. Default it to a
+        // readable document with no reach grant, so the tool-policy tests see reach off (list_wikis absent)
+        // without extra stubbing. Tests exercising reach on override the reach list explicitly.
+        lenient().when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        lenient().when(this.xwiki.getDocument(
+            eq(new DocumentReference(MAIN_WIKI, MCPServerConfiguration.CONFIG_SPACES,
+                MCPServerConfiguration.CONFIG_DOC_NAME)), eq(this.context)))
+            .thenReturn(this.configDoc);
     }
 
     private void mockConfigDocument(String wikiId) throws Exception
@@ -348,6 +360,116 @@ class MCPServerConfigurationTest
     }
 
     @Test
+    void isCrossWikiReachAllowedIsTrueWhenMainListContainsWiki() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
+            .thenReturn(List.of("otherwiki", SUB_WIKI));
+
+        // The grant is read from the MAIN wiki's list, not the queried wiki's own config document.
+        assertTrue(this.mcpServerConfiguration.isCrossWikiReachAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isCrossWikiReachAllowedIsFalseWhenMainListLacksWiki() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
+            .thenReturn(List.of("otherwiki"));
+
+        assertFalse(this.mcpServerConfiguration.isCrossWikiReachAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isCrossWikiReachAllowedIsFalseWhenNoXObject() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(null);
+
+        assertFalse(this.mcpServerConfiguration.isCrossWikiReachAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isCrossWikiReachAllowedFailsClosedWhenDocumentReadThrows() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Store down"));
+
+        assertFalse(this.mcpServerConfiguration.isCrossWikiReachAllowed(SUB_WIKI));
+        assertEquals("Could not read the MCP cross-wiki reach list for wiki [subwiki]; disabling reach: "
+            + "[XWikiException: Error number 0 in 0: Store down]", this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void setCrossWikiReachAddsWikiToMainListAndSaves() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI), true, this.context)).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
+            .thenReturn(new ArrayList<>());
+
+        assertTrue(this.mcpServerConfiguration.setCrossWikiReach(SUB_WIKI, true));
+
+        // The write targets the MAIN wiki's config document, adding the granted wiki id to its list.
+        verify(this.configObject).set(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS, List.of(SUB_WIKI),
+            this.context);
+        verify(this.xwiki).saveDocument(eq(this.configDoc), eq("Updated MCP cross-wiki reach"),
+            eq(true), eq(this.context));
+    }
+
+    @Test
+    void setCrossWikiReachRemovesWikiFromMainListAndSaves() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI), true, this.context)).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
+            .thenReturn(new ArrayList<>(List.of(SUB_WIKI, "otherwiki")));
+
+        assertTrue(this.mcpServerConfiguration.setCrossWikiReach(SUB_WIKI, false));
+
+        verify(this.configObject).set(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS, List.of("otherwiki"),
+            this.context);
+        verify(this.xwiki).saveDocument(eq(this.configDoc), eq("Updated MCP cross-wiki reach"),
+            eq(true), eq(this.context));
+    }
+
+    @Test
+    void setCrossWikiReachSkipsSaveWhenListUnchanged() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI), true, this.context)).thenReturn(this.configObject);
+        // The wiki is already granted, so re-granting it is a no-op and nothing is written.
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
+            .thenReturn(new ArrayList<>(List.of(SUB_WIKI)));
+
+        assertTrue(this.mcpServerConfiguration.setCrossWikiReach(SUB_WIKI, true));
+
+        verify(this.configObject, never()).set(anyString(), any(), any());
+        verify(this.xwiki, never()).saveDocument(any(), anyString(), anyBoolean(), any());
+    }
+
+    @Test
+    void setCrossWikiReachReturnsFalseAndLogsWhenWriteThrows() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Save down"));
+
+        assertFalse(this.mcpServerConfiguration.setCrossWikiReach(SUB_WIKI, true));
+        assertEquals("Failed to set the MCP cross-wiki reach for wiki [subwiki]: "
+            + "[XWikiException: Error number 0 in 0: Save down]", this.logCapture.getMessage(0));
+    }
+
+    @Test
     void setEnabledWritesOneForEnable() throws Exception
     {
         DocumentReference configRef = new DocumentReference(SUB_WIKI, MCPServerConfiguration.CONFIG_SPACES,
@@ -462,6 +584,9 @@ class MCPServerConfigurationTest
         assertTrue(this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI).contains("man"));
         assertEquals("Could not read the MCP enabled tools for wiki [subwiki]; applying the default "
             + "policy: [XWikiException: Error number 0 in 0: Store down]", this.logCapture.getMessage(0));
+        // The reach gate also reads the (also failing) main-wiki config, so it fails closed with its own warn.
+        assertEquals("Could not read the MCP cross-wiki reach list for wiki [subwiki]; disabling reach: "
+            + "[XWikiException: Error number 0 in 0: Store down]", this.logCapture.getMessage(1));
     }
 
     @Test
@@ -475,6 +600,49 @@ class MCPServerConfigurationTest
             this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI));
         assertEquals("Could not read the MCP enabled tools for wiki [subwiki]; applying the default "
             + "policy: [XWikiException: Error number 0 in 0: Store down]", this.logCapture.getMessage(0));
+        // The reach gate also reads the (also failing) main-wiki config, so it fails closed with its own warn.
+        assertEquals("Could not read the MCP cross-wiki reach list for wiki [subwiki]; disabling reach: "
+            + "[XWikiException: Error number 0 in 0: Store down]", this.logCapture.getMessage(1));
+    }
+
+    @Test
+    void getEnabledToolIdsIncludesListWikisWhenReachEnabled() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_ENABLED_TOOLS)).thenReturn(List.of());
+        // The main-wiki reach list grants SUB_WIKI cross-wiki reach.
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
+            .thenReturn(List.of(SUB_WIKI));
+        mockToolMap();
+
+        // list_wikis is reach-gated: it appears in the effective set because reach is enabled, even though it
+        // is neither in the stored/default tool policy nor mandatory.
+        assertEquals(Set.of("query_documents", "man", "list_wikis"),
+            this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI));
+    }
+
+    @Test
+    void getEnabledToolIdsExcludesListWikisWhenReachDisabled() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_ENABLED_TOOLS)).thenReturn(List.of());
+        // Reach off: the main-wiki config (from setUp) has no reach object, so list_wikis stays absent.
+        mockToolMap();
+
+        Set<String> ids = this.mcpServerConfiguration.getEnabledToolIds(SUB_WIKI);
+        assertFalse(ids.contains("list_wikis"));
+        assertEquals(Set.of("query_documents", "man"), ids);
+    }
+
+    @Test
+    void isReachGatedToolIsTrueOnlyForReachGatedTools()
+    {
+        assertTrue(this.mcpServerConfiguration.isReachGatedTool("list_wikis"));
+        assertFalse(this.mcpServerConfiguration.isReachGatedTool("query_documents"));
+        assertFalse(this.mcpServerConfiguration.isReachGatedTool("man"));
     }
 
     @Test

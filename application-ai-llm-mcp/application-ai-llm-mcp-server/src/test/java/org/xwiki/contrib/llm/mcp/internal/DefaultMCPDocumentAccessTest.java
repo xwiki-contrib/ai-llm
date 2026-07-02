@@ -67,6 +67,9 @@ class DefaultMCPDocumentAccessTest
     private MCPSpaceFilter spaceFilter;
 
     @MockComponent
+    private MCPWikiReach wikiReach;
+
+    @MockComponent
     private Provider<XWikiContext> contextProvider;
 
     private final DocumentReference target =
@@ -117,20 +120,36 @@ class DefaultMCPDocumentAccessTest
     }
 
     @Test
-    void throwsWhenReferenceResolvesIntoAnotherWiki()
+    void throwsWhenReferenceIsInAnUnreachableWiki()
     {
         String foreignReference = "other:Secret.Page";
         DocumentReference foreignTarget = new DocumentReference("other", "Secret", "Page");
         when(this.referenceResolver.resolve(foreignReference)).thenReturn(foreignTarget);
-        // Neither the rights check nor the space filter must be consulted for a foreign-wiki reference.
+        when(this.wikiReach.canReachWiki("other")).thenReturn(false);
+        // Neither the rights check nor the space filter must be consulted for an unreachable-wiki reference.
         lenient().when(this.authorization.hasAccess(Right.VIEW, foreignTarget)).thenReturn(true);
         lenient().when(this.spaceFilter.isAllowed(foreignTarget)).thenReturn(true);
 
         MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
             () -> this.access.resolveAndAuthorize(foreignReference, Right.VIEW));
-        assertEquals("[other:Secret.Page] is in another wiki; this MCP endpoint only serves the [xwiki] wiki.",
-            exception.getMessage());
+        assertEquals("[other:Secret.Page] is in another wiki [other]; cross-wiki reach is not enabled for "
+            + "this endpoint.", exception.getMessage());
         verify(this.authorization, never()).hasAccess(Right.VIEW, foreignTarget);
         verify(this.spaceFilter, never()).isAllowed(foreignTarget);
+    }
+
+    @Test
+    void returnsReferenceWhenCrossWikiReachAllowsAndRightsAndSpaceFilterAllow() throws Exception
+    {
+        String foreignReference = "other:Public.Page";
+        DocumentReference foreignTarget = new DocumentReference("other", "Public", "Page");
+        when(this.referenceResolver.resolve(foreignReference)).thenReturn(foreignTarget);
+        when(this.wikiReach.canReachWiki("other")).thenReturn(true);
+        when(this.authorization.hasAccess(Right.VIEW, foreignTarget)).thenReturn(true);
+        when(this.spaceFilter.isAllowed(foreignTarget)).thenReturn(true);
+
+        assertSame(foreignTarget, this.access.resolveAndAuthorize(foreignReference, Right.VIEW));
+        verify(this.authorization).hasAccess(Right.VIEW, foreignTarget);
+        verify(this.spaceFilter).isAllowed(foreignTarget);
     }
 }

@@ -118,23 +118,20 @@ public class MCPWriteDocumentTool implements MCPTool
     private static final String VERSION_PREFIX = "Version: ";
 
     /**
-     * The declared parameters: one source for both the advertised input schema and the typed argument
-     * accessors. The {@code content} parameter is declared here for the schema but read raw in
-     * {@link #requireRawContent(Map)}, as the accessors trim string values and trimming would alter the
-     * saved body.
+     * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input schema
+     * and the typed argument accessors. This variant's {@code reference} description mentions cross-wiki reach,
+     * and is also the variant used for argument parsing. The {@code content} parameter is declared here for the
+     * schema but read raw in {@link #requireRawContent(Map)}, as the accessors trim string values and trimming
+     * would alter the saved body.
      */
-    private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
-        .requiredString(REFERENCE_PARAM, "The document reference to create or overwrite, e.g. "
-            + "\"Sandbox.WebHome\" or \"xwiki:Help.Foo\".")
-        .requiredString(CONTENT_PARAM, "The complete new document source.")
-        .string(TITLE_PARAM, "Optional new title. Kept unchanged when omitted.")
-        .string(BASE_VERSION_PARAM, "The version shown by get_document. Required to overwrite an existing "
-            + "document; omit when creating a new one.")
-        .string(COMMENT_PARAM, "Version comment shown in the document history. Stored prefixed with "
-            + "[AI]. Default: a generic [AI] comment.")
-        .bool(MAJOR_PARAM, "Set true to record this save as a major version. Default false (minor). "
-            + "Creation is always major.")
-        .build();
+    private static final MCPToolSupport PARAMS = params(true);
+
+    /**
+     * The declared parameters advertised by a reach-off endpoint: the cross-wiki sentence is dropped from the
+     * {@code reference} description so no cross-wiki capability is surfaced. Used only to build the advertised
+     * schema, never for parsing.
+     */
+    private static final MCPToolSupport PARAMS_LOCAL = params(false);
 
     @Inject
     private Logger logger;
@@ -151,10 +148,42 @@ public class MCPWriteDocumentTool implements MCPTool
     @Inject
     private Provider<XWikiContext> contextProvider;
 
+    @Inject
+    private MCPWikiReach wikiReach;
+
+    /**
+     * Builds the declared parameter set, appending the cross-wiki sentence to the {@code reference} description
+     * only when cross-wiki reach is advertised.
+     *
+     * @param crossWiki whether to advertise cross-wiki reach in the {@code reference} description
+     * @return the declared parameter set
+     */
+    private static MCPToolSupport params(boolean crossWiki)
+    {
+        String referenceDescription = "The document reference to create or overwrite, e.g. \"Sandbox.WebHome\" "
+            + "or \"xwiki:Help.Foo\".";
+        if (crossWiki) {
+            referenceDescription += " A wiki-id prefix targets another wiki when this endpoint has cross-wiki "
+                + "reach (see list_wikis).";
+        }
+        return MCPToolSupport.builder()
+            .requiredString(REFERENCE_PARAM, referenceDescription)
+            .requiredString(CONTENT_PARAM, "The complete new document source.")
+            .string(TITLE_PARAM, "Optional new title. Kept unchanged when omitted.")
+            .string(BASE_VERSION_PARAM, "The version shown by get_document. Required to overwrite an existing "
+                + "document; omit when creating a new one.")
+            .string(COMMENT_PARAM, "Version comment shown in the document history. Stored prefixed with "
+                + "[AI]. Default: a generic [AI] comment.")
+            .bool(MAJOR_PARAM, "Set true to record this save as a major version. Default false (minor). "
+                + "Creation is always major.")
+            .build();
+    }
+
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
+        MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
+        return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Create a new XWiki document or replace the full content of an existing one. Write "
                 + "XWiki 2.1 syntax, NOT Markdown - `man xwiki-syntax` is the reference. Overwriting requires "
                 + "base_version from get_document. For small targeted changes prefer edit_document.")
@@ -249,32 +278,41 @@ public class MCPWriteDocumentTool implements MCPTool
         if (xcontext == null || xcontext.getUserReference() == null) {
             return MCPToolSupport.errorResult("No authenticated user in context.");
         }
-        XWiki xwiki = xcontext.getWiki();
+        String originalWiki = xcontext.getWikiId();
+        String targetWiki = ref.getWikiReference().getName();
+        // The save must run in the target wiki so save-time rights and class resolution are correct for a
+        // cross-wiki write; restore the original context wiki afterwards.
+        try {
+            xcontext.setWikiId(targetWiki);
+            XWiki xwiki = xcontext.getWiki();
 
-        XWikiDocument xdoc = xwiki.getDocument(ref, xcontext);
-        boolean creating = xdoc.isNew();
-        String oldVersion = xdoc.getVersion();
+            XWikiDocument xdoc = xwiki.getDocument(ref, xcontext);
+            boolean creating = xdoc.isNew();
+            String oldVersion = xdoc.getVersion();
 
-        McpSchema.CallToolResult workflowProblem = checkBaseVersion(reference, baseVersion, creating, oldVersion);
-        if (workflowProblem != null) {
-            return workflowProblem;
+            McpSchema.CallToolResult workflowProblem = checkBaseVersion(reference, baseVersion, creating, oldVersion);
+            if (workflowProblem != null) {
+                return workflowProblem;
+            }
+
+            boolean titleChanged = title != null && !title.equals(xdoc.getTitle());
+            if (!creating && content.equals(MCPSourceText.normalizeLineEndings(xdoc.getContent())) && !titleChanged) {
+                return MCPToolSupport.result("No changes: the given content is identical to the current document. "
+                    + "Nothing was saved.");
+            }
+
+            Document apiDoc = new Document(xdoc, xcontext);
+            apiDoc.setContent(content);
+            if (titleChanged) {
+                apiDoc.setTitle(title);
+            }
+            apiDoc.save(buildComment(creating, comment), isMinorEdit(creating, major));
+
+            return MCPToolSupport.result(buildSuccessResult(ref, creating, title != null, titleChanged, oldVersion,
+                apiDoc.getVersion(), syntaxIdOf(xdoc)));
+        } finally {
+            xcontext.setWikiId(originalWiki);
         }
-
-        boolean titleChanged = title != null && !title.equals(xdoc.getTitle());
-        if (!creating && content.equals(MCPSourceText.normalizeLineEndings(xdoc.getContent())) && !titleChanged) {
-            return MCPToolSupport.result("No changes: the given content is identical to the current document. "
-                + "Nothing was saved.");
-        }
-
-        Document apiDoc = new Document(xdoc, xcontext);
-        apiDoc.setContent(content);
-        if (titleChanged) {
-            apiDoc.setTitle(title);
-        }
-        apiDoc.save(buildComment(creating, comment), isMinorEdit(creating, major));
-
-        return MCPToolSupport.result(buildSuccessResult(ref, creating, title != null, titleChanged, oldVersion,
-            apiDoc.getVersion(), syntaxIdOf(xdoc)));
     }
 
     /**

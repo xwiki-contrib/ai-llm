@@ -22,12 +22,15 @@ package org.xwiki.contrib.llm.mcp.internal;
 import java.util.List;
 
 import javax.inject.Named;
+import javax.inject.Provider;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mockito.Mock;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.model.reference.SpaceReferenceResolver;
 import org.xwiki.model.reference.WikiReference;
@@ -37,6 +40,8 @@ import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+
+import com.xpn.xwiki.XWikiContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -55,9 +60,13 @@ class DefaultMCPSpaceFilterTest
 {
     private static final String WIKI = "xwiki";
 
+    private static final String SECOND = "second";
+
     private static final String SPACE_AB = "A.B";
 
     private static final String SPACE_CD = "C.D";
+
+    private static final String DOC_FAQ = "A.B.FAQ";
 
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
@@ -77,21 +86,37 @@ class DefaultMCPSpaceFilterTest
     private DocumentReferenceResolver<String> documentResolver;
 
     @MockComponent
+    @Named("local")
+    private EntityReferenceSerializer<String> localSerializer;
+
+    @MockComponent
     private SolrUtils solrUtils;
+
+    @MockComponent
+    private Provider<XWikiContext> contextProvider;
+
+    @Mock
+    private XWikiContext context;
 
     private final WikiReference wikiReference = new WikiReference(WIKI);
 
     @BeforeEach
     void setUp()
     {
+        // The source (context) wiki is the endpoint's own wiki; its configuration governs the filter.
+        lenient().when(this.contextProvider.get()).thenReturn(this.context);
+        lenient().when(this.context.getWikiId()).thenReturn(WIKI);
         // Make escaping passthrough so the expected filter-query strings are predictable.
         lenient().when(this.solrUtils.toCompleteFilterQueryString(anyString()))
             .thenAnswer(inv -> inv.getArgument(0));
-        // The configured space "A.B" resolves to the space reference A.B in the test wiki.
-        lenient().when(this.spaceResolver.resolve(SPACE_AB))
-            .thenReturn(new SpaceReference("B", new SpaceReference("A", this.wikiReference)));
+        // The configured entries resolve with the current resolver WITHOUT a wiki hint, so an unqualified entry
+        // resolves against the source wiki.
+        lenient().when(this.spaceResolver.resolve(SPACE_AB)).thenReturn(spaceAB());
         lenient().when(this.spaceResolver.resolve(SPACE_CD))
             .thenReturn(new SpaceReference("D", new SpaceReference("C", this.wikiReference)));
+        lenient().when(this.localSerializer.serialize(spaceAB())).thenReturn(SPACE_AB);
+        lenient().when(this.localSerializer.serialize(
+            new SpaceReference("D", new SpaceReference("C", this.wikiReference)))).thenReturn(SPACE_CD);
     }
 
     private DocumentReference docInSpace(SpaceReference space, String name)
@@ -125,7 +150,7 @@ class DefaultMCPSpaceFilterTest
         mode(MCPServerConfiguration.SPACE_FILTER_MODE_NONE);
 
         assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
-        assertTrue(this.filter.filterQueries(WIKI).isEmpty());
+        assertTrue(this.filter.filterQueries().isEmpty());
     }
 
     @Test
@@ -144,13 +169,13 @@ class DefaultMCPSpaceFilterTest
     }
 
     @Test
-    void whitelistFilterQueryIsSingleSpaceClause()
+    void whitelistFilterQueryIsSingleWikiScopedSpaceClause()
     {
         mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
         spaces(List.of(SPACE_AB));
         documents(List.of());
 
-        assertEquals(List.of("space_prefix:(A.B)"), this.filter.filterQueries(WIKI));
+        assertEquals(List.of("(wiki:xwiki AND space_prefix:A.B)"), this.filter.filterQueries());
     }
 
     @Test
@@ -164,7 +189,7 @@ class DefaultMCPSpaceFilterTest
         SpaceReference xy = new SpaceReference("Y", new SpaceReference("X", this.wikiReference));
         assertTrue(this.filter.isAllowed(docInSpace(xy, "Page")));
 
-        assertEquals(List.of("-(space_prefix:(A.B))"), this.filter.filterQueries(WIKI));
+        assertEquals(List.of("-((wiki:xwiki AND space_prefix:A.B))"), this.filter.filterQueries());
     }
 
     @Test
@@ -172,10 +197,10 @@ class DefaultMCPSpaceFilterTest
     {
         mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
         spaces(List.of());
-        documents(List.of("A.B.FAQ"));
+        documents(List.of(DOC_FAQ));
 
         DocumentReference faq = docInSpace(spaceAB(), "FAQ");
-        when(this.documentResolver.resolve("A.B.FAQ")).thenReturn(faq);
+        when(this.documentResolver.resolve(DOC_FAQ)).thenReturn(faq);
 
         assertTrue(this.filter.isAllowed(faq));
         assertFalse(this.filter.isAllowed(docInSpace(spaceAB(), "Other")));
@@ -190,28 +215,65 @@ class DefaultMCPSpaceFilterTest
 
         SpaceReference xy = new SpaceReference("Y", new SpaceReference("X", this.wikiReference));
         assertTrue(this.filter.isAllowed(docInSpace(xy, "Page")));
-        assertTrue(this.filter.filterQueries(WIKI).isEmpty());
+        assertTrue(this.filter.filterQueries().isEmpty());
     }
 
     @Test
-    void combinedSpacesAndDocumentsProduceParenthesizedOrClause()
+    void combinedSpacesAndDocumentsProduceOneClausePerEntry()
     {
         mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
         spaces(List.of(SPACE_AB));
-        documents(List.of("A.B.FAQ"));
+        documents(List.of(DOC_FAQ));
 
-        assertEquals(List.of("(space_prefix:(A.B) OR fullname:(A.B.FAQ))"),
-            this.filter.filterQueries(WIKI));
+        DocumentReference faq = docInSpace(spaceAB(), "FAQ");
+        when(this.documentResolver.resolve(DOC_FAQ)).thenReturn(faq);
+        when(this.localSerializer.serialize(faq)).thenReturn(DOC_FAQ);
+
+        assertEquals(List.of("(wiki:xwiki AND space_prefix:A.B) OR (wiki:xwiki AND fullname:A.B.FAQ)"),
+            this.filter.filterQueries());
     }
 
     @Test
-    void multipleSpaceEntriesAreOrJoinedInTheSpaceClause()
+    void multipleSpaceEntriesProduceOneClauseEach()
     {
         mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
         spaces(List.of(SPACE_AB, SPACE_CD));
         documents(List.of());
 
-        assertEquals(List.of("space_prefix:(A.B OR C.D)"), this.filter.filterQueries(WIKI));
+        assertEquals(List.of("(wiki:xwiki AND space_prefix:A.B) OR (wiki:xwiki AND space_prefix:C.D)"),
+            this.filter.filterQueries());
+    }
+
+    @Test
+    void wikiQualifiedSpaceEntryTargetsOnlyItsOwnWiki()
+    {
+        // A wiki-qualified entry "second:Sandbox" resolves (via the current resolver) to a space in wiki "second".
+        WikiReference secondWiki = new WikiReference(SECOND);
+        SpaceReference sandboxInSecond = new SpaceReference("Sandbox", secondWiki);
+        mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
+        spaces(List.of("second:Sandbox"));
+        documents(List.of());
+        when(this.spaceResolver.resolve("second:Sandbox")).thenReturn(sandboxInSecond);
+        when(this.localSerializer.serialize(sandboxInSecond)).thenReturn("Sandbox");
+
+        // A target in second's Sandbox is allowed; the same-named space in the source wiki is not.
+        assertTrue(this.filter.isAllowed(new DocumentReference("Page", sandboxInSecond)));
+        assertFalse(this.filter.isAllowed(
+            new DocumentReference("Page", new SpaceReference("Sandbox", this.wikiReference))));
+
+        assertEquals(List.of("(wiki:second AND space_prefix:Sandbox)"), this.filter.filterQueries());
+    }
+
+    @Test
+    void allEntriesMalformedDeniesEverythingInWhitelist()
+    {
+        mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
+        spaces(List.of(SPACE_AB));
+        documents(List.of());
+        when(this.spaceResolver.resolve(SPACE_AB)).thenThrow(new IllegalArgumentException("bad ref"));
+
+        assertFalse(this.filter.isAllowed(docInSpace(spaceAB(), "Page")));
+        assertEquals(List.of("-*:*"), this.filter.filterQueries());
     }
 
     @Test
@@ -229,7 +291,7 @@ class DefaultMCPSpaceFilterTest
     {
         when(this.configuration.getSpaceFilterMode(WIKI)).thenThrow(new IllegalStateException("Store down"));
 
-        assertEquals(List.of("-*:*"), this.filter.filterQueries(WIKI));
+        assertEquals(List.of("-*:*"), this.filter.filterQueries());
         assertEquals("Could not build the MCP space filter queries for wiki [xwiki]; returning no results: "
             + "[IllegalStateException: Store down]", this.logCapture.getMessage(0));
     }

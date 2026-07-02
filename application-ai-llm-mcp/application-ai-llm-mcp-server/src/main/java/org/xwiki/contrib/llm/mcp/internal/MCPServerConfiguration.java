@@ -86,6 +86,8 @@ public class MCPServerConfiguration
 
     static final String FIELD_ALLOW_RENDERED_CONTENT = "allowRenderedContent";
 
+    static final String FIELD_REACH_ENABLED_WIKIS = "reachEnabledWikis";
+
     /** Space filter mode value disabling the filter: every document is allowed. */
     static final String SPACE_FILTER_MODE_NONE = "none";
 
@@ -100,6 +102,13 @@ public class MCPServerConfiguration
      * policy. The {@code man} catalog is mandatory: an agent must always be able to discover the tools.
      */
     static final Set<String> MANDATORY_TOOL_IDS = Set.of(MCPManTool.TOOL_ID);
+
+    /**
+     * Tool ids that are not admin-togglable but are present in the effective set exactly when the wiki has
+     * cross-wiki reach enabled. The {@code list_wikis} tool exposes the cross-wiki vocabulary, so it makes
+     * sense only when the endpoint can actually reach other wikis.
+     */
+    static final Set<String> REACH_GATED_TOOL_IDS = Set.of(MCPListWikisTool.TOOL_ID);
 
     @Inject
     private DocumentAccessBridge documentAccessBridge;
@@ -236,6 +245,85 @@ public class MCPServerConfiguration
     }
 
     /**
+     * @param wikiId the wiki to check
+     * @return whether the given wiki's MCP endpoint may reach across other wikis. The grant is stored as a
+     *     farm-level list on the MAIN wiki's config document and read only from there, so a subwiki admin
+     *     cannot self-grant reach by editing their own wiki's config. Cross-wiki reach is disabled by default:
+     *     a wiki id absent from the main list, a missing config object, and a failed read all resolve to
+     *     false, so reach fails closed.
+     * @since 0.9
+     */
+    public boolean isCrossWikiReachAllowed(String wikiId)
+    {
+        String mainWiki = this.wikiDescriptorManager.getMainWikiId();
+        DocumentReference configRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_DOC_NAME);
+        DocumentReference classRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_CLASS_NAME);
+        try {
+            XWikiContext context = this.contextProvider.get();
+            // The reach grant is a FARM-level decision: it is read only from the MAIN wiki's config list. A subwiki
+            // admin can edit their own wiki's config document but not the main wiki's, so reach cannot be self-granted.
+            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
+            BaseObject configObject = configDoc.getXObject(classRef);
+            if (configObject == null) {
+                return false;
+            }
+            @SuppressWarnings("unchecked")
+            List<String> reachWikis = configObject.getListValue(FIELD_REACH_ENABLED_WIKIS);
+            return reachWikis.contains(wikiId);
+        } catch (Exception e) {
+            this.logger.warn("Could not read the MCP cross-wiki reach list for wiki [{}]; disabling reach: [{}]",
+                wikiId, ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP cross-wiki reach list read failure for wiki [{}]", wikiId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Adds or removes the given wiki id from the farm-level cross-wiki reach list stored on the MAIN wiki's
+     * configuration document, creating the config XObject if necessary and saving only when the list actually
+     * changes. Because the grant lives on the main wiki, this is effective only for a caller allowed to write
+     * the main wiki's config; a subwiki admin cannot self-grant reach.
+     *
+     * @param wikiId the wiki whose reach grant to set
+     * @param allowed whether cross-wiki reach should be allowed for that wiki
+     * @return {@code true} if the list was updated (or already in the desired state), {@code false} if the
+     *     write failed
+     * @since 0.9
+     */
+    public boolean setCrossWikiReach(String wikiId, boolean allowed)
+    {
+        String mainWiki = this.wikiDescriptorManager.getMainWikiId();
+        DocumentReference configRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_DOC_NAME);
+        DocumentReference classRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_CLASS_NAME);
+        try {
+            XWikiContext context = this.contextProvider.get();
+            XWikiDocument doc = context.getWiki().getDocument(configRef, context);
+            BaseObject obj = doc.getXObject(classRef, true, context);
+            @SuppressWarnings("unchecked")
+            List<String> current = new ArrayList<>(obj.getListValue(FIELD_REACH_ENABLED_WIKIS));
+            boolean changed;
+            if (allowed) {
+                changed = !current.contains(wikiId);
+                if (changed) {
+                    current.add(wikiId);
+                }
+            } else {
+                changed = current.remove(wikiId);
+            }
+            if (changed) {
+                obj.set(FIELD_REACH_ENABLED_WIKIS, current, context);
+                context.getWiki().saveDocument(doc, "Updated MCP cross-wiki reach", true, context);
+            }
+            return true;
+        } catch (Exception e) {
+            this.logger.warn("Failed to set the MCP cross-wiki reach for wiki [{}]: [{}]", wikiId,
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Failed to set the MCP cross-wiki reach for wiki [{}]", wikiId, e);
+            return false;
+        }
+    }
+
+    /**
      * Returns the effective set of tool ids the given wiki's MCP endpoint exposes. The mandatory tools
      * (currently the {@code man} catalog) are always present, even when the stored list omits them. Beyond
      * those, the effective set is the stored list when it is non-empty (an explicit admin override); an empty
@@ -243,7 +331,8 @@ public class MCPServerConfiguration
      * is therefore not a representable state: it falls back to the defaults, so disable the whole endpoint via
      * the {@code enabled} flag instead. A failed read also falls back to the default policy so a read glitch
      * keeps read tools available with write tools off, never silently enabling writes; the mandatory tools
-     * remain in the set in every case.
+     * remain in the set in every case. Reach-gated tools (currently {@code list_wikis}) are outside the stored
+     * or default tool policy entirely: they are added if and only if this wiki has cross-wiki reach enabled.
      *
      * @param wikiId the wiki whose enabled tool ids to resolve
      * @return the effective set of enabled tool ids
@@ -262,13 +351,45 @@ public class MCPServerConfiguration
             @SuppressWarnings("unchecked")
             List<String> stored = configObject == null ? List.of() : configObject.getListValue(FIELD_ENABLED_TOOLS);
             Set<String> base = stored.isEmpty() ? defaultEnabledToolIds() : new HashSet<>(stored);
-            return withMandatory(base);
+            return applyReachGate(wikiId, withMandatory(base));
         } catch (Exception e) {
             this.logger.warn("Could not read the MCP enabled tools for wiki [{}]; applying the default "
                 + "policy: [{}]", wikiId, ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP enabled tools read failure for wiki [{}]", wikiId, e);
-            return withMandatory(defaultEnabledToolIds());
+            return applyReachGate(wikiId, withMandatory(defaultEnabledToolIds()));
         }
+    }
+
+    /**
+     * @param toolId a tool id
+     * @return whether the tool is reach-gated: not admin-togglable, present in the effective set only when
+     *     cross-wiki reach is enabled for the wiki (e.g. the {@code list_wikis} tool)
+     * @since 0.9
+     */
+    public boolean isReachGatedTool(String toolId)
+    {
+        return REACH_GATED_TOOL_IDS.contains(toolId);
+    }
+
+    /**
+     * Applies the cross-wiki reach gate to an otherwise-resolved effective tool set: the reach-gated tools are
+     * present exactly when the wiki has cross-wiki reach enabled, independently of the stored or default tool
+     * policy.
+     *
+     * @param wikiId the wiki whose reach grant governs the reach-gated tools
+     * @param effective the effective tool set before the reach gate
+     * @return a new set with the reach-gated tools added iff the wiki has cross-wiki reach enabled
+     */
+    private Set<String> applyReachGate(String wikiId, Set<String> effective)
+    {
+        Set<String> result = new HashSet<>(effective);
+        // Reach-gated tools (e.g. list_wikis) are never controlled by the stored/default tool policy: they are
+        // present exactly when this wiki has cross-wiki reach enabled.
+        result.removeAll(REACH_GATED_TOOL_IDS);
+        if (isCrossWikiReachAllowed(wikiId)) {
+            result.addAll(REACH_GATED_TOOL_IDS);
+        }
+        return result;
     }
 
     /**

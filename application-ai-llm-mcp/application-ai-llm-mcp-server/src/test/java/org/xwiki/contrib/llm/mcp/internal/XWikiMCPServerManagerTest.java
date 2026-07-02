@@ -481,6 +481,37 @@ class XWikiMCPServerManagerTest
     }
 
     @Test
+    void invalidateAllClosesEveryServerAndNextRequestRebuilds() throws Exception
+    {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            McpStatelessSyncServer firstServer = mock(McpStatelessSyncServer.class);
+            McpStatelessSyncServer secondServer = mock(McpStatelessSyncServer.class);
+            McpStatelessSyncServer rebuiltServer = mock(McpStatelessSyncServer.class);
+            when(spec.build()).thenReturn(firstServer, secondServer, rebuiltServer);
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            this.mcpServerManager.handleRequest(OTHER_WIKI, request, response);
+            this.mcpServerManager.invalidateAll();
+
+            // Every cached wiki's server is closed and the cache is emptied.
+            verify(firstServer).closeGracefully();
+            verify(secondServer).closeGracefully();
+            assertEquals(0, serversCache().size());
+
+            // A subsequent request for a previously-cached wiki rebuilds a fresh server.
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            verify(spec, times(3)).build();
+        }
+    }
+
+    @Test
     void invalidateUnknownWikiIsNoOp()
     {
         assertDoesNotThrow(() -> this.mcpServerManager.invalidate("never-built"));
