@@ -30,6 +30,7 @@ import org.xwiki.xml.html.HTMLCleaner;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -52,9 +53,14 @@ class MCPRenderedHtmlTest
         this.cleaner = this.componentManager.getInstance(HTMLCleaner.class);
     }
 
+    private MCPRenderedHtml parse(String html)
+    {
+        return MCPRenderedHtml.parse(this.cleaner, html);
+    }
+
     private String strip(String html)
     {
-        return MCPRenderedHtml.strip(this.cleaner, html);
+        return parse(html).serialize();
     }
 
     @Test
@@ -177,5 +183,231 @@ class MCPRenderedHtmlTest
     void emptyInputYieldsEmptyOutput()
     {
         assertEquals("", strip("").trim());
+    }
+
+    @Test
+    void outlineListsAnchorsWithLevelIndentationAcrossNestedDivs()
+    {
+        // The h2 headings sit at different DOM depths (one inside a group div): the outline must still
+        // list them in document order, indented by heading LEVEL, not DOM depth.
+        MCPRenderedHtml parsed = parse("<h1 id=\"HTop\">Top</h1>"
+            + "<div><div><h2 id=\"HSub\">Sub</h2><p>nested body</p></div></div>"
+            + "<h2 id=\"HNext\">Next</h2><p>tail</p>");
+
+        String outline = parsed.outline();
+        assertTrue(outline.contains("#HTop: Top"), outline);
+        assertTrue(outline.contains("\n  #HSub: Sub"), outline);
+        assertTrue(outline.contains("\n  #HNext: Next"), outline);
+        assertTrue(parsed.hasHeadings(), outline);
+        assertFalse(outline.contains("nested body"), outline);
+    }
+
+    @Test
+    void introPseudoSectionListedOnlyWhenNonEmpty()
+    {
+        MCPRenderedHtml withIntro = parse("<p>before the first heading</p><h2 id=\"HA\">A</h2>");
+        MCPRenderedHtml withoutIntro = parse("<h2 id=\"HA\">A</h2><p>body</p>");
+        MCPRenderedHtml noHeadings = parse("<p>only text, no headings</p>");
+
+        assertTrue(withIntro.outline().startsWith("#(intro)"), withIntro.outline());
+        assertTrue(withIntro.hasSection("(intro)"));
+        assertFalse(withoutIntro.outline().contains("(intro)"), withoutIntro.outline());
+        // Without any heading there is no outline at all, hence no intro pseudo-section either.
+        assertFalse(noHeadings.hasHeadings());
+        assertEquals("", noHeadings.outline());
+    }
+
+    @Test
+    void statsCountsAppearOnlyWhenNonZeroAndSingularForms()
+    {
+        MCPRenderedHtml parsed = parse("<h2 id=\"HRich\">Rich</h2>"
+            + "<table><tr><td>c</td></tr></table><img src=\"/x.png\" alt=\"a\"/>"
+            + "<h2 id=\"HPlain\">Plain</h2><p>text only</p>");
+
+        String outline = parsed.outline();
+        String richLine = outline.lines().filter(line -> line.contains("#HRich")).findFirst().orElse("");
+        String plainLine = outline.lines().filter(line -> line.contains("#HPlain")).findFirst().orElse("");
+        assertTrue(richLine.contains("1 table"), richLine);
+        assertFalse(richLine.contains("1 tables"), richLine);
+        assertTrue(richLine.contains("1 image"), richLine);
+        assertTrue(richLine.contains("tokens"), richLine);
+        assertFalse(plainLine.contains("table"), plainLine);
+        assertFalse(plainLine.contains("image"), plainLine);
+        assertTrue(plainLine.contains("tokens"), plainLine);
+    }
+
+    @Test
+    void renderingErrorMarkerIsCountedInStats()
+    {
+        MCPRenderedHtml parsed = parse("<h2 id=\"HErr\">Err</h2>"
+            + "<div class=\"xwikirenderingerror\">Failed to execute the [velocity] macro</div>");
+
+        assertTrue(parsed.outline().contains("1 rendering error"), parsed.outline());
+    }
+
+    @Test
+    void parentSectionStatsAggregateChildSections()
+    {
+        // The table lives in the h2 child section; the h1 parent's aggregate stats must include it.
+        MCPRenderedHtml parsed = parse("<h1 id=\"HParent\">Parent</h1><p>own text</p>"
+            + "<h2 id=\"HChild\">Child</h2><table><tr><td>c</td></tr></table>");
+
+        String parentLine = parsed.outline().lines()
+            .filter(line -> line.contains("#HParent")).findFirst().orElse("");
+        assertTrue(parentLine.contains("1 table"), parentLine);
+    }
+
+    @Test
+    void sectionSpansToNextSameOrHigherHeadingAcrossDivDepths()
+    {
+        // Locks in the Range.cloneContents document-order slice: sections end at the next same-or-higher
+        // heading even when the two headings sit inside different group divs.
+        MCPRenderedHtml parsed = parse("<div><h2 id=\"HA\">A</h2><p>a-body</p></div>"
+            + "<div><h2 id=\"HB\">B</h2><p>b-body</p></div>");
+
+        String section = parsed.sectionHtml("HA");
+        assertTrue(section.contains(">A</h2>"), section);
+        assertTrue(section.contains("a-body"), section);
+        assertFalse(section.contains("b-body"), section);
+        assertFalse(section.contains(">B</h2>"), section);
+    }
+
+    @Test
+    void lowerLevelHeadingsStayInsideTheirParentSection()
+    {
+        MCPRenderedHtml parsed = parse("<h1 id=\"HTop\">Top</h1><p>top-body</p>"
+            + "<h2 id=\"HSub\">Sub</h2><p>sub-body</p><h1 id=\"HNext\">Next</h1><p>next-body</p>");
+
+        String section = parsed.sectionHtml("HTop");
+        assertTrue(section.contains("top-body"), section);
+        assertTrue(section.contains("sub-body"), section);
+        assertFalse(section.contains("next-body"), section);
+    }
+
+    @Test
+    void lastSectionExtendsToEndOfDocument()
+    {
+        MCPRenderedHtml parsed = parse("<h2 id=\"HA\">A</h2><p>a-body</p>"
+            + "<h2 id=\"HLast\">Last</h2><p>last-body</p><p>trailing</p>");
+
+        String section = parsed.sectionHtml("HLast");
+        assertTrue(section.contains("last-body"), section);
+        assertTrue(section.contains("trailing"), section);
+        assertFalse(section.contains("a-body"), section);
+    }
+
+    @Test
+    void introSectionFetchReturnsContentBeforeFirstHeading()
+    {
+        MCPRenderedHtml parsed = parse("<p>intro paragraph</p><h2 id=\"HA\">A</h2><p>a-body</p>");
+
+        String section = parsed.sectionHtml("(intro)");
+        assertTrue(section.contains("intro paragraph"), section);
+        assertFalse(section.contains("a-body"), section);
+        assertFalse(section.contains(">A</h2>"), section);
+    }
+
+    @Test
+    void duplicateAnchorsResolveToFirstMatchInDocumentOrder()
+    {
+        MCPRenderedHtml parsed = parse("<h2 id=\"HDup\">First</h2><p>first-body</p>"
+            + "<h2 id=\"HDup\">Second</h2><p>second-body</p>");
+
+        String section = parsed.sectionHtml("HDup");
+        assertTrue(section.contains("first-body"), section);
+        assertFalse(section.contains("second-body"), section);
+    }
+
+    @Test
+    void userDefinedNonHShapedIdIsAccepted()
+    {
+        MCPRenderedHtml parsed = parse("<h2 id=\"custom-anchor\">Custom</h2><p>body</p>");
+
+        assertTrue(parsed.hasSection("custom-anchor"));
+        assertTrue(parsed.outline().contains("#custom-anchor: Custom"), parsed.outline());
+    }
+
+    @Test
+    void idLessHeadingsGetSyntheticDocumentOrderAnchors()
+    {
+        // Sheet-generated headings carry no id: they get deterministic (h<N>) anchors from their 1-based
+        // document-order position among ALL headings, so they stay addressable.
+        MCPRenderedHtml parsed = parse("<h2>NoId</h2><p>first-body</p>"
+            + "<h3 id=\"HReal\">Real</h3><h2>Another</h2><p>another-body</p>");
+
+        String outline = parsed.outline();
+        assertTrue(outline.contains("#(h1): NoId"), outline);
+        assertTrue(outline.contains("#HReal: Real"), outline);
+        assertTrue(outline.contains("#(h3): Another"), outline);
+        String section = parsed.sectionHtml("(h1)");
+        assertTrue(section.contains("first-body"), section);
+        assertFalse(section.contains("another-body"), section);
+    }
+
+    @Test
+    void headingTitleWhitespaceIsCollapsed()
+    {
+        MCPRenderedHtml parsed = parse("<h2 id=\"HX\">Spaced\n  <span>out</span>  title</h2>");
+
+        assertTrue(parsed.outline().contains("#HX: Spaced out title"), parsed.outline());
+    }
+
+    @Test
+    void sectionOutlineReturnsOwnEntryPlusSubHeadingsWithAbsoluteIndentation()
+    {
+        MCPRenderedHtml parsed = parse("<h1 id=\"HTop\">Top</h1><h2 id=\"HSub\">Sub</h2>"
+            + "<h3 id=\"HLeaf\">Leaf</h3><h1 id=\"HNext\">Next</h1>");
+
+        String subOutline = parsed.sectionOutline("HTop");
+        assertTrue(subOutline.contains("#HTop: Top"), subOutline);
+        assertTrue(subOutline.contains("\n  #HSub: Sub"), subOutline);
+        assertTrue(subOutline.contains("\n    #HLeaf: Leaf"), subOutline);
+        assertFalse(subOutline.contains("#HNext"), subOutline);
+        // A leaf section (no sub-headings) and the intro have no sub-outline at all.
+        assertEquals("", parsed.sectionOutline("HLeaf"));
+        assertEquals("", parsed.sectionOutline("(intro)"));
+    }
+
+    @Test
+    void normalizeAnchorTrimsAndStripsOneLeadingHash()
+    {
+        assertEquals("HFoo", MCPRenderedHtml.normalizeAnchor("#HFoo"));
+        assertEquals("HFoo", MCPRenderedHtml.normalizeAnchor("  HFoo  "));
+        assertEquals("#HFoo", MCPRenderedHtml.normalizeAnchor("##HFoo"));
+        assertEquals("(intro)", MCPRenderedHtml.normalizeAnchor("#(intro)"));
+        assertEquals("", MCPRenderedHtml.normalizeAnchor("#"));
+        assertEquals("", MCPRenderedHtml.normalizeAnchor(null));
+    }
+
+    @Test
+    void approxCharsReflectsContentSize()
+    {
+        MCPRenderedHtml small = parse("<p>tiny</p>");
+        MCPRenderedHtml large = parse("<p>" + "x".repeat(4000) + "</p>");
+
+        assertTrue(small.approxChars() > 0);
+        assertTrue(large.approxChars() > small.approxChars());
+        assertTrue(large.approxChars() >= 4000);
+    }
+
+    @Test
+    void secondTerminalCallThrowsIllegalState()
+    {
+        MCPRenderedHtml serializedFirst = parse("<h2 id=\"HA\">A</h2><p>body</p>");
+        serializedFirst.serialize();
+        assertThrows(IllegalStateException.class, serializedFirst::serialize);
+        assertThrows(IllegalStateException.class, () -> serializedFirst.sectionHtml("HA"));
+
+        MCPRenderedHtml sectionFirst = parse("<h2 id=\"HA\">A</h2><p>body</p>");
+        sectionFirst.sectionHtml("HA");
+        assertThrows(IllegalStateException.class, sectionFirst::serialize);
+    }
+
+    @Test
+    void unknownAnchorOnSectionHtmlThrowsIllegalArgument()
+    {
+        MCPRenderedHtml parsed = parse("<p>no headings here</p>");
+
+        assertThrows(IllegalArgumentException.class, () -> parsed.sectionHtml("HNope"));
     }
 }

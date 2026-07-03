@@ -103,6 +103,14 @@
             <artifactId>xwiki-platform-bridge</artifactId>
             <version>${platform.version}</version>
         </dependency>
+        <!-- SheetManager: used by MCPGetDocumentTool to name the sheet that produces the displayed
+             content of an empty-body document (provenance note). Arrives transitively via oldcore;
+             declared explicitly since we import it directly. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-sheet-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
         <!-- oldcore: XWiki, XWikiContext, XWikiDocument and the api.Document save path used by
              MCPEditDocumentTool to apply edits and persist a single revision with author attribution. -->
         <dependency>

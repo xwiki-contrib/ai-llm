@@ -19,12 +19,10 @@
  */
 package org.xwiki.contrib.llm.mcp.internal;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Objects;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -42,6 +40,7 @@ import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.sheet.SheetManager;
 import org.xwiki.xml.html.HTMLCleaner;
 
 import com.xpn.xwiki.XWikiContext;
@@ -80,7 +79,7 @@ public class MCPGetDocumentTool implements MCPTool
     /**
      * Rough characters-per-token heuristic used only to surface an approximate token count to the agent.
      */
-    private static final int CHARS_PER_TOKEN = 4;
+    private static final int CHARS_PER_TOKEN = MCPSourceText.CHARS_PER_TOKEN;
 
     /**
      * Approximate token budget for a single response, quoted in agent-facing text; the enforced limit
@@ -108,6 +107,8 @@ public class MCPGetDocumentTool implements MCPTool
 
     private static final String FORMAT_PARAM = "format";
 
+    private static final String SECTION_PARAM = "section";
+
     private static final String PLAIN_FORMAT = "plain";
 
     private static final String HTML_FORMAT = "html";
@@ -131,10 +132,6 @@ public class MCPGetDocumentTool implements MCPTool
     private static final String MUST_BE_AT_LEAST_ONE = "' must be >= 1.";
 
     private static final String UNKNOWN_SYNTAX = "unknown";
-
-    private static final String XWIKI_SYNTAX_PREFIX = "xwiki/";
-
-    private static final String MARKDOWN_SYNTAX_PREFIX = "markdown";
 
     private static final String READ_WITH_RANGE_HINT = "; read with offset/limit.";
 
@@ -186,60 +183,6 @@ public class MCPGetDocumentTool implements MCPTool
         + "-token cap; continue with " + OFFSET_EQUALS;
 
     /**
-     * Heading pattern for XWiki syntaxes: leading {@code =} run sets the level, optional trailing
-     * {@code =} run is stripped.
-     */
-    private static final Pattern XWIKI_HEADING = Pattern.compile("^(={1,6})\\s+(.+?)\\s*=*\\s*$");
-
-    /**
-     * Heading pattern for Markdown syntaxes: leading {@code #} run sets the level, optional trailing
-     * {@code #} run is stripped.
-     */
-    private static final Pattern MARKDOWN_HEADING = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*#*\\s*$");
-
-    /**
-     * Matches XWiki group/style markers such as {@code (% class="x" %)} and {@code (%%)}, so they can be
-     * stripped from an outline title. Non-greedy and bounded by {@code (%}/{@code %)}, so no catastrophic
-     * backtracking.
-     */
-    private static final Pattern XWIKI_STYLE_MARKER = Pattern.compile("\\(%.*?%\\)");
-
-    /**
-     * Matches an XWiki link {@code [[ ... ]]} so its label (or target, when unlabelled) can replace the raw
-     * markup in an outline title. Non-greedy and bounded by {@code [[}/{@code ]]}.
-     */
-    private static final Pattern XWIKI_LINK = Pattern.compile("\\[\\[(.*?)\\]\\]");
-
-    /**
-     * Matches a run of two or more whitespace characters, collapsed to a single space after markup stripping.
-     */
-    private static final Pattern MULTIPLE_SPACES = Pattern.compile("\\s{2,}");
-
-    private static final String LINK_LABEL_SEPARATOR = ">>";
-
-    private static final String LINK_PARAM_SEPARATOR = "||";
-
-    /**
-     * Minimum number of consecutive JVM stack-frame lines a run must reach before it is collapsed to a
-     * single marker. Below it, the lines pass through verbatim, so an incidental one- or two-line
-     * {@code at ...} mention in prose is never touched.
-     */
-    private static final int STACK_FRAME_COLLAPSE_THRESHOLD = 3;
-
-    /**
-     * Marker substituted for a collapsed run of stack frames, parameterised by the run length.
-     */
-    private static final String STACK_FRAMES_OMITTED_MARKER = "[... %d stack frames omitted ...]";
-
-    /**
-     * Matches a JVM stack-frame line ({@code at fully.qualified.Method(Source.java:NN)}) or a frame
-     * continuation line ({@code ... N more} / {@code ... N common frames omitted}), anchored on the
-     * whole line so ordinary prose containing the word "at" is not matched.
-     */
-    private static final Pattern STACK_FRAME_LINE =
-        Pattern.compile("^\\s*at\\s+\\S.*\\(.*\\)\\s*$|^\\s*\\.\\.\\.\\s+\\d+\\s+(more|common frames omitted)\\s*$");
-
-    /**
      * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input
      * schema and the typed argument accessors. This variant's {@code reference} description mentions cross-wiki
      * reach, and is also the variant used for argument parsing.
@@ -259,6 +202,123 @@ public class MCPGetDocumentTool implements MCPTool
     private static final String RENDERED_DISABLED_ERROR =
         "Rendered content is disabled for this wiki. Request the document without rendering (the raw wiki "
             + "source) instead.";
+
+    /**
+     * Error returned when {@code section} is given without the rendered HTML mode it addresses into.
+     */
+    private static final String SECTION_REQUIRES_HTML_ERROR = MCPToolSupport.ERROR_PREFIX
+        + SECTION_PARAM + "' requires rendered=true and format=\"html\". Get the anchors first with "
+        + "rendered=true, format=\"html\", outline=true.";
+
+    /**
+     * Error returned when {@code section} and {@code outline} are combined.
+     */
+    private static final String SECTION_WITH_OUTLINE_ERROR = MCPToolSupport.ERROR_PREFIX
+        + SECTION_PARAM + "' cannot be combined with outline=true; request the outline first, then one section.";
+
+    /**
+     * Error returned when {@code offset}/{@code limit} are combined with the rendered HTML mode, whose
+     * output has no meaningful line structure.
+     */
+    private static final String HTML_RANGE_ERROR = MCPToolSupport.ERROR_PREFIX
+        + OFFSET_PARAM + "'/'" + LIMIT_PARAM + "' do not apply to format=\"html\" (rendered HTML is not "
+        + "line-addressable). Use outline=true to map the sections, then section=\"#H...\" to read one.";
+
+    /**
+     * Error returned when the {@code section} value is blank once normalized.
+     */
+    private static final String BLANK_SECTION_ERROR = MCPToolSupport.ERROR_PREFIX
+        + SECTION_PARAM + "' must be a heading anchor such as \"#HInstallation\" (see outline=true).";
+
+    /**
+     * Warning shown when a large rendered-HTML document degrades to the DOM outline instead of content.
+     */
+    private static final String LARGE_HTML_OUTLINE_WARNING =
+        "This is an OUTLINE (a map of heading anchors) of a large rendered document, NOT its content. "
+            + "Read one section with section=\"#H...\".";
+
+    /**
+     * Body of an explicit outline request on a rendered-HTML document without headings.
+     */
+    private static final String NO_HTML_HEADINGS = "No headings found in the rendered HTML.";
+
+    /**
+     * Shared head of the two capped-emission footers below.
+     */
+    private static final String TRUNCATION_PREFIX = "[Output truncated at the ~" + MAX_OUTPUT_TOKENS
+        + "-token cap. ";
+
+    /**
+     * Shared tail of the two capped-emission footers below.
+     */
+    private static final String TRUNCATION_TAIL =
+        "; use rendered=true without format for plain text, or read the raw source.]";
+
+    /**
+     * Footer of a capped rendered-HTML emission that has no heading anchors to degrade to.
+     */
+    private static final String HTML_HEAD_TRUNCATION_FOOTER = TRUNCATION_PREFIX
+        + "This rendered HTML has no headings, so it cannot be read by section" + TRUNCATION_TAIL;
+
+    /**
+     * Footer of a capped emission of an over-budget section that has no sub-headings to degrade to.
+     */
+    private static final String SECTION_TRUNCATION_FOOTER = TRUNCATION_PREFIX
+        + "This section has no sub-headings, so it cannot be split further" + TRUNCATION_TAIL;
+
+    /**
+     * Error returned when the runtime DOM implementation does not support the range extraction a
+     * section fetch needs.
+     */
+    private static final String SECTION_EXTRACTION_UNAVAILABLE =
+        "Section extraction is not supported by this server's XML implementation; use outline=true and the "
+            + "plain rendered view instead.";
+
+    /**
+     * Provenance note on a source read of an empty-body document displayed through a sheet. One of the
+     * two tails below completes the sentence, depending on whether rendered content is allowed here.
+     */
+    private static final String SOURCE_SHEET_NOTE = "Note: the body source is empty; the displayed content is "
+        + "produced by the sheet \"%s\".";
+
+    /**
+     * Provenance note on a source read of an empty-body document whose content lives in its xobjects.
+     * One of the two tails below completes the sentence, depending on whether rendered content is
+     * allowed here.
+     */
+    private static final String SOURCE_XOBJECT_NOTE = "Note: the body source is empty; this document's content "
+        + "lives in its structured data (xobjects).";
+
+    /**
+     * Tail of the source provenance note when rendered content is allowed on this wiki: steer the agent
+     * to the rendered view.
+     */
+    private static final String SOURCE_NOTE_RENDERED_ADVICE = " Read it with rendered=true, format=\"html\"; "
+        + "editing the body will not change what users see.";
+
+    /**
+     * Tail of the source provenance note when rendered content is disabled on this wiki: the rendered
+     * view cannot be offered, so only the edit warning remains.
+     */
+    private static final String SOURCE_NOTE_NO_RENDER_TAIL = " Editing the body will not change what users see.";
+
+    /**
+     * Provenance note on a rendered read of an empty-body document displayed through a sheet.
+     */
+    private static final String RENDERED_SHEET_NOTE = "Note: the body source is empty; this view is produced by "
+        + "the sheet \"%s\" - body edits will not change it.";
+
+    /**
+     * Provenance note on a rendered read of an empty-body document whose content lives in its xobjects.
+     */
+    private static final String RENDERED_XOBJECT_NOTE = "Note: the body source is empty; this view is produced "
+        + "from the document's structured data - body edits will not change it.";
+
+    /**
+     * Appended to the rendered provenance note in plain mode, where a sheet's raw-HTML output is dropped.
+     */
+    private static final String PLAIN_EMPTY_HINT = " If this view looks empty, the sheet's HTML output cannot be "
+        + "shown as plain text - use format=\"html\".";
 
     @Inject
     private Logger logger;
@@ -283,6 +343,9 @@ public class MCPGetDocumentTool implements MCPTool
 
     @Inject
     private MCPWikiReach wikiReach;
+
+    @Inject
+    private SheetManager sheetManager;
 
     /**
      * Builds the declared parameter set, appending the cross-wiki sentence to the {@code reference} description
@@ -313,6 +376,9 @@ public class MCPGetDocumentTool implements MCPTool
                 + "from it. Default false (raw editable source).")
             .string(FORMAT_PARAM, "Output format for rendered=true: \"plain\" (default) or \"html\". HTML "
                 + "preserves structure (tables, links, message boxes) at a higher token cost.")
+            .string(SECTION_PARAM, "With rendered=true and format=\"html\": return one section by its heading "
+                + "anchor as listed by outline=true (e.g. \"#HInstallation\" or \"#(intro)\"), from that heading "
+                + "to the next heading of the same or higher level.")
             .build();
     }
 
@@ -327,7 +393,9 @@ public class MCPGetDocumentTool implements MCPTool
                 + "(like cat -n); when forming edit strings later, do "
                 + "NOT include the line-number prefix. Pass offset=1 with no limit to force the full document. "
                 + "Set rendered=true to read a script-driven page as executed plain text (read-only); add "
-                + "format=\"html\" to keep structure as HTML (presentation stripped - not browser-faithful).")
+                + "format=\"html\" to keep structure as HTML (presentation stripped - not browser-faithful). "
+                + "For format=\"html\", offset/limit do not apply: use outline=true to get heading anchors "
+                + "with sizes, then section=\"#H...\" to read one section.")
             .build();
     }
 
@@ -358,6 +426,18 @@ public class MCPGetDocumentTool implements MCPTool
                             tokens than the plain default - use it for structure-heavy pages)
                 Large doc:  first read with reference only (you get an OUTLINE map of headings),
                             then read a section with reference + offset + limit.
+                HTML outline:   reference="XWiki.XWikiSyntax", rendered=true, format="html", outline=true
+                            (a map of heading anchors with per-section sizes; "#(intro)" covers the
+                            content before the first heading)
+                HTML section:   reference="XWiki.XWikiSyntax", rendered=true, format="html",
+                            section="#HHeadings"
+                            (one section by its anchor, from the outline; offset/limit do not apply
+                            to format="html")
+
+            NOTES
+                A page whose body source is empty may still display content: a sheet or the page's
+                structured data (xobjects) produces the view. Such reads carry a note; read the page
+                with rendered=true, format="html" - editing the body will not change what users see.
 
             SEE ALSO
                 man xwiki-syntax    XWiki 2.1 syntax reference (for the editable source you read and write).
@@ -385,41 +465,97 @@ public class MCPGetDocumentTool implements MCPTool
             }
 
             DocumentModelBridge doc = loadDocument(ref, reference);
-            Integer offset = PARAMS.integer(args, OFFSET_PARAM);
-            Integer limit = PARAMS.integer(args, LIMIT_PARAM);
-            boolean outline = PARAMS.bool(args, OUTLINE_PARAM);
-            Syntax renderedSyntax =
-                resolveRenderedSyntax(PARAMS.string(args, FORMAT_PARAM), PARAMS.bool(args, RENDERED_PARAM));
-
-            // Gate rendered mode after resolution/authorization (and existence), so a disabled-rendering refusal
-            // never leaks existence beyond the normal flow. The gate reads the SOURCE endpoint's (context wiki's)
-            // flag, since rendered mode is a capability of the endpoint being used, not of the wiki the document
-            // happens to live in. Refuse clearly rather than silently returning the raw source, so the agent
-            // re-requests with rendered=false.
-            if (renderedSyntax != null
-                && !this.mcpConfig.isRenderedContentAllowed(this.contextProvider.get().getWikiId())) {
-                return MCPToolSupport.errorResult(RENDERED_DISABLED_ERROR);
-            }
-
-            String title;
-            String content;
-            if (renderedSyntax != null) {
-                RenderedDocument renderedDoc = renderDocument(ref, reference, renderedSyntax);
-                title = renderedDoc.title();
-                content = MCPSourceText.normalizeLineEndings(renderedDoc.content());
-                // Plain-mode only: the HTML path is cleaned structurally by MCPRenderedHtml (its description
-                // block, holding the stack trace, is already removed), and it has <pre>/structure we must not
-                // disturb. Plain renders the trace as undifferentiated text, so collapse frame runs here.
-                if (Syntax.PLAIN_1_0.equals(renderedSyntax)) {
-                    content = collapseStackTraces(content);
-                }
-            } else {
-                title = doc.getTitle();
-                content = MCPSourceText.normalizeLineEndings(doc.getContent());
-            }
-            return render(doc, title, content, renderedSyntax, offset, limit, outline);
+            return read(args, ref, reference, doc);
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
+        }
+    }
+
+    /**
+     * Reads the loaded document per the request arguments: parses and cross-validates the read
+     * parameters, gates rendered mode, and dispatches to the source, rendered-plain or rendered-HTML
+     * rendering path.
+     *
+     * @param args the tool call arguments
+     * @param ref the resolved document reference
+     * @param reference the original reference string, for error messages
+     * @param doc the loaded document
+     * @return the tool result
+     * @throws IllegalArgumentException with an agent-facing message on invalid arguments or a failed read
+     */
+    private McpSchema.CallToolResult read(Map<String, Object> args, DocumentReference ref, String reference,
+        DocumentModelBridge doc)
+    {
+        Integer offset = PARAMS.integer(args, OFFSET_PARAM);
+        Integer limit = PARAMS.integer(args, LIMIT_PARAM);
+        boolean outline = PARAMS.bool(args, OUTLINE_PARAM);
+        String section = PARAMS.string(args, SECTION_PARAM);
+        Syntax renderedSyntax =
+            resolveRenderedSyntax(PARAMS.string(args, FORMAT_PARAM), PARAMS.bool(args, RENDERED_PARAM));
+        boolean htmlMode = Syntax.HTML_5_0.equals(renderedSyntax);
+        validateHtmlModeParams(htmlMode, section, outline, offset, limit);
+
+        // Gate rendered mode after resolution/authorization (and existence), so a disabled-rendering refusal
+        // never leaks existence beyond the normal flow. The gate reads the SOURCE endpoint's (context wiki's)
+        // flag, since rendered mode is a capability of the endpoint being used, not of the wiki the document
+        // happens to live in. Refuse clearly rather than silently returning the raw source, so the agent
+        // re-requests with rendered=false.
+        if (renderedSyntax != null
+            && !this.mcpConfig.isRenderedContentAllowed(this.contextProvider.get().getWikiId())) {
+            return MCPToolSupport.errorResult(RENDERED_DISABLED_ERROR);
+        }
+
+        String title;
+        String content;
+        if (renderedSyntax != null) {
+            RenderedDocument renderedDoc = renderDocument(ref, reference, renderedSyntax);
+            title = renderedDoc.title();
+            content = MCPSourceText.normalizeLineEndings(renderedDoc.content());
+            if (htmlMode) {
+                MCPRenderedHtml parsed = MCPRenderedHtml.parse(this.htmlCleaner, content);
+                return renderHtml(doc, title, parsed, outline,
+                    section != null ? MCPRenderedHtml.normalizeAnchor(section) : null);
+            }
+            // Plain-mode only: the HTML path is cleaned structurally by MCPRenderedHtml (its description
+            // block, holding the stack trace, is already removed), and it has <pre>/structure we must not
+            // disturb. Plain renders the trace as undifferentiated text, so collapse frame runs here.
+            content = MCPSourceText.collapseStackTraces(content);
+        } else {
+            title = doc.getTitle();
+            content = MCPSourceText.normalizeLineEndings(doc.getContent());
+        }
+        return render(doc, title, content, renderedSyntax, offset, limit, outline);
+    }
+
+    /**
+     * Cross-validates the parameters that only combine in specific ways with the rendered HTML mode:
+     * {@code section} needs it, and {@code offset}/{@code limit} are meaningless within it (rendered
+     * HTML has no meaningful line structure).
+     *
+     * @param htmlMode whether the rendered HTML mode was requested
+     * @param section the raw {@code section} argument, or {@code null}
+     * @param outline whether an outline was requested
+     * @param offset the {@code offset} argument, or {@code null}
+     * @param limit the {@code limit} argument, or {@code null}
+     * @throws IllegalArgumentException with the agent-facing message on an invalid combination
+     */
+    private void validateHtmlModeParams(boolean htmlMode, String section, boolean outline, Integer offset,
+        Integer limit)
+    {
+        if (section != null && !htmlMode) {
+            throw new IllegalArgumentException(SECTION_REQUIRES_HTML_ERROR);
+        }
+        if (htmlMode && (offset != null || limit != null)) {
+            throw new IllegalArgumentException(HTML_RANGE_ERROR);
+        }
+        if (section == null) {
+            return;
+        }
+        if (outline) {
+            throw new IllegalArgumentException(SECTION_WITH_OUTLINE_ERROR);
+        }
+        if (StringUtils.isBlank(MCPRenderedHtml.normalizeAnchor(section))) {
+            throw new IllegalArgumentException(BLANK_SECTION_ERROR);
         }
     }
 
@@ -534,8 +670,8 @@ public class MCPGetDocumentTool implements MCPTool
      * <p>An output syntax (not a wiki syntax) is the target on purpose: rendering to a wiki syntax such as
      * {@code xwiki/2.1} round-trips macros back into their {@code {{...}}} source calls (they are not
      * executed), defeating the point. An output syntax like {@code plain/1.0} or {@code html/5.0} emits the
-     * executed result; an HTML result is additionally stripped by {@link MCPRenderedHtml} for token
-     * economy. The title is always rendered to plain text: a marked-up title buys nothing in the header.</p>
+     * executed result; an HTML result is subsequently parsed and stripped by {@link MCPRenderedHtml} in the
+     * caller. The title is always rendered to plain text: a marked-up title buys nothing in the header.</p>
      *
      * @param ref the resolved document reference
      * @param reference the original reference string, for error messages
@@ -558,9 +694,6 @@ public class MCPGetDocumentTool implements MCPTool
             // executed body instead of showing the raw title source.
             String renderedTitle = StringUtils.trim(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext));
             String renderedContent = xdoc.getRenderedContent(targetSyntax, xcontext);
-            if (Syntax.HTML_5_0.equals(targetSyntax)) {
-                renderedContent = MCPRenderedHtml.strip(this.htmlCleaner, renderedContent);
-            }
             return new RenderedDocument(renderedTitle, renderedContent);
         } catch (Exception e) {
             this.logger.warn("MCP get_document tool failed to render [{}]: [{}]", reference,
@@ -576,22 +709,12 @@ public class MCPGetDocumentTool implements MCPTool
     private McpSchema.CallToolResult render(DocumentModelBridge doc, String title, String content,
         Syntax renderedSyntax, Integer offset, Integer limit, boolean outline)
     {
-        String version = doc.getVersion();
-        boolean rendered = renderedSyntax != null;
-        // In rendered mode the content is the executed output (plain text or cleaned HTML) regardless of the
-        // document's source syntax, so the header and the heading-scan (outline) reflect that rendered syntax.
-        String syntaxId = rendered ? renderedSyntax.toIdString() : syntaxIdOf(doc.getSyntax());
-        String referenceBlock = buildReferenceBlock(doc);
+        String syntaxId = headerSyntaxId(doc, renderedSyntax);
+        String header = composeHeader(doc, title, content, renderedSyntax, null);
 
         boolean empty = content.isEmpty();
         String[] lines = content.split(NEW_LINE, -1);
         int totalLines = empty ? 0 : lines.length;
-        int totalChars = content.length();
-        int approxTokens = totalChars / CHARS_PER_TOKEN;
-
-        String header = prependBanner(
-            buildHeader(referenceBlock, title, syntaxId, version, totalLines, totalChars, approxTokens),
-            renderedSyntax);
 
         if (outline) {
             return MCPToolSupport.result(header + DOUBLE_NEW_LINE + buildOutline(lines, totalLines, syntaxId));
@@ -602,10 +725,134 @@ public class MCPGetDocumentTool implements MCPTool
         if (empty) {
             return MCPToolSupport.result(header + DOUBLE_NEW_LINE + "Document has no content.");
         }
-        if (totalChars <= MAX_OUTPUT_CHARS) {
+        if (content.length() <= MAX_OUTPUT_CHARS) {
             return MCPToolSupport.result(header + DOUBLE_NEW_LINE + numberedBody(lines, 1, totalLines));
         }
         return MCPToolSupport.result(header + DOUBLE_NEW_LINE + renderLargeAutoDegrade(lines, totalLines, syntaxId));
+    }
+
+    /**
+     * Renders the rendered-HTML mode's three exclusive paths, each serializing the parsed document at
+     * most once: a section fetch, an explicit outline, or a full read that auto-degrades to the DOM
+     * outline (or a capped head for a headingless document) when over budget.
+     *
+     * @param doc the loaded document, for the header
+     * @param title the rendered title
+     * @param parsed the parsed rendered HTML
+     * @param outline whether an outline was requested
+     * @param sectionAnchor the normalized section anchor, or {@code null} when no section was requested
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult renderHtml(DocumentModelBridge doc, String title, MCPRenderedHtml parsed,
+        boolean outline, String sectionAnchor)
+    {
+        if (sectionAnchor != null) {
+            return renderHtmlSection(doc, title, parsed, sectionAnchor);
+        }
+        String content = parsed.serialize();
+        if (!outline && content.length() <= MAX_OUTPUT_CHARS) {
+            return render(doc, title, content, Syntax.HTML_5_0, null, null, false);
+        }
+        String header = composeHeader(doc, title, content, Syntax.HTML_5_0, null);
+        if (outline) {
+            String body = parsed.hasHeadings() ? parsed.outline() : NO_HTML_HEADINGS;
+            return MCPToolSupport.result(header + DOUBLE_NEW_LINE + body);
+        }
+        if (parsed.hasHeadings()) {
+            return MCPToolSupport.result(
+                header + DOUBLE_NEW_LINE + LARGE_HTML_OUTLINE_WARNING + NEW_LINE + parsed.outline());
+        }
+        return MCPToolSupport.result(header + DOUBLE_NEW_LINE + cappedHead(content) + NEW_LINE
+            + HTML_HEAD_TRUNCATION_FOOTER);
+    }
+
+    /**
+     * Truncates over-budget content to the output cap without splitting a UTF-16 surrogate pair, so the
+     * emitted string stays well-formed when the MCP layer serializes it to JSON. In practice the HTML
+     * serializer emits supplementary characters as numeric character references, so this is a backstop
+     * against that invariant changing. Only called with content longer than the cap.
+     *
+     * @param content the over-budget content
+     * @return the capped head of the content
+     */
+    private static String cappedHead(String content)
+    {
+        int cut = MAX_OUTPUT_CHARS;
+        if (Character.isHighSurrogate(content.charAt(cut - 1))) {
+            cut--;
+        }
+        return content.substring(0, cut);
+    }
+
+    /**
+     * Renders one heading-addressed section of the parsed rendered HTML: an unknown anchor gets an error
+     * embedding the available outline (so a stale anchor self-corrects in one round trip), a within-budget
+     * section is emitted numbered, and an over-budget section degrades to its sub-outline (or a capped
+     * head when it has no sub-headings).
+     *
+     * @param doc the loaded document, for the header
+     * @param title the rendered title
+     * @param parsed the parsed rendered HTML
+     * @param anchor the normalized section anchor
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult renderHtmlSection(DocumentModelBridge doc, String title,
+        MCPRenderedHtml parsed, String anchor)
+    {
+        if (!parsed.hasSection(anchor)) {
+            return MCPToolSupport.errorResult(unknownSectionMessage(parsed, anchor));
+        }
+        String content = parsed.sectionHtml(anchor);
+        if (content == null) {
+            return MCPToolSupport.errorResult(SECTION_EXTRACTION_UNAVAILABLE);
+        }
+        String sectionLine = "Section: #" + anchor + " (document total ~"
+            + parsed.approxChars() / CHARS_PER_TOKEN + " tokens)";
+        String header = composeHeader(doc, title, content, Syntax.HTML_5_0, sectionLine);
+        if (content.length() > MAX_OUTPUT_CHARS) {
+            return MCPToolSupport.result(header + DOUBLE_NEW_LINE + overBudgetSectionBody(parsed, anchor, content));
+        }
+        String[] lines = content.split(NEW_LINE, -1);
+        String body = numberedBody(lines, 1, content.isEmpty() ? 0 : lines.length);
+        String footer = "Showing section \"#" + anchor + "\". Use outline=true for the full section map.";
+        return MCPToolSupport.result(header + DOUBLE_NEW_LINE + body + NEW_LINE + footer);
+    }
+
+    /**
+     * Builds the unknown-anchor error: with headings, it embeds the available outline; without, it says
+     * so and steers away from the section parameter.
+     *
+     * @param parsed the parsed rendered HTML
+     * @param anchor the normalized anchor that did not resolve
+     * @return the agent-facing error message
+     */
+    private static String unknownSectionMessage(MCPRenderedHtml parsed, String anchor)
+    {
+        if (parsed.hasHeadings()) {
+            return "No section with anchor \"#" + anchor + "\" in this document. Available sections:\n"
+                + parsed.outline();
+        }
+        return "This rendered document has no heading anchors; read it without the section parameter.";
+    }
+
+    /**
+     * Builds the body for a section that exceeds the output budget: its sub-outline when it has
+     * sub-headings, otherwise a capped head of its content with an honest truncation footer.
+     *
+     * @param parsed the parsed rendered HTML
+     * @param anchor the normalized section anchor
+     * @param content the serialized section content
+     * @return the formatted body
+     */
+    private static String overBudgetSectionBody(MCPRenderedHtml parsed, String anchor, String content)
+    {
+        String subOutline = parsed.sectionOutline(anchor);
+        if (StringUtils.isNotBlank(subOutline)) {
+            return "Section \"#" + anchor + "\" is ~" + content.length() / CHARS_PER_TOKEN + " tokens, over the ~"
+                + MAX_OUTPUT_TOKENS + "-token budget. This is its sub-outline, NOT its content; read a "
+                + "sub-section with section=\"#H...\".\n" + subOutline;
+        }
+        return cappedHead(content) + NEW_LINE + SECTION_TRUNCATION_FOOTER;
     }
 
     /**
@@ -626,6 +873,123 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     /**
+     * Composes the complete response header for the given emitted content: the reference block, the
+     * metadata lines sized from the content, an optional extra line (after the Size line), the
+     * provenance note when the body source is empty but the page displays sheet- or xobject-produced
+     * content, and the rendered-mode banner.
+     *
+     * @param doc the loaded document
+     * @param title the title to display
+     * @param content the content the response emits (or summarizes), used for the Size line
+     * @param renderedSyntax the rendered output syntax, or {@code null} in source mode
+     * @param extraLine an extra header line to insert after the Size line, or {@code null}
+     * @return the composed header
+     */
+    private String composeHeader(DocumentModelBridge doc, String title, String content, Syntax renderedSyntax,
+        String extraLine)
+    {
+        int totalLines = content.isEmpty() ? 0 : content.split(NEW_LINE, -1).length;
+        int totalChars = content.length();
+        String header = buildHeader(buildReferenceBlock(doc), title, headerSyntaxId(doc, renderedSyntax),
+            doc.getVersion(), totalLines, totalChars, totalChars / CHARS_PER_TOKEN);
+        if (extraLine != null) {
+            header += NEW_LINE + extraLine;
+        }
+        String note = provenanceNote(doc, renderedSyntax);
+        if (note != null) {
+            header += NEW_LINE + note;
+        }
+        return prependBanner(header, renderedSyntax);
+    }
+
+    /**
+     * Resolves the syntax identifier the header (and the source outline's heading scan) reports: in
+     * rendered mode the content is the executed output regardless of the document's source syntax, so
+     * the rendered syntax is reported.
+     *
+     * @param doc the loaded document
+     * @param renderedSyntax the rendered output syntax, or {@code null} in source mode
+     * @return the syntax identifier
+     */
+    private String headerSyntaxId(DocumentModelBridge doc, Syntax renderedSyntax)
+    {
+        return renderedSyntax != null ? renderedSyntax.toIdString() : syntaxIdOf(doc.getSyntax());
+    }
+
+    /**
+     * Builds the provenance note for a document whose body source is empty while its displayed content
+     * is produced by a sheet or by its structured data (xobjects) - the situation that otherwise traps
+     * an agent between a full view and an empty source. Returns {@code null} when the body has content
+     * or when neither a sheet nor xobjects are present; the sheet lookup is only consulted for
+     * empty-body documents.
+     *
+     * @param doc the loaded document
+     * @param renderedSyntax the rendered output syntax, or {@code null} in source mode
+     * @return the note, or {@code null} when no note applies
+     */
+    private String provenanceNote(DocumentModelBridge doc, Syntax renderedSyntax)
+    {
+        if (StringUtils.isNotBlank(doc.getContent())) {
+            return null;
+        }
+        String sheetName = firstViewableSheetName(doc);
+        if (sheetName == null && !hasXObjects(doc)) {
+            return null;
+        }
+        if (renderedSyntax == null) {
+            String base = sheetName != null ? String.format(SOURCE_SHEET_NOTE, sheetName) : SOURCE_XOBJECT_NOTE;
+            // Only advise the rendered view when this wiki actually allows it; otherwise the advice
+            // dead-ends in the rendered-disabled refusal.
+            boolean renderingAllowed =
+                this.mcpConfig.isRenderedContentAllowed(this.contextProvider.get().getWikiId());
+            return base + (renderingAllowed ? SOURCE_NOTE_RENDERED_ADVICE : SOURCE_NOTE_NO_RENDER_TAIL);
+        }
+        String note = sheetName != null ? String.format(RENDERED_SHEET_NOTE, sheetName) : RENDERED_XOBJECT_NOTE;
+        if (Syntax.PLAIN_1_0.equals(renderedSyntax)) {
+            note += PLAIN_EMPTY_HINT;
+        }
+        return note;
+    }
+
+    /**
+     * Names the first view sheet of the document that the current user may view, mirroring what the
+     * display path applies. Lookup failures degrade silently (debug log) so a provenance nicety can
+     * never break a read.
+     *
+     * @param doc the loaded document
+     * @return the serialized sheet reference, or {@code null} when there is none (or the lookup failed)
+     */
+    private String firstViewableSheetName(DocumentModelBridge doc)
+    {
+        try {
+            return this.sheetManager.getSheets(doc, VIEW_ACTION).stream()
+                .filter(this.documentAccessBridge::isDocumentViewable)
+                .findFirst()
+                .map(this.serializer::serialize)
+                .orElse(null);
+        } catch (Exception e) {
+            this.logger.debug("MCP get_document tool sheet lookup failed", e);
+            return null;
+        }
+    }
+
+    /**
+     * Tests whether the document carries at least one xobject, tolerating the null slots left by
+     * deleted objects.
+     *
+     * @param doc the loaded document
+     * @return whether at least one xobject is present
+     */
+    private boolean hasXObjects(DocumentModelBridge doc)
+    {
+        return doc instanceof XWikiDocument xdoc
+            && xdoc.getXObjects().values().stream()
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .anyMatch(Objects::nonNull);
+    }
+
+    /**
      * Builds the body for the auto-degrade path of a large document (no offset/limit, outline not requested).
      * When the document has headings, returns the outline warning plus the heading map; when it has none (or an
      * unsupported syntax), returns a conservative head window of content so the agent still gets something to
@@ -638,7 +1002,7 @@ public class MCPGetDocumentTool implements MCPTool
      */
     private String renderLargeAutoDegrade(String[] lines, int totalLines, String syntaxId)
     {
-        List<String> headings = collectHeadingLines(lines, totalLines, syntaxId);
+        List<String> headings = MCPSourceText.collectHeadingLines(lines, totalLines, syntaxId);
         if (!headings.isEmpty()) {
             return LARGE_DOC_OUTLINE_WARNING + NEW_LINE + String.join(NEW_LINE, headings);
         }
@@ -740,142 +1104,16 @@ public class MCPGetDocumentTool implements MCPTool
         return MCPSourceText.numberedLines(lines, start, end);
     }
 
-    /**
-     * Collapses runs of consecutive JVM stack-frame lines in rendered plain output for token economy. A
-     * maximal run of {@value #STACK_FRAME_COLLAPSE_THRESHOLD} or more frame lines (a frame being
-     * {@code at type.method(Source:NN)} or a {@code ... N more} continuation, matched anchored on the
-     * line so prose is untouched) is replaced by a single {@code [... N stack frames omitted ...]} marker;
-     * shorter runs and every non-frame line pass through unchanged, so the exception header, any
-     * {@code Caused by:} chain and the human message are preserved.
-     *
-     * <p>Plain-mode only: the HTML rendered path is cleaned structurally by {@link MCPRenderedHtml}.</p>
-     *
-     * @param text the LF-normalized rendered plain content
-     * @return the content with stack-frame runs collapsed
-     */
-    private static String collapseStackTraces(String text)
-    {
-        String[] lines = text.split(NEW_LINE, -1);
-        List<String> out = new ArrayList<>();
-        List<String> run = new ArrayList<>();
-        for (String line : lines) {
-            if (STACK_FRAME_LINE.matcher(line).matches()) {
-                run.add(line);
-            } else {
-                flushFrameRun(out, run);
-                out.add(line);
-            }
-        }
-        flushFrameRun(out, run);
-        return String.join(NEW_LINE, out);
-    }
-
-    /**
-     * Flushes the accumulated frame-line run into {@code out}: a run of
-     * {@value #STACK_FRAME_COLLAPSE_THRESHOLD} or more lines is replaced by a single marker, a shorter run
-     * is re-emitted verbatim, and an empty run is a no-op. The run buffer is cleared either way.
-     *
-     * @param out the output line accumulator
-     * @param run the buffered frame lines (mutated: cleared on return)
-     */
-    private static void flushFrameRun(List<String> out, List<String> run)
-    {
-        if (run.isEmpty()) {
-            return;
-        }
-        if (run.size() >= STACK_FRAME_COLLAPSE_THRESHOLD) {
-            out.add(String.format(STACK_FRAMES_OMITTED_MARKER, run.size()));
-        } else {
-            out.addAll(run);
-        }
-        run.clear();
-    }
-
     private String buildOutline(String[] lines, int totalLines, String syntaxId)
     {
-        if (headingPatternFor(syntaxId) == null) {
+        if (!MCPSourceText.hasHeadingPattern(syntaxId)) {
             return "Outline unavailable for syntax " + syntaxId + READ_WITH_RANGE_HINT;
         }
-        List<String> headings = collectHeadingLines(lines, totalLines, syntaxId);
+        List<String> headings = MCPSourceText.collectHeadingLines(lines, totalLines, syntaxId);
         if (headings.isEmpty()) {
             return "No headings found" + READ_WITH_RANGE_HINT;
         }
         return String.join(NEW_LINE, headings);
-    }
-
-    /**
-     * Collects the formatted outline entries for a document. Returns an empty list when the syntax has no
-     * heading pattern or when no line matches, so callers can branch on emptiness without sniffing a formatted
-     * message.
-     *
-     * @param lines the document lines
-     * @param totalLines the total number of lines
-     * @param syntaxId the document syntax identifier
-     * @return the formatted heading entries, or an empty list if none
-     */
-    private List<String> collectHeadingLines(String[] lines, int totalLines, String syntaxId)
-    {
-        List<String> headings = new ArrayList<>();
-        Pattern pattern = headingPatternFor(syntaxId);
-        if (pattern == null) {
-            return headings;
-        }
-        for (int i = 1; i <= totalLines; i++) {
-            appendHeading(headings, pattern, lines[i - 1], i);
-        }
-        return headings;
-    }
-
-    private void appendHeading(List<String> headings, Pattern pattern, String line, int lineNumber)
-    {
-        Matcher matcher = pattern.matcher(line);
-        if (!matcher.matches()) {
-            return;
-        }
-        int level = matcher.group(1).length();
-        String titleText = cleanHeadingTitle(matcher.group(2).trim());
-        headings.add(" ".repeat(2 * (level - 1)) + "L" + lineNumber + ": " + titleText);
-    }
-
-    /**
-     * Cleans noisy inline markup from an outline heading title using pure string operations (no parsing or
-     * rendering). Strips XWiki group/style markers and collapses XWiki links to their label (or target, when
-     * unlabelled). Falls back to the trimmed raw title if cleaning leaves the title empty, so an entry is never
-     * blank.
-     *
-     * @param raw the extracted, already-trimmed heading title text
-     * @return the cleaned title
-     */
-    private String cleanHeadingTitle(String raw)
-    {
-        String stripped = XWIKI_STYLE_MARKER.matcher(raw).replaceAll("");
-
-        Matcher linkMatcher = XWIKI_LINK.matcher(stripped);
-        StringBuilder sb = new StringBuilder();
-        while (linkMatcher.find()) {
-            String inner = linkMatcher.group(1);
-            String label = inner.contains(LINK_LABEL_SEPARATOR)
-                ? inner.substring(0, inner.indexOf(LINK_LABEL_SEPARATOR)) : inner;
-            if (label.contains(LINK_PARAM_SEPARATOR)) {
-                label = label.substring(0, label.indexOf(LINK_PARAM_SEPARATOR));
-            }
-            linkMatcher.appendReplacement(sb, Matcher.quoteReplacement(label.trim()));
-        }
-        linkMatcher.appendTail(sb);
-
-        String cleaned = MULTIPLE_SPACES.matcher(sb.toString()).replaceAll(" ").trim();
-        return cleaned.isEmpty() ? raw.trim() : cleaned;
-    }
-
-    private Pattern headingPatternFor(String syntaxId)
-    {
-        if (syntaxId.startsWith(XWIKI_SYNTAX_PREFIX)) {
-            return XWIKI_HEADING;
-        }
-        if (syntaxId.startsWith(MARKDOWN_SYNTAX_PREFIX)) {
-            return MARKDOWN_HEADING;
-        }
-        return null;
     }
 
     private String syntaxIdOf(Syntax syntax)

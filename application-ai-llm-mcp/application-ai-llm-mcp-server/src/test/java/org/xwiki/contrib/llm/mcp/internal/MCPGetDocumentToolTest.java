@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +38,7 @@ import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.sheet.SheetManager;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -48,6 +50,7 @@ import com.xpn.xwiki.XWiki;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.BaseObject;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -113,6 +116,9 @@ class MCPGetDocumentToolTest
     @MockComponent
     private MCPWikiReach wikiReach;
 
+    @MockComponent
+    private SheetManager sheetManager;
+
     @Mock
     private DocumentReference documentReference;
 
@@ -132,6 +138,11 @@ class MCPGetDocumentToolTest
         // By default the endpoint has cross-wiki reach, so the advertised reference description mentions it;
         // the reach-off test overrides this.
         lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
+        // The source-path provenance note reads the context wiki id to decide whether it may advise a
+        // rendered read; rendered-mode tests override the provider with their own context.
+        XWikiContext defaultContext = mock(XWikiContext.class);
+        lenient().when(defaultContext.getWikiId()).thenReturn("xwiki");
+        lenient().when(this.contextProvider.get()).thenReturn(defaultContext);
     }
 
     private DocumentModelBridge stubDoc(String content, String syntaxId) throws Exception
@@ -959,5 +970,437 @@ class MCPGetDocumentToolTest
         assertTrue(text.contains("3 lines"), text);
         assertTrue(text.contains("     1\talpha"));
         assertTrue(text.contains("     3\tgamma"));
+    }
+
+    private void stubRenderedHtml(String html) throws Exception
+    {
+        stubDoc("{{velocity}}opaque source{{/velocity}}", XWIKI_SYNTAX);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
+        when(xdoc.getRenderedContent(Syntax.HTML_5_0, xcontext)).thenReturn(html);
+    }
+
+    private XWikiDocument stubEmptyBodyDocWithXObjects() throws Exception
+    {
+        XWikiDocument doc = mock(XWikiDocument.class);
+        when(doc.getContent()).thenReturn("");
+        lenient().when(doc.getTitle()).thenReturn("T");
+        when(doc.getVersion()).thenReturn("1.1");
+        when(doc.getDocumentReference()).thenReturn(this.documentReference);
+        Syntax syntax = mock(Syntax.class);
+        lenient().when(syntax.toIdString()).thenReturn(XWIKI_SYNTAX);
+        when(doc.getSyntax()).thenReturn(syntax);
+        // One deleted-object null slot next to a live object: the presence check must tolerate it.
+        when(doc.getXObjects()).thenReturn(
+            Map.of(mock(DocumentReference.class), Arrays.asList(null, mock(BaseObject.class))));
+        when(this.documentAccessBridge.exists(any(DocumentReference.class))).thenReturn(true);
+        when(this.documentAccessBridge.getDocumentInstance(any(DocumentReference.class))).thenReturn(doc);
+        return doc;
+    }
+
+    @Test
+    void sectionWithoutRenderedReturnsError() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "section", "#HFoo"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("requires rendered=true and format=\"html\""), textOf(result));
+    }
+
+    @Test
+    void sectionWithRenderedPlainReturnsError() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "section", "#HFoo"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("requires rendered=true and format=\"html\""), textOf(result));
+    }
+
+    @Test
+    void offsetWithHtmlFormatReturnsSteeringError() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "offset", 2));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("do not apply to format=\"html\""), text);
+        assertTrue(text.contains("outline=true"), text);
+    }
+
+    @Test
+    void limitWithHtmlFormatReturnsSteeringError() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "limit", 10));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("do not apply to format=\"html\""), textOf(result));
+    }
+
+    @Test
+    void sectionCombinedWithOutlineReturnsError() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result = call(
+            Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#HFoo", "outline", true));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("cannot be combined with outline=true"), textOf(result));
+    }
+
+    @Test
+    void blankSectionReturnsError() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("must be a heading anchor"), textOf(result));
+    }
+
+    @Test
+    void htmlOutlineListsDomAnchorsInsteadOfRegexHeadings() throws Exception
+    {
+        stubRenderedHtml("<h1 id=\"HTop\">Top</h1><p>body text</p><div><h2 id=\"HSub\">Sub</h2></div>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "outline", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("#HTop: Top"), text);
+        assertTrue(text.contains("  #HSub: Sub"), text);
+        assertTrue(text.contains("tokens"), text);
+        assertFalse(text.contains("body text"), "Outline must not include the content: " + text);
+        assertFalse(text.contains("L1:"), "DOM outline must replace the line-regex outline: " + text);
+    }
+
+    @Test
+    void htmlOutlineWithoutHeadingsSaysSo() throws Exception
+    {
+        stubRenderedHtml("<p>plain paragraph</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "outline", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("No headings found in the rendered HTML."), textOf(result));
+    }
+
+    @Test
+    void largeRenderedHtmlAutoDegradesToDomOutline() throws Exception
+    {
+        stubRenderedHtml("<h2 id=\"HBig\">Big</h2><p>" + "lorem ".repeat(6000) + "</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("OUTLINE (a map of heading anchors)"), text);
+        assertTrue(text.contains("#HBig: Big"), text);
+        assertTrue(text.contains("section=\"#H...\""), text);
+        assertFalse(text.contains("lorem"), "Auto-degraded outline must not include the content");
+    }
+
+    @Test
+    void largeHeadinglessRenderedHtmlReturnsCappedHeadWithHonestFooter() throws Exception
+    {
+        stubRenderedHtml("<p>" + "lorem ".repeat(6000) + "</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("lorem"), text);
+        assertTrue(text.contains("[Output truncated at the ~"), text);
+        assertTrue(text.contains("cannot be read by section"), text);
+        assertFalse(text.contains("continue with offset="),
+            "The line-based continuation hint must not appear for rendered HTML: " + text);
+    }
+
+    @Test
+    void htmlSectionReturnsOnlyThatSectionWithHeaderAndFooter() throws Exception
+    {
+        stubRenderedHtml("<h2 id=\"HA\">Alpha</h2><p>alpha-body</p><h2 id=\"HB\">Beta</h2><p>beta-body</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#HA"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("alpha-body"), text);
+        assertFalse(text.contains("beta-body"), text);
+        assertTrue(text.contains("Section: #HA (document total ~"), text);
+        assertTrue(text.contains("Showing section \"#HA\""), text);
+        assertTrue(text.contains("     1\t"), "Section body must stay cat -n shaped: " + text);
+    }
+
+    @Test
+    void htmlSectionAcceptsAnchorWithoutLeadingHash() throws Exception
+    {
+        stubRenderedHtml("<h2 id=\"HA\">Alpha</h2><p>alpha-body</p><h2 id=\"HB\">Beta</h2><p>beta-body</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "HA"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("alpha-body"), textOf(result));
+    }
+
+    @Test
+    void unknownSectionAnchorErrorEmbedsAvailableOutline() throws Exception
+    {
+        stubRenderedHtml("<h2 id=\"HA\">Alpha</h2><p>alpha-body</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#HNope"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("No section with anchor \"#HNope\""), text);
+        assertTrue(text.contains("Available sections:"), text);
+        assertTrue(text.contains("#HA: Alpha"), text);
+    }
+
+    @Test
+    void sectionOnHeadinglessRenderedHtmlSaysNoAnchors() throws Exception
+    {
+        stubRenderedHtml("<p>no headings here</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#HX"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("no heading anchors"), textOf(result));
+    }
+
+    @Test
+    void overBudgetSectionDegradesToItsSubOutline() throws Exception
+    {
+        stubRenderedHtml("<h1 id=\"HTop\">Top</h1><h2 id=\"HSub\">Sub</h2><p>"
+            + "lorem ".repeat(6000) + "</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#HTop"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("over the ~6000-token budget"), text);
+        assertTrue(text.contains("sub-outline"), text);
+        assertTrue(text.contains("#HSub: Sub"), text);
+        assertFalse(text.contains("lorem"), "Sub-outline response must not include the content");
+    }
+
+    @Test
+    void overBudgetSectionWithoutSubHeadingsEmitsCappedHead() throws Exception
+    {
+        stubRenderedHtml("<h1 id=\"HTop\">Top</h1><p>" + "lorem ".repeat(6000) + "</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#HTop"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("lorem"), text);
+        assertTrue(text.contains("[Output truncated at the ~"), text);
+        assertTrue(text.contains("This section has no sub-headings"), text);
+        assertFalse(text.contains("cannot be read by section"),
+            "The headingless-document footer must not appear on a section read: " + text);
+    }
+
+    @Test
+    void truncatedHtmlNeverEndsInASplitSurrogatePair() throws Exception
+    {
+        // The serializer emits supplementary characters as numeric character references (&#x1f600;), so
+        // the truncation sites operate on surrogate-free strings; this pins that invariant (and the
+        // cappedHead backstop) so a serializer change cannot silently start emitting malformed UTF-16.
+        stubRenderedHtml("<p>" + "😀".repeat(4000) + "</p>");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("&#x1f600;"),
+            "Expected supplementary characters as character references: " + text.substring(0, 400));
+        int footerIndex = text.indexOf("\n[Output truncated");
+        assertTrue(footerIndex > 0, text.substring(text.length() - 400));
+        assertFalse(Character.isHighSurrogate(text.charAt(footerIndex - 1)),
+            "Truncation must not split a surrogate pair");
+    }
+
+    @Test
+    void sourceReadOfEmptyBodySheetPageCarriesSheetNote() throws Exception
+    {
+        DocumentModelBridge doc = stubDoc("", XWIKI_SYNTAX);
+        DocumentReference sheetRef = mock(DocumentReference.class);
+        when(this.sheetManager.getSheets(doc, "view")).thenReturn(List.of(sheetRef));
+        when(this.documentAccessBridge.isDocumentViewable(sheetRef)).thenReturn(true);
+        when(this.serializer.serialize(sheetRef)).thenReturn("xwiki:XWiki.XWikiUserSheet");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("produced by the sheet \"xwiki:XWiki.XWikiUserSheet\""), text);
+        assertTrue(text.contains("editing the body will not change what users see"), text);
+        assertTrue(text.contains("Document has no content."), text);
+    }
+
+    @Test
+    void sourceSheetNoteOmitsRenderedAdviceWhenRenderingDisabled() throws Exception
+    {
+        DocumentModelBridge doc = stubDoc("", XWIKI_SYNTAX);
+        DocumentReference sheetRef = mock(DocumentReference.class);
+        when(this.sheetManager.getSheets(doc, "view")).thenReturn(List.of(sheetRef));
+        when(this.documentAccessBridge.isDocumentViewable(sheetRef)).thenReturn(true);
+        when(this.serializer.serialize(sheetRef)).thenReturn("xwiki:XWiki.XWikiUserSheet");
+        when(this.mcpConfig.isRenderedContentAllowed(any())).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("produced by the sheet \"xwiki:XWiki.XWikiUserSheet\""), text);
+        assertTrue(text.contains("Editing the body will not change what users see."), text);
+        assertFalse(text.contains("rendered=true"),
+            "The note must not advise a rendered read when rendering is disabled: " + text);
+    }
+
+    @Test
+    void renderedPlainReadOfEmptyBodySheetPageCarriesMirrorNoteWithHtmlHint() throws Exception
+    {
+        DocumentModelBridge doc = stubDoc("", XWIKI_SYNTAX);
+        DocumentReference sheetRef = mock(DocumentReference.class);
+        when(this.sheetManager.getSheets(doc, "view")).thenReturn(List.of(sheetRef));
+        when(this.documentAccessBridge.isDocumentViewable(sheetRef)).thenReturn(true);
+        when(this.serializer.serialize(sheetRef)).thenReturn("xwiki:XWiki.XWikiUserSheet");
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
+        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn("profile view");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("this view is produced by the sheet \"xwiki:XWiki.XWikiUserSheet\""), text);
+        assertTrue(text.contains("body edits will not change it"), text);
+        // The plain renderer drops a sheet's raw-HTML output, so the plain path adds the format hint.
+        assertTrue(text.contains("use format=\"html\""), text);
+    }
+
+    @Test
+    void emptyBodyWithXObjectsButNoSheetCarriesStructuredDataNote() throws Exception
+    {
+        stubEmptyBodyDocWithXObjects();
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("lives in its structured data (xobjects)"), textOf(result));
+    }
+
+    @Test
+    void emptyBodyWithoutSheetOrXObjectsCarriesNoNote() throws Exception
+    {
+        stubDoc("", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertFalse(textOf(result).contains("Note: the body source is empty"), textOf(result));
+    }
+
+    @Test
+    void sheetManagerIsNeverConsultedWhenBodyHasContent() throws Exception
+    {
+        stubDoc("some content", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        verify(this.sheetManager, never()).getSheets(any(), anyString());
+    }
+
+    @Test
+    void sheetLookupFailureIsSwallowedAndFallsBackToXObjectsNote() throws Exception
+    {
+        XWikiDocument doc = stubEmptyBodyDocWithXObjects();
+        when(this.sheetManager.getSheets(doc, "view")).thenThrow(new RuntimeException("sheet boom"));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("lives in its structured data (xobjects)"), text);
+        assertFalse(text.contains("sheet boom"), "Lookup failure must not leak: " + text);
+    }
+
+    @Test
+    void nonViewableSheetFallsBackToXObjectsNote() throws Exception
+    {
+        XWikiDocument doc = stubEmptyBodyDocWithXObjects();
+        DocumentReference sheetRef = mock(DocumentReference.class);
+        when(this.sheetManager.getSheets(doc, "view")).thenReturn(List.of(sheetRef));
+        when(this.documentAccessBridge.isDocumentViewable(sheetRef)).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertFalse(text.contains("produced by the sheet \""),
+            "A sheet the caller may not view must never be named: " + text);
+        assertTrue(text.contains("lives in its structured data (xobjects)"), text);
+    }
+
+    @Test
+    void sectionIsDeclaredDirectlyAfterFormatInSchema()
+    {
+        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
+        List<Object> keys = new ArrayList<>(properties.keySet());
+        assertEquals(keys.indexOf("format") + 1, keys.indexOf("section"),
+            "section must sit next to format in the advertised schema: " + keys);
+    }
+
+    @Test
+    void descriptionMentionsOutlineSectionWorkflowForHtml()
+    {
+        String description = this.tool.getToolDefinition().description();
+        assertTrue(description.contains("offset/limit do not apply"), description);
+        assertTrue(description.contains("section=\"#H...\""), description);
+    }
+
+    @Test
+    void manPageDocumentsHtmlOutlineSectionAndEmptyBodyNotes()
+    {
+        String manPage = this.tool.getManPage();
+        assertTrue(manPage.contains("#(intro)"), manPage);
+        assertTrue(manPage.contains("offset/limit do not apply"), manPage);
+        assertTrue(manPage.contains("NOTES"), manPage);
+        assertTrue(manPage.contains("xobjects"), manPage);
     }
 }
