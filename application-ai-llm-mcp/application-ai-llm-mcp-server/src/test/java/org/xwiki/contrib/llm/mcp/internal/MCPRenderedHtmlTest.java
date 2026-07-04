@@ -76,6 +76,16 @@ class MCPRenderedHtmlTest
         return parse(html).serialize();
     }
 
+    private MCPRenderedHtml parseFull(String html)
+    {
+        return MCPRenderedHtml.parse(this.cleaner, html, true);
+    }
+
+    private String stripFull(String html)
+    {
+        return parseFull(html).serialize();
+    }
+
     @Test
     void scriptStyleAndCommentsAreRemoved()
     {
@@ -647,5 +657,140 @@ class MCPRenderedHtmlTest
         MCPRenderedHtml serializeFirst = parse("<p>alpha beta</p>");
         serializeFirst.serialize();
         assertThrows(IllegalStateException.class, () -> serializeFirst.chunkHtml(INTRO, 1));
+    }
+
+    @Test
+    void fullDetailKeepsAllAttributesOnOrdinaryElements()
+    {
+        String out = stripFull("<p style=\"color:red\" class=\"someclass\" id=\"p1\" data-marker=\"m1\">text "
+            + "<span style=\"font-weight:bold\">inside</span></p><div id=\"container\">x</div>");
+
+        assertTrue(out.contains("style=\"color:red\""), out);
+        assertTrue(out.contains("class=\"someclass\""), out);
+        assertTrue(out.contains("id=\"p1\""), out);
+        assertTrue(out.contains("data-marker=\"m1\""), out);
+        assertTrue(out.contains("style=\"font-weight:bold\""), out);
+        assertTrue(out.contains("id=\"container\""), out);
+    }
+
+    @Test
+    void fullDetailStillDropsScriptStyleCommentsAndErrorDescription()
+    {
+        String out = stripFull("<p class=\"keepme\">keep</p><script>alert('payload')</script>"
+            + "<style>.a{color:red}</style><!-- secret note -->"
+            + "<div class=\"xwikirenderingerror\">Failed to execute the [velocity] macro</div>"
+            + "<div class=\"xwikirenderingerrordescription hidden\"><pre>at a.b.C(C.java:1)</pre></div>");
+
+        assertTrue(out.contains("class=\"keepme\""), out);
+        assertFalse(out.contains("<script"), out);
+        assertFalse(out.contains("payload"), out);
+        assertFalse(out.contains("<style"), out);
+        assertFalse(out.contains("color:red"), out);
+        assertFalse(out.contains("secret note"), out);
+        assertTrue(out.contains("Failed to execute"), out);
+        assertFalse(out.contains("xwikirenderingerrordescription"), out);
+        assertFalse(out.contains("at a.b.C"), out);
+    }
+
+    @Test
+    void fullDetailShortensAttributeValuesAtTheExactBoundary()
+    {
+        String over = "a".repeat(501);
+        String exact = "b".repeat(500);
+        String out = stripFull("<p data-over=\"" + over + "\" data-exact=\"" + exact + "\">x</p>");
+
+        assertTrue(out.contains("data-over=\"" + "a".repeat(500) + "[...shortened]\""),
+            "A 501-char value must be cut at 500 chars and marked");
+        assertFalse(out.contains(over), "The over-threshold value must not survive whole");
+        assertTrue(out.contains("data-exact=\"" + exact + "\""), "A 500-char value must survive whole");
+        assertFalse(out.contains(exact + "[...shortened]"), "A 500-char value must not be marked");
+    }
+
+    @Test
+    void fullDetailKeepsUnderThresholdHrefWhole()
+    {
+        String href = "https://example.org/" + "p".repeat(80);
+        String out = stripFull("<p><a href=\"" + href + "\">go</a></p>");
+
+        assertTrue(out.contains("href=\"" + href + "\""), out);
+        assertFalse(out.contains("[...shortened]"), out);
+    }
+
+    @Test
+    void strippedDetailNeverShortensItsKeptAttributes()
+    {
+        // The shortening inversion is deliberate and documented: stripped mode emits its allowlisted
+        // attributes whole (a long link target must stay usable), only full mode shortens.
+        String href = "https://example.org/" + "p".repeat(600);
+        String out = strip("<p><a href=\"" + href + "\">go</a></p>");
+
+        assertTrue(out.contains("href=\"" + href + "\""), out);
+        assertFalse(out.contains("[...shortened]"), out);
+    }
+
+    @Test
+    void fullDetailNeverShortensTheClassAttribute()
+    {
+        // The class attribute is exempt from shortening: its tokens drive the section walk's
+        // rendering-error stats, and a cut must not hide a token from the walk.
+        String classes = "xwikirenderingerror " + "tok ".repeat(150);
+        String out = stripFull("<div class=\"" + classes.trim() + "\">boom</div>");
+
+        assertTrue(out.contains("xwikirenderingerror"), out);
+        assertFalse(out.contains("[...shortened]"), out);
+    }
+
+    @Test
+    void fullDetailAttributeCutBacksOffADanglingHighSurrogate()
+    {
+        // Chars 0-498 are 'a', the emoji occupies UTF-16 indices 499-500 and the trailing 'b' pushes the
+        // length to 502, over the threshold. A cut at 500 would split the surrogate pair, so the cut
+        // backs off to 499 and the emoji is gone before serialization.
+        String value = "a".repeat(499) + "😀" + "b";
+        String out = stripFull("<p data-cut=\"" + value + "\">x</p>");
+
+        assertTrue(out.contains("data-cut=\"" + "a".repeat(499) + "[...shortened]\""),
+            "The cut must back off the dangling high surrogate");
+        assertFalse(out.contains("😀"), out);
+        assertFalse(out.contains("&#x1f600;"), out);
+    }
+
+    @Test
+    void fullDetailEstimatesCountKeptAttributes()
+    {
+        // The 400-char style attribute is dropped in the stripped detail but kept in the full detail,
+        // so the same input estimates larger and its outline reports more tokens.
+        String html = "<h2 id=\"HA\">A</h2><p style=\"" + "c".repeat(400) + "\">body</p>";
+        MCPRenderedHtml stripped = parse(html);
+        MCPRenderedHtml full = parseFull(html);
+
+        assertTrue(full.approxChars() >= stripped.approxChars() + 400,
+            "full=" + full.approxChars() + " stripped=" + stripped.approxChars());
+        assertTrue(tokenCount(full.outline()) > tokenCount(stripped.outline()),
+            "full outline: " + full.outline() + " stripped outline: " + stripped.outline());
+    }
+
+    @Test
+    void fullDetailSectionFetchCarriesTheAttributes()
+    {
+        MCPRenderedHtml parsed = parseFull("<h2 id=\"HA\">A</h2><p class=\"fancy\" style=\"color:red\">"
+            + "a-body</p><h2 id=\"HB\">B</h2><p class=\"other\">b-body</p>");
+
+        String section = parsed.sectionHtml("HA");
+        assertTrue(section.contains("class=\"fancy\""), section);
+        assertTrue(section.contains("style=\"color:red\""), section);
+        assertTrue(section.contains("a-body"), section);
+        assertFalse(section.contains("b-body"), section);
+    }
+
+    @Test
+    void fullDetailChunkPartitionAndFetchCarryAttributes()
+    {
+        String para = "<p data-run=\"r1\">" + "word ".repeat(600) + "</p>";
+        MCPRenderedHtml parsed = parseFull(para.repeat(10));
+
+        assertTrue(parsed.chunkCount(INTRO) >= 2, "chunks: " + parsed.chunkCount(INTRO));
+        String chunk = parsed.chunkHtml(INTRO, 1);
+        assertTrue(chunk.contains("data-run=\"r1\""), chunk.substring(0, 200));
     }
 }

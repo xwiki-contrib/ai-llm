@@ -64,11 +64,34 @@ import org.xwiki.xml.html.HTMLUtils;
  * <em>description</em> block ({@code xwikirenderingerrordescription}) is removed with its subtree: it
  * carries the full Java stack trace, which is token spam with no comprehension value for an agent.</p>
  *
+ * <p>The full markup detail ({@link #parse(HTMLCleaner, String, boolean)} with {@code fullDetail =
+ * true}) keeps every attribute instead of the allowlist - shortening values longer than
+ * {@value #MAX_FULL_ATTRIBUTE_CHARS} characters at parse time, so the retained DOM, the character
+ * estimator and the serialization all agree - for an agent verifying markup attributes it wrote.
+ * Scripts, styles, comments and the error-description subtree are still removed: they carry no
+ * comprehension value in either detail. Everything downstream of the clean walk (section indexing,
+ * outlines, chunk partitioning, serialization) is detail-agnostic; its results reflect whichever
+ * detail the DOM was cleaned in, so sizes and chunk boundaries differ between the two details.</p>
+ *
  * @version $Id$
  * @since 0.9
  */
 final class MCPRenderedHtml
 {
+    /**
+     * Longest attribute value kept whole in the full markup detail; longer values are cut at this
+     * length (backing off one character rather than splitting a surrogate pair) and end with
+     * {@link #SHORTENED_MARKER}. Shared with the calling tool's full-detail banner so the advertised
+     * threshold and the applied one cannot drift.
+     */
+    static final int MAX_FULL_ATTRIBUTE_CHARS = 500;
+
+    /**
+     * Marker ending an attribute value shortened at {@link #MAX_FULL_ATTRIBUTE_CHARS} in the full
+     * markup detail.
+     */
+    static final String SHORTENED_MARKER = "[...shortened]";
+
     /**
      * Attributes kept on every element: they carry content semantics (link and image targets, captions,
      * table geometry) rather than presentation.
@@ -250,16 +273,32 @@ final class MCPRenderedHtml
     }
 
     /**
-     * Cleans rendered HTML for agent output: parses it as HTML5 with the given cleaner (which guarantees
-     * a well-formed DOM even for raw {@code {{html}}} passthrough), removes scripts, styles and comments,
-     * strips every non-allowlisted attribute, and indexes the heading sections of the cleaned DOM in one
-     * document-order walk.
+     * Cleans rendered HTML in the default stripped detail: shorthand for
+     * {@link #parse(HTMLCleaner, String, boolean)} with {@code fullDetail = false}.
      *
      * @param cleaner the HTML cleaner component, supplied by the calling tool
      * @param html the rendered HTML
      * @return the parsed wrapper, ready for outline queries and one terminal serialization
      */
     static MCPRenderedHtml parse(HTMLCleaner cleaner, String html)
+    {
+        return parse(cleaner, html, false);
+    }
+
+    /**
+     * Cleans rendered HTML for agent output: parses it as HTML5 with the given cleaner (which guarantees
+     * a well-formed DOM even for raw {@code {{html}}} passthrough), removes scripts, styles, comments and
+     * rendering-error description blocks, applies the requested attribute detail, and indexes the heading
+     * sections of the cleaned DOM in one document-order walk. The stripped detail removes every
+     * non-allowlisted attribute; the full detail keeps every attribute, shortening values longer than
+     * {@value #MAX_FULL_ATTRIBUTE_CHARS} characters.
+     *
+     * @param cleaner the HTML cleaner component, supplied by the calling tool
+     * @param html the rendered HTML
+     * @param fullDetail whether to keep all element attributes instead of the stripped allowlist
+     * @return the parsed wrapper, ready for outline queries and one terminal serialization
+     */
+    static MCPRenderedHtml parse(HTMLCleaner cleaner, String html, boolean fullDetail)
     {
         HTMLCleanerConfiguration configuration = cleaner.getDefaultConfiguration();
         Map<String, String> parameters = new HashMap<>(configuration.getParameters());
@@ -270,7 +309,7 @@ final class MCPRenderedHtml
         configuration.setParameters(parameters);
 
         Document document = cleaner.clean(new StringReader(html), configuration);
-        clean(document);
+        clean(document, fullDetail);
         return new MCPRenderedHtml(document);
     }
 
@@ -734,7 +773,8 @@ final class MCPRenderedHtml
      * Partitions the parent's span into chunks: the span's maximal complete subtrees are packed
      * greedily into runs of consecutive same-parent siblings within the chunk target, descending into
      * a subtree that alone exceeds the target. Depends only on the cleaned DOM, so recomputation on a
-     * fresh parse of the same content yields the same partition.
+     * fresh parse of the same content in the same detail yields the same partition (the two details
+     * clean different DOMs, so their partitions differ).
      *
      * @param parentAnchor the canonical parent anchor
      * @return the chunks, in document order
@@ -1225,12 +1265,14 @@ final class MCPRenderedHtml
     }
 
     /**
-     * Walks the subtree once, removing dropped elements and comment nodes and stripping non-allowlisted
-     * attributes from the remaining elements.
+     * Walks the subtree once, removing dropped elements and comment nodes and applying the requested
+     * attribute detail to the remaining elements: the stripped detail removes every non-allowlisted
+     * attribute, the full detail keeps them all but shortens over-long values.
      *
      * @param node the subtree root
+     * @param fullDetail whether to keep all attributes instead of the stripped allowlist
      */
-    private static void clean(Node node)
+    private static void clean(Node node, boolean fullDetail)
     {
         Node child = node.getFirstChild();
         while (child != null) {
@@ -1239,9 +1281,13 @@ final class MCPRenderedHtml
                 node.removeChild(child);
             } else {
                 if (child.getNodeType() == Node.ELEMENT_NODE) {
-                    cleanAttributes((Element) child);
+                    if (fullDetail) {
+                        shortenAttributes((Element) child);
+                    } else {
+                        cleanAttributes((Element) child);
+                    }
                 }
-                clean(child);
+                clean(child, fullDetail);
             }
             child = next;
         }
@@ -1271,6 +1317,35 @@ final class MCPRenderedHtml
     {
         String classValue = element.getAttribute(CLASS_ATTRIBUTE);
         return Arrays.asList(classValue.trim().split(WHITESPACE_SPLIT)).contains(token);
+    }
+
+    /**
+     * Shortens the element's over-long attribute values in the full markup detail: a value longer than
+     * {@value #MAX_FULL_ATTRIBUTE_CHARS} characters is cut at that length - backing off one character
+     * rather than splitting a surrogate pair - with {@link #SHORTENED_MARKER} appended. Applied at
+     * parse time so the retained DOM, the character estimator and the serialization all agree on the
+     * shortened value. The {@code class} attribute is exempt: its tokens are the section walk's
+     * semantics (rendering-error detection), and class lists never legitimately reach this length.
+     *
+     * @param element the element whose attributes to shorten
+     */
+    private static void shortenAttributes(Element element)
+    {
+        NamedNodeMap attributes = element.getAttributes();
+        for (int i = 0; i < attributes.getLength(); i++) {
+            Node attribute = attributes.item(i);
+            if (CLASS_ATTRIBUTE.equals(attribute.getNodeName().toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            String value = attribute.getNodeValue();
+            if (value.length() > MAX_FULL_ATTRIBUTE_CHARS) {
+                int cut = MAX_FULL_ATTRIBUTE_CHARS;
+                if (Character.isHighSurrogate(value.charAt(cut - 1))) {
+                    cut--;
+                }
+                attribute.setNodeValue(value.substring(0, cut) + SHORTENED_MARKER);
+            }
+        }
     }
 
     private static void cleanAttributes(Element element)
