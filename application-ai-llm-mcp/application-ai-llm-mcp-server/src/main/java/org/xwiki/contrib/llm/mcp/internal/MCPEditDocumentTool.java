@@ -197,9 +197,9 @@ public class MCPEditDocumentTool implements MCPTool
     private static final MCPToolSupport PARAMS = params(true);
 
     /**
-     * The declared scalar parameters advertised by a reach-off endpoint: the cross-wiki sentence is dropped from
-     * the {@code reference} description so no cross-wiki capability is surfaced. Used only to build the
-     * advertised schema, never for parsing.
+     * The declared scalar parameters advertised by a reach-off endpoint: the cross-wiki sentence and the
+     * wiki-prefixed reference example are dropped from the {@code reference} description so no cross-wiki
+     * capability is surfaced. Used only to build the advertised schema, never for parsing.
      */
     private static final MCPToolSupport PARAMS_LOCAL = params(false);
 
@@ -222,8 +222,8 @@ public class MCPEditDocumentTool implements MCPTool
     private MCPWikiReach wikiReach;
 
     /**
-     * Builds the declared scalar parameter set, appending the cross-wiki sentence to the {@code reference}
-     * description only when cross-wiki reach is advertised.
+     * Builds the declared scalar parameter set, using a wiki-prefixed reference example and the cross-wiki
+     * sentence in the {@code reference} description only when cross-wiki reach is advertised.
      *
      * @param crossWiki whether to advertise cross-wiki reach in the {@code reference} description
      * @return the declared scalar parameter set
@@ -231,7 +231,7 @@ public class MCPEditDocumentTool implements MCPTool
     private static MCPToolSupport params(boolean crossWiki)
     {
         String referenceDescription = "The document reference to edit or create, e.g. \"Sandbox.WebHome\" "
-            + "or \"xwiki:Help.Foo\".";
+            + "or \"" + (crossWiki ? "xwiki:" : "") + "Help.Foo\".";
         if (crossWiki) {
             referenceDescription += " A wiki-id prefix targets another wiki when this endpoint has cross-wiki "
                 + "reach (see list_wikis).";

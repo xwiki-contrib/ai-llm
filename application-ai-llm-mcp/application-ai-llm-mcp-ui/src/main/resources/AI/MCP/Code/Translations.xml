@@ -38,6 +38,8 @@
   <hidden>true</hidden>
   <content># Security guidance
 AI.MCP.Code.security.notice=For the strongest access control, run the agent as a dedicated XWiki user whose rights are scoped to what it should access. The tool and space settings here narrow what the agent sees on top of that user's rights - they do not replace them.
+AI.MCP.Code.security.notice.reach=Disabling a wiki's MCP endpoint does not hide that wiki from other endpoints: any endpoint with cross-wiki reach can still read and search it. Use the space and document filters (and rights) to control what is visible.
+AI.MCP.Code.security.notice.filters=Filters are scoping, not secrecy: a request for a filtered document is refused with a distinct message, so the filter's entries are observable by the agent.
 # Class fields
 AI.MCP.Code.MCPServerConfigClass_serverName=Server Name
 AI.MCP.Code.MCPServerConfigClass_serverDescription=Server Description

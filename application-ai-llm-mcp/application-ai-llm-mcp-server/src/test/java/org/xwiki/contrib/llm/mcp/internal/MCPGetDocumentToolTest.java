@@ -503,6 +503,63 @@ class MCPGetDocumentToolTest
     }
 
     @Test
+    void outlineWithNoHeadingsAppendsRenderedOutlineHint() throws Exception
+    {
+        stubDoc("no heading lines here\njust prose", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "outline", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("No headings found"), text);
+        assertTrue(text.contains("Sparse outline; if this page is script-driven (macros/Velocity), try "
+            + "rendered=true, format=\"html\", outline=true for the executed view's outline."), text);
+    }
+
+    @Test
+    void outlineWithOneHeadingAppendsRenderedOutlineHint() throws Exception
+    {
+        stubDoc("= Only Heading =\nbody", XWIKI_SYNTAX);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "outline", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("L1: Only Heading"), text);
+        assertTrue(text.contains("Sparse outline"), text);
+    }
+
+    @Test
+    void sparseOutlineHintOmittedWhenRenderingDisabledAtOneHeading() throws Exception
+    {
+        stubDoc("= Only Heading =\nbody", XWIKI_SYNTAX);
+        when(this.mcpConfig.isRenderedContentAllowed("xwiki")).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "outline", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("L1: Only Heading"), text);
+        assertFalse(text.contains("Sparse outline"),
+            "The hint must not steer into the rendered-disabled refusal: " + text);
+    }
+
+    @Test
+    void sparseOutlineHintOmittedWhenRenderingDisabledAtNoHeadings() throws Exception
+    {
+        stubDoc("no heading lines here\njust prose", XWIKI_SYNTAX);
+        when(this.mcpConfig.isRenderedContentAllowed("xwiki")).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "outline", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("No headings found"), text);
+        assertFalse(text.contains("Sparse outline"),
+            "The hint must not steer into the rendered-disabled refusal: " + text);
+    }
+
+    @Test
     void outlineTitleStripsStyleAndLinkMarkup() throws Exception
     {
         stubDoc("= (% class=\"card-title\" %)[[Installation>>Documentation.AdminGuide.Installation.WebHome]](%%) =",
@@ -596,6 +653,7 @@ class MCPGetDocumentToolTest
         assertTrue(text.contains("L1: Intro"), text);
         assertTrue(text.contains("L3: Details"));
         assertFalse(text.contains("body"));
+        assertFalse(text.contains("Sparse outline"), "Two or more headings are not a sparse outline: " + text);
     }
 
     @Test
@@ -788,6 +846,7 @@ class MCPGetDocumentToolTest
         when(this.wikiReach.isReachEnabled()).thenReturn(true);
 
         assertTrue(referenceDescription().contains("cross-wiki"), referenceDescription());
+        assertTrue(referenceDescription().contains("\"xwiki:Sandbox.WebHome\""), referenceDescription());
     }
 
     @Test
@@ -796,6 +855,12 @@ class MCPGetDocumentToolTest
         when(this.wikiReach.isReachEnabled()).thenReturn(false);
 
         assertFalse(referenceDescription().contains("cross-wiki"), referenceDescription());
+        // The examples must be prefix-free so an agent on a reach-off endpoint never tries a prefixed ref.
+        assertTrue(referenceDescription().contains("\"Sandbox.WebHome\""), referenceDescription());
+        McpSchema.Tool definition = this.tool.getToolDefinition();
+        assertFalse(definition.inputSchema().toString().contains("xwiki:"),
+            "Reach-off advertised schema must not contain wiki-prefixed examples");
+        assertFalse(definition.description().contains("xwiki:"), definition.description());
     }
 
     private String referenceDescription()

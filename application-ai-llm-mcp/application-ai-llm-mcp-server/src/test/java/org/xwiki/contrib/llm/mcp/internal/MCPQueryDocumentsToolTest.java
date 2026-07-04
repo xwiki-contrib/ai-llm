@@ -1105,6 +1105,8 @@ class MCPQueryDocumentsToolTest
         Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
 
         assertTrue(properties.containsKey("wiki"), properties.keySet().toString());
+        String authorDescription = (String) ((Map<?, ?>) properties.get("author")).get("description");
+        assertTrue(authorDescription.contains("\"xwiki:XWiki.Admin\""), authorDescription);
     }
 
     @Test
@@ -1112,9 +1114,14 @@ class MCPQueryDocumentsToolTest
     {
         when(this.wikiReach.isReachEnabled()).thenReturn(false);
 
-        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
+        McpSchema.Tool definition = this.tool.getToolDefinition();
+        Map<?, ?> properties = (Map<?, ?>) definition.inputSchema().get("properties");
 
         assertFalse(properties.containsKey("wiki"), properties.keySet().toString());
+        // No advertised description may carry a wiki-prefixed example on a reach-off endpoint.
+        assertFalse(definition.inputSchema().toString().contains("xwiki:"),
+            "Reach-off advertised schema must not contain wiki-prefixed examples");
+        assertFalse(definition.description().contains("xwiki:"), definition.description());
     }
 
     @Test

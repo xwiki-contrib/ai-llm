@@ -459,6 +459,7 @@ class MCPWriteDocumentToolTest
         when(this.wikiReach.isReachEnabled()).thenReturn(true);
 
         assertTrue(referenceDescription().contains("cross-wiki"), referenceDescription());
+        assertTrue(referenceDescription().contains("\"xwiki:Help.Foo\""), referenceDescription());
     }
 
     @Test
@@ -467,6 +468,12 @@ class MCPWriteDocumentToolTest
         when(this.wikiReach.isReachEnabled()).thenReturn(false);
 
         assertFalse(referenceDescription().contains("cross-wiki"), referenceDescription());
+        // The examples must be prefix-free so an agent on a reach-off endpoint never tries a prefixed ref.
+        assertTrue(referenceDescription().contains("\"Help.Foo\""), referenceDescription());
+        McpSchema.Tool definition = this.tool.getToolDefinition();
+        assertFalse(definition.inputSchema().toString().contains("xwiki:"),
+            "Reach-off advertised schema must not contain wiki-prefixed examples");
+        assertFalse(definition.description().contains("xwiki:"), definition.description());
     }
 
     private String referenceDescription()

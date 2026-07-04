@@ -48,9 +48,7 @@ import com.xpn.xwiki.XWikiContext;
 @Singleton
 public class DefaultMCPDocumentAccess implements MCPDocumentAccess
 {
-    private static final String OPEN_BRACKET = "[";
-
-    private static final String CLOSE_BRACKET_DOT = "].";
+    private static final String QUOTE = "\"";
 
     @Inject
     @Named("current")
@@ -78,15 +76,15 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
         // so it is denied unless reach explicitly allows it (which it will not without a context wiki).
         boolean sameWiki = currentWiki != null && currentWiki.equals(targetWiki);
         if (!sameWiki && !this.wikiReach.canReachWiki(targetWiki)) {
-            throw new MCPAccessDeniedException(OPEN_BRACKET + reference + "] is in another wiki [" + targetWiki
-                + "]; cross-wiki reach is not enabled for this endpoint.");
+            throw new MCPAccessDeniedException(QUOTE + reference + QUOTE + " is in another wiki (" + QUOTE
+                + targetWiki + QUOTE + "); cross-wiki reach is not enabled for this endpoint.");
         }
         if (!this.authorization.hasAccess(right, target)) {
             throw new MCPAccessDeniedException(rightsDeniedMessage(reference, right));
         }
         if (!this.spaceFilter.isAllowed(target)) {
-            throw new MCPAccessDeniedException(OPEN_BRACKET + reference
-                + "] is outside the spaces this MCP server is configured to expose.");
+            throw new MCPAccessDeniedException(QUOTE + reference + QUOTE
+                + " is outside the content this MCP endpoint is configured to expose.");
         }
         return target;
     }
@@ -94,6 +92,6 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
     private String rightsDeniedMessage(String reference, Right right)
     {
         String verb = Right.EDIT.equals(right) ? "edit" : "view";
-        return "You do not have permission to " + verb + " " + OPEN_BRACKET + reference + CLOSE_BRACKET_DOT;
+        return "You do not have permission to " + verb + " " + QUOTE + reference + QUOTE + ".";
     }
 }

@@ -103,7 +103,7 @@ class DefaultMCPDocumentAccessTest
 
         MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
             () -> this.access.resolveAndAuthorize(REFERENCE, Right.EDIT));
-        assertEquals("You do not have permission to edit [Help.GettingStarted].", exception.getMessage());
+        assertEquals("You do not have permission to edit \"Help.GettingStarted\".", exception.getMessage());
         verify(this.authorization).hasAccess(Right.EDIT, this.target);
     }
 
@@ -115,7 +115,7 @@ class DefaultMCPDocumentAccessTest
 
         MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
             () -> this.access.resolveAndAuthorize(REFERENCE, Right.VIEW));
-        assertEquals("[Help.GettingStarted] is outside the spaces this MCP server is configured to expose.",
+        assertEquals("\"Help.GettingStarted\" is outside the content this MCP endpoint is configured to expose.",
             exception.getMessage());
     }
 
@@ -132,7 +132,7 @@ class DefaultMCPDocumentAccessTest
 
         MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
             () -> this.access.resolveAndAuthorize(foreignReference, Right.VIEW));
-        assertEquals("[other:Secret.Page] is in another wiki [other]; cross-wiki reach is not enabled for "
+        assertEquals("\"other:Secret.Page\" is in another wiki (\"other\"); cross-wiki reach is not enabled for "
             + "this endpoint.", exception.getMessage());
         verify(this.authorization, never()).hasAccess(Right.VIEW, foreignTarget);
         verify(this.spaceFilter, never()).isAllowed(foreignTarget);

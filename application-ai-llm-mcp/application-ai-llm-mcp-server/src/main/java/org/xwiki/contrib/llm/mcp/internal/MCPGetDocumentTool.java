@@ -181,6 +181,15 @@ public class MCPGetDocumentTool implements MCPTool
     private static final String VIEW_URL_FAILURE = "MCP get_document tool could not build the view URL";
 
     /**
+     * Hint appended to a sparse (0- or 1-heading) source outline: a script-driven page's source often carries
+     * no headings while its executed view does, so steer the agent to the rendered outline. Only appended when
+     * rendered content is allowed on this wiki, so the advice never dead-ends in the rendered-disabled refusal.
+     */
+    private static final String SPARSE_OUTLINE_HINT =
+        "Sparse outline; if this page is script-driven (macros/Velocity), try rendered=true, format=\"html\", "
+            + "outline=true for the executed view's outline.";
+
+    /**
      * Warning shown when a large document degrades to a heading outline instead of returning its content.
      */
     private static final String LARGE_DOC_OUTLINE_WARNING =
@@ -225,9 +234,9 @@ public class MCPGetDocumentTool implements MCPTool
     private static final MCPToolSupport PARAMS = params(true);
 
     /**
-     * The declared parameters advertised by a reach-off endpoint: the cross-wiki sentence is dropped from the
-     * {@code reference} description so no cross-wiki capability is surfaced. Used only to build the advertised
-     * schema, never for parsing.
+     * The declared parameters advertised by a reach-off endpoint: the cross-wiki sentence and the wiki-prefixed
+     * reference example are dropped from the {@code reference} description so no cross-wiki capability is
+     * surfaced. Used only to build the advertised schema, never for parsing.
      */
     private static final MCPToolSupport PARAMS_LOCAL = params(false);
 
@@ -405,16 +414,16 @@ public class MCPGetDocumentTool implements MCPTool
     private SheetManager sheetManager;
 
     /**
-     * Builds the declared parameter set, appending the cross-wiki sentence to the {@code reference} description
-     * only when cross-wiki reach is advertised.
+     * Builds the declared parameter set, using a wiki-prefixed reference example and the cross-wiki sentence in
+     * the {@code reference} description only when cross-wiki reach is advertised.
      *
      * @param crossWiki whether to advertise cross-wiki reach in the {@code reference} description
      * @return the declared parameter set
      */
     private static MCPToolSupport params(boolean crossWiki)
     {
-        String referenceDescription = "The document reference to read, e.g. \"Help.GettingStarted\" or "
-            + "\"xwiki:Sandbox.WebHome\".";
+        String referenceDescription = "The document reference to read, e.g. \"Help.GettingStarted\" or \""
+            + (crossWiki ? "xwiki:" : "") + "Sandbox.WebHome\".";
         if (crossWiki) {
             referenceDescription += " A wiki-id prefix reaches another wiki when this endpoint has cross-wiki "
                 + "reach (see list_wikis).";
@@ -1453,9 +1462,28 @@ public class MCPGetDocumentTool implements MCPTool
         }
         List<String> headings = MCPSourceText.collectHeadingLines(lines, totalLines, syntaxId);
         if (headings.isEmpty()) {
-            return "No headings found" + READ_WITH_RANGE_HINT;
+            return "No headings found" + READ_WITH_RANGE_HINT + sparseOutlineHint();
         }
-        return String.join(NEW_LINE, headings);
+        String outline = String.join(NEW_LINE, headings);
+        if (headings.size() == 1) {
+            outline += sparseOutlineHint();
+        }
+        return outline;
+    }
+
+    /**
+     * Builds the hint line appended to a sparse (0- or 1-heading) source outline, steering to the rendered
+     * outline. Empty when rendered content is disabled on this wiki (gated exactly like the provenance
+     * advice), so the hint never steers into the rendered-disabled refusal.
+     *
+     * @return the hint preceded by a newline, or an empty string when rendered content is disabled
+     */
+    private String sparseOutlineHint()
+    {
+        if (!this.mcpConfig.isRenderedContentAllowed(this.contextProvider.get().getWikiId())) {
+            return "";
+        }
+        return NEW_LINE + SPARSE_OUTLINE_HINT;
     }
 
     private String syntaxIdOf(Syntax syntax)

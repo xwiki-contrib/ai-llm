@@ -52,7 +52,7 @@ public class DefaultMCPWikiReach implements MCPWikiReach
     private static final String WIKI_ALL = "all";
 
     /** Shared prefix of the wiki-validation error messages. */
-    private static final String WIKI_PREFIX = "Wiki [";
+    private static final String WIKI_PREFIX = "Wiki \"";
 
     /** Shared tail of the wiki-validation error messages, pointing an agent at the reachable wiki list. */
     private static final String SEE_LIST_WIKIS = "Use list_wikis to see reachable wikis.";
@@ -95,13 +95,13 @@ public class DefaultMCPWikiReach implements MCPWikiReach
         }
         if (!isReachEnabled()) {
             throw new MCPAccessDeniedException("Cross-wiki search is not enabled for this endpoint. Omit the "
-                + "'wiki' parameter to search this wiki [" + current + "].");
+                + "'wiki' parameter to search this wiki (\"" + current + "\").");
         }
         if (WIKI_ALL.equalsIgnoreCase(wikiParam)) {
             return null;
         }
         if (!wikiExists(wikiParam)) {
-            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + "] does not exist. " + SEE_LIST_WIKIS);
+            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + "\" does not exist. " + SEE_LIST_WIKIS);
         }
         return List.of(wikiParam);
     }
@@ -120,7 +120,7 @@ public class DefaultMCPWikiReach implements MCPWikiReach
             this.logger.warn("Could not verify wiki [{}] for a cross-wiki search: [{}]", wikiParam,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("Wiki descriptor lookup failure for cross-wiki search on [{}]", wikiParam, e);
-            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + "] is not available for cross-wiki "
+            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + "\" is not available for cross-wiki "
                 + "search. " + SEE_LIST_WIKIS);
         }
     }

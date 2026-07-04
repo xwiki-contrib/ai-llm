@@ -230,8 +230,9 @@ public class MCPQueryDocumentsTool implements MCPTool
     private static final MCPToolSupport PARAMS = params(true);
 
     /**
-     * The declared parameters advertised by a reach-off endpoint: the {@code wiki} parameter is omitted so no
-     * cross-wiki capability is surfaced. Used only to build the advertised schema, never for parsing.
+     * The declared parameters advertised by a reach-off endpoint: the {@code wiki} parameter is omitted and the
+     * {@code author} description keeps only wiki-prefix-free examples, so no cross-wiki capability is surfaced.
+     * Used only to build the advertised schema, never for parsing.
      */
     private static final MCPToolSupport PARAMS_LOCAL = params(false);
 
@@ -262,8 +263,9 @@ public class MCPQueryDocumentsTool implements MCPTool
     private EntityReferenceSerializer<String> entityReferenceSerializer;
 
     /**
-     * Builds the declared parameter set, optionally including the cross-wiki {@code wiki} parameter, preserving
-     * the parameter order in the advertised schema.
+     * Builds the declared parameter set, only including the cross-wiki {@code wiki} parameter and the
+     * wiki-prefixed {@code author} example when cross-wiki reach is advertised, preserving the parameter order
+     * in the advertised schema.
      *
      * @param crossWiki whether to advertise the cross-wiki {@code wiki} parameter
      * @return the declared parameter set
@@ -280,8 +282,9 @@ public class MCPQueryDocumentsTool implements MCPTool
                 + "to have cross-wiki reach enabled; list_wikis shows what is reachable.")
             .string(SPACE_PARAM, "Optional local space reference (e.g. \"Help\" or \"Help.Guides\"). "
                 + "Restricts results to that space and all its children.")
-            .string(AUTHOR_PARAM, "Optional last author. A user name or reference - \"Admin\", "
-                + "\"XWiki.Admin\" and \"xwiki:XWiki.Admin\" all resolve to the same user.")
+            .string(AUTHOR_PARAM, "Optional last author. A user name or reference - \"Admin\""
+                + (crossWiki ? ", \"XWiki.Admin\" and \"xwiki:XWiki.Admin\" all" : " and \"XWiki.Admin\" both")
+                + " resolve to the same user.")
             .string(MODIFIED_WITHIN_PARAM, "Optional relative modification window. One of: day, week, "
                 + "month, year. Ignored if 'modifiedRange' is also provided.")
             .string(MODIFIED_RANGE_PARAM, "Advanced. A raw Solr date-range expression on the last-modified "

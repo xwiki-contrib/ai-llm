@@ -58,7 +58,13 @@
   #set ($discard = $configObject.set('enabled', 0))
 #end
 #set ($configClass = $xwiki.getDocument($configClassName).getxWikiClass())
-{{info}}$services.localization.render('AI.MCP.Code.security.notice'){{/info}}
+{{info}}
+$services.localization.render('AI.MCP.Code.security.notice')
+
+$services.localization.render('AI.MCP.Code.security.notice.reach')
+
+$services.localization.render('AI.MCP.Code.security.notice.filters')
+{{/info}}
 
 {{html clean="false"}}
   &lt;form id="mcp-server-config" method="post"
