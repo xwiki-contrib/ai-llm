@@ -19,6 +19,12 @@
  */
 package org.xwiki.contrib.llm.mcp.internal;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +36,7 @@ import org.xwiki.xml.html.HTMLCleaner;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,6 +49,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DefaultHTMLCleanerComponentList
 class MCPRenderedHtmlTest
 {
+    private static final String INTRO = "(intro)";
+
+    private static final Pattern TOKEN_COUNT = Pattern.compile("~(\\d+) tokens");
+
+    private static final Pattern ROW_MARKER = Pattern.compile("ROW-\\d\\d");
+
     @InjectComponentManager
     private MockitoComponentManager componentManager;
 
@@ -409,5 +422,230 @@ class MCPRenderedHtmlTest
         MCPRenderedHtml parsed = parse("<p>no headings here</p>");
 
         assertThrows(IllegalArgumentException.class, () -> parsed.sectionHtml("HNope"));
+    }
+
+    private static int tokenCount(String entry)
+    {
+        Matcher matcher = TOKEN_COUNT.matcher(entry);
+        assertTrue(matcher.find(), entry);
+        return Integer.parseInt(matcher.group(1));
+    }
+
+    private static Set<String> rowMarkers(String content)
+    {
+        Set<String> markers = new HashSet<>();
+        Matcher matcher = ROW_MARKER.matcher(content);
+        while (matcher.find()) {
+            markers.add(matcher.group());
+        }
+        return markers;
+    }
+
+    @Test
+    void chunkPartitionIsDeterministicAcrossParses()
+    {
+        StringBuilder html = new StringBuilder("<h2 id=\"HBig\">Big</h2>");
+        for (int i = 0; i < 10; i++) {
+            html.append("<p>paragraph").append(i).append(' ').append("word ".repeat(700)).append("</p>");
+        }
+
+        List<String> firstParse = parse(html.toString()).chunkMapEntries("HBig", 1);
+        List<String> secondParse = parse(html.toString()).chunkMapEntries("HBig", 1);
+
+        assertFalse(firstParse.isEmpty());
+        assertEquals(firstParse, secondParse);
+    }
+
+    @Test
+    void greedyPackingPacksConsecutiveParagraphsWithinChunkTarget()
+    {
+        // Ten paragraphs, each estimated at 3009 chars (3000 chars of text plus the <p> markup):
+        // greedy packing closes a run at five paragraphs (15045 chars), just under the 16000-char
+        // chunk target, so the ten paragraphs partition into exactly two chunks of five.
+        String para = "<p>" + "word ".repeat(600) + "</p>";
+        MCPRenderedHtml parsed = parse(para.repeat(10));
+
+        assertEquals(2, parsed.chunkCount(INTRO));
+        for (String entry : parsed.chunkMapEntries(INTRO, 1)) {
+            int tokens = tokenCount(entry);
+            assertTrue(tokens <= 4000, entry);
+            assertTrue(tokens > 3000, entry);
+        }
+    }
+
+    @Test
+    void oversizedTableDescendsIntoRowRunsWithoutLeakingAcrossChunkBoundaries()
+    {
+        StringBuilder html = new StringBuilder("<h2 id=\"HT\">T</h2><table>");
+        for (int i = 1; i <= 40; i++) {
+            html.append("<tr><td>").append(String.format("ROW-%02d ", i)).append("x".repeat(770))
+                .append("</td></tr>");
+        }
+        html.append("</table>");
+
+        MCPRenderedHtml parsed = parse(html.toString());
+        int chunkCount = parsed.chunkCount("HT");
+        // The heading forms its own small chunk, then the table (over the target as a whole) is
+        // descended into row runs spanning several chunks.
+        assertTrue(chunkCount >= 3, "chunks: " + chunkCount);
+
+        String secondChunk = parsed.chunkHtml("HT", 2);
+        String lastChunk = parse(html.toString()).chunkHtml("HT", chunkCount);
+        assertTrue(secondChunk.contains("ROW-01"), secondChunk.substring(0, 200));
+        assertFalse(secondChunk.contains("<table"), "Descended chunks hold row runs, not the whole table");
+        assertTrue(lastChunk.contains("ROW-40"), lastChunk.substring(0, 200));
+        Set<String> secondMarkers = rowMarkers(secondChunk);
+        Set<String> lastMarkers = rowMarkers(lastChunk);
+        assertFalse(secondMarkers.isEmpty());
+        assertFalse(lastMarkers.isEmpty());
+        secondMarkers.retainAll(lastMarkers);
+        assertTrue(secondMarkers.isEmpty(), "Rows must not leak across chunk boundaries: " + secondMarkers);
+    }
+
+    @Test
+    void siblingAfterOversizedDescendedTableResumesPackingAtItsOwnLevel()
+    {
+        // The table alone exceeds the chunk target, so packing descends into its row runs; the
+        // paragraph following the table must then open a fresh top-level chunk instead of being
+        // appended to the last row run.
+        StringBuilder html = new StringBuilder("<table>");
+        for (int i = 1; i <= 40; i++) {
+            html.append("<tr><td>").append(String.format("ROW-%02d ", i)).append("x".repeat(770))
+                .append("</td></tr>");
+        }
+        html.append("</table><p>AFTER</p>");
+
+        MCPRenderedHtml parsed = parse(html.toString());
+        int chunkCount = parsed.chunkCount(INTRO);
+        assertTrue(chunkCount >= 3, "chunks: " + chunkCount);
+        String lastEntry = parsed.chunkMapEntries(INTRO, 1).get(chunkCount - 1);
+        assertTrue(lastEntry.contains("\"AFTER\""), lastEntry);
+        String lastChunk = parsed.chunkHtml(INTRO, chunkCount);
+        assertTrue(lastChunk.contains("<p>AFTER</p>"), lastChunk);
+        assertFalse(lastChunk.contains("<tr"), "AFTER must not share a chunk with row runs: " + lastChunk);
+    }
+
+    @Test
+    void atomicOversizedNodeBecomesItsOwnChunk()
+    {
+        // A single childless <pre> far over the chunk target cannot be descended into: it becomes one
+        // oversized chunk (the atomic floor), left for the fetch path to cap.
+        MCPRenderedHtml parsed = parse("<pre>" + "y".repeat(30000) + "</pre>");
+
+        assertEquals(1, parsed.chunkCount(INTRO));
+        assertTrue(tokenCount(parsed.chunkMapEntries(INTRO, 1).get(0)) > 4000);
+        assertTrue(parsed.chunkHtml(INTRO, 1).contains("yyyy"));
+    }
+
+    @Test
+    void introParentChunksTheWholeBodyOfAHeadinglessDocument()
+    {
+        String html = "<p>P-ONE " + "a ".repeat(4500) + "</p><p>P-TWO " + "b ".repeat(4500)
+            + "</p><p>P-THREE " + "c ".repeat(4500) + "</p>";
+        MCPRenderedHtml parsed = parse(html);
+
+        assertFalse(parsed.hasHeadings());
+        assertEquals(3, parsed.chunkCount(INTRO));
+        assertEquals(INTRO, parsed.chunkParent("(intro/2)"));
+        assertEquals(2, parsed.chunkOrdinal("(intro/2)"));
+        String chunk = parsed.chunkHtml(INTRO, 2);
+        assertTrue(chunk.contains("P-TWO"), chunk.substring(0, 100));
+        assertFalse(chunk.contains("P-ONE"), "Chunk 2 must not contain chunk 1 content");
+        assertFalse(chunk.contains("P-THREE"), "Chunk 2 must not contain chunk 3 content");
+    }
+
+    @Test
+    void chunkAnchorParsingSplitsAtLastSlashAndResolvesParents()
+    {
+        MCPRenderedHtml parsed = parse("<h2 id=\"a/b\">Slashed</h2><p>body</p><h2>NoId</h2><p>x</p>");
+
+        // A heading id containing a slash still resolves as a plain section anchor (headings first).
+        assertTrue(parsed.hasSection("a/b"));
+        // The last-slash split keeps the full id as the parent.
+        assertEquals("a/b", parsed.chunkParent("a/b/2"));
+        assertEquals(2, parsed.chunkOrdinal("a/b/2"));
+        // A synthetic parent resolves in its bare and parenthesized spellings alike.
+        assertEquals("(h2)", parsed.chunkParent("(h2/1)"));
+        assertEquals("(h2)", parsed.chunkParent("((h2)/3)"));
+        // Map pages parse through the same grammar.
+        assertEquals("a/b", parsed.chunkParent("(a/b/map2)"));
+        assertEquals(2, parsed.chunkMapPage("(a/b/map2)"));
+        assertEquals(0, parsed.chunkOrdinal("(a/b/map2)"));
+    }
+
+    @Test
+    void malformedOrUnresolvableChunkAnchorsReturnNull()
+    {
+        MCPRenderedHtml parsed = parse("<h2 id=\"HA\">A</h2><p>body</p>");
+
+        assertNull(parsed.chunkParent("(HA/0)"), "Ordinals are 1-based");
+        assertNull(parsed.chunkParent("(HA/x1)"), "Non-digit ordinal");
+        assertNull(parsed.chunkParent("(HA/)"), "Empty ordinal");
+        assertNull(parsed.chunkParent("(HA/map0)"), "Map pages are 1-based");
+        assertNull(parsed.chunkParent("(HNope/1)"), "Unknown parent");
+        assertNull(parsed.chunkParent("HA"), "No slash");
+        // The intro parent only covers the whole body when the document has no headings at all.
+        assertNull(parsed.chunkParent("(intro/1)"));
+    }
+
+    @Test
+    void chunkTitleIsFirstEightWordsQuotedWithEllipsisWhenCut()
+    {
+        String cut = parse("<p>one two three four five six seven eight nine ten</p>")
+            .chunkMapEntries(INTRO, 1).get(0);
+        String whole = parse("<p>just three words</p>").chunkMapEntries(INTRO, 1).get(0);
+
+        assertTrue(cut.contains("\"one two three four five six seven eight...\""), cut);
+        assertFalse(cut.contains("nine"), cut);
+        assertTrue(whole.contains("\"just three words\""), whole);
+        assertFalse(whole.contains("..."), whole);
+    }
+
+    @Test
+    void blankTextChunkTitleFallsBackToFirstElementTag()
+    {
+        String entry = parse("<table><tr><td><img src=\"/x.png\" alt=\"\"/></td></tr></table>")
+            .chunkMapEntries(INTRO, 1).get(0);
+
+        assertTrue(entry.contains("[table]"), entry);
+        assertTrue(entry.contains("1 table"), entry);
+    }
+
+    @Test
+    void chunkMapPaginatesWholeEntriesAtTheOutputBudget()
+    {
+        // 200 paragraphs of ~15000 chars: one chunk each, and the ~29000 chars of entry lines split
+        // into two map pages at the output budget.
+        StringBuilder html = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            html.append("<p>").append("wordwordword ".repeat(1154)).append("</p>");
+        }
+        MCPRenderedHtml parsed = parse(html.toString());
+
+        assertEquals(200, parsed.chunkCount(INTRO));
+        int pages = parsed.chunkMapPageCount(INTRO);
+        assertTrue(pages >= 2, "pages: " + pages);
+        List<String> pageOne = parsed.chunkMapEntries(INTRO, 1);
+        assertTrue(pageOne.stream().mapToInt(entry -> entry.length() + 1).sum() <= MCPSourceText.MAX_OUTPUT_CHARS);
+        // Later pages continue the global chunk numbering where the previous page stopped.
+        assertEquals(pageOne.size() + 1, parsed.chunkMapPageStart(INTRO, 2));
+        assertTrue(parsed.chunkMapEntries(INTRO, 2).get(0).startsWith("#((intro)/" + (pageOne.size() + 1) + ")"));
+        int listed = 0;
+        for (int page = 1; page <= pages; page++) {
+            listed += parsed.chunkMapEntries(INTRO, page).size();
+        }
+        assertEquals(200, listed, "Every chunk must be listed on exactly one page");
+    }
+
+    @Test
+    void chunkHtmlIsTerminal()
+    {
+        MCPRenderedHtml chunkFirst = parse("<p>alpha beta</p>");
+        chunkFirst.chunkHtml(INTRO, 1);
+        assertThrows(IllegalStateException.class, chunkFirst::serialize);
+
+        MCPRenderedHtml serializeFirst = parse("<p>alpha beta</p>");
+        serializeFirst.serialize();
+        assertThrows(IllegalStateException.class, () -> serializeFirst.chunkHtml(INTRO, 1));
     }
 }

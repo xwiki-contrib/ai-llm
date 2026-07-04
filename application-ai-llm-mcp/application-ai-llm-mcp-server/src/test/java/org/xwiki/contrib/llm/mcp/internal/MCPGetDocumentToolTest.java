@@ -1122,18 +1122,24 @@ class MCPGetDocumentToolTest
     }
 
     @Test
-    void largeHeadinglessRenderedHtmlReturnsCappedHeadWithHonestFooter() throws Exception
+    void largeHeadinglessRenderedHtmlReturnsWholeBodyChunkMap() throws Exception
     {
-        stubRenderedHtml("<p>" + "lorem ".repeat(6000) + "</p>");
+        stubRenderedHtml("<p>ALPHA " + "lorem ".repeat(3000) + "</p><p>BETA " + "lorem ".repeat(3000)
+            + "</p><p>GAMMA " + "lorem ".repeat(3000) + "</p>");
 
         McpSchema.CallToolResult result =
             call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html"));
 
         assertNotEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
-        assertTrue(text.contains("lorem"), text);
-        assertTrue(text.contains("[Output truncated at the ~"), text);
-        assertTrue(text.contains("cannot be read by section"), text);
+        assertTrue(text.contains("Section \"#(intro)\" is ~"), text);
+        assertTrue(text.contains("CHUNK MAP, NOT its content"), text);
+        assertTrue(text.contains("section=\"#((intro)/K)\""), text);
+        assertTrue(text.contains("#((intro)/1): "), text);
+        assertTrue(text.contains("this map: version 3.1"), text);
+        assertFalse(text.contains("cannot be read by section"),
+            "The honest-footer capped head is replaced by the whole-body chunk map: " + text);
+        assertFalse(text.contains("     1\t"), "A chunk map must not carry numbered content: " + text);
         assertFalse(text.contains("continue with offset="),
             "The line-based continuation hint must not appear for rendered HTML: " + text);
     }
@@ -1212,20 +1218,161 @@ class MCPGetDocumentToolTest
     }
 
     @Test
-    void overBudgetSectionWithoutSubHeadingsEmitsCappedHead() throws Exception
+    void overBudgetLeafSectionReturnsChunkMapInsteadOfCappedHead() throws Exception
     {
-        stubRenderedHtml("<h1 id=\"HTop\">Top</h1><p>" + "lorem ".repeat(6000) + "</p>");
+        stubRenderedHtml("<h1 id=\"HTop\">Top</h1><p>PARA1 " + "lorem ".repeat(3000) + "</p><p>PARA2 "
+            + "lorem ".repeat(3000) + "</p>");
 
         McpSchema.CallToolResult result =
             call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#HTop"));
 
         assertNotEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
-        assertTrue(text.contains("lorem"), text);
+        assertTrue(text.contains("Section \"#HTop\" is ~"), text);
+        assertTrue(text.contains("over the ~6000-token budget"), text);
+        assertTrue(text.contains("CHUNK MAP, NOT its content"), text);
+        assertTrue(text.contains("read a chunk with section=\"#(HTop/K)\""), text);
+        assertTrue(text.contains("Chunks are positional and shift if the document is edited "
+            + "(this map: version 3.1)"), text);
+        assertTrue(text.contains("#(HTop/1): "), text);
+        assertTrue(text.contains("#(HTop/2): "), text);
+        assertFalse(text.contains("This section has no sub-headings"),
+            "The capped head survives only as the borderline and atomic-floor fallback: " + text);
+    }
+
+    private void stubOverBudgetLeafSection() throws Exception
+    {
+        stubRenderedHtml("<h1 id=\"HTop\">Top</h1><p>PARA1 " + "lorem ".repeat(2000) + "</p><p>PARA2 "
+            + "lorem ".repeat(2000) + "</p><p>PARA3 " + "lorem ".repeat(2000) + "</p>");
+    }
+
+    @Test
+    void chunkFetchReturnsOneChunkWithLocatingHeaderAndMapFooter() throws Exception
+    {
+        stubOverBudgetLeafSection();
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/2)"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Chunk: #(HTop/2) of section #HTop (chunk 2 of 3, section ~"), text);
+        assertTrue(text.contains("PARA2"), text);
+        assertFalse(text.contains("PARA1"), "Chunk 2 must not contain chunk 1 content: " + text);
+        assertFalse(text.contains("PARA3"), "Chunk 2 must not contain chunk 3 content: " + text);
+        assertTrue(text.contains("     1\t"), "Chunk body must stay cat -n shaped: " + text);
+        assertTrue(text.contains("Showing chunk 2 of 3"), text);
+        assertTrue(text.contains("section=\"#(HTop/map1)\""), text);
+    }
+
+    @Test
+    void outOfRangeChunkOrdinalReEmbedsMapPageOne() throws Exception
+    {
+        stubOverBudgetLeafSection();
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/9)"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("No chunk 9 in section \"#HTop\"; valid chunks: 1-3."), text);
+        assertTrue(text.contains("CHUNK MAP"), text);
+        assertTrue(text.contains("#(HTop/1): "), text);
+    }
+
+    @Test
+    void outOfRangeChunkOnUnderBudgetSectionGetsNeutralMapProse() throws Exception
+    {
+        // The re-embedded map of a within-budget section (e.g. a stale anchor after the section shrank)
+        // must not claim the section exceeds the budget; it offers the whole-section fetch instead.
+        stubRenderedHtml("<h1 id=\"HTop\">Top</h1><p>small body</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/5)"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("No chunk 5 in section \"#HTop\"; valid chunks: 1-1."), text);
+        assertTrue(text.contains("This is the CHUNK MAP of section \"#HTop\" (~"), text);
+        assertFalse(text.contains("over the ~6000-token budget"),
+            "An under-budget section's map must not claim it exceeds the budget: " + text);
+        assertTrue(text.contains("or the whole section (it fits the ~6000-token budget) with "
+            + "section=\"#HTop\""), text);
+    }
+
+    @Test
+    void mapPageAnchorReturnsTheChunkMap() throws Exception
+    {
+        stubOverBudgetLeafSection();
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/map1)"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("CHUNK MAP"), text);
+        assertTrue(text.contains("#(HTop/3): "), text);
+        // The estimated Size line is attributed to the section, exactly as on the auto map path.
+        assertTrue(text.contains("Section: #HTop (document total ~"), text);
+        assertFalse(text.contains("Chunk map truncated"),
+            "A single-page map must not claim truncation: " + text);
+    }
+
+    @Test
+    void outOfRangeMapPageReEmbedsMapPageOne() throws Exception
+    {
+        stubOverBudgetLeafSection();
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/map5)"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("No page 5 in the chunk map of section \"#HTop\"; valid map pages: 1-1."),
+            text);
+        assertTrue(text.contains("#(HTop/1): "), text);
+    }
+
+    @Test
+    void borderlineSectionWhoseSerializationOverflowsEmitsCappedHeadFallback() throws Exception
+    {
+        // The walk estimates the emoji at two UTF-16 units, but the serializer emits it as a ten-char
+        // numeric character reference: the section's estimate fits the budget while its serialized
+        // form exceeds it, exercising the capped-head fallback behind the chunk map.
+        stubRenderedHtml("<h1 id=\"HTop\">Top</h1><p>" + "😀".repeat(4000) + "</p>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#HTop"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
         assertTrue(text.contains("[Output truncated at the ~"), text);
-        assertTrue(text.contains("This section has no sub-headings"), text);
-        assertFalse(text.contains("cannot be read by section"),
-            "The headingless-document footer must not appear on a section read: " + text);
+        // Chunk anchors resolve on a fresh request even here (the partition is estimate-driven), so the
+        // footer steers to chunk 1 instead of claiming the section cannot be split.
+        assertTrue(text.contains("Read it in chunks with section=\"#(HTop/1)\""), text);
+        assertFalse(text.contains("cannot be split further"),
+            "The cannot-split claim is reserved for the atomic-floor chunk fetch");
+        assertFalse(text.contains("CHUNK MAP"), text);
+    }
+
+    @Test
+    void atomicFloorChunkFetchEmitsCappedHeadWithCannotSplitFooter() throws Exception
+    {
+        // A single childless <pre> far over the output cap partitions into one atomic-floor chunk;
+        // fetching it emits the capped head under the locating Chunk header, and here the static
+        // cannot-be-split-further footer is genuinely true.
+        stubRenderedHtml("<pre>ZZHEAD " + "x".repeat(30000) + " ZZTAIL</pre>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#((intro)/1)"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Chunk: #((intro)/1) of section #(intro) (chunk 1 of 1"), text);
+        assertTrue(text.contains("ZZHEAD"), text.substring(0, 400));
+        assertFalse(text.contains("ZZTAIL"), "The oversized atomic chunk must be capped at the budget");
+        assertTrue(text.contains("[Output truncated at the ~"), text.substring(text.length() - 400));
+        assertTrue(text.contains("cannot be split further"), text.substring(text.length() - 400));
     }
 
     @Test
@@ -1402,5 +1549,18 @@ class MCPGetDocumentToolTest
         assertTrue(manPage.contains("offset/limit do not apply"), manPage);
         assertTrue(manPage.contains("NOTES"), manPage);
         assertTrue(manPage.contains("xobjects"), manPage);
+    }
+
+    @Test
+    void manPageDocumentsChunkFetchWhileDescriptionStaysChunkFree()
+    {
+        String manPage = this.tool.getManPage();
+        assertTrue(manPage.contains("CHUNK MAP"), manPage);
+        assertTrue(manPage.contains("section=\"#((h3)/2)\""), manPage);
+        // Chunking is discoverable through the map responses; the always-paid tool description must
+        // not grow for it.
+        String description = this.tool.getToolDefinition().description();
+        assertFalse(description.contains("chunk"), description);
+        assertFalse(description.contains("Chunk"), description);
     }
 }

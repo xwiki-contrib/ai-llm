@@ -47,11 +47,14 @@ import org.xwiki.xml.html.HTMLUtils;
  * {@code rendered=true, format="html"} mode. {@link #parse(HTMLCleaner, String)} strips the rendered
  * HTML down to what carries meaning for an LLM reader and walks the resulting DOM once, in document
  * order, to index its heading sections; the instance then answers outline queries ({@link #outline()},
- * {@link #sectionOutline(String)}) and serializes either the whole document ({@link #serialize()}) or
- * one heading-addressed section ({@link #sectionHtml(String)}).
+ * {@link #sectionOutline(String)}) and chunk queries ({@link #chunkParent(String)},
+ * {@link #chunkMapEntries(String, int)}) and serializes either the whole document
+ * ({@link #serialize()}), one heading-addressed section ({@link #sectionHtml(String)}) or one chunk
+ * of a partitioned section ({@link #chunkHtml(String, int)}).
  *
- * <p>Serialization mutates the retained DOM, so {@link #serialize()} and {@link #sectionHtml(String)}
- * are terminal: at most one of them may be called, once, per instance.</p>
+ * <p>Serialization mutates the retained DOM, so {@link #serialize()}, {@link #sectionHtml(String)}
+ * and {@link #chunkHtml(String, int)} are terminal: at most one of them may be called, once, per
+ * instance.</p>
  *
  * <p>The allowlist rationale: attributes and class tokens that carry comprehension signal for an agent
  * survive (link and image targets, captions, table geometry, heading anchors, message-box semantics,
@@ -116,6 +119,35 @@ final class MCPRenderedHtml
      */
     private static final int CHARS_PER_TOKEN = MCPSourceText.CHARS_PER_TOKEN;
 
+    /**
+     * Target estimated character size of one chunk (~4000 tokens). Deliberately smaller than the
+     * ~6000-token output cap ({@link MCPSourceText#MAX_OUTPUT_CHARS}), so a fetched chunk plus its
+     * response header and footer always fits the budget and leaves the agent reasoning room.
+     */
+    private static final int CHUNK_TARGET_CHARS = 4000 * CHARS_PER_TOKEN;
+
+    /**
+     * Number of leading words of a chunk's text content used as its map-entry title.
+     */
+    private static final int CHUNK_TITLE_WORDS = 8;
+
+    /**
+     * Longest ordinal accepted in a chunk anchor, guarding the digit parse against integer overflow.
+     */
+    private static final int MAX_ORDINAL_DIGITS = 9;
+
+    /**
+     * The ordinal prefix distinguishing a chunk-map page anchor ({@code (parent/map2)}) from a chunk
+     * anchor ({@code (parent/2)}).
+     */
+    private static final String MAP_ORDINAL_PREFIX = "map";
+
+    /**
+     * The bare spelling of the intro pseudo-anchor, accepted as a chunk-anchor parent for the whole
+     * body of a headingless document.
+     */
+    private static final String BARE_INTRO = "intro";
+
     private static final String ID_ATTRIBUTE = "id";
 
     private static final String CLASS_ATTRIBUTE = "class";
@@ -129,6 +161,27 @@ final class MCPRenderedHtml
     private static final String NEW_LINE = "\n";
 
     private static final String SPACE = " ";
+
+    private static final String SLASH = "/";
+
+    private static final String OPEN_PAREN = "(";
+
+    private static final String CLOSE_PAREN = ")";
+
+    private static final String QUOTE = "\"";
+
+    private static final String ELLIPSIS = "...";
+
+    /**
+     * Separates an anchor from its title in outline lines and chunk-map entries.
+     */
+    private static final String TITLE_SEPARATOR = ": ";
+
+    /**
+     * Opens the trailing statistics parenthesis of outline lines and chunk-map entries; closed by
+     * {@link #CLOSE_PAREN}.
+     */
+    private static final String STATS_OPEN = "  (";
 
     /**
      * Two-space unit of outline indentation per heading level.
@@ -161,8 +214,21 @@ final class MCPRenderedHtml
     private final int approxChars;
 
     /**
-     * Whether a terminal call ({@link #serialize()} or {@link #sectionHtml(String)}) already consumed
-     * the retained document.
+     * Lazily computed chunk partitions, keyed by canonical parent anchor. A tool request touches a
+     * single parent, so the cache typically holds one entry; it exists so the count, map and fetch
+     * queries of one request share the partition.
+     */
+    private final Map<String, List<Chunk>> chunkPartitions = new HashMap<>();
+
+    /**
+     * Lazily computed chunk-map pages (the formatted entry lines, split at the output budget), keyed
+     * by canonical parent anchor.
+     */
+    private final Map<String, List<List<String>>> chunkMapPages = new HashMap<>();
+
+    /**
+     * Whether a terminal call ({@link #serialize()}, {@link #sectionHtml(String)} or
+     * {@link #chunkHtml(String, int)}) already consumed the retained document.
      */
     private boolean serialized;
 
@@ -252,6 +318,22 @@ final class MCPRenderedHtml
     }
 
     /**
+     * Returns the estimated serialized character count of one section (sub-sections included), or of
+     * the whole body for the whole-body intro parent of a headingless document.
+     *
+     * @param anchor the resolved section or chunk-parent anchor
+     * @return the estimated character count
+     */
+    int sectionApproxChars(String anchor)
+    {
+        int index = indexOf(anchor);
+        if (index >= 0) {
+            return this.sections.get(index).chars();
+        }
+        return this.approxChars;
+    }
+
+    /**
      * Builds the document's heading outline: one line per section, indented by heading level, with the
      * anchor, the heading text and the section's aggregate size statistics (sub-sections included).
      *
@@ -298,6 +380,158 @@ final class MCPRenderedHtml
     }
 
     /**
+     * Parses a normalized anchor as a chunk reference: {@code (parent/K)} addresses chunk {@code K}
+     * of the parent section and {@code (parent/mapP)} addresses page {@code P} of its chunk map. The
+     * outer synthetic parentheses are optional and the split happens at the last {@code /}, so a
+     * heading id containing {@code /} still resolves. The parent resolves like a section anchor, in
+     * its full or bare spelling ({@code (h3)} or {@code h3}); the intro parent additionally resolves
+     * to the whole body of a headingless document. Meant to be tried only after the whole anchor
+     * failed to match a heading, so a heading whose id looks like a chunk reference wins.
+     *
+     * @param anchor the normalized anchor
+     * @return the parsed request carrying the canonical parent anchor, or {@code null} when the
+     *         anchor is not chunk-shaped, its ordinal is not a positive integer or its parent is
+     *         unknown
+     */
+    private ChunkRequest parseChunkAnchor(String anchor)
+    {
+        String payload = anchor;
+        if (payload.startsWith(OPEN_PAREN) && payload.endsWith(CLOSE_PAREN)) {
+            payload = payload.substring(1, payload.length() - 1);
+        }
+        int slash = payload.lastIndexOf(SLASH);
+        if (slash <= 0 || slash == payload.length() - 1) {
+            return null;
+        }
+        String parent = resolveParentAnchor(payload.substring(0, slash));
+        if (parent == null) {
+            return null;
+        }
+        String ordinal = payload.substring(slash + 1);
+        if (ordinal.startsWith(MAP_ORDINAL_PREFIX)) {
+            int page = parsePositiveOrdinal(ordinal.substring(MAP_ORDINAL_PREFIX.length()));
+            return page > 0 ? new ChunkRequest(parent, 0, page) : null;
+        }
+        int index = parsePositiveOrdinal(ordinal);
+        return index > 0 ? new ChunkRequest(parent, index, 0) : null;
+    }
+
+    /**
+     * Resolves the canonical parent anchor of a chunk-shaped anchor: the flat companion of
+     * {@link #parseChunkAnchor(String)} for callers that avoid naming the parsed request type.
+     *
+     * @param anchor the normalized anchor
+     * @return the canonical parent anchor, or {@code null} when the anchor is not a resolvable chunk
+     *         reference
+     */
+    String chunkParent(String anchor)
+    {
+        ChunkRequest request = parseChunkAnchor(anchor);
+        return request == null ? null : request.parentAnchor();
+    }
+
+    /**
+     * @param anchor the normalized anchor
+     * @return the 1-based chunk ordinal of a chunk-fetch anchor, or 0 when the anchor is not a
+     *         resolvable chunk reference or addresses a map page
+     */
+    int chunkOrdinal(String anchor)
+    {
+        ChunkRequest request = parseChunkAnchor(anchor);
+        return request == null ? 0 : request.chunkIndex();
+    }
+
+    /**
+     * @param anchor the normalized anchor
+     * @return the 1-based map page of a chunk-map anchor, or 0 when the anchor is not a resolvable
+     *         chunk reference or addresses a chunk
+     */
+    int chunkMapPage(String anchor)
+    {
+        ChunkRequest request = parseChunkAnchor(anchor);
+        return request == null ? 0 : request.mapPage();
+    }
+
+    /**
+     * Formats the display form of a chunk anchor: {@code #(<parent>/<ordinal>)}.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @param ordinal the 1-based chunk ordinal, or a placeholder such as {@code K}
+     * @return the display anchor
+     */
+    static String chunkAnchorRef(String parentAnchor, String ordinal)
+    {
+        return HASH + OPEN_PAREN + parentAnchor + SLASH + ordinal + CLOSE_PAREN;
+    }
+
+    /**
+     * Formats the display form of a chunk-map page anchor: {@code #(<parent>/map<page>)}.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @param page the 1-based map page
+     * @return the display anchor
+     */
+    static String mapAnchorRef(String parentAnchor, int page)
+    {
+        return chunkAnchorRef(parentAnchor, MAP_ORDINAL_PREFIX + page);
+    }
+
+    /**
+     * @param parentAnchor the canonical parent anchor
+     * @return the number of chunks the parent's content partitions into
+     */
+    int chunkCount(String parentAnchor)
+    {
+        return chunksFor(parentAnchor).size();
+    }
+
+    /**
+     * @param parentAnchor the canonical parent anchor
+     * @return the number of pages of the parent's chunk map, at least 1
+     */
+    int chunkMapPageCount(String parentAnchor)
+    {
+        return pagesFor(parentAnchor).size();
+    }
+
+    /**
+     * Returns the 1-based ordinal of the first chunk listed on the given map page, so a paginated
+     * map can report which slice of the chunk list it shows.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @param page the 1-based map page, assumed within range
+     * @return the 1-based ordinal of the page's first chunk
+     */
+    int chunkMapPageStart(String parentAnchor, int page)
+    {
+        List<List<String>> pages = pagesFor(parentAnchor);
+        int start = 1;
+        for (int i = 0; i < page - 1 && i < pages.size(); i++) {
+            start += pages.get(i).size();
+        }
+        return start;
+    }
+
+    /**
+     * Returns the formatted chunk-map entry lines of one map page. Each entry carries the chunk's
+     * display anchor, a title made of the first {@value #CHUNK_TITLE_WORDS} words of its text (or the
+     * tag of its first element when it has no text) and its size statistics. Pages hold as many whole
+     * entries as fit the {@link MCPSourceText#MAX_OUTPUT_CHARS} output budget.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @param page the 1-based map page
+     * @return the entry lines of the page, empty when the page is out of range
+     */
+    List<String> chunkMapEntries(String parentAnchor, int page)
+    {
+        List<List<String>> pages = pagesFor(parentAnchor);
+        if (page < 1 || page > pages.size()) {
+            return List.of();
+        }
+        return pages.get(page - 1);
+    }
+
+    /**
      * Serializes the whole cleaned document without the html/head/body envelope. Terminal: mutates the
      * retained document.
      *
@@ -335,7 +569,50 @@ final class MCPRenderedHtml
         if (body == null || body.getFirstChild() == null) {
             return "";
         }
-        Range range = buildSectionRange(documentRange, body, index);
+        return extractRange(body, buildSectionRange(documentRange, body, index));
+    }
+
+    /**
+     * Serializes one chunk of a partitioned parent: the run of consecutive sibling subtrees the
+     * partition assigned to the given ordinal, extracted with the same DOM Range recipe as a section.
+     * Terminal: mutates the retained document.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @param index the 1-based chunk ordinal
+     * @return the stripped HTML fragment of the chunk, or {@code null} when the runtime DOM
+     *         implementation does not support ranges
+     * @throws IllegalStateException if a terminal call was already made on this instance
+     * @throws IllegalArgumentException if the ordinal is out of the partition's range
+     */
+    String chunkHtml(String parentAnchor, int index)
+    {
+        beginTerminal();
+        if (!(this.document instanceof DocumentRange documentRange)) {
+            return null;
+        }
+        List<Chunk> chunks = chunksFor(parentAnchor);
+        if (index < 1 || index > chunks.size()) {
+            throw new IllegalArgumentException(
+                "Chunk index [" + index + "] is out of range for section [" + parentAnchor + ']');
+        }
+        Chunk chunk = chunks.get(index - 1);
+        Node body = this.document.getElementsByTagName(BODY_TAG).item(0);
+        Range range = documentRange.createRange();
+        range.setStartBefore(chunk.first());
+        range.setEndAfter(chunk.last());
+        return extractRange(body, range);
+    }
+
+    /**
+     * Clones the range's contents, replaces the body's children with the clone and serializes the
+     * document: the shared tail of the terminal section and chunk extractions.
+     *
+     * @param body the body element
+     * @param range the range to extract
+     * @return the stripped HTML fragment
+     */
+    private String extractRange(Node body, Range range)
+    {
         DocumentFragment fragment = range.cloneContents();
         while (body.getFirstChild() != null) {
             body.removeChild(body.getFirstChild());
@@ -408,6 +685,338 @@ final class MCPRenderedHtml
         return null;
     }
 
+    /**
+     * Resolves a chunk-anchor parent to its canonical section anchor: an exact section anchor, the
+     * parenthesized form of a bare synthetic spelling ({@code h3} for {@code (h3)}), or the intro
+     * pseudo-anchor for the whole body of a headingless document.
+     *
+     * @param parent the parent portion of a chunk anchor
+     * @return the canonical parent anchor, or {@code null} when it resolves to nothing
+     */
+    private String resolveParentAnchor(String parent)
+    {
+        if (indexOf(parent) >= 0) {
+            return parent;
+        }
+        String wrapped = OPEN_PAREN + parent + CLOSE_PAREN;
+        if (indexOf(wrapped) >= 0) {
+            return wrapped;
+        }
+        if (!hasHeadings() && (BARE_INTRO.equals(parent) || INTRO_ANCHOR.equals(parent))) {
+            return INTRO_ANCHOR;
+        }
+        return null;
+    }
+
+    /**
+     * Parses a chunk-anchor ordinal: a non-empty all-digit string of at most
+     * {@value #MAX_ORDINAL_DIGITS} digits.
+     *
+     * @param value the ordinal portion of a chunk anchor
+     * @return the parsed value, or 0 when malformed (0 itself is thereby rejected too: ordinals are
+     *         1-based)
+     */
+    private static int parsePositiveOrdinal(String value)
+    {
+        if (value.isEmpty() || value.length() > MAX_ORDINAL_DIGITS
+            || !value.chars().allMatch(Character::isDigit)) {
+            return 0;
+        }
+        return Integer.parseInt(value);
+    }
+
+    private List<Chunk> chunksFor(String parentAnchor)
+    {
+        return this.chunkPartitions.computeIfAbsent(parentAnchor, this::partitionParent);
+    }
+
+    /**
+     * Partitions the parent's span into chunks: the span's maximal complete subtrees are packed
+     * greedily into runs of consecutive same-parent siblings within the chunk target, descending into
+     * a subtree that alone exceeds the target. Depends only on the cleaned DOM, so recomputation on a
+     * fresh parse of the same content yields the same partition.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @return the chunks, in document order
+     */
+    private List<Chunk> partitionParent(String parentAnchor)
+    {
+        Node body = this.document.getElementsByTagName(BODY_TAG).item(0);
+        if (body == null || body.getFirstChild() == null) {
+            return List.of();
+        }
+        List<Chunk> chunks = new ArrayList<>();
+        packRuns(spanSubtrees(body, parentAnchor), chunks);
+        return chunks;
+    }
+
+    /**
+     * Lists the maximal complete subtrees of the parent's span: a heading section spans its heading
+     * (inclusive) to the next same-or-higher heading (exclusive), the intro section spans the body
+     * start to the first heading, and the whole-body parent of a headingless document spans all of
+     * the body.
+     *
+     * @param body the body element
+     * @param parentAnchor the canonical parent anchor
+     * @return the span's subtree roots, in document order
+     */
+    private List<Node> spanSubtrees(Node body, String parentAnchor)
+    {
+        int index = indexOf(parentAnchor);
+        if (index < 0) {
+            return maximalSubtrees(body, body.getFirstChild(), null);
+        }
+        SectionInfo section = this.sections.get(index);
+        if (section.heading() == null) {
+            return maximalSubtrees(body, body.getFirstChild(), firstHeadingElement());
+        }
+        return maximalSubtrees(body, section.heading(), boundaryHeading(index));
+    }
+
+    /**
+     * Decomposes the span {@code [start, endBefore)} into its document-order sequence of maximal
+     * complete subtrees: the start node, its following siblings, then the following siblings of each
+     * ancestor up to the body, descending into any subtree that contains the boundary so the boundary
+     * itself is excluded - the classic range decomposition.
+     *
+     * @param body the body element bounding the climb
+     * @param start the first node of the span
+     * @param endBefore the node ending the span (exclusive), or {@code null} for the end of the body
+     * @return the subtree roots, in document order
+     */
+    private static List<Node> maximalSubtrees(Node body, Node start, Node endBefore)
+    {
+        List<Node> subtrees = new ArrayList<>();
+        Node node = start;
+        while (node != null && node != endBefore) {
+            if (endBefore != null && containsNode(node, endBefore)) {
+                node = node.getFirstChild();
+            } else {
+                subtrees.add(node);
+                node = nextSubtree(node, body);
+            }
+        }
+        return subtrees;
+    }
+
+    /**
+     * Advances to the next subtree root in document order: the node's next sibling, or the next
+     * sibling of the closest ancestor that has one, never climbing past the body.
+     *
+     * @param node the current subtree root
+     * @param body the body element bounding the climb
+     * @return the next subtree root, or {@code null} at the end of the body
+     */
+    private static Node nextSubtree(Node node, Node body)
+    {
+        Node current = node;
+        while (current != null && current != body && current.getNextSibling() == null) {
+            current = current.getParentNode();
+        }
+        if (current == null || current == body) {
+            return null;
+        }
+        return current.getNextSibling();
+    }
+
+    private static boolean containsNode(Node ancestor, Node node)
+    {
+        for (Node current = node; current != null; current = current.getParentNode()) {
+            if (current == ancestor) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Packs the subtrees into chunk runs: consecutive same-parent siblings accumulate until the chunk
+     * target, and a subtree alone over the target is descended into (or, when it has no element
+     * children, becomes its own oversized chunk - the atomic floor, emitted capped at fetch time).
+     *
+     * @param subtrees the subtree roots, in document order
+     * @param chunks the chunk accumulator
+     */
+    private static void packRuns(List<Node> subtrees, List<Chunk> chunks)
+    {
+        Run run = new Run();
+        for (Node node : subtrees) {
+            Segment stats = subtreeStats(node);
+            if (stats.chars > CHUNK_TARGET_CHARS) {
+                run.flush(chunks);
+                descendOrFloor(node, stats, chunks);
+            } else {
+                run.append(node, stats, chunks);
+            }
+        }
+        run.flush(chunks);
+    }
+
+    /**
+     * Handles a subtree that alone exceeds the chunk target: descends into its child nodes and packs
+     * them the same way (staying inside the subtree), or - when it has no element children to descend
+     * into - emits it as a single oversized chunk.
+     *
+     * @param node the oversized subtree root
+     * @param stats the subtree's statistics
+     * @param chunks the chunk accumulator
+     */
+    private static void descendOrFloor(Node node, Segment stats, List<Chunk> chunks)
+    {
+        if (!hasElementChildren(node)) {
+            chunks.add(new Chunk(node, node, stats.chars, stats.tables, stats.images, stats.errors));
+            return;
+        }
+        List<Node> children = new ArrayList<>();
+        for (Node child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
+            children.add(child);
+        }
+        packRuns(children, chunks);
+    }
+
+    private static boolean hasElementChildren(Node node)
+    {
+        for (Node child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child.getNodeType() == Node.ELEMENT_NODE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Segment subtreeStats(Node node)
+    {
+        Segment stats = new Segment(null, 0);
+        accumulateSubtree(node, stats);
+        return stats;
+    }
+
+    /**
+     * Accumulates a whole subtree's statistics, headings included as ordinary elements (unlike the
+     * section walk, which opens a new segment at each heading).
+     *
+     * @param node the subtree root
+     * @param stats the accumulator
+     */
+    private static void accumulateSubtree(Node node, Segment stats)
+    {
+        if (node.getNodeType() == Node.TEXT_NODE) {
+            accumulateText(stats, node.getNodeValue());
+            return;
+        }
+        if (node.getNodeType() != Node.ELEMENT_NODE) {
+            return;
+        }
+        accumulateElement(stats, (Element) node);
+        for (Node child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
+            accumulateSubtree(child, stats);
+        }
+    }
+
+    private List<List<String>> pagesFor(String parentAnchor)
+    {
+        return this.chunkMapPages.computeIfAbsent(parentAnchor, this::buildMapPages);
+    }
+
+    /**
+     * Formats all chunk-map entries of the parent and splits them into pages holding as many whole
+     * entries as fit the output budget, so a map page can never overflow a response.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @return the pages, each a list of entry lines; a single (possibly empty) page at minimum
+     */
+    private List<List<String>> buildMapPages(String parentAnchor)
+    {
+        List<Chunk> chunks = chunksFor(parentAnchor);
+        List<List<String>> pages = new ArrayList<>();
+        List<String> page = new ArrayList<>();
+        int pageChars = 0;
+        for (int i = 0; i < chunks.size(); i++) {
+            String entry = mapEntry(parentAnchor, i + 1, chunks.get(i));
+            if (!page.isEmpty() && pageChars + entry.length() + 1 > MCPSourceText.MAX_OUTPUT_CHARS) {
+                pages.add(page);
+                page = new ArrayList<>();
+                pageChars = 0;
+            }
+            page.add(entry);
+            pageChars += entry.length() + 1;
+        }
+        pages.add(page);
+        return pages;
+    }
+
+    /**
+     * Formats one chunk-map entry: the chunk's display anchor, its quoted title and its statistics in
+     * the outline's format.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @param index the 1-based chunk ordinal
+     * @param chunk the chunk
+     * @return the formatted entry line
+     */
+    private static String mapEntry(String parentAnchor, int index, Chunk chunk)
+    {
+        return chunkAnchorRef(parentAnchor, String.valueOf(index)) + TITLE_SEPARATOR + chunkTitle(chunk)
+            + STATS_OPEN + formatStats(chunk.chars(), chunk.tables(), chunk.images(), chunk.errors())
+            + CLOSE_PAREN;
+    }
+
+    /**
+     * Builds a chunk's map-entry title: the first {@value #CHUNK_TITLE_WORDS} words of its collapsed
+     * text content, quoted, with an ellipsis when cut; a chunk with no text falls back to the tag of
+     * its first element in brackets.
+     *
+     * @param chunk the chunk
+     * @return the title
+     */
+    private static String chunkTitle(Chunk chunk)
+    {
+        String text = WHITESPACE_RUN.matcher(chunkText(chunk)).replaceAll(SPACE).trim();
+        if (text.isEmpty()) {
+            return fallbackTitle(chunk);
+        }
+        String[] words = text.split(SPACE);
+        if (words.length <= CHUNK_TITLE_WORDS) {
+            return QUOTE + text + QUOTE;
+        }
+        return QUOTE + String.join(SPACE, Arrays.asList(words).subList(0, CHUNK_TITLE_WORDS)) + ELLIPSIS
+            + QUOTE;
+    }
+
+    private static String chunkText(Chunk chunk)
+    {
+        StringBuilder text = new StringBuilder();
+        for (Node node = chunk.first(); node != null; node = node.getNextSibling()) {
+            text.append(node.getTextContent()).append(' ');
+            if (node == chunk.last()) {
+                break;
+            }
+        }
+        return text.toString();
+    }
+
+    /**
+     * Names a text-less chunk by its first element's tag ({@code [table]}), or by the first node's
+     * node name when the run holds no element at all.
+     *
+     * @param chunk the chunk
+     * @return the bracketed fallback title
+     */
+    private static String fallbackTitle(Chunk chunk)
+    {
+        String name = chunk.first().getNodeName().toLowerCase(Locale.ROOT);
+        for (Node node = chunk.first(); node != null; node = node.getNextSibling()) {
+            if (node.getNodeType() == Node.ELEMENT_NODE) {
+                name = tagName((Element) node);
+                break;
+            }
+            if (node == chunk.last()) {
+                break;
+            }
+        }
+        return "[" + name + "]";
+    }
+
     private int indexOf(String anchor)
     {
         for (int i = 0; i < this.sections.size(); i++) {
@@ -448,27 +1057,32 @@ final class MCPRenderedHtml
      */
     private static String outlineLine(SectionInfo section)
     {
-        String statsSuffix = "  (" + stats(section) + ")";
+        String statsSuffix = STATS_OPEN
+            + formatStats(section.chars(), section.tables(), section.images(), section.errors()) + CLOSE_PAREN;
         if (section.heading() == null) {
             return HASH + INTRO_ANCHOR + statsSuffix;
         }
-        return OUTLINE_INDENT.repeat(section.level() - 1) + HASH + section.anchor() + ": " + section.title()
-            + statsSuffix;
+        return OUTLINE_INDENT.repeat(section.level() - 1) + HASH + section.anchor() + TITLE_SEPARATOR
+            + section.title() + statsSuffix;
     }
 
     /**
-     * Formats a section's aggregate statistics: the approximate token count always, then the table, image
-     * and rendering-error counts only when non-zero.
+     * Formats aggregate content statistics: the approximate token count always, then the table, image
+     * and rendering-error counts only when non-zero. Shared by the outline lines and the chunk-map
+     * entries so all sizes read the same.
      *
-     * @param section the section
+     * @param chars the estimated serialized character count
+     * @param tables the number of tables
+     * @param images the number of images
+     * @param errors the number of rendering-error message blocks
      * @return the formatted statistics
      */
-    private static String stats(SectionInfo section)
+    private static String formatStats(int chars, int tables, int images, int errors)
     {
-        StringBuilder stats = new StringBuilder("~").append(section.chars() / CHARS_PER_TOKEN).append(" tokens");
-        appendCount(stats, section.tables(), TABLE_TAG);
-        appendCount(stats, section.images(), "image");
-        appendCount(stats, section.errors(), "rendering error");
+        StringBuilder stats = new StringBuilder("~").append(chars / CHARS_PER_TOKEN).append(" tokens");
+        appendCount(stats, tables, TABLE_TAG);
+        appendCount(stats, images, "image");
+        appendCount(stats, errors, "rendering error");
         return stats.toString();
     }
 
@@ -755,6 +1369,91 @@ final class MCPRenderedHtml
         {
             this.heading = heading;
             this.level = level;
+        }
+    }
+
+    /**
+     * A parsed chunk-anchor request: either one chunk ({@code chunkIndex >= 1}) or one chunk-map page
+     * ({@code mapPage >= 1}) of the resolved parent.
+     *
+     * @param parentAnchor the canonical parent anchor, as accepted by the chunk queries
+     * @param chunkIndex the 1-based chunk ordinal, or 0 for a map-page request
+     * @param mapPage the 1-based map page, or 0 for a chunk request
+     * @version $Id$
+     */
+    private record ChunkRequest(String parentAnchor, int chunkIndex, int mapPage)
+    {
+    }
+
+    /**
+     * One computed chunk: a run of consecutive sibling subtrees, addressed positionally, plus its
+     * aggregate statistics.
+     *
+     * @param first the first node of the run
+     * @param last the last node of the run (a following sibling of {@code first}, or {@code first}
+     *            itself)
+     * @param chars the estimated serialized character count
+     * @param tables the number of tables
+     * @param images the number of images
+     * @param errors the number of rendering-error message blocks
+     * @version $Id$
+     */
+    private record Chunk(Node first, Node last, int chars, int tables, int images, int errors)
+    {
+    }
+
+    /**
+     * Mutable accumulator for one chunk run being packed: the first and last node of the run and its
+     * aggregate statistics.
+     *
+     * @version $Id$
+     */
+    private static final class Run
+    {
+        private Node first;
+
+        private Node last;
+
+        private Segment stats = new Segment(null, 0);
+
+        /**
+         * Appends a subtree to the run, first flushing the run when the subtree starts under a new
+         * parent or would overflow the chunk target.
+         *
+         * @param node the subtree root
+         * @param nodeStats the subtree's statistics
+         * @param chunks the chunk accumulator
+         */
+        void append(Node node, Segment nodeStats, List<Chunk> chunks)
+        {
+            if (this.first != null && (node.getParentNode() != this.last.getParentNode()
+                || this.stats.chars + nodeStats.chars > CHUNK_TARGET_CHARS)) {
+                flush(chunks);
+            }
+            if (this.first == null) {
+                this.first = node;
+            }
+            this.last = node;
+            this.stats.chars += nodeStats.chars;
+            this.stats.tables += nodeStats.tables;
+            this.stats.images += nodeStats.images;
+            this.stats.errors += nodeStats.errors;
+        }
+
+        /**
+         * Closes the run into a chunk, when non-empty, and resets the accumulator.
+         *
+         * @param chunks the chunk accumulator
+         */
+        void flush(List<Chunk> chunks)
+        {
+            if (this.first != null) {
+                chunks.add(new Chunk(this.first, this.last, this.stats.chars, this.stats.tables,
+                    this.stats.images, this.stats.errors));
+            }
+            this.first = null;
+            this.last = null;
+            this.stats = new Segment(null, 0);
         }
     }
 }

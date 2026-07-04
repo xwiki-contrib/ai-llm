@@ -42,6 +42,19 @@ final class MCPSourceText
      */
     static final int CHARS_PER_TOKEN = 4;
 
+    /**
+     * Approximate token budget for a single tool response, quoted in agent-facing text; the enforced
+     * limit is its character equivalent {@link #MAX_OUTPUT_CHARS}. Shared between the read tool's
+     * emission caps and the rendered-HTML chunk-map page capacity so both use the same budget.
+     */
+    static final int MAX_OUTPUT_TOKENS = 6000;
+
+    /**
+     * Character equivalent of {@link #MAX_OUTPUT_TOKENS}: the enforced cap on the content emitted in
+     * a single tool response.
+     */
+    static final int MAX_OUTPUT_CHARS = CHARS_PER_TOKEN * MAX_OUTPUT_TOKENS;
+
     private static final String LF = "\n";
 
     private static final String XWIKI_SYNTAX_PREFIX = "xwiki/";

@@ -22,7 +22,6 @@ package org.xwiki.contrib.llm.mcp.internal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -59,6 +58,14 @@ import io.modelcontextprotocol.spec.McpSchema;
  * <p>The content returned is the document's raw, unrendered source with line endings normalized to LF,
  * so that an agent can later match the exact source it read when forming edits.</p>
  *
+ * <p>Rendered modes complement the source read: {@code rendered=true} returns the executed view as
+ * plain text, and adding {@code format="html"} keeps its structure (tables, links, message boxes) as
+ * presentation-stripped HTML. Rendered HTML is not line-addressable, so large documents follow an
+ * outline-then-section workflow instead: {@code outline=true} maps the heading anchors with
+ * per-section sizes, and {@code section="#H..."} fetches one section. An over-budget section with no
+ * sub-headings degrades to a chunk map whose positional anchors ({@code section="#(H.../2)"}) fetch
+ * deterministic, budget-sized chunks of its content.</p>
+ *
  * <p>Resolution and authorization both go through {@link MCPDocumentAccess#resolveAndAuthorize(String,
  * Right)} for {@link Right#VIEW} before the document is loaded, so the per-wiki space filter is applied
  * and the existence of a protected document is never leaked.</p>
@@ -83,9 +90,10 @@ public class MCPGetDocumentTool implements MCPTool
 
     /**
      * Approximate token budget for a single response, quoted in agent-facing text; the enforced limit
-     * is its character equivalent {@link #MAX_OUTPUT_CHARS}.
+     * is its character equivalent {@link #MAX_OUTPUT_CHARS}. Homed in {@link MCPSourceText} so the
+     * rendered-HTML chunk-map pages share the same budget.
      */
-    private static final int MAX_OUTPUT_TOKENS = 6000;
+    private static final int MAX_OUTPUT_TOKENS = MCPSourceText.MAX_OUTPUT_TOKENS;
 
     /**
      * Cap on the source emitted in a single response. Documents at most this size are returned in full
@@ -93,7 +101,7 @@ public class MCPGetDocumentTool implements MCPTool
      * whose output is capped to the same budget. One larger read is cheaper for an agent than several
      * round trips, but an unbounded one could still flood the context window.
      */
-    private static final int MAX_OUTPUT_CHARS = CHARS_PER_TOKEN * MAX_OUTPUT_TOKENS;
+    private static final int MAX_OUTPUT_CHARS = MCPSourceText.MAX_OUTPUT_CHARS;
 
     private static final String REFERENCE_PARAM = "reference";
 
@@ -126,6 +134,33 @@ public class MCPGetDocumentTool implements MCPTool
     private static final String QUOTE = "\"";
 
     private static final String PERIOD = ".";
+
+    private static final String DASH = "-";
+
+    /**
+     * The unit suffix of the token counts in the Size header lines.
+     */
+    private static final String TOKENS_UNIT = " tokens";
+
+    /**
+     * Separates the character and token counts in the Size header lines.
+     */
+    private static final String CHARS_TOKENS_INFIX = " chars · ~";
+
+    /**
+     * Closes the parenthesized token count of the Section and Chunk header lines.
+     */
+    private static final String TOKENS_CLOSE = " tokens)";
+
+    /**
+     * Closes the {@code section="..."} argument renderings embedded in chunk-map prose.
+     */
+    private static final String SECTION_ARG_CLOSE = QUOTE + PERIOD;
+
+    /**
+     * Opens the {@code section="..."} argument renderings embedded in chunk-map prose.
+     */
+    private static final String SECTION_ARG_OPEN = "section=\"";
 
     private static final String WEBHOME = "WebHome";
 
@@ -243,28 +278,50 @@ public class MCPGetDocumentTool implements MCPTool
     private static final String NO_HTML_HEADINGS = "No headings found in the rendered HTML.";
 
     /**
-     * Shared head of the two capped-emission footers below.
+     * The canonical chunk-parent anchor of a headingless document's whole body: the intro
+     * pseudo-anchor, extended to cover everything when there is no heading to bound it.
+     */
+    private static final String WHOLE_BODY_PARENT = "(intro)";
+
+    /**
+     * Shared infix of the out-of-range chunk and map-page errors, introducing the valid range.
+     */
+    private static final String VALID_INFIX = "\"; valid ";
+
+    /**
+     * Shared tail of the out-of-range chunk and map-page errors, introducing the re-embedded map
+     * (page 1) that lets a stale anchor self-correct in one round trip.
+     */
+    private static final String CURRENT_MAP_PREFIX = " Current chunk map:\n";
+
+    /**
+     * Shared head of the capped-emission footers.
      */
     private static final String TRUNCATION_PREFIX = "[Output truncated at the ~" + MAX_OUTPUT_TOKENS
         + "-token cap. ";
 
     /**
-     * Shared tail of the two capped-emission footers below.
+     * Shared tail of the capped-emission footers.
      */
     private static final String TRUNCATION_TAIL =
         "; use rendered=true without format for plain text, or read the raw source.]";
 
     /**
-     * Footer of a capped rendered-HTML emission that has no heading anchors to degrade to.
-     */
-    private static final String HTML_HEAD_TRUNCATION_FOOTER = TRUNCATION_PREFIX
-        + "This rendered HTML has no headings, so it cannot be read by section" + TRUNCATION_TAIL;
-
-    /**
-     * Footer of a capped emission of an over-budget section that has no sub-headings to degrade to.
+     * Footer of a capped emission of an atomic-floor chunk: a single indivisible subtree over the
+     * output cap, which genuinely cannot be split further.
      */
     private static final String SECTION_TRUNCATION_FOOTER = TRUNCATION_PREFIX
         + "This section has no sub-headings, so it cannot be split further" + TRUNCATION_TAIL;
+
+    /**
+     * What a chunk-map response body is, named in its opening prose.
+     */
+    private static final String CHUNK_MAP_KIND = "CHUNK MAP";
+
+    /**
+     * Shared infix of the map-intro sentences: what the response is not, and how to read on.
+     */
+    private static final String NOT_CONTENT_INFIX = ", NOT its content; read a ";
 
     /**
      * Error returned when the runtime DOM implementation does not support the range extraction a
@@ -433,6 +490,9 @@ public class MCPGetDocumentTool implements MCPTool
                             section="#HHeadings"
                             (one section by its anchor, from the outline; offset/limit do not apply
                             to format="html")
+                HTML chunk: an over-budget section with no sub-headings returns a CHUNK MAP (not
+                            content); fetch one chunk with section="#((h3)/2)". Chunk anchors are
+                            positional: re-read the map after the document is edited.
 
             NOTES
                 A page whose body source is empty may still display content: a sheet or the page's
@@ -732,9 +792,12 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     /**
-     * Renders the rendered-HTML mode's three exclusive paths, each serializing the parsed document at
-     * most once: a section fetch, an explicit outline, or a full read that auto-degrades to the DOM
-     * outline (or a capped head for a headingless document) when over budget.
+     * Renders the rendered-HTML mode's exclusive paths, each serializing the parsed document at most
+     * once: a section (or chunk) fetch, an explicit outline, or a full read. A full read whose
+     * estimated size exceeds the budget degrades without serializing: to the DOM outline when the
+     * document has headings, or to the whole-body chunk map when it has none. A borderline document
+     * (estimate within budget, serialized form over it) falls back to the capped head with a
+     * chunk-steering footer, or to the outline when headings exist.
      *
      * @param doc the loaded document, for the header
      * @param title the rendered title
@@ -749,21 +812,65 @@ public class MCPGetDocumentTool implements MCPTool
         if (sectionAnchor != null) {
             return renderHtmlSection(doc, title, parsed, sectionAnchor);
         }
-        String content = parsed.serialize();
-        if (!outline && content.length() <= MAX_OUTPUT_CHARS) {
-            return render(doc, title, content, Syntax.HTML_5_0, null, null, false);
-        }
-        String header = composeHeader(doc, title, content, Syntax.HTML_5_0, null);
         if (outline) {
+            String content = parsed.serialize();
+            String header = composeHeader(doc, title, content, Syntax.HTML_5_0, null);
             String body = parsed.hasHeadings() ? parsed.outline() : NO_HTML_HEADINGS;
             return MCPToolSupport.result(header + DOUBLE_NEW_LINE + body);
         }
+        if (parsed.approxChars() > MAX_OUTPUT_CHARS) {
+            return renderHtmlOverBudgetFullRead(doc, title, parsed);
+        }
+        String content = parsed.serialize();
+        if (content.length() <= MAX_OUTPUT_CHARS) {
+            return render(doc, title, content, Syntax.HTML_5_0, null, null, false);
+        }
+        return renderHtmlBorderlineOverflow(doc, title, parsed, content);
+    }
+
+    /**
+     * Builds the full-read response of the borderline case where the estimate fit the budget but the
+     * serialized form does not: the DOM outline when headings exist, otherwise the capped head with a
+     * footer steering to the whole-body chunk anchors.
+     *
+     * @param doc the loaded document, for the header
+     * @param title the rendered title
+     * @param parsed the parsed rendered HTML
+     * @param content the serialized content, longer than the output cap
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult renderHtmlBorderlineOverflow(DocumentModelBridge doc, String title,
+        MCPRenderedHtml parsed, String content)
+    {
+        String header = composeHeader(doc, title, content, Syntax.HTML_5_0, null);
         if (parsed.hasHeadings()) {
             return MCPToolSupport.result(
                 header + DOUBLE_NEW_LINE + LARGE_HTML_OUTLINE_WARNING + NEW_LINE + parsed.outline());
         }
         return MCPToolSupport.result(header + DOUBLE_NEW_LINE + cappedHead(content) + NEW_LINE
-            + HTML_HEAD_TRUNCATION_FOOTER);
+            + chunkSteeringFooter(WHOLE_BODY_PARENT));
+    }
+
+    /**
+     * Builds the full-read response of a rendered-HTML document whose estimated size exceeds the
+     * budget, without serializing it: the DOM outline when it has headings, otherwise the chunk map of
+     * its whole body under the intro pseudo-anchor.
+     *
+     * @param doc the loaded document, for the header
+     * @param title the rendered title
+     * @param parsed the parsed rendered HTML
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult renderHtmlOverBudgetFullRead(DocumentModelBridge doc, String title,
+        MCPRenderedHtml parsed)
+    {
+        String header = composeEstimatedHeader(doc, title, parsed.approxChars(), null);
+        if (parsed.hasHeadings()) {
+            return MCPToolSupport.result(
+                header + DOUBLE_NEW_LINE + LARGE_HTML_OUTLINE_WARNING + NEW_LINE + parsed.outline());
+        }
+        return MCPToolSupport.result(
+            header + DOUBLE_NEW_LINE + chunkMapBody(doc, parsed, WHOLE_BODY_PARENT, 1));
     }
 
     /**
@@ -785,10 +892,12 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     /**
-     * Renders one heading-addressed section of the parsed rendered HTML: an unknown anchor gets an error
-     * embedding the available outline (so a stale anchor self-corrects in one round trip), a within-budget
-     * section is emitted numbered, and an over-budget section degrades to its sub-outline (or a capped
-     * head when it has no sub-headings).
+     * Renders one heading-addressed section of the parsed rendered HTML: an anchor that matches no
+     * heading is retried as a chunk anchor, and only then rejected with an error embedding the
+     * available outline (so a stale anchor self-corrects in one round trip). A section whose estimated
+     * size exceeds the budget degrades without serializing, to its sub-outline or its chunk map; a
+     * within-budget section is emitted numbered, falling back to a capped head with a chunk-steering
+     * footer in the borderline case where the estimate fit but the serialized form does not.
      *
      * @param doc the loaded document, for the header
      * @param title the rendered title
@@ -800,22 +909,237 @@ public class MCPGetDocumentTool implements MCPTool
         MCPRenderedHtml parsed, String anchor)
     {
         if (!parsed.hasSection(anchor)) {
-            return MCPToolSupport.errorResult(unknownSectionMessage(parsed, anchor));
+            return renderChunkOrUnknownAnchor(doc, title, parsed, anchor);
+        }
+        if (parsed.sectionApproxChars(anchor) > MAX_OUTPUT_CHARS) {
+            return renderHtmlOverBudgetSection(doc, title, parsed, anchor);
         }
         String content = parsed.sectionHtml(anchor);
         if (content == null) {
             return MCPToolSupport.errorResult(SECTION_EXTRACTION_UNAVAILABLE);
         }
-        String sectionLine = "Section: #" + anchor + " (document total ~"
-            + parsed.approxChars() / CHARS_PER_TOKEN + " tokens)";
-        String header = composeHeader(doc, title, content, Syntax.HTML_5_0, sectionLine);
+        String header = composeHeader(doc, title, content, Syntax.HTML_5_0, sectionHeaderLine(parsed, anchor));
         if (content.length() > MAX_OUTPUT_CHARS) {
-            return MCPToolSupport.result(header + DOUBLE_NEW_LINE + overBudgetSectionBody(parsed, anchor, content));
+            return MCPToolSupport.result(header + DOUBLE_NEW_LINE + cappedHead(content) + NEW_LINE
+                + chunkSteeringFooter(anchor));
         }
         String[] lines = content.split(NEW_LINE, -1);
         String body = numberedBody(lines, 1, content.isEmpty() ? 0 : lines.length);
         String footer = "Showing section \"#" + anchor + "\". Use outline=true for the full section map.";
         return MCPToolSupport.result(header + DOUBLE_NEW_LINE + body + NEW_LINE + footer);
+    }
+
+    /**
+     * Builds the response of a section whose estimated size exceeds the budget, without serializing
+     * it: its sub-outline when it has sub-headings, otherwise its chunk map.
+     *
+     * @param doc the loaded document, for the header
+     * @param title the rendered title
+     * @param parsed the parsed rendered HTML
+     * @param anchor the normalized section anchor
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult renderHtmlOverBudgetSection(DocumentModelBridge doc, String title,
+        MCPRenderedHtml parsed, String anchor)
+    {
+        String header = composeEstimatedHeader(doc, title, parsed.sectionApproxChars(anchor),
+            sectionHeaderLine(parsed, anchor));
+        String subOutline = parsed.sectionOutline(anchor);
+        if (StringUtils.isNotBlank(subOutline)) {
+            String body = overBudgetIntro(anchor, parsed.sectionApproxChars(anchor), "sub-outline",
+                "sub-section with section=\"#H...\"") + NEW_LINE + subOutline;
+            return MCPToolSupport.result(header + DOUBLE_NEW_LINE + body);
+        }
+        return MCPToolSupport.result(header + DOUBLE_NEW_LINE + chunkMapBody(doc, parsed, anchor, 1));
+    }
+
+    /**
+     * Retries an anchor that matched no heading as a chunk anchor, falling back to the unknown-anchor
+     * error (embedding the available outline) when it does not parse as one either.
+     *
+     * @param doc the loaded document, for the header
+     * @param title the rendered title
+     * @param parsed the parsed rendered HTML
+     * @param anchor the normalized anchor that matched no heading
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult renderChunkOrUnknownAnchor(DocumentModelBridge doc, String title,
+        MCPRenderedHtml parsed, String anchor)
+    {
+        String parent = parsed.chunkParent(anchor);
+        if (parent == null) {
+            return MCPToolSupport.errorResult(unknownSectionMessage(parsed, anchor));
+        }
+        int mapPage = parsed.chunkMapPage(anchor);
+        if (mapPage > 0) {
+            return renderChunkMapPage(doc, title, parsed, parent, mapPage);
+        }
+        return renderHtmlChunk(doc, title, parsed, parent, parsed.chunkOrdinal(anchor));
+    }
+
+    /**
+     * Renders a chunk fetch: an out-of-range chunk ordinal gets an error re-embedding map page 1 (so
+     * a stale anchor self-corrects in one round trip), and a valid ordinal fetches the chunk's
+     * content, numbered, with a header line locating it in the partition and a footer pointing back
+     * at the map. A chunk over the output cap (the atomic floor of the partitioning) is emitted as a
+     * capped head with the static cannot-split-further footer.
+     *
+     * @param doc the loaded document, for the header
+     * @param title the rendered title
+     * @param parsed the parsed rendered HTML
+     * @param parent the canonical parent anchor
+     * @param index the requested 1-based chunk ordinal
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult renderHtmlChunk(DocumentModelBridge doc, String title,
+        MCPRenderedHtml parsed, String parent, int index)
+    {
+        int total = parsed.chunkCount(parent);
+        if (index > total) {
+            return MCPToolSupport.errorResult("No chunk " + index + " in section \"#" + parent + VALID_INFIX
+                + "chunks: 1-" + total + PERIOD + CURRENT_MAP_PREFIX + chunkMapBody(doc, parsed, parent, 1));
+        }
+        int sectionTokens = parsed.sectionApproxChars(parent) / CHARS_PER_TOKEN;
+        String content = parsed.chunkHtml(parent, index);
+        if (content == null) {
+            return MCPToolSupport.errorResult(SECTION_EXTRACTION_UNAVAILABLE);
+        }
+        String chunkLine = "Chunk: " + MCPRenderedHtml.chunkAnchorRef(parent, String.valueOf(index))
+            + " of section #" + parent + " (chunk " + index + OF_INFIX + total + ", section ~" + sectionTokens
+            + TOKENS_CLOSE;
+        String header = composeHeader(doc, title, content, Syntax.HTML_5_0, chunkLine);
+        if (content.length() > MAX_OUTPUT_CHARS) {
+            return MCPToolSupport.result(header + DOUBLE_NEW_LINE + cappedHead(content) + NEW_LINE
+                + SECTION_TRUNCATION_FOOTER);
+        }
+        String[] lines = content.split(NEW_LINE, -1);
+        String body = numberedBody(lines, 1, content.isEmpty() ? 0 : lines.length);
+        String footer = "Showing chunk " + index + OF_INFIX + total + ". Re-list the chunks with "
+            + SECTION_ARG_OPEN + MCPRenderedHtml.mapAnchorRef(parent, 1) + SECTION_ARG_CLOSE;
+        return MCPToolSupport.result(header + DOUBLE_NEW_LINE + body + NEW_LINE + footer);
+    }
+
+    /**
+     * Renders one page of a chunk map on explicit request; an out-of-range page gets an error
+     * re-embedding page 1.
+     *
+     * @param doc the loaded document, for the header
+     * @param title the rendered title
+     * @param parsed the parsed rendered HTML
+     * @param parent the canonical parent anchor
+     * @param page the requested 1-based map page
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult renderChunkMapPage(DocumentModelBridge doc, String title,
+        MCPRenderedHtml parsed, String parent, int page)
+    {
+        int pageCount = parsed.chunkMapPageCount(parent);
+        if (page > pageCount) {
+            return MCPToolSupport.errorResult("No page " + page + " in the chunk map of section \"#" + parent
+                + VALID_INFIX + "map pages: 1-" + pageCount + PERIOD + CURRENT_MAP_PREFIX
+                + chunkMapBody(doc, parsed, parent, 1));
+        }
+        String header = composeEstimatedHeader(doc, title, parsed.sectionApproxChars(parent),
+            sectionHeaderLine(parsed, parent));
+        return MCPToolSupport.result(header + DOUBLE_NEW_LINE + chunkMapBody(doc, parsed, parent, page));
+    }
+
+    /**
+     * Builds one page of a chunk map: the prose (what this is, how to fetch a chunk, the positional
+     * caveat with the document version echoed), the entry lines, and - when further pages exist - the
+     * truncation line pointing at the next map page.
+     *
+     * @param doc the loaded document, for the version echo
+     * @param parsed the parsed rendered HTML
+     * @param parent the canonical parent anchor
+     * @param page the 1-based map page
+     * @return the formatted map body
+     */
+    private String chunkMapBody(DocumentModelBridge doc, MCPRenderedHtml parsed, String parent, int page)
+    {
+        String fetchHint =
+            "chunk with " + SECTION_ARG_OPEN + MCPRenderedHtml.chunkAnchorRef(parent, "K") + QUOTE;
+        List<String> entries = parsed.chunkMapEntries(parent, page);
+        String body = chunkMapIntro(parsed, parent, fetchHint)
+            + " Chunks are positional and shift if the document is edited (this map: version "
+            + doc.getVersion() + ")." + NEW_LINE + String.join(NEW_LINE, entries);
+        int pageCount = parsed.chunkMapPageCount(parent);
+        if (page < pageCount) {
+            int start = parsed.chunkMapPageStart(parent, page);
+            body += NEW_LINE + "Chunk map truncated: showing chunks " + start + DASH
+                + (start + entries.size() - 1) + OF_INFIX + parsed.chunkCount(parent)
+                + ". Continue the map with " + SECTION_ARG_OPEN
+                + MCPRenderedHtml.mapAnchorRef(parent, page + 1) + SECTION_ARG_CLOSE;
+        }
+        return body;
+    }
+
+    /**
+     * Formats the shared opening sentence of the over-budget section responses: the section's
+     * estimated size, the budget it exceeds, what the response is instead of the content, and how to
+     * read on.
+     *
+     * @param anchor the section (or chunk-parent) anchor
+     * @param approxChars the section's estimated character count
+     * @param mapKind what the response body is (a sub-outline or a chunk map)
+     * @param readHint what to request next
+     * @return the formatted sentence
+     */
+    private static String overBudgetIntro(String anchor, int approxChars, String mapKind, String readHint)
+    {
+        return "Section \"#" + anchor + "\" is ~" + approxChars / CHARS_PER_TOKEN + " tokens, over the ~"
+            + MAX_OUTPUT_TOKENS + "-token budget. This is its " + mapKind + NOT_CONTENT_INFIX
+            + readHint + PERIOD;
+    }
+
+    /**
+     * Formats the opening sentence of a chunk-map page. The over-budget sentence is only truthful when
+     * the section's estimate actually exceeds the output budget; a map is also reachable for an
+     * under-budget section (an out-of-range error re-embed, or an explicit map-page request after the
+     * section shrank), where a neutral sentence with a fetch-it-whole hint is used instead.
+     *
+     * @param parsed the parsed rendered HTML
+     * @param parent the canonical parent anchor
+     * @param fetchHint how to fetch one chunk
+     * @return the formatted sentence
+     */
+    private static String chunkMapIntro(MCPRenderedHtml parsed, String parent, String fetchHint)
+    {
+        int approxChars = parsed.sectionApproxChars(parent);
+        if (approxChars > MAX_OUTPUT_CHARS) {
+            return overBudgetIntro(parent, approxChars, CHUNK_MAP_KIND, fetchHint);
+        }
+        return "This is the " + CHUNK_MAP_KIND + " of section \"#" + parent + "\" (~"
+            + approxChars / CHARS_PER_TOKEN + TOKENS_CLOSE + NOT_CONTENT_INFIX + fetchHint
+            + ", or the whole section (it fits the ~" + MAX_OUTPUT_TOKENS + "-token budget) with "
+            + SECTION_ARG_OPEN + "#" + parent + SECTION_ARG_CLOSE;
+    }
+
+    /**
+     * Formats the capped-emission footer steering to chunk 1 of the given parent. The partition is
+     * deterministic and estimate-driven, so its anchors resolve on a fresh request even in the
+     * borderline case where a within-budget estimate hid an over-cap serialized form.
+     *
+     * @param parent the canonical chunk-parent anchor
+     * @return the formatted footer
+     */
+    private static String chunkSteeringFooter(String parent)
+    {
+        return TRUNCATION_PREFIX + "Read it in chunks with " + SECTION_ARG_OPEN
+            + MCPRenderedHtml.chunkAnchorRef(parent, "1") + QUOTE + TRUNCATION_TAIL;
+    }
+
+    /**
+     * Formats the header line locating a section response in its document.
+     *
+     * @param parsed the parsed rendered HTML
+     * @param anchor the normalized section anchor
+     * @return the formatted header line
+     */
+    private static String sectionHeaderLine(MCPRenderedHtml parsed, String anchor)
+    {
+        return "Section: #" + anchor + " (document total ~" + parsed.approxChars() / CHARS_PER_TOKEN
+            + TOKENS_CLOSE;
     }
 
     /**
@@ -833,26 +1157,6 @@ public class MCPGetDocumentTool implements MCPTool
                 + parsed.outline();
         }
         return "This rendered document has no heading anchors; read it without the section parameter.";
-    }
-
-    /**
-     * Builds the body for a section that exceeds the output budget: its sub-outline when it has
-     * sub-headings, otherwise a capped head of its content with an honest truncation footer.
-     *
-     * @param parsed the parsed rendered HTML
-     * @param anchor the normalized section anchor
-     * @param content the serialized section content
-     * @return the formatted body
-     */
-    private static String overBudgetSectionBody(MCPRenderedHtml parsed, String anchor, String content)
-    {
-        String subOutline = parsed.sectionOutline(anchor);
-        if (StringUtils.isNotBlank(subOutline)) {
-            return "Section \"#" + anchor + "\" is ~" + content.length() / CHARS_PER_TOKEN + " tokens, over the ~"
-                + MAX_OUTPUT_TOKENS + "-token budget. This is its sub-outline, NOT its content; read a "
-                + "sub-section with section=\"#H...\".\n" + subOutline;
-        }
-        return cappedHead(content) + NEW_LINE + SECTION_TRUNCATION_FOOTER;
     }
 
     /**
@@ -890,8 +1194,46 @@ public class MCPGetDocumentTool implements MCPTool
     {
         int totalLines = content.isEmpty() ? 0 : content.split(NEW_LINE, -1).length;
         int totalChars = content.length();
+        String size = totalLines + " lines · " + totalChars + CHARS_TOKENS_INFIX
+            + totalChars / CHARS_PER_TOKEN + TOKENS_UNIT;
+        return composeHeaderLines(doc, title, size, renderedSyntax, extraLine);
+    }
+
+    /**
+     * Composes the header of a rendered-HTML response that does not emit the content it describes (an
+     * outline or a chunk map produced without serializing), sizing the Size line from the parse walk's
+     * character estimate.
+     *
+     * @param doc the loaded document
+     * @param title the rendered title
+     * @param approxChars the estimated character count of the described content
+     * @param extraLine an extra header line to insert after the Size line, or {@code null}
+     * @return the composed header
+     */
+    private String composeEstimatedHeader(DocumentModelBridge doc, String title, int approxChars,
+        String extraLine)
+    {
+        String size = "~" + approxChars + CHARS_TOKENS_INFIX + approxChars / CHARS_PER_TOKEN + TOKENS_UNIT
+            + " (estimated)";
+        return composeHeaderLines(doc, title, size, Syntax.HTML_5_0, extraLine);
+    }
+
+    /**
+     * Shared tail of the header composition: the reference block, the metadata lines with the given
+     * Size description, an optional extra line, the provenance note and the rendered-mode banner.
+     *
+     * @param doc the loaded document
+     * @param title the title to display
+     * @param sizeDescription the formatted value of the Size line
+     * @param renderedSyntax the rendered output syntax, or {@code null} in source mode
+     * @param extraLine an extra header line to insert after the Size line, or {@code null}
+     * @return the composed header
+     */
+    private String composeHeaderLines(DocumentModelBridge doc, String title, String sizeDescription,
+        Syntax renderedSyntax, String extraLine)
+    {
         String header = buildHeader(buildReferenceBlock(doc), title, headerSyntaxId(doc, renderedSyntax),
-            doc.getVersion(), totalLines, totalChars, totalChars / CHARS_PER_TOKEN);
+            doc.getVersion(), sizeDescription);
         if (extraLine != null) {
             header += NEW_LINE + extraLine;
         }
@@ -984,9 +1326,9 @@ public class MCPGetDocumentTool implements MCPTool
     {
         return doc instanceof XWikiDocument xdoc
             && xdoc.getXObjects().values().stream()
-                .filter(Objects::nonNull)
+                .filter(objects -> objects != null)
                 .flatMap(List::stream)
-                .anyMatch(Objects::nonNull);
+                .anyMatch(object -> object != null);
     }
 
     /**
@@ -1034,7 +1376,7 @@ public class MCPGetDocumentTool implements MCPTool
         int actualEnd = cappedEnd(lines, start, end, MAX_OUTPUT_CHARS);
         boolean truncated = actualEnd < end;
         String body = numberedBody(lines, start, actualEnd);
-        String footer = "Showing lines " + start + "-" + actualEnd + OF_INFIX + totalLines + PERIOD;
+        String footer = "Showing lines " + start + DASH + actualEnd + OF_INFIX + totalLines + PERIOD;
         if (truncated) {
             footer += CONTINUATION_PREFIX + (actualEnd + 1) + PERIOD;
         }
@@ -1065,13 +1407,13 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     private String buildHeader(String referenceBlock, String title, String syntaxId, String version,
-        int totalLines, int totalChars, int approxTokens)
+        String sizeDescription)
     {
         return referenceBlock
             + "Title: " + (StringUtils.isNotBlank(title) ? title : "(untitled)") + NEW_LINE
             + "Syntax: " + syntaxId + NEW_LINE
             + "Version: " + version + NEW_LINE
-            + "Size: " + totalLines + " lines · " + totalChars + " chars · ~" + approxTokens + " tokens";
+            + "Size: " + sizeDescription;
     }
 
     /**
