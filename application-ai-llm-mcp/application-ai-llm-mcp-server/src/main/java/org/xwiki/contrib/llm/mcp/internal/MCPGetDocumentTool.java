@@ -373,6 +373,26 @@ public class MCPGetDocumentTool implements MCPTool
     private static final String CHUNK_MAP_KIND = "CHUNK MAP";
 
     /**
+     * Prefix of the header line naming the column headers of a table row-run chunk.
+     */
+    private static final String COLUMNS_PREFIX = "Columns: ";
+
+    /**
+     * Separates the column header texts on the {@code Columns:} line.
+     */
+    private static final String COLUMN_SEPARATOR = " | ";
+
+    /**
+     * Cap on the composed {@code Columns:} line; a longer one is cut and ends with an ellipsis.
+     */
+    private static final int MAX_COLUMNS_LINE_CHARS = 200;
+
+    /**
+     * Ends a {@code Columns:} line cut at {@link #MAX_COLUMNS_LINE_CHARS}.
+     */
+    private static final String COLUMNS_ELLIPSIS = "...";
+
+    /**
      * Shared infix of the map-intro sentences: what the response is not, and how to read on.
      */
     private static final String NOT_CONTENT_INFIX = ", NOT its content; read a ";
@@ -550,7 +570,8 @@ public class MCPGetDocumentTool implements MCPTool
                             to format="html")
                 HTML chunk: an over-budget section with no sub-headings returns a CHUNK MAP (not
                             content); fetch one chunk with section="#((h3)/2)". Chunk anchors are
-                            positional: re-read the map after the document is edited.
+                            positional: re-read the map after the document is edited. Row chunks of
+                            a table carry a Columns: header line naming its column headers.
                 HTML full detail: after an edit_document call that writes markup attributes, verify
                             them with rendered=true, format="html", section="#HHeadings",
                             detail="full" (keeps ALL attributes - class, style, data-* - instead of
@@ -1112,8 +1133,10 @@ public class MCPGetDocumentTool implements MCPTool
      * Renders a chunk fetch: an out-of-range chunk ordinal gets an error re-embedding map page 1 (so
      * a stale anchor self-corrects in one round trip), and a valid ordinal fetches the chunk's
      * content, numbered, with a header line locating it in the partition and a footer pointing back
-     * at the map. A chunk over the output cap (the atomic floor of the partitioning) is emitted as a
-     * capped head with the static cannot-split-further footer.
+     * at the map. A table row-run chunk additionally carries a {@code Columns:} header line naming
+     * the table's column headers, since the header row context is not part of the fetched fragment.
+     * A chunk over the output cap (the atomic floor of the partitioning) is emitted as a capped head
+     * with the static cannot-split-further footer.
      *
      * @param doc the loaded document, for the header
      * @param title the rendered title
@@ -1139,6 +1162,10 @@ public class MCPGetDocumentTool implements MCPTool
         String chunkLine = "Chunk: " + MCPRenderedHtml.chunkAnchorRef(parent, String.valueOf(index))
             + " of section #" + parent + " (chunk " + index + OF_INFIX + total + ", section ~" + sectionTokens
             + TOKENS_CLOSE;
+        List<String> columns = parsed.chunkColumns(parent, index);
+        if (!columns.isEmpty()) {
+            chunkLine += NEW_LINE + columnsLine(columns);
+        }
         String header = composeHeader(doc, title, content, Syntax.HTML_5_0, chunkLine, fullDetail);
         if (content.length() > MAX_OUTPUT_CHARS) {
             return MCPToolSupport.result(header + DOUBLE_NEW_LINE + cappedHead(content) + NEW_LINE
@@ -1260,6 +1287,27 @@ public class MCPGetDocumentTool implements MCPTool
     {
         return TRUNCATION_PREFIX + "Read it in chunks with " + SECTION_ARG_OPEN
             + MCPRenderedHtml.chunkAnchorRef(parent, "1") + QUOTE + TRUNCATION_TAIL;
+    }
+
+    /**
+     * Formats the header line naming a table row-run chunk's column headers, joined with
+     * {@value #COLUMN_SEPARATOR}. Capped at {@value #MAX_COLUMNS_LINE_CHARS} characters (backing off
+     * one character rather than splitting a surrogate pair), ending with an ellipsis when cut.
+     *
+     * @param columns the column header texts, never empty
+     * @return the formatted header line
+     */
+    private static String columnsLine(List<String> columns)
+    {
+        String line = COLUMNS_PREFIX + String.join(COLUMN_SEPARATOR, columns);
+        if (line.length() <= MAX_COLUMNS_LINE_CHARS) {
+            return line;
+        }
+        int cut = MAX_COLUMNS_LINE_CHARS - COLUMNS_ELLIPSIS.length();
+        if (Character.isHighSurrogate(line.charAt(cut - 1))) {
+            cut--;
+        }
+        return line.substring(0, cut) + COLUMNS_ELLIPSIS;
     }
 
     /**

@@ -149,6 +149,18 @@ class MCPRenderedHtmlTest
     }
 
     @Test
+    void liveDataPlaceholderClassSurvivesStripped()
+    {
+        // Live Data renders client-side: the server-rendered page holds only an empty placeholder div,
+        // and the surviving liveData token is what tells the agent the content is browser-populated.
+        String out = strip("<div class=\"liveData loading\" data-config=\"x\">placeholder</div>");
+
+        assertTrue(out.contains("class=\"liveData\""), out);
+        assertFalse(out.contains("loading"), out);
+        assertFalse(out.contains("data-config"), out);
+    }
+
+    @Test
     void wikiGeneratedIdClassIsDropped()
     {
         String out = strip("<p class=\"wikigeneratedid\">t</p>");
@@ -481,6 +493,8 @@ class MCPRenderedHtmlTest
             assertTrue(tokens <= 4000, entry);
             assertTrue(tokens > 3000, entry);
         }
+        assertEquals(List.of(), parsed.chunkColumns(INTRO, 1),
+            "Paragraph-run chunks carry no column headers");
     }
 
     @Test
@@ -498,6 +512,8 @@ class MCPRenderedHtmlTest
         // The heading forms its own small chunk, then the table (over the target as a whole) is
         // descended into row runs spanning several chunks.
         assertTrue(chunkCount >= 3, "chunks: " + chunkCount);
+        assertEquals(List.of(), parsed.chunkColumns("HT", 2),
+            "A table without a th header row yields no column headers");
 
         String secondChunk = parsed.chunkHtml("HT", 2);
         String lastChunk = parse(html.toString()).chunkHtml("HT", chunkCount);
@@ -781,6 +797,50 @@ class MCPRenderedHtmlTest
         assertTrue(section.contains("style=\"color:red\""), section);
         assertTrue(section.contains("a-body"), section);
         assertFalse(section.contains("b-body"), section);
+    }
+
+    @Test
+    void rowRunChunksOfATableCarryItsHeaderRowColumnTexts()
+    {
+        // A th header row followed by fat data rows: the table alone exceeds the chunk target, so the
+        // partition descends into row runs; every chunk inside the table carries the header columns.
+        StringBuilder html = new StringBuilder("<h2 id=\"HT\">T</h2><table>"
+            + "<tr><th>Name</th><th>Value</th><th>Note</th></tr>");
+        for (int i = 1; i <= 40; i++) {
+            html.append("<tr><td>").append(String.format("ROW-%02d ", i)).append("x".repeat(770))
+                .append("</td></tr>");
+        }
+        html.append("</table>");
+
+        MCPRenderedHtml parsed = parse(html.toString());
+        int chunkCount = parsed.chunkCount("HT");
+        assertTrue(chunkCount >= 3, "chunks: " + chunkCount);
+        List<String> expected = List.of("Name", "Value", "Note");
+        // The heading chunk sits outside the table and carries no columns.
+        assertEquals(List.of(), parsed.chunkColumns("HT", 1));
+        // Every row-run chunk of the same table carries the identical column list.
+        for (int i = 2; i <= chunkCount; i++) {
+            assertEquals(expected, parsed.chunkColumns("HT", i), "chunk " + i);
+        }
+        // Deterministic: a fresh parse of the same content extracts the same columns.
+        assertEquals(expected, parse(html.toString()).chunkColumns("HT", 2));
+    }
+
+    @Test
+    void theadWrappedHeaderRowIsFoundAndThWhitespaceIsCollapsed()
+    {
+        StringBuilder html = new StringBuilder("<table><thead><tr><th>  First\n <span>Name</span></th>"
+            + "<th>Second</th></tr></thead><tbody>");
+        for (int i = 1; i <= 40; i++) {
+            html.append("<tr><td>").append("x".repeat(770)).append("</td></tr>");
+        }
+        html.append("</tbody></table>");
+
+        MCPRenderedHtml parsed = parse(html.toString());
+        int chunkCount = parsed.chunkCount(INTRO);
+        assertTrue(chunkCount >= 2, "chunks: " + chunkCount);
+        assertEquals(List.of("First Name", "Second"), parsed.chunkColumns(INTRO, 1));
+        assertEquals(List.of("First Name", "Second"), parsed.chunkColumns(INTRO, chunkCount));
     }
 
     @Test

@@ -107,12 +107,15 @@ final class MCPRenderedHtml
 
     /**
      * Class tokens kept because they carry comprehension signal: message-box semantics, the broken-link
-     * marker and the rendering-error message marker. All other tokens (e.g. {@code wikigeneratedid},
+     * marker, the rendering-error message marker and the Live Data placeholder marker (Live Data is
+     * rendered client-side, so the server-rendered page holds only an empty placeholder div - the
+     * {@code liveData} token turns that bare empty div into a legible "dynamic content, populated in
+     * the browser, not visible to this tool" signal). All other tokens (e.g. {@code wikigeneratedid},
      * {@code wikilink}, {@code wikiexternallink}, {@code wikimodel-*}) are presentation scaffolding and
      * are dropped; the {@code class} attribute itself is removed when no token survives.
      */
     private static final Set<String> KEPT_CLASS_TOKENS = Set.of("box", "infomessage", "warningmessage",
-        "errormessage", "successmessage", "wikicreatelink", RENDERING_ERROR_TOKEN);
+        "errormessage", "successmessage", "wikicreatelink", "liveData", RENDERING_ERROR_TOKEN);
 
     /**
      * The class token marking the macro rendering-error <em>description</em> block, which carries the full
@@ -178,6 +181,18 @@ final class MCPRenderedHtml
     private static final String BODY_TAG = "body";
 
     private static final String TABLE_TAG = "table";
+
+    private static final String TR_TAG = "tr";
+
+    private static final String TH_TAG = "th";
+
+    private static final String THEAD_TAG = "thead";
+
+    /**
+     * The table row-group elements whose direct {@code tr} children are rows of the enclosing table
+     * (as opposed to rows of a nested table).
+     */
+    private static final Set<String> ROW_GROUP_TAGS = Set.of(THEAD_TAG, "tbody", "tfoot");
 
     private static final String HASH = "#";
 
@@ -525,6 +540,24 @@ final class MCPRenderedHtml
     }
 
     /**
+     * Returns the column headers a chunk carries: the header-row {@code th} texts of the table the
+     * partition descended into to produce it (see {@link #tableColumns(Element)}). A chunk produced
+     * outside a table, or inside a table without a header row, carries none.
+     *
+     * @param parentAnchor the canonical parent anchor
+     * @param index the 1-based chunk ordinal
+     * @return the column header texts, empty when the chunk carries none or the ordinal is out of range
+     */
+    List<String> chunkColumns(String parentAnchor, int index)
+    {
+        List<Chunk> chunks = chunksFor(parentAnchor);
+        if (index < 1 || index > chunks.size()) {
+            return List.of();
+        }
+        return chunks.get(index - 1).columns();
+    }
+
+    /**
      * @param parentAnchor the canonical parent anchor
      * @return the number of pages of the parent's chunk map, at least 1
      */
@@ -786,7 +819,7 @@ final class MCPRenderedHtml
             return List.of();
         }
         List<Chunk> chunks = new ArrayList<>();
-        packRuns(spanSubtrees(body, parentAnchor), chunks);
+        packRuns(spanSubtrees(body, parentAnchor), chunks, List.of());
         return chunks;
     }
 
@@ -876,15 +909,16 @@ final class MCPRenderedHtml
      *
      * @param subtrees the subtree roots, in document order
      * @param chunks the chunk accumulator
+     * @param columns the column headers every emitted chunk carries (empty outside a table's subtree)
      */
-    private static void packRuns(List<Node> subtrees, List<Chunk> chunks)
+    private static void packRuns(List<Node> subtrees, List<Chunk> chunks, List<String> columns)
     {
-        Run run = new Run();
+        Run run = new Run(columns);
         for (Node node : subtrees) {
             Segment stats = subtreeStats(node);
             if (stats.chars > CHUNK_TARGET_CHARS) {
                 run.flush(chunks);
-                descendOrFloor(node, stats, chunks);
+                descendOrFloor(node, stats, chunks, columns);
             } else {
                 run.append(node, stats, chunks);
             }
@@ -895,23 +929,111 @@ final class MCPRenderedHtml
     /**
      * Handles a subtree that alone exceeds the chunk target: descends into its child nodes and packs
      * them the same way (staying inside the subtree), or - when it has no element children to descend
-     * into - emits it as a single oversized chunk.
+     * into - emits it as a single oversized chunk. Entering a {@code table} element extracts its
+     * column headers once; they replace the inherited ones for everything inside the table's subtree,
+     * so its row-run chunks carry the column semantics they would otherwise lose.
      *
      * @param node the oversized subtree root
      * @param stats the subtree's statistics
      * @param chunks the chunk accumulator
+     * @param columns the inherited column headers (empty outside a table's subtree)
      */
-    private static void descendOrFloor(Node node, Segment stats, List<Chunk> chunks)
+    private static void descendOrFloor(Node node, Segment stats, List<Chunk> chunks, List<String> columns)
     {
+        List<String> scopeColumns = columns;
+        if (node.getNodeType() == Node.ELEMENT_NODE && TABLE_TAG.equals(tagName((Element) node))) {
+            scopeColumns = tableColumns((Element) node);
+        }
         if (!hasElementChildren(node)) {
-            chunks.add(new Chunk(node, node, stats.chars, stats.tables, stats.images, stats.errors));
+            chunks.add(new Chunk(node, node, stats.chars, stats.tables, stats.images, stats.errors,
+                scopeColumns));
             return;
         }
         List<Node> children = new ArrayList<>();
         for (Node child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
             children.add(child);
         }
-        packRuns(children, chunks);
+        packRuns(children, chunks, scopeColumns);
+    }
+
+    /**
+     * Extracts a table's column headers: the {@code th} cell texts (whitespace-collapsed) of its
+     * header row - the first of the table's own rows, a {@code thead} child's rows searched first,
+     * whose cells include at least one {@code th}. A table with no such row yields no headers.
+     *
+     * @param table the table element
+     * @return the column header texts, empty when the table has no header row
+     */
+    private static List<String> tableColumns(Element table)
+    {
+        for (Element row : tableRows(table)) {
+            List<String> columns = headerCellTexts(row);
+            if (!columns.isEmpty()) {
+                return columns;
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * Lists the table's own rows in header-search order: the direct {@code tr} children of a
+     * {@code thead} child first, then the remaining rows (direct {@code tr} children of the table or
+     * of its other row groups) in document order. Rows of nested tables are not the table's own rows
+     * and are excluded by construction.
+     *
+     * @param table the table element
+     * @return the rows in header-search order
+     */
+    private static List<Element> tableRows(Element table)
+    {
+        List<Element> headRows = new ArrayList<>();
+        List<Element> bodyRows = new ArrayList<>();
+        for (Node child = table.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+            Element element = (Element) child;
+            String tag = tagName(element);
+            if (TR_TAG.equals(tag)) {
+                bodyRows.add(element);
+            } else if (ROW_GROUP_TAGS.contains(tag)) {
+                collectRows(element, THEAD_TAG.equals(tag) ? headRows : bodyRows);
+            }
+        }
+        headRows.addAll(bodyRows);
+        return headRows;
+    }
+
+    /**
+     * Adds the row group's direct {@code tr} children to the given row list.
+     *
+     * @param rowGroup the {@code thead}, {@code tbody} or {@code tfoot} element
+     * @param rows the row accumulator
+     */
+    private static void collectRows(Element rowGroup, List<Element> rows)
+    {
+        for (Node child = rowGroup.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child.getNodeType() == Node.ELEMENT_NODE && TR_TAG.equals(tagName((Element) child))) {
+                rows.add((Element) child);
+            }
+        }
+    }
+
+    /**
+     * Collects the trimmed, whitespace-collapsed texts of a row's {@code th} cells.
+     *
+     * @param row the row element
+     * @return the header cell texts, empty when the row has no {@code th} cell
+     */
+    private static List<String> headerCellTexts(Element row)
+    {
+        List<String> columns = new ArrayList<>();
+        for (Node child = row.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child.getNodeType() == Node.ELEMENT_NODE && TH_TAG.equals(tagName((Element) child))) {
+                columns.add(WHITESPACE_RUN.matcher(child.getTextContent()).replaceAll(SPACE).trim());
+            }
+        }
+        return columns;
     }
 
     private static boolean hasElementChildren(Node node)
@@ -1471,25 +1593,41 @@ final class MCPRenderedHtml
      * @param tables the number of tables
      * @param images the number of images
      * @param errors the number of rendering-error message blocks
+     * @param columns the column headers of the table the run was descended from, empty (never
+     *            {@code null}) for a run outside a table's subtree
      * @version $Id$
      */
-    private record Chunk(Node first, Node last, int chars, int tables, int images, int errors)
+    private record Chunk(Node first, Node last, int chars, int tables, int images, int errors,
+        List<String> columns)
     {
     }
 
     /**
      * Mutable accumulator for one chunk run being packed: the first and last node of the run and its
-     * aggregate statistics.
+     * aggregate statistics, plus the column headers every chunk of this packing level carries.
      *
      * @version $Id$
      */
     private static final class Run
     {
+        private final List<String> columns;
+
         private Node first;
 
         private Node last;
 
         private Segment stats = new Segment(null, 0);
+
+        /**
+         * Opens an accumulator for one packing level.
+         *
+         * @param columns the column headers every emitted chunk carries (empty outside a table's
+         *            subtree)
+         */
+        Run(List<String> columns)
+        {
+            this.columns = columns;
+        }
 
         /**
          * Appends a subtree to the run, first flushing the run when the subtree starts under a new
@@ -1524,7 +1662,7 @@ final class MCPRenderedHtml
         {
             if (this.first != null) {
                 chunks.add(new Chunk(this.first, this.last, this.stats.chars, this.stats.tables,
-                    this.stats.images, this.stats.errors));
+                    this.stats.images, this.stats.errors, this.columns));
             }
             this.first = null;
             this.last = null;

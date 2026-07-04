@@ -1347,6 +1347,86 @@ class MCPGetDocumentToolTest
         assertTrue(text.contains("section=\"#(HTop/map1)\""), text);
     }
 
+    /**
+     * Stubs a rendered document whose table alone exceeds the chunk target, so the partition descends
+     * into row runs: chunk 1 is the heading, chunks 2+ are row runs of the table.
+     *
+     * @param headerRow the table's first row, e.g. a th header row
+     */
+    private void stubRenderedHtmlTable(String headerRow) throws Exception
+    {
+        StringBuilder html = new StringBuilder("<h1 id=\"HTop\">Top</h1><table>");
+        html.append(headerRow);
+        for (int i = 1; i <= 40; i++) {
+            html.append("<tr><td>ROW").append(i).append(' ').append("x".repeat(770)).append("</td></tr>");
+        }
+        html.append("</table>");
+        stubRenderedHtml(html.toString());
+    }
+
+    @Test
+    void tableRowRunChunkFetchShowsColumnsLineAfterChunkLine() throws Exception
+    {
+        stubRenderedHtmlTable("<tr><th>Name</th><th>Value</th><th>Note</th></tr>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/2)"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Chunk: #(HTop/2) of section #HTop"), text);
+        // The Columns line sits directly after the Chunk line, which ends with the token parenthesis.
+        assertTrue(text.contains(" tokens)\nColumns: Name | Value | Note\n"), text);
+    }
+
+    @Test
+    void paragraphChunkFetchCarriesNoColumnsLine() throws Exception
+    {
+        stubOverBudgetLeafSection();
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/2)"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Chunk: #(HTop/2)"), text);
+        assertFalse(text.contains("Columns:"), "A paragraph-run chunk has no column headers: " + text);
+    }
+
+    @Test
+    void chunkMapResponseCarriesNoColumnsLine() throws Exception
+    {
+        stubRenderedHtmlTable("<tr><th>Name</th><th>Value</th></tr>");
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/map1)"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("CHUNK MAP"), text);
+        assertFalse(text.contains("Columns:"), "The Columns line belongs to chunk fetches only: " + text);
+    }
+
+    @Test
+    void overLongColumnsLineIsCappedWithEllipsis() throws Exception
+    {
+        StringBuilder headerRow = new StringBuilder("<tr>");
+        for (int i = 0; i < 30; i++) {
+            headerRow.append("<th>Column").append(String.format("%02d", i)).append("head</th>");
+        }
+        headerRow.append("</tr>");
+        stubRenderedHtmlTable(headerRow.toString());
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html", "section", "#(HTop/2)"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String columnsLine = textOf(result).lines()
+            .filter(line -> line.startsWith("Columns: ")).findFirst().orElse("");
+        assertEquals(200, columnsLine.length(), columnsLine);
+        assertTrue(columnsLine.endsWith("..."), columnsLine);
+    }
+
     @Test
     void outOfRangeChunkOrdinalReEmbedsMapPageOne() throws Exception
     {
@@ -1639,6 +1719,7 @@ class MCPGetDocumentToolTest
         String manPage = this.tool.getManPage();
         assertTrue(manPage.contains("CHUNK MAP"), manPage);
         assertTrue(manPage.contains("section=\"#((h3)/2)\""), manPage);
+        assertTrue(manPage.contains("Columns: header line"), manPage);
         // Chunking is discoverable through the map responses; the always-paid tool description must
         // not grow for it.
         String description = this.tool.getToolDefinition().description();
