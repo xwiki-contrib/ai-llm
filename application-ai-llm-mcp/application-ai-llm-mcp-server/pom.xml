@@ -169,6 +169,16 @@
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-databind</artifactId>
                 </exclusion>
+                <!-- mcp-json-jackson2 depends on mcp-core which depends on reactor-core which depends on
+                     reactive-streams:1.0.4. The XWiki platform ships reactive-streams:1.0.3 as a core
+                     extension. Exclude it here too (the mcp-core direct dependency already excludes it)
+                     so the XWiki extension resolver (used by XIP packaging) does not flag a version
+                     conflict with the core extension. reactor-core uses the platform-provided 1.0.3 at
+                     runtime. -->
+                <exclusion>
+                    <groupId>org.reactivestreams</groupId>
+                    <artifactId>reactive-streams</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <!-- Test dependencies -->
