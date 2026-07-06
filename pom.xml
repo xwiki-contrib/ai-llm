@@ -64,6 +64,7 @@
         <xwiki.issueManagement.jira.id>LLMAI</xwiki.issueManagement.jira.id>
         <xwiki.revapi.skip>true</xwiki.revapi.skip>
         <migrator.version>1.1.3</migrator.version>
+        <mcp.version>2.0.0</mcp.version>
     </properties>
     <modules>
         <module>application-ai-llm-models</module>
@@ -89,9 +90,34 @@
             <dependency>
                 <groupId>io.modelcontextprotocol.sdk</groupId>
                 <artifactId>mcp-bom</artifactId>
-                <version>2.0.0</version>
+                <version>${mcp.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <!-- Exclude artifacts already managed by the XWiki platform from mcp-core.
+                 dependencyManagement exclusions apply wherever mcp-core is pulled into the
+                 dependency graph of a module, direct or transitive (e.g. mcp-json-jackson2
+                 -> mcp-core), so this is declared once here instead of on every dependency
+                 that brings mcp-core in.
+                 - jackson-annotations: provided by XWiki platform
+                 - reactive-streams: XWiki platform ships 1.0.3 as a core extension;
+                   mcp-core pulls 1.0.4 transitively via reactor-core, which the extension
+                   manager rejects as incompatible. reactor-core uses the platform-provided
+                   1.0.3 at runtime. -->
+            <dependency>
+                <groupId>io.modelcontextprotocol.sdk</groupId>
+                <artifactId>mcp-core</artifactId>
+                <version>${mcp.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.fasterxml.jackson.core</groupId>
+                        <artifactId>jackson-annotations</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.reactivestreams</groupId>
+                        <artifactId>reactive-streams</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
         </dependencies>
     </dependencyManagement>

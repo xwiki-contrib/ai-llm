@@ -140,44 +140,22 @@
             <artifactId>xwiki-commons-xml</artifactId>
             <version>${commons.version}</version>
         </dependency>
-        <!-- MCP SDK: core transport + Jackson 2.x JSON mapping -->
-        <!-- Exclude artifacts already managed by XWiki platform:
-             - jackson-annotations: provided by XWiki platform
-             - reactive-streams: XWiki platform ships 1.0.3 as a core extension;
-               mcp-core pulls 1.0.4 transitively via reactor-core, which the extension
-               manager rejects as incompatible. reactor-core uses the platform-provided
-               1.0.3 at runtime. -->
+        <!-- MCP SDK: core transport + Jackson 2.x JSON mapping.
+             jackson-annotations and reactive-streams are excluded from mcp-core via
+             dependencyManagement in the root pom; this also covers the transitive path
+             mcp-json-jackson2 -> mcp-core, so no per-dependency exclusion is needed here. -->
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp-core</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.fasterxml.jackson.core</groupId>
-                    <artifactId>jackson-annotations</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.reactivestreams</groupId>
-                    <artifactId>reactive-streams</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp-json-jackson2</artifactId>
             <exclusions>
+                <!-- jackson-databind is provided by XWiki platform. -->
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-databind</artifactId>
-                </exclusion>
-                <!-- mcp-json-jackson2 depends on mcp-core which depends on reactor-core which depends on
-                     reactive-streams:1.0.4. The XWiki platform ships reactive-streams:1.0.3 as a core
-                     extension. Exclude it here too (the mcp-core direct dependency already excludes it)
-                     so the XWiki extension resolver (used by XIP packaging) does not flag a version
-                     conflict with the core extension. reactor-core uses the platform-provided 1.0.3 at
-                     runtime. -->
-                <exclusion>
-                    <groupId>org.reactivestreams</groupId>
-                    <artifactId>reactive-streams</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>

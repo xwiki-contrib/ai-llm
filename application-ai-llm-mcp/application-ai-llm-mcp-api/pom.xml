@@ -44,25 +44,11 @@
             <version>${commons.version}</version>
         </dependency>
         <!-- MCP SDK: McpSchema, McpTransportContext used in the MCPTool interface.
-             Exclude artifacts already managed by XWiki platform:
-             - jackson-annotations: provided by XWiki platform
-             - reactive-streams: XWiki platform ships 1.0.3 as a core extension;
-               mcp-core pulls 1.0.4 transitively via reactor-core, which the extension
-               manager rejects as incompatible. Excluding it here lets reactor-core use
-               the platform-provided 1.0.3 at runtime. -->
+             jackson-annotations and reactive-streams are excluded from mcp-core via
+             dependencyManagement in the root pom. -->
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp-core</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.fasterxml.jackson.core</groupId>
-                    <artifactId>jackson-annotations</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.reactivestreams</groupId>
-                    <artifactId>reactive-streams</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
     </dependencies>
 </project>
