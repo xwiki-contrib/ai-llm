@@ -243,42 +243,56 @@ class MCPServerConfigurationTest
     }
 
     @Test
-    void isEnabledIsFalseOnMainWikiWhenObjectHasNoEnabledValue() throws Exception
+    void isEnabledIsTrueByDefaultOnMainWikiWhenFieldUnset() throws Exception
     {
         mockConfigDocument(MAIN_WIKI);
         when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
-        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_ENABLED)).thenReturn(0);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ENABLED)).thenReturn(null);
 
-        assertFalse(this.mcpServerConfiguration.isEnabled(MAIN_WIKI));
+        assertTrue(this.mcpServerConfiguration.isEnabled(MAIN_WIKI));
     }
 
     @Test
-    void isEnabledIsFalseOnSubWikiWhenObjectHasNoEnabledValue() throws Exception
+    void isEnabledIsTrueByDefaultOnSubWikiWhenFieldUnset() throws Exception
     {
         mockConfigDocument(SUB_WIKI);
         when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
-        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_ENABLED)).thenReturn(0);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ENABLED)).thenReturn(null);
 
-        assertFalse(this.mcpServerConfiguration.isEnabled(SUB_WIKI));
+        assertTrue(this.mcpServerConfiguration.isEnabled(SUB_WIKI));
     }
 
     @Test
-    void isEnabledIsFalseWhenNoXObject() throws Exception
+    void isEnabledIsTrueByDefaultWhenNoXObject() throws Exception
     {
-        mockConfigDocument(MAIN_WIKI);
-        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(null);
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(null);
 
-        assertFalse(this.mcpServerConfiguration.isEnabled(MAIN_WIKI));
+        assertTrue(this.mcpServerConfiguration.isEnabled(SUB_WIKI));
     }
 
     @Test
-    void isEnabledIsTrueOnlyWhenExplicitlyEnabled() throws Exception
+    void isEnabledIsTrueWhenExplicitlyEnabled() throws Exception
     {
         mockConfigDocument(SUB_WIKI);
         when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ENABLED))
+            .thenReturn(mock(PropertyInterface.class));
         when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_ENABLED)).thenReturn(1);
 
         assertTrue(this.mcpServerConfiguration.isEnabled(SUB_WIKI));
+    }
+
+    @Test
+    void isEnabledIsFalseWhenExplicitlyDisabled() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ENABLED))
+            .thenReturn(mock(PropertyInterface.class));
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_ENABLED)).thenReturn(0);
+
+        assertFalse(this.mcpServerConfiguration.isEnabled(SUB_WIKI));
     }
 
     @Test
@@ -360,11 +374,12 @@ class MCPServerConfigurationTest
     }
 
     @Test
-    void isCrossWikiReachAllowedIsTrueWhenMainListContainsWiki() throws Exception
+    void isCrossWikiReachAllowedIsTrueWhenInitializedMainListContainsWiki() throws Exception
     {
         when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
         mockConfigDocument(MAIN_WIKI);
         when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_REACH_INITIALIZED)).thenReturn(1);
         when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
             .thenReturn(List.of("otherwiki", SUB_WIKI));
 
@@ -373,11 +388,12 @@ class MCPServerConfigurationTest
     }
 
     @Test
-    void isCrossWikiReachAllowedIsFalseWhenMainListLacksWiki() throws Exception
+    void isCrossWikiReachAllowedIsFalseWhenInitializedMainListLacksWiki() throws Exception
     {
         when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
         mockConfigDocument(MAIN_WIKI);
         when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_REACH_INITIALIZED)).thenReturn(1);
         when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
             .thenReturn(List.of("otherwiki"));
 
@@ -385,13 +401,62 @@ class MCPServerConfigurationTest
     }
 
     @Test
-    void isCrossWikiReachAllowedIsFalseWhenNoXObject() throws Exception
+    void isCrossWikiReachAllowedCanTurnMainWikiOffOnceInitialized() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_REACH_INITIALIZED)).thenReturn(1);
+        // Once initialized, the list is authoritative and may exclude the main wiki itself.
+        when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
+            .thenReturn(List.of(SUB_WIKI));
+
+        assertFalse(this.mcpServerConfiguration.isCrossWikiReachAllowed(MAIN_WIKI));
+    }
+
+    @Test
+    void isCrossWikiReachAllowedIsFalseForSubWikiByDefaultWhenNotInitialized() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_REACH_INITIALIZED)).thenReturn(0);
+
+        assertFalse(this.mcpServerConfiguration.isCrossWikiReachAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isCrossWikiReachAllowedIsFalseForSubWikiWhenNoXObject() throws Exception
     {
         when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
         mockConfigDocument(MAIN_WIKI);
         when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(null);
 
         assertFalse(this.mcpServerConfiguration.isCrossWikiReachAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isCrossWikiReachAllowedIsTrueForMainWikiByDefaultWhenNotInitialized() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        // A materialised-but-empty reach list must NOT defeat the default: getIntValue is 0 for an unset flag.
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_REACH_INITIALIZED)).thenReturn(0);
+        lenient().when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
+            .thenReturn(List.of());
+
+        assertTrue(this.mcpServerConfiguration.isCrossWikiReachAllowed(MAIN_WIKI));
+    }
+
+    @Test
+    void isCrossWikiReachAllowedIsTrueForMainWikiByDefaultWhenNoXObject() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(null);
+
+        assertTrue(this.mcpServerConfiguration.isCrossWikiReachAllowed(MAIN_WIKI));
     }
 
     @Test
@@ -452,6 +517,38 @@ class MCPServerConfigurationTest
             .thenReturn(new ArrayList<>(List.of(SUB_WIKI)));
 
         assertTrue(this.mcpServerConfiguration.setCrossWikiReach(SUB_WIKI, true));
+
+        verify(this.configObject, never()).set(anyString(), any(), any());
+        verify(this.xwiki, never()).saveDocument(any(), anyString(), anyBoolean(), any());
+    }
+
+    @Test
+    void initializeReachDefaultsSeedsMainWikiAndFlagAndSaves() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI), true, this.context)).thenReturn(this.configObject);
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_REACH_INITIALIZED)).thenReturn(0);
+
+        assertTrue(this.mcpServerConfiguration.initializeReachDefaults());
+
+        // The default (main wiki reaches, others do not) is materialized into the list as an explicit value.
+        verify(this.configObject).set(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS, List.of(MAIN_WIKI),
+            this.context);
+        verify(this.configObject).set(MCPServerConfiguration.FIELD_REACH_INITIALIZED, 1, this.context);
+        verify(this.xwiki).saveDocument(eq(this.configDoc), eq("Initialized MCP cross-wiki reach defaults"),
+            eq(true), eq(this.context));
+    }
+
+    @Test
+    void initializeReachDefaultsIsNoOpWhenAlreadyInitialized() throws Exception
+    {
+        when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
+        mockConfigDocument(MAIN_WIKI);
+        when(this.configDoc.getXObject(classRef(MAIN_WIKI), true, this.context)).thenReturn(this.configObject);
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_REACH_INITIALIZED)).thenReturn(1);
+
+        assertTrue(this.mcpServerConfiguration.initializeReachDefaults());
 
         verify(this.configObject, never()).set(anyString(), any(), any());
         verify(this.xwiki, never()).saveDocument(any(), anyString(), anyBoolean(), any());
@@ -611,8 +708,9 @@ class MCPServerConfigurationTest
         mockConfigDocument(SUB_WIKI);
         when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
         when(this.configObject.getListValue(MCPServerConfiguration.FIELD_ENABLED_TOOLS)).thenReturn(List.of());
-        // The main-wiki reach list grants SUB_WIKI cross-wiki reach.
+        // The main-wiki reach list (initialized) grants SUB_WIKI cross-wiki reach.
         when(this.configDoc.getXObject(classRef(MAIN_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_REACH_INITIALIZED)).thenReturn(1);
         when(this.configObject.getListValue(MCPServerConfiguration.FIELD_REACH_ENABLED_WIKIS))
             .thenReturn(List.of(SUB_WIKI));
         mockToolMap();

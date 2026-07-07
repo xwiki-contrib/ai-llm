@@ -218,7 +218,7 @@
       <allowRenderedContent>1</allowRenderedContent>
     </property>
     <property>
-      <enabled>0</enabled>
+      <enabled>1</enabled>
     </property>
     <property>
       <serverDescription>XWiki MCP Server</serverDescription>

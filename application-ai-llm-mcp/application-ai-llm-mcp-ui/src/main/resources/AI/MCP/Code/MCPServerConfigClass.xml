@@ -126,6 +126,21 @@
       <values/>
       <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
     </reachEnabledWikis>
+    <reachInitialized>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint>Internal marker set the first time the "MCP across all wikis" dashboard is saved. While unset, only the main wiki reaches across the farm by default; once set, the reach list above is authoritative. Not shown in any form - managed by the dashboard.</hint>
+      <name>reachInitialized</name>
+      <number>10</number>
+      <prettyName>Reach List Initialized</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </reachInitialized>
     <spaceFilterDocuments>
       <cache>0</cache>
       <customDisplay/>

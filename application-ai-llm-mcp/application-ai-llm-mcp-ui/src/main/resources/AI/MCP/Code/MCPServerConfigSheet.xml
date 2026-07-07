@@ -51,11 +51,11 @@
   #set ($configObject = $configDoc.newObject($configClassName))
   #set ($discard = $configDoc.save('Created MCP server configuration', true))
 #end
-## Seed the displayed default for the unset enabled switch on subwikis (unticked). The main wiki manages
-## enable/disable through the dashboard below and does not render this switch. The Java reader remains the
-## source of truth at request time; this only affects the subwiki admin form display.
+## Seed the displayed default for the unset enabled switch on subwikis (ticked - MCP is enabled by default).
+## The main wiki manages enable/disable through the dashboard below and does not render this switch. The Java
+## reader remains the source of truth at request time; this only affects the subwiki admin form display.
 #if (!$isMainWiki &amp;&amp; "$!configObject" != '' &amp;&amp; "$!configObject.getProperty('enabled').value" == '')
-  #set ($discard = $configObject.set('enabled', 0))
+  #set ($discard = $configObject.set('enabled', 1))
 #end
 #set ($configClass = $xwiki.getDocument($configClassName).getxWikiClass())
 {{info}}
@@ -74,18 +74,18 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
       &lt;dl&gt;
 #if (!$isMainWiki)
         &lt;dt&gt;
-          &lt;label for="mcp-enabled"&gt;$configClass.get('enabled').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;label for="${configClassName}_${configObject.number}_enabled"&gt;$configClass.get('enabled').getTranslatedPrettyName()&lt;/label&gt;
           &lt;span class="xHint"&gt;$configClass.get('enabled').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('enabled', 'edit'){{html clean="false"}}&lt;/dd&gt;
 #end
         &lt;dt&gt;
-          &lt;label for="mcp-serverName"&gt;$configClass.get('serverName').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;label for="${configClassName}_${configObject.number}_serverName"&gt;$configClass.get('serverName').getTranslatedPrettyName()&lt;/label&gt;
           &lt;span class="xHint"&gt;$configClass.get('serverName').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('serverName', 'edit'){{html clean="false"}}&lt;/dd&gt;
         &lt;dt&gt;
-          &lt;label for="mcp-serverDescription"&gt;$configClass.get('serverDescription').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;label for="${configClassName}_${configObject.number}_serverDescription"&gt;$configClass.get('serverDescription').getTranslatedPrettyName()&lt;/label&gt;
           &lt;span class="xHint"&gt;$configClass.get('serverDescription').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('serverDescription', 'edit'){{html clean="false"}}&lt;/dd&gt;
@@ -129,7 +129,7 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
     &lt;fieldset&gt;
       &lt;dl&gt;
         &lt;dt&gt;
-          &lt;label for="mcp-allowRenderedContent"&gt;$configClass.get('allowRenderedContent').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;label for="${configClassName}_${configObject.number}_allowRenderedContent"&gt;$configClass.get('allowRenderedContent').getTranslatedPrettyName()&lt;/label&gt;
           &lt;span class="xHint"&gt;$configClass.get('allowRenderedContent').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('allowRenderedContent', 'edit'){{html clean="false"}}&lt;/dd&gt;
@@ -163,7 +163,7 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
     &lt;fieldset&gt;
       &lt;dl&gt;
         &lt;dt&gt;
-          &lt;label for="mcp-spaceFilterMode"&gt;$configClass.get('spaceFilterMode').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;label for="${configClassName}_${configObject.number}_spaceFilterMode"&gt;$configClass.get('spaceFilterMode').getTranslatedPrettyName()&lt;/label&gt;
           &lt;span class="xHint"&gt;$configClass.get('spaceFilterMode').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('spaceFilterMode', 'edit'){{html clean="false"}}&lt;/dd&gt;

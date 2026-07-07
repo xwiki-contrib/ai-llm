@@ -256,6 +256,8 @@ class MCPFarmScriptServiceTest
 
         BulkResult result = this.service.applyReach(new String[] {WIKI}, new String[] {WIKI});
 
+        // The first thing an apply does (once past the farm gate) is promote the reach list to authoritative.
+        verify(this.mcpConfig).initializeReachDefaults();
         verify(this.mcpConfig).setCrossWikiReach(WIKI, true);
         assertEquals(1, result.getChanged());
         assertEquals(0, result.getSkipped());
@@ -281,8 +283,9 @@ class MCPFarmScriptServiceTest
 
         BulkResult result = this.service.applyReach(new String[] {WIKI, "another"}, new String[] {WIKI});
 
-        // The farm gate governs all managed wikis at once: nothing is read or written, and every managed
-        // wiki is counted as skipped.
+        // The farm gate governs all managed wikis at once: nothing is initialized, read or written, and every
+        // managed wiki is counted as skipped.
+        verify(this.mcpConfig, never()).initializeReachDefaults();
         verify(this.mcpConfig, never()).setCrossWikiReach(anyString(), anyBoolean());
         verify(this.mcpConfig, never()).isCrossWikiReachAllowed(anyString());
         assertEquals(0, result.getChanged());

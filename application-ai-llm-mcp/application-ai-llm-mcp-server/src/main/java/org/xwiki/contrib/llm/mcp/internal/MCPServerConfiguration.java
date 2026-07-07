@@ -88,6 +88,8 @@ public class MCPServerConfiguration
 
     static final String FIELD_REACH_ENABLED_WIKIS = "reachEnabledWikis";
 
+    static final String FIELD_REACH_INITIALIZED = "reachInitialized";
+
     /** Space filter mode value disabling the filter: every document is allowed. */
     static final String SPACE_FILTER_MODE_NONE = "none";
 
@@ -165,9 +167,10 @@ public class MCPServerConfiguration
 
     /**
      * @param wikiId the wiki to check
-     * @return whether the MCP endpoint is enabled for the given wiki. MCP is disabled by default on every
-     *     wiki: the endpoint is enabled only by an explicit {@code enabled=1} on the config object. An unset
-     *     flag, a missing config object, and a failed read all resolve to false, so the endpoint fails closed.
+     * @return whether the MCP endpoint is enabled for the given wiki. MCP is enabled by default on every
+     *     wiki so an endpoint is available with no admin action: an unset flag and a missing config object
+     *     both resolve to true. Only an explicit {@code enabled=0} turns the endpoint off. A failed read
+     *     still fails closed (returns false), so a config-read error 404s the endpoint rather than exposing it.
      * @since 0.9
      */
     public boolean isEnabled(String wikiId)
@@ -180,7 +183,11 @@ public class MCPServerConfiguration
             // row in the same request, relying on this returning the just-saved value.
             XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
             BaseObject configObject = configDoc.getXObject(classRef);
-            return configObject != null && configObject.getIntValue(FIELD_ENABLED) == 1;
+            // Enabled by default: a missing object or unset flag resolves to true. Only an explicit 0 is off.
+            if (configObject == null || configObject.getField(FIELD_ENABLED) == null) {
+                return true;
+            }
+            return configObject.getIntValue(FIELD_ENABLED) == 1;
         } catch (Exception e) {
             this.logger.warn("Could not read the MCP enabled flag for wiki [{}]; disabling the endpoint: [{}]",
                 wikiId, ExceptionUtils.getRootCauseMessage(e));
@@ -248,9 +255,10 @@ public class MCPServerConfiguration
      * @param wikiId the wiki to check
      * @return whether the given wiki's MCP endpoint may reach across other wikis. The grant is stored as a
      *     farm-level list on the MAIN wiki's config document and read only from there, so a subwiki admin
-     *     cannot self-grant reach by editing their own wiki's config. Cross-wiki reach is disabled by default:
-     *     a wiki id absent from the main list, a missing config object, and a failed read all resolve to
-     *     false, so reach fails closed.
+     *     cannot self-grant reach by editing their own wiki's config. Until a farm admin first saves the reach
+     *     dashboard (which sets {@code reachInitialized}), only the MAIN wiki reaches across the farm by default
+     *     and every other wiki fails closed; from that first save on, the list is authoritative and may include
+     *     or exclude any wiki, the main wiki included. A failed read fails closed (false) for every wiki.
      * @since 0.9
      */
     public boolean isCrossWikiReachAllowed(String wikiId)
@@ -264,8 +272,12 @@ public class MCPServerConfiguration
             // admin can edit their own wiki's config document but not the main wiki's, so reach cannot be self-granted.
             XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
             BaseObject configObject = configDoc.getXObject(classRef);
-            if (configObject == null) {
-                return false;
+            // Default posture until the reach dashboard is first saved: only the MAIN wiki reaches across the
+            // farm. The reachInitialized flag is read via getIntValue (0 for both an absent and an unset field),
+            // so the default cannot be defeated by a materialised-but-empty list. Once set, the list is
+            // authoritative and may itself exclude the main wiki.
+            if (configObject == null || configObject.getIntValue(FIELD_REACH_INITIALIZED) != 1) {
+                return wikiId.equals(mainWiki);
             }
             @SuppressWarnings("unchecked")
             List<String> reachWikis = configObject.getListValue(FIELD_REACH_ENABLED_WIKIS);
@@ -319,6 +331,42 @@ public class MCPServerConfiguration
             this.logger.warn("Failed to set the MCP cross-wiki reach for wiki [{}]: [{}]", wikiId,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("Failed to set the MCP cross-wiki reach for wiki [{}]", wikiId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Materializes the default cross-wiki reach state on the MAIN wiki's config document and marks the reach
+     * list as authoritative, so {@link #isCrossWikiReachAllowed(String)} stops applying the "main wiki only"
+     * default. Idempotent: it writes only the first time (when {@code reachInitialized} is not yet set), seeding
+     * the list with the main wiki so the default posture is preserved as an explicit, admin-editable value. The
+     * reach dashboard calls this once at the start of an apply so that, from the first save on, the admin's
+     * explicit choices - including turning the main wiki's own reach off - fully govern reach.
+     *
+     * @return {@code true} if the list is initialized (whether just written or already so), {@code false} if the
+     *     write failed
+     * @since 0.9
+     */
+    public boolean initializeReachDefaults()
+    {
+        String mainWiki = this.wikiDescriptorManager.getMainWikiId();
+        DocumentReference configRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_DOC_NAME);
+        DocumentReference classRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_CLASS_NAME);
+        try {
+            XWikiContext context = this.contextProvider.get();
+            XWikiDocument doc = context.getWiki().getDocument(configRef, context);
+            BaseObject obj = doc.getXObject(classRef, true, context);
+            if (obj.getIntValue(FIELD_REACH_INITIALIZED) == 1) {
+                return true;
+            }
+            obj.set(FIELD_REACH_ENABLED_WIKIS, List.of(mainWiki), context);
+            obj.set(FIELD_REACH_INITIALIZED, 1, context);
+            context.getWiki().saveDocument(doc, "Initialized MCP cross-wiki reach defaults", true, context);
+            return true;
+        } catch (Exception e) {
+            this.logger.warn("Failed to initialize the MCP cross-wiki reach defaults: [{}]",
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Failed to initialize the MCP cross-wiki reach defaults", e);
             return false;
         }
     }

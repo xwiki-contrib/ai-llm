@@ -267,6 +267,9 @@ public class MCPFarmScriptService implements ScriptService
             this.logger.debug("Refused MCP cross-wiki reach apply: missing farm admin rights");
             return new BulkResult(0, managedWikiIds == null ? 0 : managedWikiIds.length);
         }
+        // First save promotes the reach list from the "main wiki only" default to an authoritative list, so the
+        // reconciliation below can then turn the main wiki's own reach off if the admin unchecked it.
+        this.mcpConfig.initializeReachDefaults();
         Set<String> reachSet =
             new HashSet<>(reachWikiIds == null ? List.of() : Arrays.asList(reachWikiIds));
         int changed = 0;
