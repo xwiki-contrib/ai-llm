@@ -84,7 +84,9 @@ public class DefaultMCPRowQuery implements MCPRowQuery
     {
         Query query = this.queryManager.createQuery(statement, Query.HQL);
         query.setWiki(wiki);
-        query.setLimit(Math.min(limit, MAX_FETCH_PER_QUERY));
+        // Clamped on both sides: the store only applies a limit when it is strictly positive, so a
+        // non-positive value would fetch an unbounded row set instead of nothing.
+        query.setLimit(Math.min(Math.max(limit, 1), MAX_FETCH_PER_QUERY));
         if (bindName != null) {
             query.bindValue(bindName, bindValue);
         }

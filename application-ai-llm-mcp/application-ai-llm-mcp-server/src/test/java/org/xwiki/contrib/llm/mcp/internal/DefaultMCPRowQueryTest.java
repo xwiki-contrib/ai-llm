@@ -184,6 +184,19 @@ class DefaultMCPRowQueryTest
     }
 
     @Test
+    void nonPositiveLimitIsClampedToOneNotUnbounded() throws Exception
+    {
+        this.rowQuery.rows(COMPLETE_STATEMENT, WIKI, null, null, 0);
+        this.rowQuery.hierarchyRows(BASE_WITHOUT_SPACE_ALIAS, true, false, WIKI, BIND_NAME, BIND_VALUE, -5);
+
+        // The store applies a limit only when it is strictly positive, so letting 0 or a negative value
+        // through would mean an UNBOUNDED fetch - the opposite of what a degenerate limit intends.
+        verify(this.query, never()).setLimit(0);
+        verify(this.query, never()).setLimit(-5);
+        verify(this.query, times(2)).setLimit(1);
+    }
+
+    @Test
     void authorizedDocumentReturnsTheReferenceWhenAllowed()
     {
         when(this.spaceFilter.isAllowed(this.reference)).thenReturn(true);

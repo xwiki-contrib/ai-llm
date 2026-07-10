@@ -305,7 +305,11 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
         try {
             return this.spaceResolver.resolve(configured);
         } catch (Exception e) {
-            this.logger.debug("Skipping malformed MCP space filter space entry [{}]", configured, e);
+            // WARN, not DEBUG: a dropped entry silently widens access relative to the admin's intent when the
+            // mode is restricting, and with caching the message appears once per cache lifetime, not per check.
+            this.logger.warn("Skipping malformed MCP space filter space entry [{}]: [{}]", configured,
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Malformed MCP space filter space entry [{}]", configured, e);
             return null;
         }
     }
@@ -315,7 +319,9 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
         try {
             return this.documentResolver.resolve(configured);
         } catch (Exception e) {
-            this.logger.debug("Skipping malformed MCP space filter document entry [{}]", configured, e);
+            this.logger.warn("Skipping malformed MCP space filter document entry [{}]: [{}]", configured,
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Malformed MCP space filter document entry [{}]", configured, e);
             return null;
         }
     }

@@ -26,6 +26,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
+import org.xwiki.bridge.event.DocumentDeletedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
@@ -34,7 +35,8 @@ import org.xwiki.observation.event.Event;
 import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
 /**
- * Listens for saves to any wiki's MCP server configuration document ({@code AI.MCP.Code.MCPServerConfig})
+ * Listens for saves and deletions of any wiki's MCP server configuration document
+ * ({@code AI.MCP.Code.MCPServerConfig})
  * and {@link XWikiMCPServerManager#invalidate(String) invalidates} that wiki's MCP server, so its name,
  * description and instructions are re-read on the next connection without restarting XWiki. With the same
  * granularity it {@link MCPSpaceFilter#invalidate(String) invalidates} the cached parsed space-filter
@@ -73,12 +75,14 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
     private Logger logger;
 
     /**
-     * Registers interest in both document-created and document-updated events.
-     * (Created covers the first install of the mcp-ui module.)
+     * Registers interest in document-created, document-updated and document-deleted events.
+     * (Created covers the first install of the mcp-ui module; deleted covers an admin removing the
+     * configuration document, which must drop the cached server and space-filter state so the defaults
+     * take effect instead of the last saved configuration.)
      */
     public MCPConfigChangeEventListener()
     {
-        super(NAME, new DocumentCreatedEvent(), new DocumentUpdatedEvent());
+        super(NAME, new DocumentCreatedEvent(), new DocumentUpdatedEvent(), new DocumentDeletedEvent());
     }
 
     @Override

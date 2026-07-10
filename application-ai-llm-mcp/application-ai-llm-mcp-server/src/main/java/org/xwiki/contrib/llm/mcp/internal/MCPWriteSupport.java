@@ -44,7 +44,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * module's surface.
  *
  * @version $Id$
- * @since 0.9
+ * @since 0.9.1
  */
 final class MCPWriteSupport
 {

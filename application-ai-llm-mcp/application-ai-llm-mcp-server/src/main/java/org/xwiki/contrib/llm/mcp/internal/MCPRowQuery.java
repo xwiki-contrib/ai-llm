@@ -43,8 +43,10 @@ public interface MCPRowQuery
 {
     /**
      * Absolute ceiling on the rows any single query may pull from the database, so a broad statement cannot
-     * make the store materialize an unbounded row set. Every fetch limit passed to this door is clamped to
-     * it.
+     * make the store materialize an unbounded row set. Every fetch limit passed to this door is clamped into
+     * the {@code 1..MAX_FETCH_PER_QUERY} range: the store only applies a limit when it is strictly positive,
+     * so a non-positive value would otherwise mean "unbounded", the opposite of what a caller computing a
+     * degenerate limit intends.
      */
     int MAX_FETCH_PER_QUERY = 2000;
 
@@ -56,7 +58,7 @@ public interface MCPRowQuery
      * @param wiki the id of the wiki to query
      * @param bindName the name of the bind parameter, or {@code null} when the statement binds nothing
      * @param bindValue the value bound to {@code bindName}; ignored when {@code bindName} is {@code null}
-     * @param limit the row ceiling, clamped to {@link #MAX_FETCH_PER_QUERY}
+     * @param limit the row ceiling, clamped into the {@code 1..}{@link #MAX_FETCH_PER_QUERY} range
      * @return the raw result rows
      * @throws QueryException if the query fails
      */
@@ -76,7 +78,7 @@ public interface MCPRowQuery
      * @param wiki the id of the wiki to query
      * @param bindName the name of the bind parameter, or {@code null} when the statement binds nothing
      * @param bindValue the value bound to {@code bindName}; ignored when {@code bindName} is {@code null}
-     * @param limit the row ceiling, clamped to {@link #MAX_FETCH_PER_QUERY}
+     * @param limit the row ceiling, clamped into the {@code 1..}{@link #MAX_FETCH_PER_QUERY} range
      * @return the raw result rows
      * @throws QueryException if the query fails
      */

@@ -20,15 +20,27 @@
 package org.xwiki.contrib.llm.mcp.internal;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
+import org.xwiki.model.reference.DocumentReference;
+
+import com.xpn.xwiki.XWiki;
+import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link MCPWriteSupport}: the version-comment construction (the {@code [AI] } prefix is a
- * stable contract, pinned literally here) and the minor-edit policy. The wiki-switch scaffold and the
- * shared message fragments are covered through the write tools' tests.
+ * stable contract, pinned literally here), the minor-edit policy, and the wiki-switch scaffold's
+ * failure-path restore. The scaffold's success path and the shared message fragments are covered
+ * through the write tools' tests.
  *
  * @version $Id$
  */
@@ -39,6 +51,27 @@ class MCPWriteSupportTest
      * creation default was wrongly ignored.
      */
     private static final String UNUSED_DESCRIPTION = "unused description";
+
+    @Test
+    void inTargetWikiRestoresTheContextWikiWhenTheDocumentLoadThrows() throws Exception
+    {
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        DocumentReference ref = new DocumentReference("second", "Sandbox", "WebHome");
+        when(xcontext.getUserReference()).thenReturn(new DocumentReference("xwiki", "XWiki", "User"));
+        when(xcontext.getWikiId()).thenReturn("xwiki");
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(ref, xcontext)).thenThrow(new XWikiException(0, 0, "Store down"));
+
+        assertThrows(XWikiException.class, () -> MCPWriteSupport.inTargetWiki(xcontext, ref,
+            (ctx, doc) -> MCPToolSupport.result("unreachable")));
+
+        // The finally-restore must hold on the failure path too: a future refactor moving the load out of
+        // the try block would otherwise leave the request thread pinned to the target wiki.
+        InOrder order = inOrder(xcontext);
+        order.verify(xcontext).setWikiId("second");
+        order.verify(xcontext).setWikiId("xwiki");
+    }
 
     @Test
     void buildCommentPrefixesAgentComment()

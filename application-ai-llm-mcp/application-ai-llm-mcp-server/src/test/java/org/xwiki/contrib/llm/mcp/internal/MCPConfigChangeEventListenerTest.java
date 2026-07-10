@@ -24,6 +24,7 @@ import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.xwiki.bridge.DocumentModelBridge;
+import org.xwiki.bridge.event.DocumentDeletedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -125,6 +126,30 @@ class MCPConfigChangeEventListenerTest
         // The source document reference is the main-wiki config, so the fallback path invalidates all servers.
         verify(this.mcpServerManager).invalidateAll();
         verify(this.spaceFilter).invalidateAll();
+    }
+
+    @Test
+    void onEventInvalidatesOnConfigDocDeletion()
+    {
+        DocumentReference configRef = new DocumentReference(SUB_WIKI,
+            Arrays.asList("AI", "MCP", "Code"), "MCPServerConfig");
+        DocumentModelBridge doc = mock(DocumentModelBridge.class);
+        when(doc.getDocumentReference()).thenReturn(configRef);
+
+        this.listener.onEvent(new DocumentDeletedEvent(configRef), doc, null);
+
+        // Deleting the config document must drop the cached server and filter state so the defaults take
+        // effect, not the last saved configuration.
+        verify(this.mcpServerManager).invalidate(SUB_WIKI);
+        verify(this.spaceFilter).invalidate(SUB_WIKI);
+    }
+
+    @Test
+    void listenerRegistersCreatedUpdatedAndDeletedEvents()
+    {
+        // The deletion registration is load-bearing: without it a removed config document would leave the
+        // cached state serving the deleted configuration until a restart.
+        org.junit.jupiter.api.Assertions.assertEquals(3, this.listener.getEvents().size());
     }
 
     @Test

@@ -276,6 +276,10 @@ class DefaultMCPSpaceFilterTest
 
         assertFalse(this.filter.isAllowed(docInSpace(spaceAB(), "Page")));
         assertEquals(List.of("-*:*"), this.filter.filterQueries());
+        // Dropping a configured entry can widen access relative to the admin's intent, so it is a WARN
+        // (once per cache lifetime, since the parsed state is cached).
+        assertEquals("Skipping malformed MCP space filter space entry [A.B]: [IllegalArgumentException: bad ref]",
+            this.logCapture.getMessage(0));
     }
 
     @Test
