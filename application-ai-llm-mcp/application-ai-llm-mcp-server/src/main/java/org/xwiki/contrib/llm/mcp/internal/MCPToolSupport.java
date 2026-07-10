@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -70,6 +71,15 @@ final class MCPToolSupport
     private static final String DESCRIPTION_KEY = "description";
 
     private static final String OBJECT_TYPE = "object";
+
+    /**
+     * Matches the full newline/control family a single agent-facing line must never contain: every Unicode
+     * control character ({@code \p{Cc}}, covering CR, LF, TAB, VT, FF and NEL) plus the line separator
+     * ({@code \p{Zl}}, U+2028) and paragraph separator ({@code \p{Zp}}, U+2029). Java's {@code \p{Cc}} is C0/C1
+     * only and {@code \s} is ASCII-only, so both miss U+2028/U+2029; naming the categories explicitly closes
+     * that blind spot for every tool that renders untrusted page text into a line grammar.
+     */
+    private static final Pattern LINE_BREAK_CHARS = Pattern.compile("[\\p{Cc}\\p{Zl}\\p{Zp}]");
 
     /**
      * The declared parameters, in declaration order (preserved so the advertised schema lists
@@ -221,6 +231,21 @@ final class MCPToolSupport
     static String isoInstant(Object value)
     {
         return value instanceof Date date ? date.toInstant().toString() : null;
+    }
+
+    /**
+     * Removes every newline/control-family character (see {@link #LINE_BREAK_CHARS}) from a string, so
+     * untrusted page text cannot inject a line break into a single-line agent-facing rendering (forging a fake
+     * row, banner or reference). Only the break characters are removed; all other characters, including
+     * reference-syntax punctuation, are left intact so a value stays usable as-is.
+     *
+     * @param value the raw value, possibly {@code null}
+     * @return the value with all newline/control-family characters removed, or {@code null} when {@code value}
+     *     is {@code null}
+     */
+    static String stripLineBreaks(String value)
+    {
+        return value == null ? null : LINE_BREAK_CHARS.matcher(value).replaceAll("");
     }
 
     /**

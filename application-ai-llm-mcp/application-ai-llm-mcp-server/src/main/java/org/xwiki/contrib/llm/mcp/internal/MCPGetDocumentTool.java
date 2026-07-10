@@ -1615,7 +1615,9 @@ public class MCPGetDocumentTool implements MCPTool
      */
     private String buildReferenceBlock(DocumentModelBridge doc)
     {
-        String canonicalRef = this.serializer.serialize(doc.getDocumentReference());
+        // Strip any newline/control chars from the serialized reference: an entity name can contain a newline,
+        // which would otherwise break the single Reference: line into forged extra lines.
+        String canonicalRef = MCPToolSupport.stripLineBreaks(this.serializer.serialize(doc.getDocumentReference()));
         String url = safeDocumentUrl(doc.getDocumentReference());
         String urlLine = StringUtils.isNotBlank(url) ? "URL: " + url + NEW_LINE : "";
         return "Reference: " + canonicalRef + NEW_LINE + urlLine;

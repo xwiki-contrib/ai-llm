@@ -79,8 +79,8 @@ public class MCPListWikisTool implements MCPTool
      * Header for the reach-enabled listing, naming what the rows are and how to search them together.
      */
     private static final String REACHABLE_HEADER =
-        "Reachable wikis - use any id below with the 'wiki' parameter of query_documents (or as the wiki "
-            + "prefix of a document reference); wiki=\"all\" searches them together:";
+        "Reachable wikis - use any id below with the 'wiki' parameter of query_documents or get_tree (or as "
+            + "the wiki prefix of a document reference); wiki=\"all\" searches them together:";
 
     /**
      * First line of the reach-disabled listing.
@@ -96,8 +96,8 @@ public class MCPListWikisTool implements MCPTool
 
     private static final String DESCRIPTION =
         "List the wikis this endpoint can search and act on: the current wiki plus every other wiki in the farm "
-            + "you can access. Use a listed wiki id with the 'wiki' parameter of query_documents, or as the wiki "
-            + "prefix of a document reference.";
+            + "you can access. Use a listed wiki id with the 'wiki' parameter of query_documents or get_tree, "
+            + "or as the wiki prefix of a document reference.";
 
     /**
      * The declared parameters: none. The empty parameter set still yields a valid empty-object input schema.
@@ -144,10 +144,11 @@ public class MCPListWikisTool implements MCPTool
     {
         return """
             NOTES
-                A listed wiki id is used two ways: as the 'wiki' argument of query_documents (or
-                wiki="all" to search several at once), and as the prefix of a reference passed to
-                get_document, edit_document or write_document to read or write in that wiki. The
-                current wiki is always listed; other wikis appear only where you have access.
+                A listed wiki id is used two ways: as the 'wiki' argument of query_documents or
+                get_tree (query_documents also accepts wiki="all" to search several at once), and
+                as the prefix of a reference passed to get_document, edit_document or write_document
+                to read or write in that wiki. The current wiki is always listed; other wikis appear
+                only where you have access.
 
             EXAMPLES
                 List reachable wikis:  (call with no arguments)

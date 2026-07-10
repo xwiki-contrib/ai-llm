@@ -27,6 +27,7 @@ import javax.inject.Singleton;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 
@@ -69,7 +70,35 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
     @Override
     public DocumentReference resolveAndAuthorize(String reference, Right right) throws MCPAccessDeniedException
     {
-        DocumentReference target = this.referenceResolver.resolve(reference);
+        return authorize(reference, this.referenceResolver.resolve(reference), right);
+    }
+
+    @Override
+    public DocumentReference resolveAndAuthorize(String reference, Right right, WikiReference wikiContext)
+        throws MCPAccessDeniedException
+    {
+        DocumentReference target = this.referenceResolver.resolve(reference, wikiContext);
+        if (!target.getWikiReference().equals(wikiContext)) {
+            throw new MCPAccessDeniedException("Reference " + QUOTE + reference + QUOTE + " is in wiki " + QUOTE
+                + target.getWikiReference().getName() + QUOTE + " but the call targets wiki " + QUOTE
+                + wikiContext.getName() + QUOTE + "; drop the wiki prefix or make them agree.");
+        }
+        return authorize(reference, target, right);
+    }
+
+    /**
+     * The shared authorization pipeline of both resolve variants: the reach gate, the rights check and the
+     * per-wiki space filter, in that order.
+     *
+     * @param reference the request reference, used in the agent-facing error messages
+     * @param target the resolved document reference
+     * @param right the right required on the document
+     * @return {@code target}, once it has passed every check
+     * @throws MCPAccessDeniedException when the reach gate, rights check or space filter denies access
+     */
+    private DocumentReference authorize(String reference, DocumentReference target, Right right)
+        throws MCPAccessDeniedException
+    {
         String targetWiki = target.getWikiReference().getName();
         String currentWiki = this.contextProvider.get().getWikiId();
         // Fail closed when the context wiki is unknown: a null current wiki is treated as a cross-wiki reference,

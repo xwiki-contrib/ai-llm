@@ -57,6 +57,12 @@ public class DefaultMCPWikiReach implements MCPWikiReach
     /** Shared tail of the wiki-validation error messages, pointing an agent at the reachable wiki list. */
     private static final String SEE_LIST_WIKIS = "Use list_wikis to see reachable wikis.";
 
+    /** Shared closing of the omit-the-parameter hints: a closing quote, parenthesis and period. */
+    private static final String CLOSE_QUOTED = "\").";
+
+    /** Shared middle of the wiki-does-not-exist messages: a closing quote and the verdict. */
+    private static final String DOES_NOT_EXIST = "\" does not exist. ";
+
     @Inject
     private MCPServerConfiguration mcpConfig;
 
@@ -95,15 +101,41 @@ public class DefaultMCPWikiReach implements MCPWikiReach
         }
         if (!isReachEnabled()) {
             throw new MCPAccessDeniedException("Cross-wiki search is not enabled for this endpoint. Omit the "
-                + "'wiki' parameter to search this wiki (\"" + current + "\").");
+                + "'wiki' parameter to search this wiki (\"" + current + CLOSE_QUOTED);
         }
         if (WIKI_ALL.equalsIgnoreCase(wikiParam)) {
             return null;
         }
         if (!wikiExists(wikiParam)) {
-            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + "\" does not exist. " + SEE_LIST_WIKIS);
+            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + DOES_NOT_EXIST + SEE_LIST_WIKIS);
         }
         return List.of(wikiParam);
+    }
+
+    @Override
+    public String resolveSingleWiki(String wikiParam) throws MCPAccessDeniedException
+    {
+        String current = currentWikiId();
+        if (current == null) {
+            // Fail closed: without a context wiki there is nothing safe to resolve into, whatever the param.
+            throw new MCPAccessDeniedException("The current wiki could not be determined; the request was "
+                + "denied.");
+        }
+        if (StringUtils.isBlank(wikiParam) || wikiParam.equals(current)) {
+            return current;
+        }
+        if (!isReachEnabled()) {
+            throw new MCPAccessDeniedException("Cross-wiki access is not enabled for this endpoint. Omit the "
+                + "'wiki' parameter to stay in this wiki (\"" + current + CLOSE_QUOTED);
+        }
+        if (WIKI_ALL.equalsIgnoreCase(wikiParam)) {
+            throw new MCPAccessDeniedException("This tool renders one wiki at a time; pass a single wiki id. "
+                + SEE_LIST_WIKIS);
+        }
+        if (!singleWikiAvailable(wikiParam)) {
+            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + DOES_NOT_EXIST + SEE_LIST_WIKIS);
+        }
+        return wikiParam;
     }
 
     /**
@@ -114,14 +146,44 @@ public class DefaultMCPWikiReach implements MCPWikiReach
      */
     private boolean wikiExists(String wikiParam) throws MCPAccessDeniedException
     {
+        return verifiedWikiExists(wikiParam, "Could not verify wiki [{}] for a cross-wiki search: [{}]",
+            "Wiki descriptor lookup failure for cross-wiki search on [{}]",
+            WIKI_PREFIX + wikiParam + "\" is not available for cross-wiki search. " + SEE_LIST_WIKIS);
+    }
+
+    /**
+     * @param wikiParam the requested wiki id
+     * @return whether the given wiki id is a real wiki in this farm
+     * @throws MCPAccessDeniedException if the wiki descriptor lookup fails, so the caller fails closed rather
+     *     than rendering a wiki that could not be verified
+     */
+    private boolean singleWikiAvailable(String wikiParam) throws MCPAccessDeniedException
+    {
+        return verifiedWikiExists(wikiParam, "Could not verify wiki [{}] for the 'wiki' parameter: [{}]",
+            "Wiki descriptor lookup failure for the 'wiki' parameter on [{}]",
+            WIKI_PREFIX + wikiParam + "\" is not available from this endpoint. " + SEE_LIST_WIKIS);
+    }
+
+    /**
+     * The shared fail-closed existence check of both wiki-parameter resolvers, parameterized by the caller's
+     * message texts so each keeps its own agent-facing and log wording.
+     *
+     * @param wikiParam the requested wiki id
+     * @param warnFormat the WARN log format, with placeholders for the wiki id and the root-cause message
+     * @param debugFormat the DEBUG log format, with a placeholder for the wiki id
+     * @param failureMessage the agent-facing message thrown when the lookup fails
+     * @return whether the given wiki id is a real wiki in this farm
+     * @throws MCPAccessDeniedException if the wiki descriptor lookup fails
+     */
+    private boolean verifiedWikiExists(String wikiParam, String warnFormat, String debugFormat,
+        String failureMessage) throws MCPAccessDeniedException
+    {
         try {
             return this.wikiDescriptorManager.getById(wikiParam) != null;
         } catch (WikiManagerException e) {
-            this.logger.warn("Could not verify wiki [{}] for a cross-wiki search: [{}]", wikiParam,
-                ExceptionUtils.getRootCauseMessage(e));
-            this.logger.debug("Wiki descriptor lookup failure for cross-wiki search on [{}]", wikiParam, e);
-            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + "\" is not available for cross-wiki "
-                + "search. " + SEE_LIST_WIKIS);
+            this.logger.warn(warnFormat, wikiParam, ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug(debugFormat, wikiParam, e);
+            throw new MCPAccessDeniedException(failureMessage);
         }
     }
 

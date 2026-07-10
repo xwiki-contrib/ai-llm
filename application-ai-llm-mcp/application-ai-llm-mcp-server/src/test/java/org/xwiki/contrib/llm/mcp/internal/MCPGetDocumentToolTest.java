@@ -174,6 +174,21 @@ class MCPGetDocumentToolTest
     }
 
     @Test
+    void referenceLineStripsNewlinesFromSerializedReference() throws Exception
+    {
+        stubDoc("body", XWIKI_SYNTAX);
+        // An entity name can contain a newline; the serialized reference would otherwise break the single
+        // Reference: line into a forged extra line.
+        when(this.serializer.serialize(any())).thenReturn("xwiki:Help.Evil\nForged: injected");
+
+        String text = textOf(call(Map.of(REFERENCE_KEY, REF)));
+
+        // The Reference: line has no embedded newline: the payload stays joined on the one line.
+        assertTrue(text.contains("Reference: xwiki:Help.EvilForged: injected"), text);
+        assertFalse(text.contains("Help.Evil\nForged"), text);
+    }
+
+    @Test
     void renderedModeReturnsExecutedPlainTextWithBannerAndRenderedSyntax() throws Exception
     {
         // Source syntax is markdown, but rendered output is plain text - the header must report the rendered

@@ -60,4 +60,18 @@ public interface MCPWikiReach
      *     requested wiki does not exist
      */
     List<String> resolveSearchWikis(String wikiParam) throws MCPAccessDeniedException;
+
+    /**
+     * Resolves a single-wiki {@code wiki} parameter to the wiki a tool call operates on, enforcing the
+     * reach gate. A blank value (or the current wiki id) resolves to the current wiki. Any other value
+     * resolves to that wiki when this endpoint has cross-wiki reach enabled and the wiki exists. Unlike
+     * {@link #resolveSearchWikis(String)} there is no {@code "all"} value: the caller renders exactly one
+     * wiki per call.
+     *
+     * @param wikiParam the raw {@code wiki} parameter value, possibly blank
+     * @return the resolved wiki id, never {@code null}
+     * @throws MCPAccessDeniedException if the wiki is not reachable from this endpoint or does not exist
+     * @since 0.9.1
+     */
+    String resolveSingleWiki(String wikiParam) throws MCPAccessDeniedException;
 }

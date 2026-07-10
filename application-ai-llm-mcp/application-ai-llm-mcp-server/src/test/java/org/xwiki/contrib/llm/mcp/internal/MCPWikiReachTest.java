@@ -203,4 +203,74 @@ class MCPWikiReachTest
         reachEnabled(true);
         assertTrue(this.wikiReach.isReachEnabled());
     }
+
+    @Test
+    void singleWikiBlankParamResolvesToCurrentWiki() throws Exception
+    {
+        assertEquals(CURRENT, this.wikiReach.resolveSingleWiki(null));
+        assertEquals(CURRENT, this.wikiReach.resolveSingleWiki(""));
+    }
+
+    @Test
+    void singleWikiCurrentParamResolvesToCurrentWiki() throws Exception
+    {
+        assertEquals(CURRENT, this.wikiReach.resolveSingleWiki(CURRENT));
+    }
+
+    @Test
+    void singleWikiReachDisabledWithOtherWikiThrows()
+    {
+        reachEnabled(false);
+
+        MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
+            () -> this.wikiReach.resolveSingleWiki(OTHER));
+        assertEquals("Cross-wiki access is not enabled for this endpoint. Omit the 'wiki' parameter to stay in "
+            + "this wiki (\"xwiki\").", exception.getMessage());
+    }
+
+    @Test
+    void singleWikiReachEnabledWithExistingWikiResolvesToThatWiki() throws Exception
+    {
+        reachEnabled(true);
+        when(this.wikiDescriptorManager.getById(OTHER)).thenReturn(mock(WikiDescriptor.class));
+
+        assertEquals(OTHER, this.wikiReach.resolveSingleWiki(OTHER));
+    }
+
+    @Test
+    void singleWikiAllThrowsOneWikiPerCallMessage()
+    {
+        reachEnabled(true);
+
+        MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
+            () -> this.wikiReach.resolveSingleWiki(ALL));
+        assertEquals("This tool renders one wiki at a time; pass a single wiki id. Use list_wikis to see "
+            + "reachable wikis.", exception.getMessage());
+    }
+
+    @Test
+    void singleWikiNonExistentThrows() throws Exception
+    {
+        reachEnabled(true);
+        when(this.wikiDescriptorManager.getById(OTHER)).thenReturn(null);
+
+        MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
+            () -> this.wikiReach.resolveSingleWiki(OTHER));
+        assertEquals("Wiki \"other\" does not exist. Use list_wikis to see reachable wikis.",
+            exception.getMessage());
+    }
+
+    @Test
+    void singleWikiUnverifiableFailsClosed() throws Exception
+    {
+        reachEnabled(true);
+        when(this.wikiDescriptorManager.getById(OTHER)).thenThrow(new WikiManagerException("boom"));
+
+        MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
+            () -> this.wikiReach.resolveSingleWiki(OTHER));
+        assertEquals("Wiki \"other\" is not available from this endpoint. Use list_wikis to see reachable "
+            + "wikis.", exception.getMessage());
+        assertTrue(this.logCapture.getMessage(0).contains("Could not verify wiki [other]"),
+            this.logCapture.getMessage(0));
+    }
 }

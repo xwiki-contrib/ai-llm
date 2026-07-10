@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -151,5 +152,56 @@ class DefaultMCPDocumentAccessTest
         assertSame(foreignTarget, this.access.resolveAndAuthorize(foreignReference, Right.VIEW));
         verify(this.authorization).hasAccess(Right.VIEW, foreignTarget);
         verify(this.spaceFilter).isAllowed(foreignTarget);
+    }
+
+    @Test
+    void wikiContextOverloadResolvesUnqualifiedReferenceIntoGivenWiki() throws Exception
+    {
+        WikiReference secondWiki = new WikiReference("second");
+        DocumentReference secondTarget = new DocumentReference("second", "Help", "GettingStarted");
+        when(this.referenceResolver.resolve(REFERENCE, secondWiki)).thenReturn(secondTarget);
+        when(this.wikiReach.canReachWiki("second")).thenReturn(true);
+        when(this.authorization.hasAccess(Right.VIEW, secondTarget)).thenReturn(true);
+        when(this.spaceFilter.isAllowed(secondTarget)).thenReturn(true);
+
+        assertSame(secondTarget, this.access.resolveAndAuthorize(REFERENCE, Right.VIEW, secondWiki));
+        // The resolver received the wiki context parameter, and the downstream pipeline still ran fully.
+        verify(this.referenceResolver).resolve(REFERENCE, secondWiki);
+        verify(this.authorization).hasAccess(Right.VIEW, secondTarget);
+        verify(this.spaceFilter).isAllowed(secondTarget);
+    }
+
+    @Test
+    void wikiContextOverloadKeepsAMatchingExplicitPrefix() throws Exception
+    {
+        WikiReference secondWiki = new WikiReference("second");
+        String prefixedReference = "second:Help.GettingStarted";
+        DocumentReference secondTarget = new DocumentReference("second", "Help", "GettingStarted");
+        when(this.referenceResolver.resolve(prefixedReference, secondWiki)).thenReturn(secondTarget);
+        when(this.wikiReach.canReachWiki("second")).thenReturn(true);
+        when(this.authorization.hasAccess(Right.VIEW, secondTarget)).thenReturn(true);
+        when(this.spaceFilter.isAllowed(secondTarget)).thenReturn(true);
+
+        assertSame(secondTarget, this.access.resolveAndAuthorize(prefixedReference, Right.VIEW, secondWiki));
+    }
+
+    @Test
+    void wikiContextOverloadRejectsAContradictingPrefix()
+    {
+        WikiReference secondWiki = new WikiReference("second");
+        String contradictingReference = "third:Help.GettingStarted";
+        DocumentReference thirdTarget = new DocumentReference("third", "Help", "GettingStarted");
+        when(this.referenceResolver.resolve(contradictingReference, secondWiki)).thenReturn(thirdTarget);
+        // Nothing downstream may run once the wikis contradict.
+        lenient().when(this.authorization.hasAccess(Right.VIEW, thirdTarget)).thenReturn(true);
+        lenient().when(this.spaceFilter.isAllowed(thirdTarget)).thenReturn(true);
+
+        MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
+            () -> this.access.resolveAndAuthorize(contradictingReference, Right.VIEW, secondWiki));
+        assertEquals("Reference \"third:Help.GettingStarted\" is in wiki \"third\" but the call targets wiki "
+            + "\"second\"; drop the wiki prefix or make them agree.", exception.getMessage());
+        verify(this.wikiReach, never()).canReachWiki("third");
+        verify(this.authorization, never()).hasAccess(Right.VIEW, thirdTarget);
+        verify(this.spaceFilter, never()).isAllowed(thirdTarget);
     }
 }
