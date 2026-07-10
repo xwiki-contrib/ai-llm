@@ -406,11 +406,7 @@ public class MCPEditDocumentTool implements MCPTool
                     + "document. Nothing was saved.");
             }
 
-            Document apiDoc = new Document(xdoc, xcontext);
-            apiDoc.setContent(newContent);
-            if (titleChanged) {
-                apiDoc.setTitle(title);
-            }
+            Document apiDoc = prepareSave(xdoc, xcontext, newContent, original, titleChanged, title);
             apiDoc.save(buildComment(creating, edits.size(), titleChanged, comment), isMinorEdit(creating, major));
 
             SaveOutcome outcome = new SaveOutcome(ref, creating, title != null,
@@ -419,6 +415,33 @@ public class MCPEditDocumentTool implements MCPTool
         } finally {
             xcontext.setWikiId(originalWiki);
         }
+    }
+
+    /**
+     * Stages the content and title changes on the API document wrapper, applying only what actually changed.
+     * A title-only save must leave the body bytes untouched: the new content is the LF-normalized copy of the
+     * source, so writing it back unchanged would silently rewrite a CRLF document's line endings into a
+     * whole-body diff.
+     *
+     * @param xdoc the loaded document
+     * @param xcontext the XWiki context
+     * @param newContent the edited, LF-normalized content
+     * @param original the LF-normalized content the document had before the edits
+     * @param titleChanged whether a new title was requested and differs from the current one
+     * @param title the requested title, or {@code null} when not requested
+     * @return the API document wrapper with the changes staged, ready to save
+     */
+    private Document prepareSave(XWikiDocument xdoc, XWikiContext xcontext, String newContent, String original,
+        boolean titleChanged, String title)
+    {
+        Document apiDoc = new Document(xdoc, xcontext);
+        if (!newContent.equals(original)) {
+            apiDoc.setContent(newContent);
+        }
+        if (titleChanged) {
+            apiDoc.setTitle(title);
+        }
+        return apiDoc;
     }
 
     /**

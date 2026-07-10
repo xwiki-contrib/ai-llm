@@ -67,6 +67,12 @@ import io.modelcontextprotocol.spec.McpSchema;
  * the {@code wiki} parameter via {@link MCPWikiReach}; this tool only adds its own non-fq parameters and its
  * content/date filter queries.</p>
  *
+ * <p>Solr schema field names come from the platform's internal
+ * {@code org.xwiki.search.solr.internal.api.FieldUtils} - a deliberate dependency on an internal package:
+ * it also encodes the locale-suffix logic for the per-language content fields ({@code getFieldName}), and the
+ * compile-time coupling turns a platform schema or package change into a build error instead of silent
+ * field-name drift.</p>
+ *
  * @version $Id$
  * @since 0.9
  */

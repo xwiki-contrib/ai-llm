@@ -1202,12 +1202,12 @@ final class MCPRenderedHtml
     {
         // Remove the head/body envelope, then serialize without the XML declaration and the doctype and
         // strip the root element the way the platform's RSSContentCleaner does: with omitDeclaration=true
-        // and omitDoctype=true, the serialized form is a leading newline plus "<html>" (7 characters) and
-        // a trailing "</html>" plus newline (8 characters). The substring bounds are coupled to those two
-        // toString() flags.
+        // and omitDoctype=true, the serialized form is a leading newline plus "<html>" and a trailing
+        // "</html>" plus newline. The wrappers are removed only when present, so a change in the platform
+        // serializer's framing leaks visible root tags instead of corrupting the fragment's head and tail.
         HTMLUtils.stripHTMLEnvelope(this.document);
         String output = HTMLUtils.toString(this.document, true, true);
-        return output.substring(7, output.length() - 8);
+        return StringUtils.removeEnd(StringUtils.removeStart(output, "\n<html>"), "</html>\n");
     }
 
     /**

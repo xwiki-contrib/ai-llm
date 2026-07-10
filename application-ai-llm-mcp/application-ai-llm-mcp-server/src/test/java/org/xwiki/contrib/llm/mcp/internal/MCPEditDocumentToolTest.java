@@ -280,6 +280,22 @@ class MCPEditDocumentToolTest
     }
 
     @Test
+    void retitleOnlyKeepsCrlfLineEndings(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, "line one\r\nline two", "Old Title");
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), anyString(), any(), eq(true)))
+            .thenReturn(COMPARE_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, TITLE_KEY, "New Title"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        XWikiDocument saved = loadDocument(oldcore);
+        assertEquals("New Title", saved.getTitle());
+        // The edit pipeline works on an LF-normalized copy; a title-only save must not write that copy back.
+        assertEquals("line one\r\nline two", saved.getContent());
+    }
+
+    @Test
     void noOpDoesNotSaveAndReportsNoChanges(MockitoOldcore oldcore) throws Exception
     {
         storeDocument(oldcore, "unchanged", "Same Title");
