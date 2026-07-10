@@ -258,7 +258,8 @@ public class MCPFarmScriptService implements ScriptService
      *
      * @param managedWikiIds the wikis whose state should be reconciled (may be {@code null} or empty)
      * @param reachWikiIds the subset of those wikis that should end up with reach (may be {@code null} or empty)
-     * @return the outcome counts of the apply
+     * @return the outcome counts of the apply; when the reach defaults cannot be initialized nothing is written
+     *     and every managed wiki is counted as skipped
      * @since 0.9
      */
     public BulkResult applyReach(String[] managedWikiIds, String[] reachWikiIds)
@@ -268,8 +269,12 @@ public class MCPFarmScriptService implements ScriptService
             return new BulkResult(0, managedWikiIds == null ? 0 : managedWikiIds.length);
         }
         // First save promotes the reach list from the "main wiki only" default to an authoritative list, so the
-        // reconciliation below can then turn the main wiki's own reach off if the admin unchecked it.
-        this.mcpConfig.initializeReachDefaults();
+        // reconciliation below can then turn the main wiki's own reach off if the admin unchecked it. Until that
+        // promotion succeeds the list is not consulted, so writing it would report success without effect.
+        if (!this.mcpConfig.initializeReachDefaults()) {
+            this.logger.debug("Refused MCP cross-wiki reach apply: the reach defaults could not be initialized");
+            return new BulkResult(0, managedWikiIds == null ? 0 : managedWikiIds.length);
+        }
         Set<String> reachSet =
             new HashSet<>(reachWikiIds == null ? List.of() : Arrays.asList(reachWikiIds));
         int changed = 0;

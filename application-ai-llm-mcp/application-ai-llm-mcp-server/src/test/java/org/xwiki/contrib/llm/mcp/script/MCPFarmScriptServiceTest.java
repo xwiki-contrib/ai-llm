@@ -251,6 +251,7 @@ class MCPFarmScriptServiceTest
     void applyReachWritesWhenDesiredStateDiffersAndFarmAdmin()
     {
         farmAdmin(true);
+        when(this.mcpConfig.initializeReachDefaults()).thenReturn(true);
         when(this.mcpConfig.isCrossWikiReachAllowed(WIKI)).thenReturn(false);
         when(this.mcpConfig.setCrossWikiReach(WIKI, true)).thenReturn(true);
 
@@ -267,6 +268,7 @@ class MCPFarmScriptServiceTest
     void applyReachSkipsWriteWhenAlreadyInDesiredState()
     {
         farmAdmin(true);
+        when(this.mcpConfig.initializeReachDefaults()).thenReturn(true);
         when(this.mcpConfig.isCrossWikiReachAllowed(WIKI)).thenReturn(true);
 
         BulkResult result = this.service.applyReach(new String[] {WIKI}, new String[] {WIKI});
@@ -274,6 +276,22 @@ class MCPFarmScriptServiceTest
         verify(this.mcpConfig, never()).setCrossWikiReach(anyString(), anyBoolean());
         assertEquals(0, result.getChanged());
         assertEquals(0, result.getSkipped());
+    }
+
+    @Test
+    void applyReachSkipsEveryWikiWhenReachDefaultsInitializationFails()
+    {
+        farmAdmin(true);
+        when(this.mcpConfig.initializeReachDefaults()).thenReturn(false);
+
+        BulkResult result = this.service.applyReach(new String[] {WIKI, "another"}, new String[] {WIKI});
+
+        // Until the promotion save succeeds the reach list is not consulted, so writing it would report a
+        // success that does not govern reach: nothing may be read or written and every wiki counts as skipped.
+        verify(this.mcpConfig, never()).setCrossWikiReach(anyString(), anyBoolean());
+        verify(this.mcpConfig, never()).isCrossWikiReachAllowed(anyString());
+        assertEquals(0, result.getChanged());
+        assertEquals(2, result.getSkipped());
     }
 
     @Test

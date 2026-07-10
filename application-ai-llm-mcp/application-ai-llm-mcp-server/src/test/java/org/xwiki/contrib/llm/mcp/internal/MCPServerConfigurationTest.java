@@ -772,6 +772,8 @@ class MCPServerConfigurationTest
     {
         mockConfigDocument(SUB_WIKI);
         when(this.configDoc.getXObject(classRef(SUB_WIKI), true, this.context)).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ENABLED_TOOLS))
+            .thenReturn(mock(PropertyInterface.class));
 
         List<String> toolIds = List.of("man", "query_documents");
         assertTrue(this.mcpServerConfiguration.setEnabledToolIds(SUB_WIKI, toolIds));
@@ -786,10 +788,27 @@ class MCPServerConfigurationTest
     {
         mockConfigDocument(SUB_WIKI);
         when(this.configDoc.getXObject(classRef(SUB_WIKI), true, this.context)).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ENABLED_TOOLS))
+            .thenReturn(mock(PropertyInterface.class));
 
         assertTrue(this.mcpServerConfiguration.setEnabledToolIds(SUB_WIKI, null));
 
         verify(this.configObject).set(MCPServerConfiguration.FIELD_ENABLED_TOOLS, List.of(), this.context);
+    }
+
+    @Test
+    void setEnabledToolIdsReturnsFalseAndWarnsWhenFieldAbsentFromClass() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI), true, this.context)).thenReturn(this.configObject);
+        // No getField stub: the deployed config class lacks the enabledTools field, so set() silently no-ops.
+
+        assertFalse(this.mcpServerConfiguration.setEnabledToolIds(SUB_WIKI, List.of("man")));
+
+        verify(this.xwiki, never()).saveDocument(any(XWikiDocument.class), anyString(), anyBoolean(),
+            any(XWikiContext.class));
+        assertEquals("Could not store the MCP tool list for wiki [subwiki]: the [enabledTools] field is absent "
+            + "from the deployed config class", this.logCapture.getMessage(0));
     }
 
     @Test

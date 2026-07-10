@@ -527,7 +527,8 @@ public class MCPServerConfiguration
      *
      * @param wikiId the wiki whose tool set to write
      * @param toolIds the tool ids to enable, or {@code null} to store an empty set
-     * @return {@code true} if the set was written, {@code false} if the write failed
+     * @return {@code true} if the set was written, {@code false} if the write failed (including when the
+     *     deployed configuration class lacks the tool-list field, in which case nothing is saved)
      * @since 0.9
      */
     public boolean setEnabledToolIds(String wikiId, List<String> toolIds)
@@ -540,8 +541,9 @@ public class MCPServerConfiguration
             BaseObject obj = doc.getXObject(classRef, true, context);
             obj.set(FIELD_ENABLED_TOOLS, toolIds == null ? List.of() : toolIds, context);
             if (obj.getField(FIELD_ENABLED_TOOLS) == null) {
-                this.logger.debug("Could not store the MCP tool list for wiki [{}]: the [{}] field is absent "
+                this.logger.warn("Could not store the MCP tool list for wiki [{}]: the [{}] field is absent "
                     + "from the deployed config class", wikiId, FIELD_ENABLED_TOOLS);
+                return false;
             }
             context.getWiki().saveDocument(doc, "Updated MCP tool configuration", true, context);
             return true;

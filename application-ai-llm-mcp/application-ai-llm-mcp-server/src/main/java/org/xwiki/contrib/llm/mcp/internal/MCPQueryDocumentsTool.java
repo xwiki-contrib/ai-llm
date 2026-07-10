@@ -369,7 +369,7 @@ public class MCPQueryDocumentsTool implements MCPTool
             this.logger.debug("MCP query_documents tool failure details", e);
             return MCPToolSupport.errorResult("Could not run the search. If you used query operators, check "
                 + "that quotes and parentheses are balanced, or simplify the query. Run `man query_documents` "
-                + "for query syntax examples. Details: " + ExceptionUtils.getRootCauseMessage(e));
+                + "for query syntax examples.");
         }
     }
 

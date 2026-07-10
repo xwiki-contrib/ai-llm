@@ -1079,8 +1079,11 @@ class MCPQueryDocumentsToolTest
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
         assertTrue(text.contains("Could not run the search"));
-        assertTrue(text.contains("unbalanced parentheses"));
+        assertTrue(text.contains("man query_documents"));
+        // The Solr root cause stays off the wire (it can name cores, fields or hosts); it is only logged.
+        assertFalse(text.contains("unbalanced parentheses"));
         assertTrue(this.logCapture.getMessage(0).contains("MCP query_documents tool failed"));
+        assertTrue(this.logCapture.getMessage(0).contains("unbalanced parentheses"));
     }
 
     // -------------------------------------------------------------------------
