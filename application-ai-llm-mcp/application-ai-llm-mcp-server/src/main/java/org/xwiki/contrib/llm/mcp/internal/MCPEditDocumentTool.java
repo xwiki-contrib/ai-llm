@@ -160,7 +160,7 @@ public class MCPEditDocumentTool implements MCPTool
 
     private static final String PERIOD = ".";
 
-    private static final String ERROR_QUOTE_PREFIX = "Error: " + QUOTE;
+    private static final String DOCUMENT_PREFIX = "Document " + QUOTE;
 
     private static final String OPEN_PARENTHETICAL = " (";
 
@@ -233,8 +233,7 @@ public class MCPEditDocumentTool implements MCPTool
         String referenceDescription = "The document reference to edit or create, e.g. \"Sandbox.WebHome\" "
             + "or \"" + (crossWiki ? "xwiki:" : "") + "Help.Foo\".";
         if (crossWiki) {
-            referenceDescription += " A wiki-id prefix targets another wiki when this endpoint has cross-wiki "
-                + "reach (see list_wikis).";
+            referenceDescription += " A wiki-id prefix reaches another wiki (see list_wikis).";
         }
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
@@ -258,8 +257,9 @@ public class MCPEditDocumentTool implements MCPTool
                 OLD_STRING_KEY, Map.of(
                     TYPE, STRING,
                     DESCRIPTION, "Exact source text to replace, copied verbatim from get_document (no "
-                        + "line-number prefix). Empty old_string on a non-existent document writes new_string "
-                        + "as the whole body."
+                        + "line-number prefix); it must match the current source exactly (whitespace included) "
+                        + "and be unique unless replace_all is true. Empty old_string on a non-existent "
+                        + "document writes new_string as the whole body."
                 ),
                 NEW_STRING_KEY, Map.of(
                     TYPE, STRING,
@@ -274,19 +274,15 @@ public class MCPEditDocumentTool implements MCPTool
         );
         Map<String, Object> editsProperty = Map.of(
             TYPE, ARRAY,
-            DESCRIPTION, "Edits applied in order, then saved as a single version. Each: old_string "
-                + "(exact text to find in the current source), new_string (its replacement), optional "
-                + "replace_all (default false).",
+            DESCRIPTION, "Edits applied in order, then saved as a single version.",
             ITEMS, editItemSchema
         );
         MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema(Map.of(EDITS_PARAM, editsProperty)))
             .description("Edit an XWiki document by exact search-and-replace on its raw source (the "
-                + "text returned by get_document - always read first). Edits apply in order and save as one "
-                + "version; each old_string must match the current source exactly (whitespace included) and be "
-                + "unique unless replace_all is true. For targeted changes; to create a document use "
-                + "write_document. Write XWiki 2.1 syntax, NOT Markdown - `man xwiki-syntax` is the reference; "
-                + "`man edit_document` shows examples.")
+                + "text returned by get_document - always read first). For targeted changes; to create a "
+                + "document prefer write_document. Write XWiki 2.1 syntax, NOT Markdown - `man xwiki-syntax` "
+                + "is the reference; `man edit_document` shows examples.")
             .build();
     }
 
@@ -366,7 +362,8 @@ public class MCPEditDocumentTool implements MCPTool
         } catch (XWikiException e) {
             this.logger.warn("MCP edit_document tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP edit_document tool failure details", e);
-            return MCPToolSupport.errorResult("Could not save the document. See the server logs for details.");
+            return MCPToolSupport.errorResult("Could not save the document. Try again; if it persists, report "
+                + "it to a wiki administrator (details are in the server logs).");
         }
     }
 
@@ -445,7 +442,7 @@ public class MCPEditDocumentTool implements MCPTool
             return null;
         }
         if (creating) {
-            return MCPToolSupport.errorResult("Document " + QUOTE + reference + QUOTE + " does not exist; omit "
+            return MCPToolSupport.errorResult(DOCUMENT_PREFIX + reference + QUOTE + " does not exist; omit "
                 + "base_version when creating a document.");
         }
         if (!baseVersion.equals(currentVersion)) {
@@ -520,7 +517,7 @@ public class MCPEditDocumentTool implements MCPTool
         }
         EditOp edit = edits.get(0);
         if (!edit.oldString().isEmpty()) {
-            throw new IllegalArgumentException(ERROR_QUOTE_PREFIX + reference + QUOTE + " does not exist. To "
+            throw new IllegalArgumentException(DOCUMENT_PREFIX + reference + QUOTE + " does not exist. To "
                 + "create it, send a single edit with an empty old_string (its new_string becomes the body).");
         }
         appliedReplacements.add(new AppliedEdit(edit.newString(), 1));

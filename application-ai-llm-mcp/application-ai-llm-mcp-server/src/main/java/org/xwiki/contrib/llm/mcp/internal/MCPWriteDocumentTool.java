@@ -163,15 +163,14 @@ public class MCPWriteDocumentTool implements MCPTool
         String referenceDescription = "The document reference to create or overwrite, e.g. \"Sandbox.WebHome\" "
             + "or \"" + (crossWiki ? "xwiki:" : "") + "Help.Foo\".";
         if (crossWiki) {
-            referenceDescription += " A wiki-id prefix targets another wiki when this endpoint has cross-wiki "
-                + "reach (see list_wikis).";
+            referenceDescription += " A wiki-id prefix reaches another wiki (see list_wikis).";
         }
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
             .requiredString(CONTENT_PARAM, "The complete new document source.")
             .string(TITLE_PARAM, "Optional new title. Kept unchanged when omitted.")
-            .string(BASE_VERSION_PARAM, "The version shown by get_document. Required to overwrite an existing "
-                + "document; omit when creating a new one.")
+            .string(BASE_VERSION_PARAM, "The version shown by get_document; omit when creating a new "
+                + "document.")
             .string(COMMENT_PARAM, "Version comment shown in the document history. Stored prefixed with "
                 + "[AI]. Default: a generic [AI] comment.")
             .bool(MAJOR_PARAM, "Set true to record this save as a major version. Default false (minor). "
@@ -267,7 +266,8 @@ public class MCPWriteDocumentTool implements MCPTool
         } catch (XWikiException e) {
             this.logger.warn("MCP write_document tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP write_document tool failure details", e);
-            return MCPToolSupport.errorResult("Could not save the document. See the server logs for details.");
+            return MCPToolSupport.errorResult("Could not save the document. Try again; if it persists, report "
+                + "it to a wiki administrator (details are in the server logs).");
         }
     }
 

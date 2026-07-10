@@ -269,11 +269,19 @@ public class MCPGetDocumentTool implements MCPTool
     private static final MCPToolSupport PARAMS_LOCAL = params(false);
 
     /**
-     * Error returned when an agent requests rendered output on a wiki where rendered content is disabled.
+     * Error returned when an agent requests rendered output on an endpoint where rendered content is disabled
+     * (the gate reads the source endpoint's flag).
      */
     private static final String RENDERED_DISABLED_ERROR =
-        "Rendered content is disabled for this wiki. Request the document without rendering (the raw wiki "
-            + "source) instead.";
+        "Rendered content is disabled for this endpoint. Read the document without rendered=true (the raw "
+            + "wiki source) instead.";
+
+    /**
+     * Shared truncation note of the full-read texts: a start-to-end read is still capped by the output budget
+     * and continues with an offset.
+     */
+    private static final String BUDGET_TRUNCATION_NOTE =
+        "output beyond the token budget is truncated with a continuation offset";
 
     /**
      * Shared tail of the requires-html-mode errors: {@code section} and {@code detail} are both only
@@ -490,15 +498,14 @@ public class MCPGetDocumentTool implements MCPTool
         String referenceDescription = "The document reference to read, e.g. \"Help.GettingStarted\" or \""
             + (crossWiki ? "xwiki:" : "") + "Sandbox.WebHome\".";
         if (crossWiki) {
-            referenceDescription += " A wiki-id prefix reaches another wiki when this endpoint has cross-wiki "
-                + "reach (see list_wikis).";
+            referenceDescription += " A wiki-id prefix reaches another wiki (see list_wikis).";
         }
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
             .integer(OFFSET_PARAM, "1-based line number to start reading from. Use with limit to read a slice "
                 + "of a large document.")
-            .integer(LIMIT_PARAM, "Number of lines to read from offset. Omit (with offset=1) to read the whole "
-                + "document regardless of size.")
+            .integer(LIMIT_PARAM, "Number of lines to read from offset. Omit (with offset=1) to read from the "
+                + "start; " + BUDGET_TRUNCATION_NOTE + PERIOD)
             .bool(OUTLINE_PARAM, "If true, return the document's heading outline (a map with line numbers) "
                 + "instead of its content. Default false.")
             .bool(RENDERED_PARAM, "If true, return the page RENDERED to plain text (macros executed, includes "
@@ -524,13 +531,11 @@ public class MCPGetDocumentTool implements MCPTool
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Read an XWiki document's raw source content. Returns the full source if it fits "
                 + "the ~" + MAX_OUTPUT_TOKENS + "-token output budget; if larger, returns a heading OUTLINE "
-                + "(a map, not the content) - then read a section with offset/limit. Output is line-numbered "
-                + "(like cat -n); when forming edit strings later, do "
-                + "NOT include the line-number prefix. Pass offset=1 with no limit to force the full document. "
-                + "Set rendered=true to read a script-driven page as executed plain text (read-only); add "
-                + "format=\"html\" to keep structure as HTML (presentation stripped - not browser-faithful). "
-                + "For format=\"html\", offset/limit do not apply: use outline=true to get heading anchors "
-                + "with sizes, then section=\"#H...\" to read one section.")
+                + "(a map, not the content), or a capped head when the document has no headings. Output is "
+                + "line-numbered (like cat -n); when forming edit strings later, do NOT include the "
+                + "line-number prefix. Pass offset=1 with no limit to read from the start instead of the "
+                + "outline (" + BUDGET_TRUNCATION_NOTE + "). For format=\"html\", offset/limit do not apply: "
+                + "use outline=true, then section.")
             .build();
     }
 
@@ -550,6 +555,11 @@ public class MCPGetDocumentTool implements MCPTool
     public String getManPage()
     {
         return """
+            NOTES
+                A page whose body source is empty may still display content: a sheet or the page's
+                structured data (xobjects) produces the view. Such reads carry a note; read the page
+                with rendered=true, format="html" - editing the body will not change what users see.
+
             EXAMPLES
                 Full read:  reference="Help.GettingStarted"
                 A range:    reference="Help.GettingStarted", offset=80, limit=40
@@ -576,11 +586,6 @@ public class MCPGetDocumentTool implements MCPTool
                             them with rendered=true, format="html", section="#HHeadings",
                             detail="full" (keeps ALL attributes - class, style, data-* - instead of
                             stripping presentation; long attribute values are shortened).
-
-            NOTES
-                A page whose body source is empty may still display content: a sheet or the page's
-                structured data (xobjects) produces the view. Such reads carry a note; read the page
-                with rendered=true, format="html" - editing the body will not change what users see.
 
             SEE ALSO
                 man xwiki-syntax    XWiki 2.1 syntax reference (for the editable source you read and write).
@@ -1559,7 +1564,8 @@ public class MCPGetDocumentTool implements MCPTool
         }
         if (start > totalLines) {
             return MCPToolSupport.errorResult(
-                "offset " + start + " exceeds document length (" + totalLines + " lines).");
+                "offset " + start + " exceeds document length (" + totalLines + " lines). Use an offset of at "
+                    + "most " + totalLines + PERIOD);
         }
         long endLong = (limit != null) ? Math.min((long) start + limit - 1, totalLines) : totalLines;
         int end = (int) endLong;

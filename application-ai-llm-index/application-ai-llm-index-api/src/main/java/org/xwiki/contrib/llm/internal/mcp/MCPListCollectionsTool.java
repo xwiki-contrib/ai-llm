@@ -66,7 +66,7 @@ public class MCPListCollectionsTool implements MCPTool
     {
         return McpSchema.Tool.builder(TOOL_ID,
                 Map.of("type", OBJECT, "properties", Map.of(), "required", List.of()))
-            .description("List all collections available for searching.")
+            .description("List the indexed collections you can search with search_collections.")
             .build();
     }
 
@@ -96,9 +96,12 @@ public class MCPListCollectionsTool implements MCPTool
                 .addTextContent(content)
                 .build();
         } catch (IndexException e) {
-            this.logger.error("MCP list_collections tool failed", e);
+            // Keep the root cause in the logs, off the wire.
+            this.logger.warn("MCP list_collections tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP list_collections tool failure details", e);
             return McpSchema.CallToolResult.builder()
-                .addTextContent("Error listing collections: " + ExceptionUtils.getRootCauseMessage(e))
+                .addTextContent("Failed to list collections. Try again; if it persists, report it to a wiki "
+                    + "administrator (details are in the server logs).")
                 .isError(true)
                 .build();
         }

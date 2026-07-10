@@ -34,6 +34,7 @@ import org.xwiki.test.junit5.mockito.MockComponent;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -82,8 +83,14 @@ class MCPListCollectionsToolTest
         McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
-        assertTrue(((McpSchema.TextContent) result.content().get(0)).text().contains("Solr down"));
-        assertEquals("MCP list_collections tool failed", this.logCapture.getMessage(0));
+        // The root cause stays in the logs; the wire gets a fixed message.
+        String text = ((McpSchema.TextContent) result.content().get(0)).text();
+        assertEquals("Failed to list collections. Try again; if it persists, report it to a wiki "
+            + "administrator (details are in the server logs).", text);
+        assertFalse(text.contains("Solr down"), text);
+        assertTrue(this.logCapture.getMessage(0).contains("MCP list_collections tool failed"),
+            this.logCapture.getMessage(0));
+        assertTrue(this.logCapture.getMessage(0).contains("Solr down"), this.logCapture.getMessage(0));
     }
 
     @Test

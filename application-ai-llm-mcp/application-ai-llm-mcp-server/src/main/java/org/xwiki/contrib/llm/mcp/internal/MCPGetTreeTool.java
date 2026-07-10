@@ -312,7 +312,9 @@ public class MCPGetTreeTool implements MCPTool
     private static final String TRUNCATION_FOOTER_TAIL = " branch(es) not expanded. Narrow the view with a "
         + "deeper root or a smaller depth.";
 
-    private static final String QUERY_FAILED = "Failed to read the page hierarchy.";
+    private static final String QUERY_FAILED =
+        "Failed to read the page hierarchy. Try again; if it persists, report it to a wiki administrator "
+            + "(details are in the server logs).";
 
     private static final String JUST_NOW = "just now";
 
@@ -403,9 +405,9 @@ public class MCPGetTreeTool implements MCPTool
         "XWiki.WatchListClass");
 
     private static final String DESCRIPTION =
-        "Survey a wiki (omit root: one summary line per top-level space with page counts and recency) or "
-            + "explore a subtree (root: indented tree of pages). Hidden pages are excluded unless "
-            + "showHidden=true. Every ref is get_document-ready; re-call with a ref as root to zoom in.";
+        "Survey a wiki (omit root: per-space summary with page counts and recency) or explore a subtree "
+            + "(root: indented tree of pages). Every ref is get_document-ready; re-call with a ref as root "
+            + "to zoom in.";
 
     /**
      * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input

@@ -142,7 +142,7 @@ public class MCPManTool implements MCPTool
             [[Label>>Space.Page]]                 link with a label
             [[Label>>https://xwiki.org]]          link to an external URL
             [[Space.Page||target="_blank"]]       open in a new window
-            [[Space.Page||anchor="HMyHeading"]]   link to a heading (anchor = "H" + heading text, letters only)
+            [[Space.Page||anchor="HMyHeading"]]   link to a heading (anchor = "H" + heading text, letters/digits only)
             [[Space.Page||queryString="a=1&b=2"]] link with a query string
             [[john@x.net>>mailto:john@x.net]]     email link
             [[attach:Space.Page@file.pdf]]        link to an attachment
@@ -204,8 +204,7 @@ public class MCPManTool implements MCPTool
      * argument accessors.
      */
     private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
-        .string(TOOL_PARAM, "Name of the tool to show the manual page for. Omit to list all "
-            + "available tools by category.")
+        .string(TOOL_PARAM, "Name of the tool or reference page to show. Omit for the categorized catalog.")
         .build();
 
     @Inject
@@ -236,9 +235,9 @@ public class MCPManTool implements MCPTool
     public McpSchema.Tool getToolDefinition()
     {
         return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
-            .description("Show documentation for the available MCP tools. Call with no arguments for a "
-                + "categorized list of all tools; pass 'tool' with a tool name to get that tool's full "
-                + "manual page (synopsis, options, description, examples).")
+            .description("Show documentation for the available MCP tools and reference pages. Call with no "
+                + "arguments for a categorized catalog; pass 'tool' with a tool or reference-page name to get "
+                + "its full manual page (synopsis, options, description, examples).")
             .build();
     }
 
@@ -324,7 +323,7 @@ public class MCPManTool implements MCPTool
     private String renderCatalog(List<MCPTool> tools)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("Available tools and reference pages — use `man <name>` for full documentation:")
+        sb.append("Available tools and reference pages - use `man <name>` for full documentation:")
             .append(NEW_LINE);
 
         Map<String, List<String>> byCategory = new TreeMap<>();

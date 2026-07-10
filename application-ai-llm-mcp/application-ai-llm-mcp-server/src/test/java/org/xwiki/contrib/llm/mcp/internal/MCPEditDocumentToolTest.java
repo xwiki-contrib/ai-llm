@@ -636,7 +636,8 @@ class MCPEditDocumentToolTest
     {
         when(this.wikiReach.isReachEnabled()).thenReturn(true);
 
-        assertTrue(referenceDescription().contains("cross-wiki"), referenceDescription());
+        assertTrue(referenceDescription().contains("reaches another wiki (see list_wikis)"),
+            referenceDescription());
         assertTrue(referenceDescription().contains("\"xwiki:Help.Foo\""), referenceDescription());
     }
 

@@ -149,9 +149,15 @@ class MCPSearchCollectionsToolTest
 
         assertEquals(Boolean.TRUE, result.isError());
         assertFalse(result.content().isEmpty());
-        assertTrue(((McpSchema.TextContent) result.content().get(0)).text().contains("Solr unavailable"));
-        assertEquals("MCP search_collections tool failed for query [failing query]",
+        // The root cause stays in the logs; the wire gets a fixed message.
+        String text = ((McpSchema.TextContent) result.content().get(0)).text();
+        assertEquals("Failed to search collections. Try again; if it persists, report it to a wiki "
+            + "administrator (details are in the server logs).", text);
+        assertFalse(text.contains("Solr unavailable"), text);
+        assertTrue(this.logCapture.getMessage(0)
+            .contains("MCP search_collections tool failed for query [failing query]"),
             this.logCapture.getMessage(0));
+        assertTrue(this.logCapture.getMessage(0).contains("Solr unavailable"), this.logCapture.getMessage(0));
     }
 
     @Test
@@ -235,7 +241,7 @@ class MCPSearchCollectionsToolTest
         McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
-        assertEquals("Error: Limits must be greater than or equal to 0.",
+        assertEquals("Error: 'limitKeywordResults'/'limitSemanticResults' must be greater than or equal to 0.",
             ((McpSchema.TextContent) result.content().get(0)).text());
         verifyNoInteractions(this.collectionManager);
     }

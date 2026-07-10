@@ -278,8 +278,7 @@ public class MCPQueryDocumentsTool implements MCPTool
                 + "mainly against document titles (high weight) and content. Leave empty to browse/list "
                 + "documents instead of searching.")
             .stringIf(crossWiki, WIKI_PARAM, "Which wiki to search: omit for this wiki, a wiki id for one "
-                + "specific wiki, or \"all\" for every reachable wiki. Cross-wiki search requires this endpoint "
-                + "to have cross-wiki reach enabled; list_wikis shows what is reachable.")
+                + "specific wiki, or \"all\" for every reachable wiki. list_wikis shows the reachable wikis.")
             .string(SPACE_PARAM, "Optional local space reference (e.g. \"Help\" or \"Help.Guides\"). "
                 + "Restricts results to that space and all its children.")
             .string(AUTHOR_PARAM, "Optional last author. A user name or reference - \"Admin\""
@@ -305,10 +304,10 @@ public class MCPQueryDocumentsTool implements MCPTool
     {
         MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
-            .description("Search and browse XWiki documents in the wiki's Solr index, queried with "
-                + "Solr Extended DisMax (edismax) syntax. Leave 'query' empty to browse/list, e.g. "
-                + "recent changes. Each result includes the document reference (use with get_document) "
-                + "and a matched snippet. `man query_documents` shows examples and filters.")
+            .description("Search XWiki documents in the wiki's Solr index, queried with Solr Extended "
+                + "DisMax (edismax) syntax; also browses (empty query). Each result includes the document "
+                + "reference (use with get_document) and a matched snippet. `man query_documents` shows "
+                + "examples and filters.")
             .build();
     }
 
@@ -544,7 +543,8 @@ public class MCPQueryDocumentsTool implements MCPTool
         if (total > 0) {
             if (request.offset() >= total) {
                 throw new IllegalArgumentException("offset " + request.offset()
-                    + " is beyond the last result (" + total + " total matches).");
+                    + " is beyond the last result (" + total + " total matches). Use an offset below "
+                    + total + PERIOD);
             }
             return "No viewable documents in this page (" + total + " total matches before access "
                 + "filtering). Continue with offset=" + (request.offset() + request.limit()) + PERIOD;

@@ -68,7 +68,13 @@ public class MCPSearchCollectionsTool implements MCPTool
 
     private static final String REQUIRED_QUERY_MESSAGE = "Error: 'query' parameter is required and must not be empty.";
 
-    private static final String INVALID_LIMITS_MESSAGE = "Error: Limits must be greater than or equal to 0.";
+    /**
+     * Shared prefix of the limit-validation error messages, naming both limit parameters.
+     */
+    private static final String LIMITS_PREFIX =
+        "Error: '" + LIMIT_KEYWORD_PARAM + "'/'" + LIMIT_SEMANTIC_PARAM + "' must be ";
+
+    private static final String INVALID_LIMITS_MESSAGE = LIMITS_PREFIX + "greater than or equal to 0.";
 
     private static final String QUERY_STRING_PARAMETER_MESSAGE = "Error: 'query' parameter must be a string.";
 
@@ -141,8 +147,13 @@ public class MCPSearchCollectionsTool implements MCPTool
                 .addTextContent(formatResults(results))
                 .build();
         } catch (IndexException e) {
-            this.logger.error("MCP search_collections tool failed for query [{}]", args.get(QUERY_PARAM), e);
-            return buildErrorResult("Error searching collections: " + ExceptionUtils.getRootCauseMessage(e));
+            // Keep the root cause in the logs, off the wire.
+            this.logger.warn("MCP search_collections tool failed for query [{}]: [{}]", args.get(QUERY_PARAM),
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP search_collections tool failure details for query [{}]",
+                args.get(QUERY_PARAM), e);
+            return buildErrorResult("Failed to search collections. Try again; if it persists, report it to a "
+                + "wiki administrator (details are in the server logs).");
         } catch (IllegalArgumentException e) {
             return buildErrorResult(e.getMessage());
         }
@@ -227,7 +238,7 @@ public class MCPSearchCollectionsTool implements MCPTool
 
     private String getLimitExceededMessage()
     {
-        return "Error: Limits must be less than or equal to " + this.securityConfiguration.getQueryItemsLimit();
+        return LIMITS_PREFIX + "less than or equal to " + this.securityConfiguration.getQueryItemsLimit() + ".";
     }
 
     private int getIntParam(Map<String, Object> args, String key)

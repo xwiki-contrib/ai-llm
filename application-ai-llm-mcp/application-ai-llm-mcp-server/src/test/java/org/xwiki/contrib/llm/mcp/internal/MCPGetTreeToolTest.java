@@ -942,7 +942,8 @@ class MCPGetTreeToolTest
 
         assertTrue(result.isError(), "expected an error result");
         String text = ((McpSchema.TextContent) result.content().get(0)).text();
-        assertEquals("Failed to read the page hierarchy.", text);
+        assertEquals("Failed to read the page hierarchy. Try again; if it persists, report it to a wiki "
+            + "administrator (details are in the server logs).", text);
         assertFalse(text.contains("schema detail"), text);
         // The root cause goes to the logs instead of the wire.
         assertTrue(this.logCapture.getMessage(0).contains("MCP get_tree tool failed"),

@@ -231,7 +231,7 @@ class MCPGetDocumentToolTest
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
 
         assertEquals(Boolean.TRUE, result.isError());
-        assertTrue(textOf(result).contains("Rendered content is disabled for this wiki"), textOf(result));
+        assertTrue(textOf(result).contains("Rendered content is disabled for this endpoint"), textOf(result));
         // The gate consulted the source context wiki, not the target ref's wiki.
         verify(this.mcpConfig).isRenderedContentAllowed("xwiki");
         // The refusal happens before any rendering: the executed view must never be produced.
@@ -860,7 +860,8 @@ class MCPGetDocumentToolTest
     {
         when(this.wikiReach.isReachEnabled()).thenReturn(true);
 
-        assertTrue(referenceDescription().contains("cross-wiki"), referenceDescription());
+        assertTrue(referenceDescription().contains("reaches another wiki (see list_wikis)"),
+            referenceDescription());
         assertTrue(referenceDescription().contains("\"xwiki:Sandbox.WebHome\""), referenceDescription());
     }
 
@@ -1715,7 +1716,7 @@ class MCPGetDocumentToolTest
     {
         String description = this.tool.getToolDefinition().description();
         assertTrue(description.contains("offset/limit do not apply"), description);
-        assertTrue(description.contains("section=\"#H...\""), description);
+        assertTrue(description.contains("outline=true, then section"), description);
     }
 
     @Test
