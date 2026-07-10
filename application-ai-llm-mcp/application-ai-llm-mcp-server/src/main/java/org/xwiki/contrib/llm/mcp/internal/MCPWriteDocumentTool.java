@@ -26,12 +26,10 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
 import org.xwiki.contrib.llm.mcp.MCPReachAwareParams;
 import org.xwiki.contrib.llm.mcp.MCPSourceText;
@@ -40,9 +38,7 @@ import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
-import org.xwiki.security.authorization.Right;
 
-import com.xpn.xwiki.XWiki;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.api.Document;
@@ -62,10 +58,10 @@ import io.modelcontextprotocol.spec.McpSchema;
  * {@link MCPSourceText#normalizeLineEndings(String)}, matching the representation the read and edit
  * tools operate on.</p>
  *
- * <p>Resolution and authorization both go through {@link MCPDocumentAccess#resolveAndAuthorize(String,
- * Right)} for {@link Right#EDIT} before the document is loaded, so the per-wiki space filter is applied
- * and the existence of a protected document is never leaked. The save goes through
- * {@link com.xpn.xwiki.api.Document} so author attribution and save-time rights are applied.</p>
+ * <p>Resolution and authorization both go through {@link MCPDocumentAccess} for the edit right before
+ * the document is loaded, so the per-wiki space filter is applied and the existence of a protected
+ * document is never leaked. The save goes through {@link com.xpn.xwiki.api.Document} so author
+ * attribution and save-time rights are applied.</p>
  *
  * @version $Id$
  * @since 0.9
@@ -79,25 +75,6 @@ public class MCPWriteDocumentTool implements MCPTool
      * The stable tool identifier. Used as the XWiki component hint.
      */
     public static final String TOOL_ID = "write_document";
-
-    /**
-     * Marker prefixed to the save comment of every write made through this tool, making agent-made
-     * revisions identifiable in document history (for review, filtering or reverting). Treat it as a
-     * stable contract: tooling and administrators may match on it.
-     */
-    private static final String AI_COMMENT_PREFIX = "[AI] ";
-
-    /**
-     * Upper bound, in characters, on the document content accepted in a single call, so a pathological
-     * call cannot persist an arbitrarily large document version. Same value as the edit tool's cap on
-     * its resulting content.
-     */
-    private static final int MAX_CONTENT_CHARS = 1_000_000;
-
-    /**
-     * Cap on the saved version comment, comfortably under the database column limit (1023 characters).
-     */
-    private static final int MAX_COMMENT_CHARS = 1000;
 
     private static final String REFERENCE_PARAM = "reference";
 
@@ -118,10 +95,6 @@ public class MCPWriteDocumentTool implements MCPTool
     private static final String PERIOD = ".";
 
     private static final String DOCUMENT_QUOTE_PREFIX = "Document " + QUOTE;
-
-    private static final String VIEW_ACTION = "view";
-
-    private static final String VERSION_PREFIX = "Version: ";
 
     /**
      * The two declared-parameter variants (see {@link MCPReachAwareParams}): the local variant drops the
@@ -242,9 +215,9 @@ public class MCPWriteDocumentTool implements MCPTool
         try {
             String reference = PARAMS.parser().requireString(args, REFERENCE_PARAM);
             String rawContent = requireRawContent(args);
-            if (rawContent.length() > MAX_CONTENT_CHARS) {
+            if (rawContent.length() > MCPWriteSupport.MAX_CONTENT_CHARS) {
                 throw new IllegalArgumentException("Error: the content exceeds the maximum size ("
-                    + MAX_CONTENT_CHARS + " characters).");
+                    + MCPWriteSupport.MAX_CONTENT_CHARS + " characters).");
             }
             String content = MCPSourceText.normalizeLineEndings(rawContent);
             String title = PARAMS.parser().string(args, TITLE_PARAM);
@@ -252,12 +225,7 @@ public class MCPWriteDocumentTool implements MCPTool
             String comment = PARAMS.parser().string(args, COMMENT_PARAM);
             boolean major = PARAMS.parser().bool(args, MAJOR_PARAM);
 
-            DocumentReference ref;
-            try {
-                ref = this.documentAccess.resolveAndAuthorize(reference, Right.EDIT);
-            } catch (MCPAccessDeniedException e) {
-                return MCPToolSupport.errorResult(e.getMessage());
-            }
+            DocumentReference ref = MCPWriteSupport.resolveForEdit(this.documentAccess, reference);
 
             return writeAndSave(ref, reference, content, title, baseVersion, comment, major);
         } catch (IllegalArgumentException e) {
@@ -265,27 +233,14 @@ public class MCPWriteDocumentTool implements MCPTool
         } catch (XWikiException e) {
             this.logger.warn("MCP write_document tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP write_document tool failure details", e);
-            return MCPToolSupport.errorResult("Could not save the document. Try again; if it persists, report "
-                + "it to a wiki administrator (details are in the server logs).");
+            return MCPToolSupport.errorResult(MCPWriteSupport.SAVE_FAILED_MESSAGE);
         }
     }
 
     private McpSchema.CallToolResult writeAndSave(DocumentReference ref, String reference, String content,
         String title, String baseVersion, String comment, boolean major) throws XWikiException
     {
-        XWikiContext xcontext = this.contextProvider.get();
-        if (xcontext == null || xcontext.getUserReference() == null) {
-            return MCPToolSupport.errorResult("No authenticated user in context.");
-        }
-        String originalWiki = xcontext.getWikiId();
-        String targetWiki = ref.getWikiReference().getName();
-        // The save must run in the target wiki so save-time rights and class resolution are correct for a
-        // cross-wiki write; restore the original context wiki afterwards.
-        try {
-            xcontext.setWikiId(targetWiki);
-            XWiki xwiki = xcontext.getWiki();
-
-            XWikiDocument xdoc = xwiki.getDocument(ref, xcontext);
+        return MCPWriteSupport.inTargetWiki(this.contextProvider.get(), ref, (xcontext, xdoc) -> {
             boolean creating = xdoc.isNew();
             String oldVersion = xdoc.getVersion();
 
@@ -305,13 +260,12 @@ public class MCPWriteDocumentTool implements MCPTool
             if (titleChanged) {
                 apiDoc.setTitle(title);
             }
-            apiDoc.save(buildComment(creating, comment), isMinorEdit(creating, major));
+            apiDoc.save(MCPWriteSupport.buildComment(comment, creating, "Replaced content"),
+                MCPWriteSupport.isMinorEdit(creating, major));
 
             return MCPToolSupport.result(buildSuccessResult(ref, creating, title != null, titleChanged, oldVersion,
                 apiDoc.getVersion(), syntaxIdOf(xdoc)));
-        } finally {
-            xcontext.setWikiId(originalWiki);
-        }
+        });
     }
 
     /**
@@ -334,8 +288,7 @@ public class MCPWriteDocumentTool implements MCPTool
     {
         if (creating) {
             if (baseVersion != null) {
-                return MCPToolSupport.errorResult(DOCUMENT_QUOTE_PREFIX + reference + QUOTE + " does not exist; "
-                    + "omit base_version when creating a document.");
+                return MCPToolSupport.errorResult(MCPWriteSupport.missingDocumentBaseVersionError(reference));
             }
             return null;
         }
@@ -345,8 +298,8 @@ public class MCPWriteDocumentTool implements MCPTool
                 + "changes prefer edit_document.");
         }
         if (!baseVersion.equals(currentVersion)) {
-            return MCPToolSupport.errorResult("Version conflict: the document is now at version " + currentVersion
-                + " but base_version is " + baseVersion + ". Re-read it with get_document and retry.");
+            return MCPToolSupport.errorResult(
+                MCPWriteSupport.versionConflictError(currentVersion, baseVersion, "retry."));
         }
         return null;
     }
@@ -374,43 +327,6 @@ public class MCPWriteDocumentTool implements MCPTool
         return str;
     }
 
-    /**
-     * Decides whether the save is recorded as a minor edit. A creation is a normal (major) save - a new
-     * document is version 1.1 regardless, so an explicit {@code major} request is accepted and ignored.
-     * An overwrite is minor unless the caller explicitly asks for a major version, so iterative agent
-     * writes do not inflate the major version or clutter the default history view.
-     *
-     * @param creating whether the document is being created
-     * @param major whether the caller asked for a major version
-     * @return whether the save is a minor edit
-     */
-    private static boolean isMinorEdit(boolean creating, boolean major)
-    {
-        return !creating && !major;
-    }
-
-    /**
-     * Builds the version comment for the save: the agent-supplied comment when one was given, otherwise a
-     * generated summary of the change. The {@link #AI_COMMENT_PREFIX} marker is always prepended, and the
-     * combined comment is truncated to {@link #MAX_COMMENT_CHARS} to fit the history storage.
-     *
-     * @param creating whether the document is being created
-     * @param agentComment the agent-supplied comment, or {@code null} when none was given
-     * @return the comment to record in the document history
-     */
-    private static String buildComment(boolean creating, String agentComment)
-    {
-        String combined;
-        if (StringUtils.isNotBlank(agentComment)) {
-            combined = AI_COMMENT_PREFIX + agentComment;
-        } else if (creating) {
-            combined = AI_COMMENT_PREFIX + "Created document";
-        } else {
-            combined = AI_COMMENT_PREFIX + "Replaced content";
-        }
-        return StringUtils.abbreviate(combined, MAX_COMMENT_CHARS);
-    }
-
     private String buildSuccessResult(DocumentReference ref, boolean creating, boolean titleGiven,
         boolean titleChanged, String oldVersion, String newVersion, String syntaxId)
     {
@@ -418,44 +334,24 @@ public class MCPWriteDocumentTool implements MCPTool
         StringBuilder sb = new StringBuilder();
         if (creating) {
             sb.append("Created document ").append(canonicalRef).append(PERIOD).append(NEW_LINE);
-            sb.append(VERSION_PREFIX).append(newVersion).append(NEW_LINE);
+            sb.append(MCPWriteSupport.VERSION_PREFIX).append(newVersion).append(NEW_LINE);
             sb.append("Syntax: ").append(syntaxId);
             if (titleGiven) {
                 sb.append(NEW_LINE).append("Title set.");
             }
         } else {
             sb.append("Overwrote document ").append(canonicalRef).append(PERIOD).append(NEW_LINE);
-            sb.append(VERSION_PREFIX).append(oldVersion).append(" -> ").append(newVersion);
+            sb.append(MCPWriteSupport.VERSION_PREFIX).append(oldVersion).append(" -> ").append(newVersion);
             if (titleChanged) {
                 sb.append(NEW_LINE).append("Title updated.");
             }
         }
-        String urlLine = buildReviewLine(ref, creating, oldVersion, newVersion);
+        String urlLine = MCPWriteSupport.buildReviewLine(this.documentAccessBridge, this.logger, ref, creating,
+            oldVersion, newVersion);
         if (urlLine != null) {
             sb.append(NEW_LINE).append(urlLine);
         }
         return sb.toString();
-    }
-
-    private String buildReviewLine(DocumentReference ref, boolean creating, String oldVersion, String newVersion)
-    {
-        if (creating) {
-            String viewUrl = safeDocumentUrl(ref, null);
-            return viewUrl != null ? "View: " + viewUrl : null;
-        }
-        String query = "viewer=changes&rev1=" + oldVersion + "&rev2=" + newVersion;
-        String compareUrl = safeDocumentUrl(ref, query);
-        return compareUrl != null ? "Compare: " + compareUrl : null;
-    }
-
-    private String safeDocumentUrl(DocumentReference docRef, String queryString)
-    {
-        try {
-            return this.documentAccessBridge.getDocumentURL(docRef, VIEW_ACTION, queryString, null, true);
-        } catch (Exception e) {
-            this.logger.debug("MCP write_document tool could not build a URL", e);
-            return null;
-        }
     }
 
     /**
