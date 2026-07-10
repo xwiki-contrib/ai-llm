@@ -192,22 +192,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-checkstyle-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>default</id>
-                        <configuration>
-                            <suppressionsLocation>
-                                ${basedir}/src/checkstyle/checkstyle-suppressions.xml
-                            </suppressionsLocation>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
 </project>

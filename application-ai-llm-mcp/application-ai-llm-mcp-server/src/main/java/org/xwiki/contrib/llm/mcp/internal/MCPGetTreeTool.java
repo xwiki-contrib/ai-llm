@@ -87,6 +87,12 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPGetTreeTool.TOOL_ID)
 @Singleton
+// The two navigation modes are modeled with seven small nested records, composed with the shared doors
+// (row query, document access, wiki reach) and the MCP tool contract types. After the row-query pipeline
+// was extracted into MCPRowQuery (LLMAI-153), the remaining references are the tool's own record shape
+// plus intrinsic contract types - verified by enumeration, twice; every further reduction traded a
+// well-named type for worse code.
+@SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class MCPGetTreeTool implements MCPTool
 {
     /**

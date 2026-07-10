@@ -74,6 +74,11 @@ import io.modelcontextprotocol.spec.McpSchema;
  */
 @Component(roles = XWikiMCPServerManager.class)
 @Singleton
+// This is the module's composition root: it bridges the XWiki component world (lifecycle, configuration,
+// user resolution) to the MCP SDK world (transport, server builder, schema types) and hosts the per-call
+// middleware. Referencing many classes is intrinsic to that role, and working around the cap has
+// repeatedly forced worse code (dropping a useful catch clause, inlining helpers).
+@SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class XWikiMCPServerManager implements Disposable
 {
     /**
