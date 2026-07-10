@@ -21,6 +21,8 @@ package org.xwiki.contrib.llm.mcp.internal;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -58,6 +60,12 @@ import com.xpn.xwiki.XWikiContext;
  * document and {@link #filterQueries()} returns a match-nothing clause so the search yields no results,
  * so a transient glitch cannot silently defeat a blacklist.</p>
  *
+ * <p>The parsed configuration (mode plus resolved entries) is cached per source wiki so a search checking
+ * thousands of rows reads the configuration document once, not once per row. Only a successful parse is cached;
+ * a read failure propagates to the fail-closed handling above and leaves no cache entry, so the next check
+ * re-reads. The cache is invalidated on every cluster node by {@link MCPConfigChangeEventListener} when a wiki's
+ * MCP configuration document is saved.</p>
+ *
  * @version $Id$
  * @since 0.9
  */
@@ -80,6 +88,12 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
      * the search is narrowed to zero results rather than being left unrestricted.
      */
     private static final String MATCH_NOTHING = "-*:*";
+
+    /**
+     * Parsed filter state per source wiki. Holds only successfully parsed configurations; see
+     * {@link #getState(String)} for the caching and invalidation contract.
+     */
+    private final Map<String, FilterState> cache = new ConcurrentHashMap<>();
 
     @Inject
     private MCPServerConfiguration configuration;
@@ -110,19 +124,13 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
     {
         String wikiId = sourceWikiId();
         try {
-            String mode = this.configuration.getSpaceFilterMode(wikiId);
-            if (isNoRestriction(mode)) {
+            FilterState state = getState(wikiId);
+            if (state.unrestricted) {
                 return true;
             }
 
-            List<String> spaces = this.configuration.getSpaceFilterSpaces(wikiId);
-            List<String> documents = this.configuration.getSpaceFilterDocuments(wikiId);
-            if (spaces.isEmpty() && documents.isEmpty()) {
-                return true;
-            }
-
-            boolean matches = matchesSpace(target, spaces) || matchesDocument(target, documents);
-            return MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST.equals(mode) ? matches : !matches;
+            boolean matches = matchesSpace(target, state.spaces) || matchesDocument(target, state.documents);
+            return state.whitelist ? matches : !matches;
         } catch (Exception e) {
             this.logger.warn("Could not read the MCP space filter for wiki [{}]; denying access: [{}]",
                 wikiId, ExceptionUtils.getRootCauseMessage(e));
@@ -131,58 +139,26 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
         }
     }
 
-    private boolean matchesSpace(DocumentReference target, List<String> spaces)
-    {
-        SpaceReference targetSpace = target.getLastSpaceReference();
-        for (String configured : spaces) {
-            SpaceReference configuredSpace = resolveSpace(configured);
-            // hasParent is strict ancestry, so equals covers a document directly in the configured space.
-            // SpaceReference equality includes the wiki, so a wiki-qualified entry matches only its own wiki.
-            if (configuredSpace != null
-                && (targetSpace.equals(configuredSpace) || targetSpace.hasParent(configuredSpace))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean matchesDocument(DocumentReference target, List<String> documents)
-    {
-        for (String configured : documents) {
-            DocumentReference configuredDoc = resolveDocument(configured);
-            if (configuredDoc != null && target.equals(configuredDoc)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     public List<String> filterQueries()
     {
         String wikiId = sourceWikiId();
         try {
-            String mode = this.configuration.getSpaceFilterMode(wikiId);
-            if (isNoRestriction(mode)) {
+            FilterState state = getState(wikiId);
+            if (state.unrestricted) {
                 return List.of();
             }
 
-            List<String> spaces = this.configuration.getSpaceFilterSpaces(wikiId);
-            List<String> documents = this.configuration.getSpaceFilterDocuments(wikiId);
-            if (spaces.isEmpty() && documents.isEmpty()) {
-                return List.of();
-            }
-
-            boolean whitelist = MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST.equals(mode);
-            List<String> clauses = buildEntryClauses(spaces, documents);
+            List<String> clauses = buildEntryClauses(state.spaces, state.documents);
             if (clauses.isEmpty()) {
-                // Every configured entry was malformed. A whitelist matches nothing (deny all), a blacklist
-                // excludes nothing (allow all), consistent with isAllowed skipping the malformed entries.
-                return whitelist ? List.of(MATCH_NOTHING) : List.of();
+                // Every configured entry was malformed (a resolvable entry always yields a clause). A whitelist
+                // matches nothing (deny all), a blacklist excludes nothing (allow all), consistent with isAllowed
+                // skipping the malformed entries.
+                return state.whitelist ? List.of(MATCH_NOTHING) : List.of();
             }
 
             String inner = String.join(OR, clauses);
-            return whitelist ? List.of(inner) : List.of("-" + OPEN_PAREN + inner + CLOSE_PAREN);
+            return state.whitelist ? List.of(inner) : List.of("-" + OPEN_PAREN + inner + CLOSE_PAREN);
         } catch (Exception e) {
             this.logger.warn("Could not build the MCP space filter queries for wiki [{}]; returning no "
                 + "results: [{}]", wikiId, ExceptionUtils.getRootCauseMessage(e));
@@ -191,31 +167,115 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
         }
     }
 
-    /**
-     * Builds one Solr clause per configured entry, each carrying its own wiki so entries targeting different
-     * wikis coexist in a single search. A malformed entry is skipped (logged at debug), mirroring
-     * {@link #isAllowed(DocumentReference)}.
-     *
-     * @param spaces the configured space references (wiki-qualified or unqualified)
-     * @param documents the configured document references (wiki-qualified or unqualified)
-     * @return the per-entry clauses, empty when every entry was malformed
-     */
-    private List<String> buildEntryClauses(List<String> spaces, List<String> documents)
+    @Override
+    public void invalidate(String wikiId)
     {
-        List<String> clauses = new ArrayList<>();
-        for (String configured : spaces) {
-            SpaceReference space = resolveSpace(configured);
+        this.cache.remove(wikiId);
+    }
+
+    @Override
+    public void invalidateAll()
+    {
+        this.cache.clear();
+    }
+
+    /**
+     * Returns the parsed filter state for the given source wiki, computing and caching it when absent.
+     *
+     * <p>{@code computeIfAbsent} runs the parse atomically per key: a parse failure propagates to the caller
+     * (which fails closed) without establishing a mapping, so failures are never cached. A concurrent
+     * {@link #invalidate(String)} cannot resurrect stale state either, because its removal cannot interleave
+     * inside the atomic compute-and-insert: it takes effect entirely before the parse (which then reads the
+     * saved configuration) or entirely after (removing the freshly inserted entry). The worst case is one
+     * request served the pre-save state — the same window the uncached read-then-save race had.</p>
+     *
+     * @param wikiId the source wiki whose configuration governs the filter
+     * @return the parsed filter state
+     */
+    private FilterState getState(String wikiId)
+    {
+        return this.cache.computeIfAbsent(wikiId, this::parseState);
+    }
+
+    private FilterState parseState(String wikiId)
+    {
+        String mode = this.configuration.getSpaceFilterMode(wikiId);
+        if (isNoRestriction(mode)) {
+            return new FilterState(true, false, List.of(), List.of());
+        }
+
+        List<String> spaces = this.configuration.getSpaceFilterSpaces(wikiId);
+        List<String> documents = this.configuration.getSpaceFilterDocuments(wikiId);
+        boolean unrestricted = spaces.isEmpty() && documents.isEmpty();
+        boolean whitelist = MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST.equals(mode);
+        return new FilterState(unrestricted, whitelist, resolveSpaces(spaces), resolveDocuments(documents));
+    }
+
+    private List<SpaceReference> resolveSpaces(List<String> configured)
+    {
+        List<SpaceReference> resolved = new ArrayList<>();
+        for (String entry : configured) {
+            SpaceReference space = resolveSpace(entry);
             if (space != null) {
-                clauses.add(scopedClause(space.getWikiReference().getName(), FieldUtils.SPACE_PREFIX,
-                    this.localSerializer.serialize(space)));
+                resolved.add(space);
             }
         }
-        for (String configured : documents) {
-            DocumentReference document = resolveDocument(configured);
+        return resolved;
+    }
+
+    private List<DocumentReference> resolveDocuments(List<String> configured)
+    {
+        List<DocumentReference> resolved = new ArrayList<>();
+        for (String entry : configured) {
+            DocumentReference document = resolveDocument(entry);
             if (document != null) {
-                clauses.add(scopedClause(document.getWikiReference().getName(), FieldUtils.FULLNAME,
-                    this.localSerializer.serialize(document)));
+                resolved.add(document);
             }
+        }
+        return resolved;
+    }
+
+    private boolean matchesSpace(DocumentReference target, List<SpaceReference> spaces)
+    {
+        SpaceReference targetSpace = target.getLastSpaceReference();
+        for (SpaceReference configuredSpace : spaces) {
+            // hasParent is strict ancestry, so equals covers a document directly in the configured space.
+            // SpaceReference equality includes the wiki, so a wiki-qualified entry matches only its own wiki.
+            if (targetSpace.equals(configuredSpace) || targetSpace.hasParent(configuredSpace)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesDocument(DocumentReference target, List<DocumentReference> documents)
+    {
+        for (DocumentReference configuredDoc : documents) {
+            if (target.equals(configuredDoc)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Builds one Solr clause per resolved entry, each carrying its own wiki so entries targeting different
+     * wikis coexist in a single search.
+     *
+     * @param spaces the resolved space references (a malformed entry was already skipped at parse time)
+     * @param documents the resolved document references (a malformed entry was already skipped at parse time)
+     * @return the per-entry clauses, empty when every configured entry was malformed
+     */
+    private List<String> buildEntryClauses(List<SpaceReference> spaces, List<DocumentReference> documents)
+    {
+        List<String> clauses = new ArrayList<>();
+        for (SpaceReference space : spaces) {
+            clauses.add(scopedClause(space.getWikiReference().getName(), FieldUtils.SPACE_PREFIX,
+                this.localSerializer.serialize(space)));
+        }
+        for (DocumentReference document : documents) {
+            clauses.add(scopedClause(document.getWikiReference().getName(), FieldUtils.FULLNAME,
+                this.localSerializer.serialize(document)));
         }
         return clauses;
     }
@@ -268,5 +328,33 @@ public class DefaultMCPSpaceFilter implements MCPSpaceFilter
     private boolean isNoRestriction(String mode)
     {
         return MCPServerConfiguration.SPACE_FILTER_MODE_NONE.equals(mode);
+    }
+
+    /**
+     * Parsed filter state for one source wiki: the interpreted mode plus the configured entries already resolved
+     * into references. Immutable once built, so a cached instance is safely shared across threads.
+     */
+    private static final class FilterState
+    {
+        /** Whether the filter imposes no restriction ({@code mode=none} or both configured lists empty). */
+        private final boolean unrestricted;
+
+        /** Whether the mode is whitelist; any other restricting mode inverts the match (blacklist). */
+        private final boolean whitelist;
+
+        /** The resolvable configured space entries; malformed entries were skipped at parse time. */
+        private final List<SpaceReference> spaces;
+
+        /** The resolvable configured document entries; malformed entries were skipped at parse time. */
+        private final List<DocumentReference> documents;
+
+        FilterState(boolean unrestricted, boolean whitelist, List<SpaceReference> spaces,
+            List<DocumentReference> documents)
+        {
+            this.unrestricted = unrestricted;
+            this.whitelist = whitelist;
+            this.spaces = spaces;
+            this.documents = documents;
+        }
     }
 }

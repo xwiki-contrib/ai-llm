@@ -36,7 +36,9 @@ import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 /**
  * Listens for saves to any wiki's MCP server configuration document ({@code AI.MCP.Code.MCPServerConfig})
  * and {@link XWikiMCPServerManager#invalidate(String) invalidates} that wiki's MCP server, so its name,
- * description and instructions are re-read on the next connection without restarting XWiki.
+ * description and instructions are re-read on the next connection without restarting XWiki. With the same
+ * granularity it {@link MCPSpaceFilter#invalidate(String) invalidates} the cached parsed space-filter
+ * configuration, so the saved whitelist/blacklist takes effect on the next document check.
  *
  * <p>The MAIN wiki's config document carries the farm-level cross-wiki reach grant, which affects the
  * reach-gated tool set of every wiki's endpoint, not only the main wiki's. A save to the main wiki's config
@@ -60,6 +62,9 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
 
     @Inject
     private XWikiMCPServerManager mcpServerManager;
+
+    @Inject
+    private MCPSpaceFilter spaceFilter;
 
     @Inject
     private WikiDescriptorManager wikiDescriptorManager;
@@ -93,9 +98,11 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
             this.logger.debug("Main MCP configuration changed; invalidating all wiki servers, farm-level reach "
                 + "may have changed");
             this.mcpServerManager.invalidateAll();
+            this.spaceFilter.invalidateAll();
         } else {
             this.logger.debug("MCP server configuration changed for wiki [{}], invalidating its server", wikiId);
             this.mcpServerManager.invalidate(wikiId);
+            this.spaceFilter.invalidate(wikiId);
         }
     }
 }

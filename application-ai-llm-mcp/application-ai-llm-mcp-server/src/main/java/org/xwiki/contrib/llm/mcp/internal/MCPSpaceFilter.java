@@ -62,4 +62,22 @@ public interface MCPSpaceFilter
      * @return the filter-query clauses to AND into a search, or an empty list when unrestricted
      */
     List<String> filterQueries();
+
+    /**
+     * Drops the cached parsed filter configuration for the given source wiki, so the next check re-reads the
+     * wiki's configuration document. Called by {@code MCPConfigChangeEventListener} (a cluster-global listener,
+     * so the cache is dropped on every node) when that wiki's MCP configuration document is saved.
+     *
+     * @param wikiId the wiki whose cached filter configuration to drop
+     * @since 0.9.1
+     */
+    void invalidate(String wikiId);
+
+    /**
+     * Drops every wiki's cached parsed filter configuration. Called when the MAIN wiki's MCP configuration
+     * document is saved, mirroring the granularity of the per-wiki server invalidation.
+     *
+     * @since 0.9.1
+     */
+    void invalidateAll();
 }

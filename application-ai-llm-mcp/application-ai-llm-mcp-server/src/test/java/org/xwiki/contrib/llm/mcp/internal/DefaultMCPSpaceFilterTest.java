@@ -48,6 +48,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -274,6 +276,85 @@ class DefaultMCPSpaceFilterTest
 
         assertFalse(this.filter.isAllowed(docInSpace(spaceAB(), "Page")));
         assertEquals(List.of("-*:*"), this.filter.filterQueries());
+    }
+
+    @Test
+    void repeatedChecksReadTheConfigurationOnlyOnce()
+    {
+        mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
+        spaces(List.of(SPACE_AB));
+        documents(List.of());
+
+        // Several document checks plus a search filter build for the same source wiki: the configuration
+        // document is read and its entries resolved exactly once, then the cached parsed state is reused.
+        assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+        SpaceReference xy = new SpaceReference("Y", new SpaceReference("X", this.wikiReference));
+        assertFalse(this.filter.isAllowed(docInSpace(xy, "Page")));
+        assertEquals(List.of("(wiki:xwiki AND space_prefix:A.B)"), this.filter.filterQueries());
+
+        verify(this.configuration, times(1)).getSpaceFilterMode(WIKI);
+        verify(this.configuration, times(1)).getSpaceFilterSpaces(WIKI);
+        verify(this.configuration, times(1)).getSpaceFilterDocuments(WIKI);
+        verify(this.spaceResolver, times(1)).resolve(SPACE_AB);
+    }
+
+    @Test
+    void invalidateForcesTheNextCheckToReRead()
+    {
+        mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
+        spaces(List.of(SPACE_AB));
+        documents(List.of());
+
+        assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+        this.filter.invalidate(WIKI);
+        assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+
+        verify(this.configuration, times(2)).getSpaceFilterMode(WIKI);
+    }
+
+    @Test
+    void invalidatingAnotherWikiKeepsTheCachedState()
+    {
+        mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
+        spaces(List.of(SPACE_AB));
+        documents(List.of());
+
+        assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+        this.filter.invalidate(SECOND);
+        assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+
+        verify(this.configuration, times(1)).getSpaceFilterMode(WIKI);
+    }
+
+    @Test
+    void invalidateAllForcesTheNextCheckToReRead()
+    {
+        mode(MCPServerConfiguration.SPACE_FILTER_MODE_WHITELIST);
+        spaces(List.of(SPACE_AB));
+        documents(List.of());
+
+        assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+        this.filter.invalidateAll();
+        assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+
+        verify(this.configuration, times(2)).getSpaceFilterMode(WIKI);
+    }
+
+    @Test
+    void failedConfigurationReadIsNotCached()
+    {
+        when(this.configuration.getSpaceFilterMode(WIKI))
+            .thenThrow(new IllegalStateException("Store down"))
+            .thenReturn(MCPServerConfiguration.SPACE_FILTER_MODE_NONE);
+
+        // The first check fails closed; the failure leaves no cache entry, so the next check re-reads the
+        // configuration and sees the now-healthy store.
+        assertFalse(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+        assertTrue(this.filter.isAllowed(docInSpace(spaceAB(), "WebHome")));
+
+        verify(this.configuration, times(2)).getSpaceFilterMode(WIKI);
+        assertEquals("Could not read the MCP space filter for wiki [xwiki]; denying access: "
+            + "[IllegalStateException: Store down]", this.logCapture.getMessage(0));
     }
 
     @Test

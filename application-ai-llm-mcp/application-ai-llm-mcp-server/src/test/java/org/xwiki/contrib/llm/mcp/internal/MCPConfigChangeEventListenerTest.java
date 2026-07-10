@@ -56,6 +56,9 @@ class MCPConfigChangeEventListenerTest
     private XWikiMCPServerManager mcpServerManager;
 
     @MockComponent
+    private MCPSpaceFilter spaceFilter;
+
+    @MockComponent
     private WikiDescriptorManager wikiDescriptorManager;
 
     @BeforeEach
@@ -77,6 +80,8 @@ class MCPConfigChangeEventListenerTest
 
         // The main-wiki config carries the farm-level reach grant, so a main-wiki save invalidates all servers.
         verify(this.mcpServerManager).invalidateAll();
+        // The space-filter cache is dropped with the same granularity.
+        verify(this.spaceFilter).invalidateAll();
     }
 
     @Test
@@ -90,6 +95,7 @@ class MCPConfigChangeEventListenerTest
         this.listener.onEvent(new DocumentUpdatedEvent(configRef), doc, null);
 
         verify(this.mcpServerManager).invalidate(SUB_WIKI);
+        verify(this.spaceFilter).invalidate(SUB_WIKI);
     }
 
     @Test
@@ -103,6 +109,7 @@ class MCPConfigChangeEventListenerTest
         this.listener.onEvent(new DocumentUpdatedEvent(otherRef), doc, null);
 
         verifyNoInteractions(this.mcpServerManager);
+        verifyNoInteractions(this.spaceFilter);
     }
 
     @Test
@@ -117,6 +124,7 @@ class MCPConfigChangeEventListenerTest
 
         // The source document reference is the main-wiki config, so the fallback path invalidates all servers.
         verify(this.mcpServerManager).invalidateAll();
+        verify(this.spaceFilter).invalidateAll();
     }
 
     @Test
