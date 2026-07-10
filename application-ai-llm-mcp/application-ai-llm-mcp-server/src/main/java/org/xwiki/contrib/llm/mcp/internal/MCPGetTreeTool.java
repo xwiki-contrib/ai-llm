@@ -42,6 +42,7 @@ import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
+import org.xwiki.contrib.llm.mcp.MCPReachAwareParams;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
@@ -414,18 +415,10 @@ public class MCPGetTreeTool implements MCPTool
             + "to zoom in.";
 
     /**
-     * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input
-     * schema and the typed argument accessors. This variant carries the {@code wiki} parameter, and is also
-     * the variant used for argument parsing (so a {@code wiki} argument sent to a reach-off endpoint is still
-     * read and hits the reach gate's clear refusal).
+     * The two declared-parameter variants (see {@link MCPReachAwareParams}): the local variant omits the
+     * {@code wiki} parameter, so no cross-wiki capability is surfaced.
      */
-    private static final MCPToolSupport PARAMS = params(true);
-
-    /**
-     * The declared parameters advertised by a reach-off endpoint: the {@code wiki} parameter is omitted, so no
-     * cross-wiki capability is surfaced. Used only to build the advertised schema, never for parsing.
-     */
-    private static final MCPToolSupport PARAMS_LOCAL = params(false);
+    private static final MCPReachAwareParams PARAMS = MCPReachAwareParams.of(MCPGetTreeTool::params);
 
     @Inject
     private Logger logger;
@@ -489,7 +482,7 @@ public class MCPGetTreeTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
+        MCPToolSupport schema = PARAMS.advertised(this.wikiReach.isReachEnabled());
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description(DESCRIPTION)
             .build();
@@ -577,12 +570,12 @@ public class MCPGetTreeTool implements MCPTool
 
     private TreeRequest parseRequest(Map<String, Object> args)
     {
-        String root = PARAMS.string(args, ROOT_PARAM);
-        String wiki = PARAMS.string(args, WIKI_PARAM);
-        int depth = clamp(PARAMS.integer(args, DEPTH_PARAM, DEFAULT_DEPTH), MIN_DEPTH, MAX_DEPTH);
-        int limit = clamp(PARAMS.integer(args, LIMIT_PARAM, DEFAULT_LIMIT), MIN_LIMIT, MAX_LIMIT);
-        int offset = Math.max(PARAMS.integer(args, OFFSET_PARAM, 0), 0);
-        boolean showHidden = PARAMS.bool(args, SHOW_HIDDEN_PARAM);
+        String root = PARAMS.parser().string(args, ROOT_PARAM);
+        String wiki = PARAMS.parser().string(args, WIKI_PARAM);
+        int depth = clamp(PARAMS.parser().integer(args, DEPTH_PARAM, DEFAULT_DEPTH), MIN_DEPTH, MAX_DEPTH);
+        int limit = clamp(PARAMS.parser().integer(args, LIMIT_PARAM, DEFAULT_LIMIT), MIN_LIMIT, MAX_LIMIT);
+        int offset = Math.max(PARAMS.parser().integer(args, OFFSET_PARAM, 0), 0);
+        boolean showHidden = PARAMS.parser().bool(args, SHOW_HIDDEN_PARAM);
         return new TreeRequest(root, wiki, depth, limit, offset, showHidden);
     }
 

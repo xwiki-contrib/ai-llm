@@ -39,6 +39,7 @@ import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentSearch;
+import org.xwiki.contrib.llm.mcp.MCPReachAwareParams;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
@@ -232,19 +233,11 @@ public class MCPQueryDocumentsTool implements MCPTool
     private static final List<String> SORT_VALUES = List.of(RELEVANCE, NEWEST, OLDEST, TITLE);
 
     /**
-     * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input
-     * schema and the typed argument accessors. This variant carries the {@code wiki} parameter, and is also
-     * the variant used for argument parsing (so a {@code wiki} argument sent to a reach-off endpoint is still
-     * read and hits the reach gate's clear refusal).
+     * The two declared-parameter variants (see {@link MCPReachAwareParams}): the local variant omits the
+     * {@code wiki} parameter and keeps only wiki-prefix-free examples in the {@code author} description, so no
+     * cross-wiki capability is surfaced.
      */
-    private static final MCPToolSupport PARAMS = params(true);
-
-    /**
-     * The declared parameters advertised by a reach-off endpoint: the {@code wiki} parameter is omitted and the
-     * {@code author} description keeps only wiki-prefix-free examples, so no cross-wiki capability is surfaced.
-     * Used only to build the advertised schema, never for parsing.
-     */
-    private static final MCPToolSupport PARAMS_LOCAL = params(false);
+    private static final MCPReachAwareParams PARAMS = MCPReachAwareParams.of(MCPQueryDocumentsTool::params);
 
     @Inject
     private Logger logger;
@@ -312,7 +305,7 @@ public class MCPQueryDocumentsTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
+        MCPToolSupport schema = PARAMS.advertised(this.wikiReach.isReachEnabled());
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Search XWiki documents in the wiki's Solr index, queried with Solr Extended "
                 + "DisMax (edismax) syntax; also browses (empty query). Each result includes the document "
@@ -385,21 +378,21 @@ public class MCPQueryDocumentsTool implements MCPTool
 
     private SearchRequest parseRequest(Map<String, Object> args)
     {
-        String queryText = PARAMS.string(args, QUERY_PARAM);
-        String wiki = PARAMS.string(args, WIKI_PARAM);
-        int requestedLimit = PARAMS.integer(args, LIMIT_PARAM, DEFAULT_LIMIT);
+        String queryText = PARAMS.parser().string(args, QUERY_PARAM);
+        String wiki = PARAMS.parser().string(args, WIKI_PARAM);
+        int requestedLimit = PARAMS.parser().integer(args, LIMIT_PARAM, DEFAULT_LIMIT);
         int limit = clampLimit(requestedLimit);
         boolean limitCapped = requestedLimit > MAX_LIMIT;
-        int offset = PARAMS.integer(args, OFFSET_PARAM, 0);
+        int offset = PARAMS.parser().integer(args, OFFSET_PARAM, 0);
         if (offset < 0) {
             throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + OFFSET_PARAM + "' must be >= 0.");
         }
-        String space = PARAMS.string(args, SPACE_PARAM);
-        String author = normalizeAuthor(PARAMS.string(args, AUTHOR_PARAM));
-        String dateRange = resolveDateRange(PARAMS.string(args, MODIFIED_WITHIN_PARAM),
-            PARAMS.string(args, MODIFIED_RANGE_PARAM));
-        String sort = resolveSort(PARAMS.string(args, SORT_PARAM));
-        boolean includeHidden = PARAMS.bool(args, INCLUDE_HIDDEN_PARAM);
+        String space = PARAMS.parser().string(args, SPACE_PARAM);
+        String author = normalizeAuthor(PARAMS.parser().string(args, AUTHOR_PARAM));
+        String dateRange = resolveDateRange(PARAMS.parser().string(args, MODIFIED_WITHIN_PARAM),
+            PARAMS.parser().string(args, MODIFIED_RANGE_PARAM));
+        String sort = resolveSort(PARAMS.parser().string(args, SORT_PARAM));
+        boolean includeHidden = PARAMS.parser().bool(args, INCLUDE_HIDDEN_PARAM);
         return new SearchRequest(queryText, limit, offset, space, author, dateRange, sort, includeHidden, wiki,
             limitCapped);
     }

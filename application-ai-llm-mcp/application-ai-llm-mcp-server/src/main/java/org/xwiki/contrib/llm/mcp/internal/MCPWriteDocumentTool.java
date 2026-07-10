@@ -33,6 +33,7 @@ import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
+import org.xwiki.contrib.llm.mcp.MCPReachAwareParams;
 import org.xwiki.contrib.llm.mcp.MCPSourceText;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
@@ -123,20 +124,13 @@ public class MCPWriteDocumentTool implements MCPTool
     private static final String VERSION_PREFIX = "Version: ";
 
     /**
-     * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input schema
-     * and the typed argument accessors. This variant's {@code reference} description mentions cross-wiki reach,
-     * and is also the variant used for argument parsing. The {@code content} parameter is declared here for the
-     * schema but read raw in {@link #requireRawContent(Map)}, as the accessors trim string values and trimming
-     * would alter the saved body.
+     * The two declared-parameter variants (see {@link MCPReachAwareParams}): the local variant drops the
+     * cross-wiki sentence and the wiki-prefixed reference example from the {@code reference} description so no
+     * cross-wiki capability is surfaced. The {@code content} parameter is declared for the schema but read raw
+     * in {@link #requireRawContent(Map)}, as the accessors trim string values and trimming would alter the
+     * saved body.
      */
-    private static final MCPToolSupport PARAMS = params(true);
-
-    /**
-     * The declared parameters advertised by a reach-off endpoint: the cross-wiki sentence and the wiki-prefixed
-     * reference example are dropped from the {@code reference} description so no cross-wiki capability is
-     * surfaced. Used only to build the advertised schema, never for parsing.
-     */
-    private static final MCPToolSupport PARAMS_LOCAL = params(false);
+    private static final MCPReachAwareParams PARAMS = MCPReachAwareParams.of(MCPWriteDocumentTool::params);
 
     @Inject
     private Logger logger;
@@ -168,7 +162,7 @@ public class MCPWriteDocumentTool implements MCPTool
         String referenceDescription = "The document reference to create or overwrite, e.g. \"Sandbox.WebHome\" "
             + "or \"" + (crossWiki ? "xwiki:" : "") + "Help.Foo\".";
         if (crossWiki) {
-            referenceDescription += " A wiki-id prefix reaches another wiki (see list_wikis).";
+            referenceDescription += MCPReachAwareParams.CROSS_WIKI_REFERENCE_SENTENCE;
         }
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
@@ -186,7 +180,7 @@ public class MCPWriteDocumentTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        MCPToolSupport schema = this.wikiReach.isReachEnabled() ? PARAMS : PARAMS_LOCAL;
+        MCPToolSupport schema = PARAMS.advertised(this.wikiReach.isReachEnabled());
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Create a new XWiki document or replace the full content of an existing one. Write "
                 + "XWiki 2.1 syntax, NOT Markdown - `man xwiki-syntax` is the reference. Overwriting requires "
@@ -246,17 +240,17 @@ public class MCPWriteDocumentTool implements MCPTool
         Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();
 
         try {
-            String reference = PARAMS.requireString(args, REFERENCE_PARAM);
+            String reference = PARAMS.parser().requireString(args, REFERENCE_PARAM);
             String rawContent = requireRawContent(args);
             if (rawContent.length() > MAX_CONTENT_CHARS) {
                 throw new IllegalArgumentException("Error: the content exceeds the maximum size ("
                     + MAX_CONTENT_CHARS + " characters).");
             }
             String content = MCPSourceText.normalizeLineEndings(rawContent);
-            String title = PARAMS.string(args, TITLE_PARAM);
-            String baseVersion = PARAMS.string(args, BASE_VERSION_PARAM);
-            String comment = PARAMS.string(args, COMMENT_PARAM);
-            boolean major = PARAMS.bool(args, MAJOR_PARAM);
+            String title = PARAMS.parser().string(args, TITLE_PARAM);
+            String baseVersion = PARAMS.parser().string(args, BASE_VERSION_PARAM);
+            String comment = PARAMS.parser().string(args, COMMENT_PARAM);
+            boolean major = PARAMS.parser().bool(args, MAJOR_PARAM);
 
             DocumentReference ref;
             try {

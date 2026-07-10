@@ -36,6 +36,7 @@ import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
+import org.xwiki.contrib.llm.mcp.MCPReachAwareParams;
 import org.xwiki.contrib.llm.mcp.MCPSourceText;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
@@ -262,7 +263,8 @@ public class MCPGetDocumentTool implements MCPTool
     /**
      * The declared parameters for a cross-wiki-capable endpoint: one source for both the advertised input
      * schema and the typed argument accessors. This variant's {@code reference} description mentions cross-wiki
-     * reach, and is also the variant used for argument parsing.
+     * reach, and is also the variant used for argument parsing. The pair is kept as two fields (instead of an
+     * {@link MCPReachAwareParams} holder) because this class sits at the checkstyle class-fan-out cap.
      */
     private static final MCPToolSupport PARAMS = params(true);
 
@@ -503,7 +505,7 @@ public class MCPGetDocumentTool implements MCPTool
         String referenceDescription = "The document reference to read, e.g. \"Help.GettingStarted\" or \""
             + (crossWiki ? "xwiki:" : "") + "Sandbox.WebHome\".";
         if (crossWiki) {
-            referenceDescription += " A wiki-id prefix reaches another wiki (see list_wikis).";
+            referenceDescription += MCPReachAwareParams.CROSS_WIKI_REFERENCE_SENTENCE;
         }
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
