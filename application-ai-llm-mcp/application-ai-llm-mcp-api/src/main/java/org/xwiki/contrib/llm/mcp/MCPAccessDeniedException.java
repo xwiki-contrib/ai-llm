@@ -17,7 +17,9 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.mcp.internal;
+package org.xwiki.contrib.llm.mcp;
+
+import org.xwiki.stability.Unstable;
 
 /**
  * Thrown when an MCP tool's request to reach a document is denied, either by the regular rights check or by
@@ -25,12 +27,16 @@ package org.xwiki.contrib.llm.mcp.internal;
  * the tool error text.
  *
  * @version $Id$
- * @since 0.9
+ * @since 0.9.1
  */
+@Unstable
 public class MCPAccessDeniedException extends Exception
 {
+    private static final long serialVersionUID = 1L;
+
     /**
      * @param message the agent-facing reason the access was denied
+     * @since 0.9.1
      */
     public MCPAccessDeniedException(String message)
     {

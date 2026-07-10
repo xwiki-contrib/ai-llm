@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.internal.mcp;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -105,6 +106,15 @@ class MCPListCollectionsToolTest
 
         assertNotEquals(Boolean.TRUE, result.isError());
         assertEquals("No collections found.", ((McpSchema.TextContent) result.content().get(0)).text());
+    }
+
+    @Test
+    void toolDefinitionAdvertisesEmptyParameterSchema()
+    {
+        McpSchema.Tool definition = this.tool.getToolDefinition();
+
+        assertEquals(Map.of(), definition.inputSchema().get("properties"));
+        assertEquals(List.of(), definition.inputSchema().get("required"));
     }
 
     @Test

@@ -40,6 +40,7 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 
 import com.xpn.xwiki.XWikiContext;
 

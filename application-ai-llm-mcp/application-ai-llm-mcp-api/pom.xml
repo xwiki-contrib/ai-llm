@@ -33,8 +33,9 @@
     <properties>
         <xwiki.extension.name>LLM MCP API (BETA)</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
-        <!-- Interface-only module: no executable bytecode to instrument. -->
-        <xwiki.jacoco.instructionRatio>0</xwiki.jacoco.instructionRatio>
+        <!-- The module contains the extension-point interfaces (no bytecode to speak of) plus the
+             shared tool-support helpers (MCPToolSupport, MCPSourceText), covered by their tests. -->
+        <xwiki.jacoco.instructionRatio>0.85</xwiki.jacoco.instructionRatio>
     </properties>
     <dependencies>
         <!-- @Role annotation -->
@@ -43,12 +44,42 @@
             <artifactId>xwiki-commons-component-api</artifactId>
             <version>${commons.version}</version>
         </dependency>
-        <!-- MCP SDK: McpSchema, McpTransportContext used in the MCPTool interface.
+        <!-- DocumentReference and WikiReference used in the MCPDocumentAccess role. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-model-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <!-- Right used in the MCPDocumentAccess role. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-security-authorization-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <!-- Query and QueryException used in the MCPDocumentSearch role. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-query-manager</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
+        <!-- StringUtils used by the MCPToolSupport argument coercion. -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+        <!-- MCP SDK: McpSchema used in the MCPTool interface and the MCPToolSupport result builders.
              jackson-annotations and reactive-streams are excluded from mcp-core via
              dependencyManagement in the root pom. -->
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp-core</artifactId>
+        </dependency>
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.xwiki.commons</groupId>
+            <artifactId>xwiki-commons-tool-test-component</artifactId>
+            <version>${commons.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

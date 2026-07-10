@@ -32,6 +32,8 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
+import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;

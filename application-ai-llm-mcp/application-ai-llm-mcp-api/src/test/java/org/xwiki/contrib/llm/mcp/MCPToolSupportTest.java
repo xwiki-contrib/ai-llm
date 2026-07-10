@@ -17,8 +17,10 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.mcp.internal;
+package org.xwiki.contrib.llm.mcp;
 
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -31,8 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for the declarative parameter descriptor side of {@link MCPToolSupport} (the static coercion
- * helpers are covered through the tool test classes).
+ * Tests for {@link MCPToolSupport}: the declarative parameter descriptor side and the public static
+ * coercion/formatting helpers.
  *
  * @version $Id$
  */
@@ -44,6 +46,8 @@ class MCPToolSupportTest
 
     private static final String HIDDEN = "hidden";
 
+    private static final String TAGS = "tags";
+
     private static final String TYPE = "type";
 
     private static final String DESCRIPTION = "description";
@@ -52,10 +56,15 @@ class MCPToolSupportTest
 
     private static final String REQUIRED = "required";
 
+    private static final String TAGS_DESCRIPTION = "The tags.";
+
+    private static final String STRING_ARRAY_ERROR = "Error: 'tags' parameter must be an array of strings.";
+
     private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
         .requiredString(REF, "The reference.")
         .integer(LIMIT, "The limit.")
         .bool(HIDDEN, "Include hidden.")
+        .stringArray(TAGS, TAGS_DESCRIPTION)
         .build();
 
     @Test
@@ -68,6 +77,8 @@ class MCPToolSupportTest
         assertEquals(Map.of(TYPE, "string", DESCRIPTION, "The reference."), properties.get(REF));
         assertEquals(Map.of(TYPE, "integer", DESCRIPTION, "The limit."), properties.get(LIMIT));
         assertEquals(Map.of(TYPE, "boolean", DESCRIPTION, "Include hidden."), properties.get(HIDDEN));
+        assertEquals(Map.of(TYPE, "array", "items", Map.of(TYPE, "string"), DESCRIPTION, TAGS_DESCRIPTION),
+            properties.get(TAGS));
         assertEquals(List.of(REF), schema.get(REQUIRED));
     }
 
@@ -77,7 +88,7 @@ class MCPToolSupportTest
         Map<String, Object> schema = PARAMS.inputSchema();
 
         Map<?, ?> properties = (Map<?, ?>) schema.get(PROPERTIES);
-        assertEquals(List.of(REF, LIMIT, HIDDEN), List.copyOf(properties.keySet()));
+        assertEquals(List.of(REF, LIMIT, HIDDEN, TAGS), List.copyOf(properties.keySet()));
     }
 
     @Test
@@ -148,6 +159,63 @@ class MCPToolSupportTest
         assertThrows(IllegalStateException.class, () -> PARAMS.string(Map.of(), LIMIT));
         assertThrows(IllegalStateException.class, () -> PARAMS.integer(Map.of(), REF));
         assertThrows(IllegalStateException.class, () -> PARAMS.bool(Map.of(), REF));
+        assertThrows(IllegalStateException.class, () -> PARAMS.stringList(Map.of(), REF));
+    }
+
+    @Test
+    void stringListReadsDeclaredStringArrayParameter()
+    {
+        Map<String, Object> args = Map.of(TAGS, List.of("alpha", "beta"));
+
+        assertEquals(List.of("alpha", "beta"), PARAMS.stringList(args, TAGS));
+    }
+
+    @Test
+    void stringListTrimsElements()
+    {
+        Map<String, Object> args = Map.of(TAGS, List.of(" a ", "b"));
+
+        assertEquals(List.of("a", "b"), PARAMS.stringList(args, TAGS));
+    }
+
+    @Test
+    void stringListDropsElementsThatAreBlankAfterTrimming()
+    {
+        Map<String, Object> args = Map.of(TAGS, List.of("a", "  "));
+
+        assertEquals(List.of("a"), PARAMS.stringList(args, TAGS));
+    }
+
+    @Test
+    void stringListReturnsEmptyListForAllBlankElements()
+    {
+        Map<String, Object> args = Map.of(TAGS, List.of(" ", "\t", ""));
+
+        assertEquals(List.of(), PARAMS.stringList(args, TAGS));
+    }
+
+    @Test
+    void stringListReturnsNullForAbsentParameter()
+    {
+        assertNull(PARAMS.stringList(Map.of(), TAGS));
+    }
+
+    @Test
+    void stringListRejectsNonArrayValueWithAgentFacingError()
+    {
+        IllegalArgumentException thrown =
+            assertThrows(IllegalArgumentException.class, () -> PARAMS.stringList(Map.of(TAGS, "alpha"), TAGS));
+        assertEquals(STRING_ARRAY_ERROR, thrown.getMessage());
+    }
+
+    @Test
+    void stringListRejectsNonStringElementWithAgentFacingError()
+    {
+        Map<String, Object> args = Map.of(TAGS, List.of("alpha", 7));
+
+        IllegalArgumentException thrown =
+            assertThrows(IllegalArgumentException.class, () -> PARAMS.stringList(args, TAGS));
+        assertEquals(STRING_ARRAY_ERROR, thrown.getMessage());
     }
 
     @Test
@@ -156,5 +224,57 @@ class MCPToolSupportTest
         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
             () -> PARAMS.integer(Map.of(LIMIT, "lots"), LIMIT));
         assertTrue(thrown.getMessage().contains("must be an integer"), thrown.getMessage());
+    }
+
+    @Test
+    void booleanValueAcceptsBooleansAndBooleanStrings()
+    {
+        assertTrue(MCPToolSupport.booleanValue(Boolean.TRUE, HIDDEN));
+        assertFalse(MCPToolSupport.booleanValue(Boolean.FALSE, HIDDEN));
+        assertTrue(MCPToolSupport.booleanValue("TRUE", HIDDEN));
+        assertFalse(MCPToolSupport.booleanValue("False", HIDDEN));
+        assertTrue(MCPToolSupport.booleanValue(" true ", HIDDEN));
+    }
+
+    @Test
+    void booleanValueDefaultsToFalseWhenNull()
+    {
+        assertFalse(MCPToolSupport.booleanValue(null, HIDDEN));
+    }
+
+    @Test
+    void booleanValueRejectsNonBooleanValuesWithAgentFacingError()
+    {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> MCPToolSupport.booleanValue("yes", HIDDEN));
+        assertEquals("Error: 'hidden' parameter must be a boolean.", thrown.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> MCPToolSupport.booleanValue(1, HIDDEN));
+    }
+
+    @Test
+    void isoInstantFormatsDateAsIsoUtcInstant()
+    {
+        Date date = Date.from(Instant.parse("2026-07-08T12:34:56Z"));
+
+        assertEquals("2026-07-08T12:34:56Z", MCPToolSupport.isoInstant(date));
+    }
+
+    @Test
+    void isoInstantReturnsNullForNullOrNonDateValue()
+    {
+        assertNull(MCPToolSupport.isoInstant(null));
+        assertNull(MCPToolSupport.isoInstant("2026-07-08T12:34:56Z"));
+    }
+
+    @Test
+    void stripLineBreaksRemovesNewlineAndUnicodeSeparatorCharacters()
+    {
+        assertEquals("abcde", MCPToolSupport.stripLineBreaks("a\nb\rc\u2028d\u2029e"));
+    }
+
+    @Test
+    void stripLineBreaksReturnsNullForNullValue()
+    {
+        assertNull(MCPToolSupport.stripLineBreaks(null));
     }
 }

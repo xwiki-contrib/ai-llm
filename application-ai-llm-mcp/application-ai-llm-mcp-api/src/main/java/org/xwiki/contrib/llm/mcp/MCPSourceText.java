@@ -17,43 +17,52 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.mcp.internal;
+package org.xwiki.contrib.llm.mcp;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.xwiki.stability.Unstable;
+
 /**
- * Shared source-text helpers used by the document read and edit tools, so that line-ending
- * normalization and line numbering stay identical across both (an edit's {@code old_string} is
- * formed from the read tool's normalized output and must match byte-for-byte). Also owns the
- * regex-based source-text scans of the read tool: the source heading outline and the stack-frame
+ * Shared source-text helpers for tools that read and edit document source, so that line-ending
+ * normalization and line numbering stay identical across them (an edit's {@code old_string} is
+ * formed from the normalized read output and must match byte-for-byte). Also owns the
+ * regex-based source-text scans used when reading: the source heading outline and the stack-frame
  * collapsing of rendered plain text.
  *
  * @version $Id$
- * @since 0.9
+ * @since 0.9.1
  */
-final class MCPSourceText
+@Unstable
+public final class MCPSourceText
 {
     /**
      * Rough characters-per-token heuristic used wherever an approximate token count is surfaced to the
      * agent (response headers, outline size estimates). Shared so all sizes use the same scale.
+     *
+     * @since 0.9.1
      */
-    static final int CHARS_PER_TOKEN = 4;
+    public static final int CHARS_PER_TOKEN = 4;
 
     /**
      * Approximate token budget for a single tool response, quoted in agent-facing text; the enforced
      * limit is its character equivalent {@link #MAX_OUTPUT_CHARS}. Shared between the read tool's
      * emission caps and the rendered-HTML chunk-map page capacity so both use the same budget.
+     *
+     * @since 0.9.1
      */
-    static final int MAX_OUTPUT_TOKENS = 6000;
+    public static final int MAX_OUTPUT_TOKENS = 6000;
 
     /**
      * Character equivalent of {@link #MAX_OUTPUT_TOKENS}: the enforced cap on the content emitted in
      * a single tool response.
+     *
+     * @since 0.9.1
      */
-    static final int MAX_OUTPUT_CHARS = CHARS_PER_TOKEN * MAX_OUTPUT_TOKENS;
+    public static final int MAX_OUTPUT_CHARS = CHARS_PER_TOKEN * MAX_OUTPUT_TOKENS;
 
     private static final String LF = "\n";
 
@@ -125,8 +134,9 @@ final class MCPSourceText
      *
      * @param content the raw content, possibly {@code null}
      * @return the LF-normalized content, never {@code null}
+     * @since 0.9.1
      */
-    static String normalizeLineEndings(String content)
+    public static String normalizeLineEndings(String content)
     {
         if (content == null) {
             return "";
@@ -142,8 +152,9 @@ final class MCPSourceText
      * @param start the 1-based first line, inclusive
      * @param end the 1-based last line, inclusive
      * @return the numbered block
+     * @since 0.9.1
      */
-    static String numberedLines(String[] lines, int start, int end)
+    public static String numberedLines(String[] lines, int start, int end)
     {
         StringBuilder sb = new StringBuilder();
         for (int i = start; i <= end; i++) {
@@ -161,8 +172,9 @@ final class MCPSourceText
      *
      * @param syntaxId the document syntax identifier
      * @return whether a heading pattern exists for the syntax
+     * @since 0.9.1
      */
-    static boolean hasHeadingPattern(String syntaxId)
+    public static boolean hasHeadingPattern(String syntaxId)
     {
         return headingPatternFor(syntaxId) != null;
     }
@@ -176,8 +188,9 @@ final class MCPSourceText
      * @param totalLines the total number of lines
      * @param syntaxId the document syntax identifier
      * @return the formatted heading entries, or an empty list if none
+     * @since 0.9.1
      */
-    static List<String> collectHeadingLines(String[] lines, int totalLines, String syntaxId)
+    public static List<String> collectHeadingLines(String[] lines, int totalLines, String syntaxId)
     {
         List<String> headings = new ArrayList<>();
         Pattern pattern = headingPatternFor(syntaxId);
@@ -200,8 +213,9 @@ final class MCPSourceText
      *
      * @param text the LF-normalized rendered plain content
      * @return the content with stack-frame runs collapsed
+     * @since 0.9.1
      */
-    static String collapseStackTraces(String text)
+    public static String collapseStackTraces(String text)
     {
         String[] lines = text.split(LF, -1);
         List<String> out = new ArrayList<>();

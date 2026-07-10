@@ -17,13 +17,14 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.mcp.internal;
+package org.xwiki.contrib.llm.mcp;
 
 import java.util.List;
 
 import org.xwiki.component.annotation.Role;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
+import org.xwiki.stability.Unstable;
 
 /**
  * The single sanctioned way for an MCP tool to build a document search query.
@@ -34,9 +35,10 @@ import org.xwiki.query.QueryException;
  * adds its own non-fq parameters ({@code qf}, highlighting, sort, limit, offset).</p>
  *
  * @version $Id$
- * @since 0.9
+ * @since 0.9.1
  */
 @Role
+@Unstable
 public interface MCPDocumentSearch
 {
     /**
@@ -51,6 +53,7 @@ public interface MCPDocumentSearch
      *     clause; the source endpoint's space filter (which carries its own per-entry wiki scope) is always added
      * @return the secure query; the caller adds its own non-fq parameters before executing it
      * @throws QueryException if the query cannot be created
+     * @since 0.9.1
      */
     Query createQuery(String statement, List<String> additionalFilterQueries, List<String> targetWikiIds)
         throws QueryException;

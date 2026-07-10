@@ -17,12 +17,13 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.mcp.internal;
+package org.xwiki.contrib.llm.mcp;
 
 import org.xwiki.component.annotation.Role;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.stability.Unstable;
 
 /**
  * The single sanctioned way for an MCP tool to turn a request reference into a usable document reference.
@@ -35,9 +36,10 @@ import org.xwiki.security.authorization.Right;
  * applies the space filter in one step.</p>
  *
  * @version $Id$
- * @since 0.9
+ * @since 0.9.1
  */
 @Role
+@Unstable
 public interface MCPDocumentAccess
 {
     /**
@@ -54,6 +56,7 @@ public interface MCPDocumentAccess
      *     space filter
      * @throws MCPAccessDeniedException with an agent-facing message when the reach gate, the rights check or
      *     the space filter denies access
+     * @since 0.9.1
      */
     DocumentReference resolveAndAuthorize(String reference, Right right) throws MCPAccessDeniedException;
 

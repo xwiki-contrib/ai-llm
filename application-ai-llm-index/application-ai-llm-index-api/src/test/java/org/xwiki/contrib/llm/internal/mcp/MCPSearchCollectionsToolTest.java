@@ -119,6 +119,40 @@ class MCPSearchCollectionsToolTest
         McpSchema.CallToolResult result = this.tool.execute(request);
 
         assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Error: 'query' parameter is required.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verifyNoInteractions(this.collectionManager);
+    }
+
+    @Test
+    void executeReturnsErrorForBlankQuery()
+    {
+        McpSchema.CallToolRequest request =
+            new McpSchema.CallToolRequest("search_collections", Map.of("query", "   "));
+
+        McpSchema.CallToolResult result = this.tool.execute(request);
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Error: 'query' parameter is required.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verifyNoInteractions(this.collectionManager);
+    }
+
+    @Test
+    void executeTrimsTheQuery() throws IndexException
+    {
+        when(this.securityConfiguration.getQueryItemsLimit()).thenReturn(1000);
+        List<String> allCollections = List.of("col1");
+        when(this.collectionManager.getCollections()).thenReturn(allCollections);
+        when(this.collectionManager.hybridSearch(any(), any(), anyInt(), anyInt()))
+            .thenReturn(Collections.emptyList());
+
+        McpSchema.CallToolRequest request =
+            new McpSchema.CallToolRequest("search_collections", Map.of("query", "  padded query  "));
+
+        this.tool.execute(request);
+
+        verify(this.collectionManager).hybridSearch("padded query", allCollections, 10, 10);
     }
 
     @Test
@@ -276,6 +310,33 @@ class MCPSearchCollectionsToolTest
         assertEquals("Error: 'limitKeywordResults' parameter must be an integer.",
             ((McpSchema.TextContent) result.content().get(0)).text());
         verifyNoInteractions(this.collectionManager);
+    }
+
+    @Test
+    void executeReturnsErrorForFractionalLimit()
+    {
+        McpSchema.CallToolRequest request = new McpSchema.CallToolRequest("search_collections", Map.of(
+            "query", "fractional limit",
+            "limitSemanticResults", 2.5
+        ));
+
+        McpSchema.CallToolResult result = this.tool.execute(request);
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Error: 'limitSemanticResults' parameter must be an integer.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verifyNoInteractions(this.collectionManager);
+    }
+
+    @Test
+    void toolDefinitionAdvertisesDeclaredParametersInOrderWithRequiredQuery()
+    {
+        McpSchema.Tool definition = this.tool.getToolDefinition();
+
+        Map<?, ?> properties = (Map<?, ?>) definition.inputSchema().get("properties");
+        assertEquals(List.of("query", "collections", "limitKeywordResults", "limitSemanticResults"),
+            List.copyOf(properties.keySet()));
+        assertEquals(List.of("query"), definition.inputSchema().get("required"));
     }
 
     @Test

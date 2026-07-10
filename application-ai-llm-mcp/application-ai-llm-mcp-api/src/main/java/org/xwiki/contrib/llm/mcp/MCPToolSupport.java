@@ -17,7 +17,7 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.xwiki.contrib.llm.mcp.internal;
+package org.xwiki.contrib.llm.mcp;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,21 +28,22 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
+import org.xwiki.stability.Unstable;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
- * Tool-side support shared by the bundled MCP tools: argument coercion, result building, and a
+ * Tool-side support shared by the MCP tools: argument coercion, result building, and a
  * declarative parameter descriptor, so that all tools keep identical argument semantics and
  * error-message phrasing, and so that a new tool cannot drift by re-implementing them.
  *
  * <p>The static helpers coerce raw argument values and build results. An <em>instance</em>, created
  * with {@link #builder()}, is a tool's declared flat parameter set: it generates the MCP input
  * schema ({@link #inputSchema()}) and serves the typed accessors ({@link #string},
- * {@link #integer}, {@link #bool}) from the same declaration, so the advertised schema and the
- * parsing code cannot disagree. Nested or array-typed parameters are out of scope by design — a
- * tool declares its scalars here and merges any bespoke schema parts via
- * {@link #inputSchema(Map)}.</p>
+ * {@link #integer}, {@link #bool}, {@link #stringList}) from the same declaration, so the
+ * advertised schema and the parsing code cannot disagree. Nested object parameters are out of
+ * scope by design — a tool declares its scalars and flat string arrays here and merges any
+ * bespoke schema parts via {@link #inputSchema(Map)}.</p>
  *
  * <p>All parsing helpers throw {@link IllegalArgumentException} with an agent-facing message on a
  * type mismatch; tools convert that uniformly into an error result. Accessing a parameter that was
@@ -50,15 +51,18 @@ import io.modelcontextprotocol.spec.McpSchema;
  * error meant to be caught by the tool's tests.</p>
  *
  * @version $Id$
- * @since 0.9
+ * @since 0.9.1
  */
-final class MCPToolSupport
+@Unstable
+public final class MCPToolSupport
 {
     /**
      * Prefix shared by the agent-facing parameter error messages, exposed so tools can build their
      * own parameter errors with consistent phrasing.
+     *
+     * @since 0.9.1
      */
-    static final String ERROR_PREFIX = "Error: '";
+    public static final String ERROR_PREFIX = "Error: '";
 
     private static final String STRING_PARAM_ERROR_SUFFIX = "' parameter must be a string.";
 
@@ -66,11 +70,15 @@ final class MCPToolSupport
 
     private static final String BOOLEAN_PARAM_ERROR_SUFFIX = "' parameter must be a boolean.";
 
+    private static final String STRING_ARRAY_PARAM_ERROR_SUFFIX = "' parameter must be an array of strings.";
+
     private static final String TYPE_KEY = "type";
 
     private static final String DESCRIPTION_KEY = "description";
 
     private static final String OBJECT_TYPE = "object";
+
+    private static final String STRING_TYPE = "string";
 
     /**
      * Matches the full newline/control family a single agent-facing line must never contain: every Unicode
@@ -99,11 +107,12 @@ final class MCPToolSupport
     }
 
     /**
-     * Starts the declaration of a tool's flat scalar parameter set.
+     * Starts the declaration of a tool's flat parameter set.
      *
      * @return a new builder
+     * @since 0.9.1
      */
-    static Builder builder()
+    public static Builder builder()
     {
         return new Builder();
     }
@@ -116,7 +125,7 @@ final class MCPToolSupport
      * @return the trimmed value, or {@code null} when absent or blank
      * @throws IllegalArgumentException if the value is present but not a string
      */
-    static String optionalString(Map<String, Object> args, String key)
+    private static String optionalString(Map<String, Object> args, String key)
     {
         Object value = args.get(key);
         if (value == null) {
@@ -137,7 +146,7 @@ final class MCPToolSupport
      * @return the value, or {@code null} when absent
      * @throws IllegalArgumentException if the value is present but not an integer
      */
-    static Integer optionalInt(Map<String, Object> args, String key)
+    private static Integer optionalInt(Map<String, Object> args, String key)
     {
         Object value = args.get(key);
         if (value == null) {
@@ -161,21 +170,6 @@ final class MCPToolSupport
     }
 
     /**
-     * Reads an integer argument, falling back to a default when absent.
-     *
-     * @param args the tool call arguments
-     * @param key the argument name
-     * @param defaultValue the value to use when the argument is absent
-     * @return the value, or {@code defaultValue} when absent
-     * @throws IllegalArgumentException if the value is present but not an integer
-     */
-    static int intParam(Map<String, Object> args, String key, int defaultValue)
-    {
-        Integer value = optionalInt(args, key);
-        return value != null ? value : defaultValue;
-    }
-
-    /**
      * Reads an optional boolean argument, accepting a JSON boolean or a boolean string and
      * defaulting to {@code false} when absent.
      *
@@ -184,7 +178,7 @@ final class MCPToolSupport
      * @return the value, or {@code false} when absent
      * @throws IllegalArgumentException if the value is present but not a boolean
      */
-    static boolean booleanParam(Map<String, Object> args, String key)
+    private static boolean booleanParam(Map<String, Object> args, String key)
     {
         return booleanValue(args.get(key), key);
     }
@@ -194,15 +188,16 @@ final class MCPToolSupport
      * {@code "true"}/{@code "false"} (case-insensitive) and defaulting to {@code false} when
      * {@code null}. Any other string is rejected rather than silently coerced to {@code false}, so a
      * caller sending e.g. {@code "yes"} learns about it instead of getting the opposite behavior.
-     * Used directly for values nested inside structured arguments (e.g. an edit object's
-     * {@code replace_all}).
+     * Used directly for values nested inside structured arguments (e.g. a boolean field of an
+     * object element in a hand-built array parameter).
      *
      * @param value the raw value, possibly {@code null}
      * @param key the argument name, used in the error message
      * @return the coerced value, or {@code false} when {@code value} is {@code null}
      * @throws IllegalArgumentException if the value is present but not a boolean
+     * @since 0.9.1
      */
-    static boolean booleanValue(Object value, String key)
+    public static boolean booleanValue(Object value, String key)
     {
         if (value == null) {
             return false;
@@ -227,8 +222,9 @@ final class MCPToolSupport
      *
      * @param value the raw value, possibly {@code null} or not a date
      * @return the ISO-8601 instant, or {@code null} when the value is not a {@link Date}
+     * @since 0.9.1
      */
-    static String isoInstant(Object value)
+    public static String isoInstant(Object value)
     {
         return value instanceof Date date ? date.toInstant().toString() : null;
     }
@@ -242,8 +238,9 @@ final class MCPToolSupport
      * @param value the raw value, possibly {@code null}
      * @return the value with all newline/control-family characters removed, or {@code null} when {@code value}
      *     is {@code null}
+     * @since 0.9.1
      */
-    static String stripLineBreaks(String value)
+    public static String stripLineBreaks(String value)
     {
         return value == null ? null : LINE_BREAK_CHARS.matcher(value).replaceAll("");
     }
@@ -253,8 +250,9 @@ final class MCPToolSupport
      *
      * @param message the result text
      * @return the tool result
+     * @since 0.9.1
      */
-    static McpSchema.CallToolResult result(String message)
+    public static McpSchema.CallToolResult result(String message)
     {
         return McpSchema.CallToolResult.builder()
             .addTextContent(message)
@@ -266,8 +264,9 @@ final class MCPToolSupport
      *
      * @param message the agent-facing error text
      * @return the tool result
+     * @since 0.9.1
      */
-    static McpSchema.CallToolResult errorResult(String message)
+    public static McpSchema.CallToolResult errorResult(String message)
     {
         return McpSchema.CallToolResult.builder()
             .addTextContent(message)
@@ -276,33 +275,54 @@ final class MCPToolSupport
     }
 
     /**
+     * Renders one declared parameter as its JSON Schema property entry: {@code type} and
+     * {@code description} for scalars, plus the {@code items} sub-schema for a string array.
+     *
+     * @param param the declared parameter
+     * @return the schema property entry
+     */
+    private static Map<String, Object> schemaEntry(DeclaredParam param)
+    {
+        if (param.type() == ParamType.STRING_ARRAY) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put(TYPE_KEY, param.type().jsonType());
+            entry.put("items", Map.of(TYPE_KEY, STRING_TYPE));
+            entry.put(DESCRIPTION_KEY, param.description());
+            return entry;
+        }
+        return Map.of(
+            TYPE_KEY, param.type().jsonType(),
+            DESCRIPTION_KEY, param.description());
+    }
+
+    /**
      * Generates the MCP input schema advertised for this parameter set, as the JSON Schema 2020-12
      * object map expected by {@code McpSchema.Tool.builder(String, Map)}.
      *
      * @return the input schema map
+     * @since 0.9.1
      */
-    Map<String, Object> inputSchema()
+    public Map<String, Object> inputSchema()
     {
         return inputSchema(Map.of());
     }
 
     /**
      * Generates the MCP input schema map for this parameter set, merged with extra hand-built
-     * properties (for the rare non-scalar parameter, e.g. an array of edit objects). The
-     * {@code properties} map preserves declaration order (the man tool derives its SYNOPSIS/OPTIONS
-     * ordering from it), and the {@code required} key is always present (an empty list is valid JSON
+     * properties (for the rare non-scalar parameter, e.g. an array of bespoke objects). The
+     * {@code properties} map preserves declaration order (documentation generators can rely on
+     * declaration order), and the {@code required} key is always present (an empty list is valid JSON
      * Schema 2020-12).
      *
      * @param extraProperties additional schema properties to merge in, keyed by parameter name
      * @return the input schema map
+     * @since 0.9.1
      */
-    Map<String, Object> inputSchema(Map<String, Object> extraProperties)
+    public Map<String, Object> inputSchema(Map<String, Object> extraProperties)
     {
         Map<String, Object> properties = new LinkedHashMap<>();
         for (Map.Entry<String, DeclaredParam> entry : this.params.entrySet()) {
-            properties.put(entry.getKey(), Map.of(
-                TYPE_KEY, entry.getValue().type().jsonType(),
-                DESCRIPTION_KEY, entry.getValue().description()));
+            properties.put(entry.getKey(), schemaEntry(entry.getValue()));
         }
         for (Map.Entry<String, Object> extra : extraProperties.entrySet()) {
             if (properties.put(extra.getKey(), extra.getValue()) != null) {
@@ -324,8 +344,9 @@ final class MCPToolSupport
      * @param key the parameter name
      * @return the trimmed value, or {@code null} when absent or blank
      * @throws IllegalStateException if the parameter was not declared as a string
+     * @since 0.9.1
      */
-    String string(Map<String, Object> args, String key)
+    public String string(Map<String, Object> args, String key)
     {
         assertDeclared(key, ParamType.STRING);
         return optionalString(args, key);
@@ -340,8 +361,9 @@ final class MCPToolSupport
      * @return the trimmed value, never {@code null}
      * @throws IllegalArgumentException with the agent-facing message if the value is absent or blank
      * @throws IllegalStateException if the parameter was not declared as a string
+     * @since 0.9.1
      */
-    String requireString(Map<String, Object> args, String key)
+    public String requireString(Map<String, Object> args, String key)
     {
         String value = string(args, key);
         if (value == null) {
@@ -357,8 +379,9 @@ final class MCPToolSupport
      * @param key the parameter name
      * @return the value, or {@code null} when absent
      * @throws IllegalStateException if the parameter was not declared as an integer
+     * @since 0.9.1
      */
-    Integer integer(Map<String, Object> args, String key)
+    public Integer integer(Map<String, Object> args, String key)
     {
         assertDeclared(key, ParamType.INTEGER);
         return optionalInt(args, key);
@@ -372,8 +395,9 @@ final class MCPToolSupport
      * @param defaultValue the value to use when the parameter is absent
      * @return the value, or {@code defaultValue} when absent
      * @throws IllegalStateException if the parameter was not declared as an integer
+     * @since 0.9.1
      */
-    int integer(Map<String, Object> args, String key, int defaultValue)
+    public int integer(Map<String, Object> args, String key, int defaultValue)
     {
         Integer value = integer(args, key);
         return value != null ? value : defaultValue;
@@ -386,11 +410,49 @@ final class MCPToolSupport
      * @param key the parameter name
      * @return the value, or {@code false} when absent
      * @throws IllegalStateException if the parameter was not declared as a boolean
+     * @since 0.9.1
      */
-    boolean bool(Map<String, Object> args, String key)
+    public boolean bool(Map<String, Object> args, String key)
     {
         assertDeclared(key, ParamType.BOOLEAN);
         return booleanParam(args, key);
+    }
+
+    /**
+     * Reads a declared string-array parameter. Every element must be a string; anything else (a
+     * non-array value or an array containing a non-string element) is rejected with the agent-facing
+     * message. Each element is trimmed, and an element that is blank after trimming is dropped from
+     * the returned list (mirroring the blank-to-{@code null} convention of {@link #string}), so an
+     * all-blank array yields an empty list.
+     *
+     * @param args the tool call arguments
+     * @param key the parameter name
+     * @return the trimmed string list without its blank elements, or {@code null} when absent
+     * @throws IllegalArgumentException if the value is present but not an array of strings
+     * @throws IllegalStateException if the parameter was not declared as a string array
+     * @since 0.9.1
+     */
+    public List<String> stringList(Map<String, Object> args, String key)
+    {
+        assertDeclared(key, ParamType.STRING_ARRAY);
+        Object value = args.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof List<?> list)) {
+            throw new IllegalArgumentException(ERROR_PREFIX + key + STRING_ARRAY_PARAM_ERROR_SUFFIX);
+        }
+        List<String> strings = new ArrayList<>(list.size());
+        for (Object element : list) {
+            if (!(element instanceof String str)) {
+                throw new IllegalArgumentException(ERROR_PREFIX + key + STRING_ARRAY_PARAM_ERROR_SUFFIX);
+            }
+            String trimmed = StringUtils.trimToNull(str);
+            if (trimmed != null) {
+                strings.add(trimmed);
+            }
+        }
+        return strings;
     }
 
     private void assertDeclared(String key, ParamType type)
@@ -410,13 +472,16 @@ final class MCPToolSupport
     private enum ParamType
     {
         /** A string parameter. */
-        STRING("string"),
+        STRING(STRING_TYPE),
 
         /** An integer parameter. */
         INTEGER("integer"),
 
         /** A boolean parameter. */
-        BOOLEAN("boolean");
+        BOOLEAN("boolean"),
+
+        /** A flat array-of-strings parameter. */
+        STRING_ARRAY("array");
 
         private final String jsonType;
 
@@ -446,8 +511,9 @@ final class MCPToolSupport
      * Builder collecting a tool's parameter declarations in order.
      *
      * @version $Id$
+     * @since 0.9.1
      */
-    static final class Builder
+    public static final class Builder
     {
         private final Map<String, DeclaredParam> params = new LinkedHashMap<>();
 
@@ -459,8 +525,9 @@ final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
+         * @since 0.9.1
          */
-        Builder string(String name, String description)
+        public Builder string(String name, String description)
         {
             this.params.put(name, new DeclaredParam(ParamType.STRING, description));
             return this;
@@ -475,8 +542,9 @@ final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
+         * @since 0.9.1
          */
-        Builder stringIf(boolean condition, String name, String description)
+        public Builder stringIf(boolean condition, String name, String description)
         {
             if (condition) {
                 string(name, description);
@@ -490,8 +558,9 @@ final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
+         * @since 0.9.1
          */
-        Builder requiredString(String name, String description)
+        public Builder requiredString(String name, String description)
         {
             string(name, description);
             this.required.add(name);
@@ -504,8 +573,9 @@ final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
+         * @since 0.9.1
          */
-        Builder integer(String name, String description)
+        public Builder integer(String name, String description)
         {
             this.params.put(name, new DeclaredParam(ParamType.INTEGER, description));
             return this;
@@ -517,10 +587,27 @@ final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
+         * @since 0.9.1
          */
-        Builder bool(String name, String description)
+        public Builder bool(String name, String description)
         {
             this.params.put(name, new DeclaredParam(ParamType.BOOLEAN, description));
+            return this;
+        }
+
+        /**
+         * Declares an optional flat array-of-strings parameter. When read back with
+         * {@link MCPToolSupport#stringList}, each element is trimmed and elements that are blank
+         * after trimming are dropped from the returned list.
+         *
+         * @param name the parameter name
+         * @param description the agent-facing description
+         * @return this builder
+         * @since 0.9.1
+         */
+        public Builder stringArray(String name, String description)
+        {
+            this.params.put(name, new DeclaredParam(ParamType.STRING_ARRAY, description));
             return this;
         }
 
@@ -528,8 +615,9 @@ final class MCPToolSupport
          * Finishes the declaration.
          *
          * @return the immutable parameter set
+         * @since 0.9.1
          */
-        MCPToolSupport build()
+        public MCPToolSupport build()
         {
             return new MCPToolSupport(this);
         }

@@ -20,7 +20,6 @@
 package org.xwiki.contrib.llm.internal.mcp;
 
 import java.util.List;
-import java.util.Map;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -32,6 +31,7 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -53,7 +53,11 @@ public class MCPListCollectionsTool implements MCPTool
      */
     public static final String TOOL_ID = "list_collections";
 
-    private static final String OBJECT = "object";
+    /**
+     * The declared parameter set: this tool takes no parameters, so the shared layer generates the
+     * empty input schema.
+     */
+    private static final MCPToolSupport PARAMS = MCPToolSupport.builder().build();
 
     @Inject
     private Logger logger;
@@ -64,8 +68,7 @@ public class MCPListCollectionsTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder(TOOL_ID,
-                Map.of("type", OBJECT, "properties", Map.of(), "required", List.of()))
+        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
             .description("List the indexed collections you can search with search_collections.")
             .build();
     }
@@ -92,18 +95,13 @@ public class MCPListCollectionsTool implements MCPTool
             String content = accessibleCollections.isEmpty()
                 ? "No collections found."
                 : String.join("\n", accessibleCollections);
-            return McpSchema.CallToolResult.builder()
-                .addTextContent(content)
-                .build();
+            return MCPToolSupport.result(content);
         } catch (IndexException e) {
             // Keep the root cause in the logs, off the wire.
             this.logger.warn("MCP list_collections tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP list_collections tool failure details", e);
-            return McpSchema.CallToolResult.builder()
-                .addTextContent("Failed to list collections. Try again; if it persists, report it to a wiki "
-                    + "administrator (details are in the server logs).")
-                .isError(true)
-                .build();
+            return MCPToolSupport.errorResult("Failed to list collections. Try again; if it persists, report it "
+                + "to a wiki administrator (details are in the server logs).");
         }
     }
 }

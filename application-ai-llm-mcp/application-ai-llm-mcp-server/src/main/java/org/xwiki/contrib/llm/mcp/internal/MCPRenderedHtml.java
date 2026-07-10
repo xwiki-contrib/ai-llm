@@ -38,6 +38,7 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.ranges.DocumentRange;
 import org.w3c.dom.ranges.Range;
+import org.xwiki.contrib.llm.mcp.MCPSourceText;
 import org.xwiki.xml.html.HTMLCleaner;
 import org.xwiki.xml.html.HTMLCleanerConfiguration;
 import org.xwiki.xml.html.HTMLUtils;

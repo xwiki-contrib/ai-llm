@@ -26,13 +26,14 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.security.SecurityConfiguration;
 
@@ -66,32 +67,27 @@ public class MCPSearchCollectionsTool implements MCPTool
 
     private static final String LIMIT_SEMANTIC_PARAM = "limitSemanticResults";
 
-    private static final String REQUIRED_QUERY_MESSAGE = "Error: 'query' parameter is required and must not be empty.";
-
     /**
      * Shared prefix of the limit-validation error messages, naming both limit parameters.
      */
     private static final String LIMITS_PREFIX =
-        "Error: '" + LIMIT_KEYWORD_PARAM + "'/'" + LIMIT_SEMANTIC_PARAM + "' must be ";
+        MCPToolSupport.ERROR_PREFIX + LIMIT_KEYWORD_PARAM + "'/'" + LIMIT_SEMANTIC_PARAM + "' must be ";
 
     private static final String INVALID_LIMITS_MESSAGE = LIMITS_PREFIX + "greater than or equal to 0.";
 
-    private static final String QUERY_STRING_PARAMETER_MESSAGE = "Error: 'query' parameter must be a string.";
-
-    private static final String COLLECTION_ARRAY_PARAMETER_MESSAGE =
-        "Error: 'collections' parameter must be an array of strings.";
-
-    private static final String INTEGER_PARAMETER_MESSAGE = "Error: '%s' parameter must be an integer.";
-
-    private static final String TYPE = "type";
-
-    private static final String STRING = "string";
-
-    private static final String DESCRIPTION = "description";
-
-    private static final String INTEGER = "integer";
-
-    private static final String OBJECT = "object";
+    /**
+     * The declared parameter set: it generates the advertised input schema and coerces the arguments,
+     * so both cannot disagree.
+     */
+    private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
+        .requiredString(QUERY_PARAM, "The text to search for")
+        .stringArray(COLLECTIONS_PARAM,
+            "Optional list of collection IDs to search in. Omit to search all accessible collections.")
+        .integer(LIMIT_KEYWORD_PARAM, "Maximum number of keyword search results (default: %d)".formatted(
+            DEFAULT_LIMIT))
+        .integer(LIMIT_SEMANTIC_PARAM, "Maximum number of semantic similarity results (default: %d)".formatted(
+            DEFAULT_LIMIT))
+        .build();
 
     @Inject
     private Logger logger;
@@ -105,7 +101,7 @@ public class MCPSearchCollectionsTool implements MCPTool
     @Override
     public McpSchema.Tool getToolDefinition()
     {
-        return McpSchema.Tool.builder(TOOL_ID, buildInputSchema())
+        return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
             .description("Search indexed collections using semantic and keyword similarity. "
                 + "Returns the most relevant content chunks from indexed pages.")
             .build();
@@ -129,95 +125,32 @@ public class MCPSearchCollectionsTool implements MCPTool
         Map<String, Object> args = request.arguments() != null ? request.arguments() : Map.of();
 
         try {
-            String query = getQueryParam(args);
+            String query = PARAMS.requireString(args, QUERY_PARAM);
 
-            int keywordLimit = getIntParam(args, LIMIT_KEYWORD_PARAM);
-            int semanticLimit = getIntParam(args, LIMIT_SEMANTIC_PARAM);
+            int keywordLimit = PARAMS.integer(args, LIMIT_KEYWORD_PARAM, DEFAULT_LIMIT);
+            int semanticLimit = PARAMS.integer(args, LIMIT_SEMANTIC_PARAM, DEFAULT_LIMIT);
 
             validateLimits(keywordLimit, semanticLimit);
 
-            List<String> collections = getCollectionsParam(args);
-            if (collections.isEmpty()) {
+            List<String> collections = PARAMS.stringList(args, COLLECTIONS_PARAM);
+            if (CollectionUtils.isEmpty(collections)) {
                 collections = this.collectionManager.getCollections();
             }
 
             List<Context> results =
                 this.collectionManager.hybridSearch(query, collections, semanticLimit, keywordLimit);
-            return McpSchema.CallToolResult.builder()
-                .addTextContent(formatResults(results))
-                .build();
+            return MCPToolSupport.result(formatResults(results));
         } catch (IndexException e) {
             // Keep the root cause in the logs, off the wire.
             this.logger.warn("MCP search_collections tool failed for query [{}]: [{}]", args.get(QUERY_PARAM),
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP search_collections tool failure details for query [{}]",
                 args.get(QUERY_PARAM), e);
-            return buildErrorResult("Failed to search collections. Try again; if it persists, report it to a "
-                + "wiki administrator (details are in the server logs).");
+            return MCPToolSupport.errorResult("Failed to search collections. Try again; if it persists, report it "
+                + "to a wiki administrator (details are in the server logs).");
         } catch (IllegalArgumentException e) {
-            return buildErrorResult(e.getMessage());
+            return MCPToolSupport.errorResult(e.getMessage());
         }
-    }
-
-    private Map<String, Object> buildInputSchema()
-    {
-        Map<String, Object> properties = Map.of(
-            QUERY_PARAM, Map.of(
-                TYPE, STRING,
-                DESCRIPTION, "The text to search for"
-            ),
-            COLLECTIONS_PARAM, Map.of(
-                TYPE, "array",
-                "items", Map.of(TYPE, STRING),
-                DESCRIPTION,
-                "Optional list of collection IDs to search in. Omit to search all accessible collections."
-            ),
-            LIMIT_KEYWORD_PARAM, Map.of(
-                TYPE, INTEGER,
-                DESCRIPTION, "Maximum number of keyword search results (default: %d)".formatted(DEFAULT_LIMIT)
-            ),
-            LIMIT_SEMANTIC_PARAM, Map.of(
-                TYPE, INTEGER,
-                DESCRIPTION,
-                "Maximum number of semantic similarity results (default: %d)".formatted(DEFAULT_LIMIT)
-            )
-        );
-        return Map.of(TYPE, OBJECT, "properties", properties, "required", List.of(QUERY_PARAM));
-    }
-
-    private String getQueryParam(Map<String, Object> args)
-    {
-        Object value = args.get(QUERY_PARAM);
-        if (value == null || value instanceof String) {
-            String query = (String) value;
-            if (StringUtils.isBlank(query)) {
-                throw new IllegalArgumentException(REQUIRED_QUERY_MESSAGE);
-            }
-            return query;
-        }
-        throw new IllegalArgumentException(QUERY_STRING_PARAMETER_MESSAGE);
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<String> getCollectionsParam(Map<String, Object> args)
-    {
-        Object value = args.get(COLLECTIONS_PARAM);
-        if (value == null) {
-            return List.of();
-        }
-
-        if (!(value instanceof List<?> list)) {
-            throw new IllegalArgumentException(COLLECTION_ARRAY_PARAMETER_MESSAGE);
-        }
-
-        for (Object entry : list) {
-            if (!(entry instanceof String)) {
-                throw new IllegalArgumentException(COLLECTION_ARRAY_PARAMETER_MESSAGE);
-            }
-        }
-
-        // The cast is safe because we checked the contents of the list above.
-        return (List<String>) list;
     }
 
     private void validateLimits(int keywordLimit, int semanticLimit)
@@ -239,41 +172,6 @@ public class MCPSearchCollectionsTool implements MCPTool
     private String getLimitExceededMessage()
     {
         return LIMITS_PREFIX + "less than or equal to " + this.securityConfiguration.getQueryItemsLimit() + ".";
-    }
-
-    private int getIntParam(Map<String, Object> args, String key)
-    {
-        Object value = args.get(key);
-        if (value == null) {
-            return DEFAULT_LIMIT;
-        }
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value instanceof String stringValue) {
-            if (StringUtils.isBlank(stringValue)) {
-                throw new IllegalArgumentException(getIntegerParameterMessage(key));
-            }
-            try {
-                return Integer.parseInt(stringValue);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(getIntegerParameterMessage(key), e);
-            }
-        }
-        throw new IllegalArgumentException(getIntegerParameterMessage(key));
-    }
-
-    private String getIntegerParameterMessage(String key)
-    {
-        return INTEGER_PARAMETER_MESSAGE.formatted(key);
-    }
-
-    private McpSchema.CallToolResult buildErrorResult(String message)
-    {
-        return McpSchema.CallToolResult.builder()
-            .addTextContent(message)
-            .isError(true)
-            .build();
     }
 
     private String formatResults(List<Context> results)
