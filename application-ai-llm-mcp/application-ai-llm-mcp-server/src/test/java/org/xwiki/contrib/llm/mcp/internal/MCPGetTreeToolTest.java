@@ -49,6 +49,7 @@ import org.xwiki.query.QueryManager;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.LogLevel;
+import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
@@ -74,9 +75,14 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for {@link MCPGetTreeTool}.
  *
+ * <p>The real {@link DefaultMCPRowQuery} door is registered between the tool and the mocked query manager,
+ * resolver, space filter and authorization manager, so every composed HQL statement still flows textually
+ * into the in-memory query fake and the per-row authorization checks below stay meaningful.</p>
+ *
  * @version $Id$
  */
 @ComponentTest
+@ComponentList(DefaultMCPRowQuery.class)
 class MCPGetTreeToolTest
 {
     private static final String WIKI = "xwiki";

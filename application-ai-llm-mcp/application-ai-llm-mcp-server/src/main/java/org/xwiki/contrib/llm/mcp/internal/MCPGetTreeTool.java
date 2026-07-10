@@ -47,14 +47,10 @@ import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.model.reference.WikiReference;
-import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
-import org.xwiki.query.QueryManager;
-import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 
 import com.xpn.xwiki.XWikiContext;
@@ -91,12 +87,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPGetTreeTool.TOOL_ID)
 @Singleton
-// Rendering the tree draws together the query manager, the wiki reach gate, the document bridge
-// (space-home existence probe), the reference resolver, both
-// serializers, the space filter, the authorization manager and the MCP schema types on one cohesive tool; the
-// collaborators push the fan-out a few over the limit, mirroring the accepted suppression on
-// MCPQueryDocumentsTool in this package.
-@SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class MCPGetTreeTool implements MCPTool
 {
     /**
@@ -135,12 +125,12 @@ public class MCPGetTreeTool implements MCPTool
     private static final int MAX_TITLE_CHARS = 200;
 
     /**
-     * Absolute ceiling on the rows any single query may pull from the database, so a broad frontier (or the
-     * whole-wiki survey) cannot make the store materialize an unbounded row set. In explore mode only
-     * {@link #MAX_NODES} are ever rendered, so this ceiling never truncates a real result before the Java-side
-     * caps do; in survey mode hitting it flags the counts as sampled.
+     * The door's absolute per-query row ceiling ({@link MCPRowQuery#MAX_FETCH_PER_QUERY}), aliased for the
+     * fetch-limit computations and the sampled-counts note. In explore mode only {@link #MAX_NODES} are ever
+     * rendered, so this ceiling never truncates a real result before the Java-side caps do; in survey mode
+     * hitting it flags the counts as sampled.
      */
-    private static final int MAX_FETCH_PER_QUERY = 2000;
+    private static final int MAX_FETCH_PER_QUERY = MCPRowQuery.MAX_FETCH_PER_QUERY;
 
     /**
      * Cap on the number of retained pages under which a surveyed space is expanded inline; a space with more
@@ -326,34 +316,16 @@ public class MCPGetTreeTool implements MCPTool
     private static final String AGO = " ago";
 
     /**
-     * Explicit hidden-document clause appended to a statement when hidden pages are excluded; matches the
-     * platform's hidden-document filter predicate, applied explicitly so the exclusion holds regardless of the
-     * caller's profile preference.
-     */
-    private static final String HIDDEN_DOC_CLAUSE = " and (doc.hidden <> true or doc.hidden is null)";
-
-    /**
-     * Explicit hidden-space clause appended to a statement with a {@code space} alias when hidden pages are
-     * excluded; matches the platform's hidden-space filter predicate.
-     */
-    private static final String HIDDEN_SPACE_CLAUSE = " and space.hidden <> true";
-
-    /**
      * Shared {@code XWikiSpace}-join and translation clause of the space-home queries; the {@code doc} and
-     * {@code space} aliases it introduces are what the explicit hidden clauses predicate on.
+     * {@code space} aliases it introduces are what the door's explicit hidden clauses predicate on.
      */
     private static final String SPACE_JOIN =
         " where doc.space = space.reference and doc.translation = 0";
 
     /**
-     * Shared deterministic ordering clause of the queries; composed last, after any hidden clauses.
-     */
-    private static final String ORDER_BY_FULLNAME = " order by doc.fullName";
-
-    /**
      * Child-spaces statement base for explore levels &ge; 1: the {@code WebHome} documents of the spaces whose
      * parent space is in the bound frontier, keyed by {@code space.parent}. Has a {@code space} alias, so both
-     * hidden clauses apply to it.
+     * of the door's hidden clauses apply to it (see {@link MCPRowQuery#hierarchyRows}).
      */
     private static final String CHILD_SPACES_QUERY_BASE =
         "select doc.fullName, space.parent, doc.title from XWikiDocument doc, XWikiSpace space" + SPACE_JOIN
@@ -362,25 +334,21 @@ public class MCPGetTreeTool implements MCPTool
     /**
      * Terminal-child-pages statement base for explore levels &ge; 1: the non-{@code WebHome} documents whose
      * own space is in the bound frontier, keyed by {@code doc.space}. It has no {@code space} alias, so only
-     * the hidden-document clause applies to it.
+     * the door's hidden-document clause applies to it.
      */
     private static final String TERMINAL_DOCS_QUERY_BASE =
         "select doc.fullName, doc.space, doc.title from XWikiDocument doc"
             + " where doc.translation = 0 and doc.name <> 'WebHome' and doc.space in (:parents)";
 
     /**
-     * Survey statement base: every document of the wiki with its title, last-modification date and hidden
-     * flag. Hidden rows are deliberately fetched even when hidden pages are excluded - they feed the
-     * {@code +N hidden} counts and are separated in Java.
+     * The complete survey statement: every document of the wiki with its title, last-modification date and
+     * hidden flag, in {@code doc.fullName} order. Hidden rows are deliberately fetched even when hidden pages
+     * are excluded - they feed the {@code +N hidden} counts and are separated in Java - so the door runs it as
+     * a complete statement and never composes the hidden clauses into it.
      */
-    private static final String SURVEY_QUERY_BASE =
+    private static final String SURVEY_QUERY =
         "select doc.fullName, doc.title, doc.date, doc.hidden from XWikiDocument doc"
-            + " where doc.translation = 0";
-
-    /**
-     * The complete survey statement; the hidden clauses never apply to it (see {@link #SURVEY_QUERY_BASE}).
-     */
-    private static final String SURVEY_QUERY = SURVEY_QUERY_BASE + ORDER_BY_FULLNAME;
+            + " where doc.translation = 0 order by doc.fullName";
 
     /**
      * Object-class marker query: the distinct XClass names carried by each rendered node, keyed by local
@@ -424,14 +392,10 @@ public class MCPGetTreeTool implements MCPTool
     private Logger logger;
 
     @Inject
-    private QueryManager queryManager;
+    private MCPRowQuery rowQuery;
 
     @Inject
     private DocumentAccessBridge documentAccessBridge;
-
-    @Inject
-    @Named("current")
-    private DocumentReferenceResolver<String> currentResolver;
 
     @Inject
     @Named("local")
@@ -439,12 +403,6 @@ public class MCPGetTreeTool implements MCPTool
 
     @Inject
     private EntityReferenceSerializer<String> serializer;
-
-    @Inject
-    private ContextualAuthorizationManager authorization;
-
-    @Inject
-    private MCPSpaceFilter spaceFilter;
 
     @Inject
     private MCPDocumentAccess documentAccess;
@@ -904,72 +862,35 @@ public class MCPGetTreeTool implements MCPTool
         }
         WikiReference wikiRef = new WikiReference(wiki);
         bucketRows(byParent,
-            runChildQuery(CHILD_SPACES_QUERY_BASE, wiki, parentKeys, showHidden, true, fetchLimit), true,
-            wikiRef);
+            this.rowQuery.hierarchyRows(CHILD_SPACES_QUERY_BASE, showHidden, true, wiki, PARENTS_BIND,
+                parentKeys, fetchLimit), true, wikiRef);
         bucketRows(byParent,
-            runChildQuery(TERMINAL_DOCS_QUERY_BASE, wiki, parentKeys, showHidden, false, fetchLimit), false,
-            wikiRef);
+            this.rowQuery.hierarchyRows(TERMINAL_DOCS_QUERY_BASE, showHidden, false, wiki, PARENTS_BIND,
+                parentKeys, fetchLimit), false, wikiRef);
         return byParent;
     }
 
     /**
-     * Resolves each child row into the target wiki, authorizes it and buckets the survivors by their parent
-     * space key.
+     * Resolves each child row into the target wiki, authorizes it (both through the door) and buckets the
+     * survivors by their parent space key.
      *
      * @param byParent the bucket map to populate
      * @param rows the raw result rows ({@code {fullName, parentSpaceKey, title}})
      * @param webHome whether these rows are space homes (which can have children) or terminal pages
      * @param targetWiki the wiki the rows belong to, which unqualified full names resolve into
      */
-    private void bucketRows(Map<String, List<TreeNode>> byParent, List<Object> rows, boolean webHome,
+    private void bucketRows(Map<String, List<TreeNode>> byParent, List<Object[]> rows, boolean webHome,
         WikiReference targetWiki)
     {
-        for (Object row : rows) {
-            Object[] columns = (Object[]) row;
-            DocumentReference ref = this.currentResolver.resolve((String) columns[0], targetWiki);
-            if (!authorized(ref)) {
+        for (Object[] columns : rows) {
+            DocumentReference ref = this.rowQuery.authorizedDocument((String) columns[0], targetWiki);
+            if (ref == null) {
                 continue;
             }
             String parentKey = (String) columns[1];
             String title = (String) columns[2];
             byParent.computeIfAbsent(parentKey, key -> new ArrayList<>()).add(makeNode(ref, title, webHome));
         }
-    }
-
-    private List<Object> runChildQuery(String base, String wiki, List<String> parentKeys,
-        boolean showHidden, boolean hasSpaceAlias, int fetchLimit) throws QueryException
-    {
-        Query query = this.queryManager.createQuery(statement(base, showHidden, hasSpaceAlias), Query.HQL);
-        query.setWiki(wiki);
-        query.setLimit(fetchLimit);
-        query.bindValue(PARENTS_BIND, parentKeys);
-        return query.execute();
-    }
-
-    /**
-     * Composes a final HQL statement: the base, the explicit hidden clauses when hidden pages are excluded
-     * (the hidden-space clause only where a {@code space} alias exists), then the ordering clause last.
-     *
-     * @param base the statement base, without an {@code order by}
-     * @param showHidden whether hidden pages are included (no hidden clauses)
-     * @param hasSpaceAlias whether the base has a {@code space} alias for the hidden-space clause
-     * @return the composed statement
-     */
-    private static String statement(String base, boolean showHidden, boolean hasSpaceAlias)
-    {
-        StringBuilder hql = new StringBuilder(base);
-        if (!showHidden) {
-            hql.append(HIDDEN_DOC_CLAUSE);
-            if (hasSpaceAlias) {
-                hql.append(HIDDEN_SPACE_CLAUSE);
-            }
-        }
-        return hql.append(ORDER_BY_FULLNAME).toString();
-    }
-
-    private boolean authorized(DocumentReference ref)
-    {
-        return this.spaceFilter.isAllowed(ref) && this.authorization.hasAccess(Right.VIEW, ref);
     }
 
     private TreeNode makeNode(DocumentReference ref, String title, boolean webHome)
@@ -1004,12 +925,8 @@ public class MCPGetTreeTool implements MCPTool
         if (names.isEmpty()) {
             return markers;
         }
-        Query query = this.queryManager.createQuery(OBJECT_CLASSES_QUERY, Query.HQL);
-        query.setWiki(wiki);
-        query.setLimit(MAX_FETCH_PER_QUERY);
-        query.bindValue(NAMES_BIND, names);
-        for (Object row : query.execute()) {
-            Object[] columns = (Object[]) row;
+        for (Object[] columns : this.rowQuery.rows(OBJECT_CLASSES_QUERY, wiki, NAMES_BIND, names,
+            MAX_FETCH_PER_QUERY)) {
             String className = (String) columns[1];
             if (!NOISE_CLASSES.contains(className)) {
                 markers.computeIfAbsent((String) columns[0], key -> new ArrayList<>()).add(className);
@@ -1024,12 +941,8 @@ public class MCPGetTreeTool implements MCPTool
         if (names.isEmpty()) {
             return markers;
         }
-        Query query = this.queryManager.createQuery(ATTACHMENTS_QUERY, Query.HQL);
-        query.setWiki(wiki);
-        query.setLimit(MAX_FETCH_PER_QUERY);
-        query.bindValue(NAMES_BIND, names);
-        for (Object row : query.execute()) {
-            Object[] columns = (Object[]) row;
+        for (Object[] columns : this.rowQuery.rows(ATTACHMENTS_QUERY, wiki, NAMES_BIND, names,
+            MAX_FETCH_PER_QUERY)) {
             markers.put((String) columns[0], ((Long) columns[1]).intValue());
         }
         return markers;
@@ -1273,10 +1186,8 @@ public class MCPGetTreeTool implements MCPTool
      */
     private String buildAndRenderSurvey(RootScope scope, TreeRequest req) throws QueryException
     {
-        Query query = this.queryManager.createQuery(SURVEY_QUERY, Query.HQL);
-        query.setWiki(scope.targetWiki());
-        query.setLimit(MAX_FETCH_PER_QUERY);
-        List<Object> rows = query.execute();
+        List<Object[]> rows =
+            this.rowQuery.rows(SURVEY_QUERY, scope.targetWiki(), null, null, MAX_FETCH_PER_QUERY);
         boolean capped = rows.size() >= MAX_FETCH_PER_QUERY;
         SurveyData data = aggregateSurvey(rows, scope.targetWiki(), req.showHidden());
         return renderSurvey(scope, req, data, capped);
@@ -1292,16 +1203,15 @@ public class MCPGetTreeTool implements MCPTool
      * @param showHidden whether hidden pages count as ordinary pages (one folded count)
      * @return the aggregated survey data, in the query's space-name order
      */
-    private SurveyData aggregateSurvey(List<Object> rows, String targetWiki, boolean showHidden)
+    private SurveyData aggregateSurvey(List<Object[]> rows, String targetWiki, boolean showHidden)
     {
         Map<String, SpaceSummary> spaces = new LinkedHashMap<>();
         Set<String> deniedSpaces = new HashSet<>();
         WikiReference wikiRef = new WikiReference(targetWiki);
-        for (Object row : rows) {
-            Object[] columns = (Object[]) row;
-            DocumentReference ref = this.currentResolver.resolve((String) columns[0], wikiRef);
+        for (Object[] columns : rows) {
+            DocumentReference ref = this.rowQuery.resolveInto((String) columns[0], wikiRef);
             String topSpace = ref.getSpaceReferences().get(0).getName();
-            if (!authorized(ref)) {
+            if (!this.rowQuery.isAuthorized(ref)) {
                 deniedSpaces.add(topSpace);
                 continue;
             }

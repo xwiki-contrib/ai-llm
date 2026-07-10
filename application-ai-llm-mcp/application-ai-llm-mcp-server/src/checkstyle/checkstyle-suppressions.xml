@@ -32,4 +32,11 @@
        clause, inlining helpers). -->
   <suppress checks="ClassFanOutComplexity"
       files="org[/\\]xwiki[/\\]contrib[/\\]llm[/\\]mcp[/\\]internal[/\\]XWikiMCPServerManager\.java"/>
+  <!-- MCPGetTreeTool models its two navigation modes with seven small nested records and composes the
+       shared doors (row query, document access, wiki reach) with the MCP tool contract types. After the
+       row-query pipeline was extracted into MCPRowQuery (LLMAI-153), the remaining references are the
+       tool's own record shape plus intrinsic contract types - verified by enumeration, twice; every
+       further reduction traded a well-named type for worse code. -->
+  <suppress checks="ClassFanOutComplexity"
+      files="org[/\\]xwiki[/\\]contrib[/\\]llm[/\\]mcp[/\\]internal[/\\]MCPGetTreeTool\.java"/>
 </suppressions>
