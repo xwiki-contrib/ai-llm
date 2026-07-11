@@ -390,6 +390,82 @@ public class MCPGetTreeTool implements MCPTool
             + "to zoom in.";
 
     /**
+     * The man-page NOTES shown on every endpoint, without any cross-wiki mention.
+     */
+    private static final String MAN_NOTES_BASE = """
+        NOTES
+            The navigation loop: survey first (no root), then re-call with root set to a listed
+            ref to explore that subtree as an indented tree, one page per line. A trailing /
+            marks a page that can hold children; a node marked with a trailing ellipsis has more
+            children than were shown - re-call with that node's reference as the new root to
+            keep zooming. Survey lines carry page counts, a hidden-page count and the last
+            content activity; small spaces are expanded inline.
+
+            depth (default 2, max 4) sets how many levels an explore renders; it is ignored in a
+            survey. limit (default 50, max 200) caps the children shown under one node and offset
+            skips that many of the root's direct children; in a survey, limit and offset page the
+            list of top-level spaces instead.
+
+            Each node may carry a {...} marker: notable object classes it holds (technical classes
+            such as comments, tags and rights are omitted), and att:N for its attachment count. A
+            node with neither carries no marker.
+
+            Hidden pages are always excluded by default, regardless of your account's "display
+            hidden documents" preference. Set showHidden=true to include them.
+        """;
+
+    /**
+     * The cross-wiki NOTES paragraph, appended only when the endpoint has cross-wiki reach - the man page
+     * must not advertise a parameter the advertised schema does not carry.
+     */
+    private static final String MAN_NOTES_CROSS_WIKI = """
+
+            The wiki parameter renders another wiki of the farm instead of the current one (one
+            wiki per call; list_wikis shows what is reachable).
+        """;
+
+    /**
+     * The man-page EXAMPLES shown on every endpoint.
+     */
+    private static final String MAN_EXAMPLES_BASE = """
+
+        EXAMPLES
+            Survey this wiki:     (call with no arguments)
+            A subtree:            root="Sales.WebHome", depth=3
+            A space by name:      root="Sales"   (resolves to Sales.WebHome when Sales is not a page)
+            Page a root:          root="Sales.WebHome", limit=20, offset=20
+        """;
+
+    /**
+     * The cross-wiki example line, reach-gated like its NOTES paragraph.
+     */
+    private static final String MAN_EXAMPLE_CROSS_WIKI = """
+            Survey another wiki:  wiki="second"
+        """;
+
+    /**
+     * The man-page tail shown on every endpoint.
+     */
+    private static final String MAN_TAIL = """
+
+        SEE ALSO
+            man get_document       Read one page found here, by its Reference.
+            man query_documents    Search documents when you know keywords rather than location.
+            man                    (no argument) List all tools and reference pages.
+        """;
+
+    /**
+     * The full man page for cross-wiki enabled endpoints.
+     */
+    private static final String MAN_PAGE =
+        MAN_NOTES_BASE + MAN_NOTES_CROSS_WIKI + MAN_EXAMPLES_BASE + MAN_EXAMPLE_CROSS_WIKI + MAN_TAIL;
+
+    /**
+     * The man page for reach-off endpoints: no cross-wiki paragraph, no wiki-parameter example.
+     */
+    private static final String MAN_PAGE_LOCAL = MAN_NOTES_BASE + MAN_EXAMPLES_BASE + MAN_TAIL;
+
+    /**
      * The two declared-parameter variants (see {@link MCPReachAwareParams}): the local variant omits the
      * {@code wiki} parameter, so no cross-wiki capability is surfaced.
      */
@@ -468,42 +544,7 @@ public class MCPGetTreeTool implements MCPTool
     @Override
     public String getManPage()
     {
-        return """
-            NOTES
-                The navigation loop: survey first (no root), then re-call with root set to a listed
-                ref to explore that subtree as an indented tree, one page per line. A trailing /
-                marks a page that can hold children; a node marked with a trailing ellipsis has more
-                children than were shown - re-call with that node's reference as the new root to
-                keep zooming. Survey lines carry page counts, a hidden-page count and the last
-                content activity; small spaces are expanded inline.
-
-                depth (default 2, max 4) sets how many levels an explore renders; it is ignored in a
-                survey. limit (default 50, max 200) caps the children shown under one node and offset
-                skips that many of the root's direct children; in a survey, limit and offset page the
-                list of top-level spaces instead.
-
-                Each node may carry a {...} marker: notable object classes it holds (technical classes
-                such as comments, tags and rights are omitted), and att:N for its attachment count. A
-                node with neither carries no marker.
-
-                Hidden pages are always excluded by default, regardless of your account's "display
-                hidden documents" preference. Set showHidden=true to include them.
-
-                On cross-wiki enabled endpoints, the wiki parameter renders another wiki of the farm
-                instead of the current one (one wiki per call; list_wikis shows what is reachable).
-
-            EXAMPLES
-                Survey this wiki:     (call with no arguments)
-                A subtree:            root="Sales.WebHome", depth=3
-                A space by name:      root="Sales"   (resolves to Sales.WebHome when Sales is not a page)
-                Page a root:          root="Sales.WebHome", limit=20, offset=20
-                Survey another wiki:  wiki="second"
-
-            SEE ALSO
-                man get_document       Read one page found here, by its Reference.
-                man query_documents    Search documents when you know keywords rather than location.
-                man                    (no argument) List all tools and reference pages.
-            """;
+        return this.wikiReach.isReachEnabled() ? MAN_PAGE : MAN_PAGE_LOCAL;
     }
 
     @Override

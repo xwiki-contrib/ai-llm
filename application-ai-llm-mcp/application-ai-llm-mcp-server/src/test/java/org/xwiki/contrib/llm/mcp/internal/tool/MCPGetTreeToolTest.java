@@ -972,4 +972,29 @@ class MCPGetTreeToolTest
         assertTrue(this.tool.getManPage().contains("SEE ALSO"), this.tool.getManPage());
         assertTrue(this.tool.getSummary().contains("tree"), this.tool.getSummary());
     }
+
+    @Test
+    void manPageDocumentsTheWikiParameterWhenReachIsOn()
+    {
+        when(this.wikiReach.isReachEnabled()).thenReturn(true);
+
+        String manPage = this.tool.getManPage();
+        assertTrue(manPage.contains("The wiki parameter renders another wiki"), manPage);
+        assertTrue(manPage.contains("Survey another wiki:  wiki=\"second\""), manPage);
+    }
+
+    @Test
+    void manPageOmitsTheWikiParameterWhenReachIsOff()
+    {
+        when(this.wikiReach.isReachEnabled()).thenReturn(false);
+
+        // The man prose must match the advertised schema: a reach-off endpoint does not carry the wiki
+        // parameter, so its manual must not teach it either.
+        String manPage = this.tool.getManPage();
+        assertFalse(manPage.contains("wiki parameter"), manPage);
+        assertFalse(manPage.contains("Survey another wiki"), manPage);
+        assertTrue(manPage.contains("The navigation loop"), manPage);
+        assertTrue(manPage.contains("EXAMPLES"), manPage);
+        assertTrue(manPage.contains("SEE ALSO"), manPage);
+    }
 }
