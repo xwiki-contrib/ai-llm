@@ -40,10 +40,10 @@ import io.modelcontextprotocol.spec.McpSchema;
  * <p>The static helpers coerce raw argument values and build results. An <em>instance</em>, created
  * with {@link #builder()}, is a tool's declared flat parameter set: it generates the MCP input
  * schema ({@link #inputSchema()}) and serves the typed accessors ({@link #string},
- * {@link #integer}, {@link #bool}, {@link #stringList}) from the same declaration, so the
- * advertised schema and the parsing code cannot disagree. Nested object parameters are out of
- * scope by design — a tool declares its scalars and flat string arrays here and merges any
- * bespoke schema parts via {@link #inputSchema(Map)}.</p>
+ * {@link #integer}, {@link #bool}, {@link #stringList}, {@link #stringMap}) from the same
+ * declaration, so the advertised schema and the parsing code cannot disagree. Nested object
+ * parameters are out of scope by design — a tool declares its scalars, flat string arrays and flat
+ * string maps here and merges any bespoke schema parts via {@link #inputSchema(Map)}.</p>
  *
  * <p>All parsing helpers throw {@link IllegalArgumentException} with an agent-facing message on a
  * type mismatch; tools convert that uniformly into an error result. Accessing a parameter that was
@@ -64,6 +64,8 @@ public final class MCPToolSupport
      */
     public static final String ERROR_PREFIX = "Error: '";
 
+    private static final String REQUIRED_PARAM_ERROR_SUFFIX = "' parameter is required.";
+
     private static final String STRING_PARAM_ERROR_SUFFIX = "' parameter must be a string.";
 
     private static final String INTEGER_PARAM_ERROR_SUFFIX = "' parameter must be an integer.";
@@ -71,6 +73,9 @@ public final class MCPToolSupport
     private static final String BOOLEAN_PARAM_ERROR_SUFFIX = "' parameter must be a boolean.";
 
     private static final String STRING_ARRAY_PARAM_ERROR_SUFFIX = "' parameter must be an array of strings.";
+
+    private static final String STRING_MAP_PARAM_ERROR_SUFFIX = "' parameter must be an object mapping names "
+        + "to string values (write every value as a string, e.g. \"1\" rather than 1).";
 
     private static final String TYPE_KEY = "type";
 
@@ -290,6 +295,13 @@ public final class MCPToolSupport
             entry.put(DESCRIPTION_KEY, param.description());
             return entry;
         }
+        if (param.type() == ParamType.STRING_MAP) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put(TYPE_KEY, param.type().jsonType());
+            entry.put("additionalProperties", Map.of(TYPE_KEY, STRING_TYPE));
+            entry.put(DESCRIPTION_KEY, param.description());
+            return entry;
+        }
         return Map.of(
             TYPE_KEY, param.type().jsonType(),
             DESCRIPTION_KEY, param.description());
@@ -367,7 +379,7 @@ public final class MCPToolSupport
     {
         String value = string(args, key);
         if (value == null) {
-            throw new IllegalArgumentException(ERROR_PREFIX + key + "' parameter is required.");
+            throw new IllegalArgumentException(ERROR_PREFIX + key + REQUIRED_PARAM_ERROR_SUFFIX);
         }
         return value;
     }
@@ -385,6 +397,27 @@ public final class MCPToolSupport
     {
         assertDeclared(key, ParamType.INTEGER);
         return optionalInt(args, key);
+    }
+
+    /**
+     * Reads a declared integer parameter and enforces its presence: the schema's {@code required} list is
+     * only client-side advice, so a tool must still reject an absent value at execution time.
+     *
+     * @param args the tool call arguments
+     * @param key the parameter name
+     * @return the value, never {@code null}
+     * @throws IllegalArgumentException with the agent-facing message if the value is absent or not an
+     *     integer
+     * @throws IllegalStateException if the parameter was not declared as an integer
+     * @since 0.9.1
+     */
+    public int requireInteger(Map<String, Object> args, String key)
+    {
+        Integer value = integer(args, key);
+        if (value == null) {
+            throw new IllegalArgumentException(ERROR_PREFIX + key + REQUIRED_PARAM_ERROR_SUFFIX);
+        }
+        return value;
     }
 
     /**
@@ -455,6 +488,62 @@ public final class MCPToolSupport
         return strings;
     }
 
+    /**
+     * Reads a declared string-map parameter (a JSON object whose values are all strings). A non-object
+     * value, or an object carrying a non-string value, is rejected with the agent-facing teaching
+     * message. Keys and values are kept exactly as sent (no trimming): a map value may deliberately be
+     * an empty string. Entry order is preserved.
+     *
+     * @param args the tool call arguments
+     * @param key the parameter name
+     * @return the entries in their original order, or an empty map when the parameter is absent
+     * @throws IllegalArgumentException if the value is present but not an object with only string values
+     * @throws IllegalStateException if the parameter was not declared as a string map
+     * @since 0.9.1
+     */
+    public Map<String, String> stringMap(Map<String, Object> args, String key)
+    {
+        assertDeclared(key, ParamType.STRING_MAP);
+        Object value = args.get(key);
+        if (value == null) {
+            return Map.of();
+        }
+        if (!(value instanceof Map<?, ?> map)) {
+            throw new IllegalArgumentException(ERROR_PREFIX + key + STRING_MAP_PARAM_ERROR_SUFFIX);
+        }
+        Map<String, String> entries = new LinkedHashMap<>(map.size());
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (!(entry.getKey() instanceof String name) || !(entry.getValue() instanceof String text)) {
+                throw new IllegalArgumentException(ERROR_PREFIX + key + STRING_MAP_PARAM_ERROR_SUFFIX);
+            }
+            entries.put(name, text);
+        }
+        return entries;
+    }
+
+    /**
+     * Reads a declared string-map parameter (see {@link #stringMap(Map, String)}) and enforces that it
+     * was sent with at least one entry: the schema's {@code required} list is only client-side advice,
+     * so a tool must still reject an absent or empty value at execution time.
+     *
+     * @param args the tool call arguments
+     * @param key the parameter name
+     * @return the entries in their original order, never empty
+     * @throws IllegalArgumentException with the agent-facing message if the value is absent, empty or
+     *     not an object with only string values
+     * @throws IllegalStateException if the parameter was not declared as a string map
+     * @since 0.9.1
+     */
+    public Map<String, String> requireStringMap(Map<String, Object> args, String key)
+    {
+        Map<String, String> entries = stringMap(args, key);
+        if (entries.isEmpty()) {
+            throw new IllegalArgumentException(ERROR_PREFIX + key
+                + "' parameter is required and must contain at least one entry.");
+        }
+        return entries;
+    }
+
     private void assertDeclared(String key, ParamType type)
     {
         DeclaredParam declared = this.params.get(key);
@@ -481,7 +570,10 @@ public final class MCPToolSupport
         BOOLEAN("boolean"),
 
         /** A flat array-of-strings parameter. */
-        STRING_ARRAY("array");
+        STRING_ARRAY("array"),
+
+        /** A flat string-to-string map parameter. */
+        STRING_MAP(OBJECT_TYPE);
 
         private final String jsonType;
 
@@ -608,6 +700,54 @@ public final class MCPToolSupport
         public Builder stringArray(String name, String description)
         {
             this.params.put(name, new DeclaredParam(ParamType.STRING_ARRAY, description));
+            return this;
+        }
+
+        /**
+         * Declares an optional flat string-to-string map parameter, advertised as a JSON object whose
+         * values must all be strings ({@code "additionalProperties": {"type": "string"}}). Read back
+         * with {@link MCPToolSupport#stringMap(Map, String)}.
+         *
+         * @param name the parameter name
+         * @param description the agent-facing description
+         * @return this builder
+         * @since 0.9.1
+         */
+        public Builder stringMap(String name, String description)
+        {
+            this.params.put(name, new DeclaredParam(ParamType.STRING_MAP, description));
+            return this;
+        }
+
+        /**
+         * Declares a required flat string-to-string map parameter (see {@link #stringMap(String, String)}),
+         * enforced at read time by {@link MCPToolSupport#requireStringMap(Map, String)}.
+         *
+         * @param name the parameter name
+         * @param description the agent-facing description
+         * @return this builder
+         * @since 0.9.1
+         */
+        public Builder requiredStringMap(String name, String description)
+        {
+            stringMap(name, description);
+            this.required.add(name);
+            return this;
+        }
+
+        /**
+         * Declares a required integer parameter, present in the advertised schema's {@code required}
+         * list; the reading tool still enforces presence at execution time.
+         *
+         * @param name the parameter name
+         * @param description the agent-facing description
+         * @return this builder
+         * @since 0.9.1
+         */
+        public Builder requiredInteger(String name, String description)
+        {
+            integer(name, description);
+            this.required.add(name);
             return this;
         }
 

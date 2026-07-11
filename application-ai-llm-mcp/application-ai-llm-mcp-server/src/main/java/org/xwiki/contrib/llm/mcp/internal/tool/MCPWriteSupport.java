@@ -26,6 +26,7 @@ import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.security.authorization.Right;
 
 import com.xpn.xwiki.XWikiContext;
@@ -66,6 +67,36 @@ final class MCPWriteSupport
      * Prefix of the result line reporting the saved version (or the version transition) of a write.
      */
     static final String VERSION_PREFIX = "Version: ";
+
+    /**
+     * The space-level preferences document name (space rights overrides), part of the sensitive-document
+     * denylist. Also the single child page the delete tool's {@code WebPreferences} exception concerns.
+     */
+    static final String WEB_PREFERENCES = "WebPreferences";
+
+    /**
+     * The wiki-level preferences document name (wiki rights and configuration), part of the
+     * sensitive-document denylist.
+     */
+    private static final String XWIKI_PREFERENCES = "XWikiPreferences";
+
+    /**
+     * Document-name prefix of the wiki descriptor documents in the main wiki's {@code XWiki} space.
+     */
+    private static final String WIKI_DESCRIPTOR_PREFIX = "XWikiServer";
+
+    /**
+     * The space-dot prefix identifying the main wiki's {@code XWiki} space, where the wiki descriptor
+     * documents live.
+     */
+    private static final String XWIKI_SPACE_DOT = "XWiki.";
+
+    /**
+     * The wiki-local full name of the MCP server configuration document. Mirrors
+     * {@code MCPServerConfiguration.CONFIG_SPACES} + {@code CONFIG_DOC_NAME} (the source of truth,
+     * package-private in {@code internal.server}).
+     */
+    private static final String MCP_CONFIG_LOCAL_FULLNAME = "AI.MCP.Code.MCPServerConfig";
 
     /**
      * Marker prefixed to the save comment of every write made through the MCP tools, making agent-made
@@ -151,6 +182,45 @@ final class MCPWriteSupport
         } finally {
             xcontext.setWikiId(originalWiki);
         }
+    }
+
+    /**
+     * Decides the sensitive-document denylist shared by the destructive tools: {@code WebPreferences}
+     * (space rights overrides), {@code XWikiPreferences} (wiki-level rights and configuration), the main
+     * wiki's wiki descriptor documents and the MCP server configuration document. The decision is made
+     * from the reference alone (name, space and wiki) - never from the document's content.
+     *
+     * @param xcontext the XWiki context, for the main-wiki check
+     * @param ref the resolved document reference
+     * @param localSerializer the calling tool's wiki-local reference serializer
+     * @return whether the document is denylisted
+     */
+    static boolean isSensitiveDocument(XWikiContext xcontext, DocumentReference ref,
+        EntityReferenceSerializer<String> localSerializer)
+    {
+        String name = ref.getName();
+        return WEB_PREFERENCES.equals(name) || XWIKI_PREFERENCES.equals(name)
+            || isWikiDescriptor(xcontext, ref, name, localSerializer)
+            || MCP_CONFIG_LOCAL_FULLNAME.equals(localSerializer.serialize(ref));
+    }
+
+    /**
+     * Decides whether the document is a wiki descriptor: a document in the main wiki's {@code XWiki}
+     * space whose name starts with {@code XWikiServer}. The rule is main-wiki-scoped - descriptors only
+     * exist there.
+     *
+     * @param xcontext the XWiki context, for the main-wiki check
+     * @param ref the resolved document reference
+     * @param name the document name
+     * @param localSerializer the calling tool's wiki-local reference serializer
+     * @return whether the document is a wiki descriptor
+     */
+    private static boolean isWikiDescriptor(XWikiContext xcontext, DocumentReference ref, String name,
+        EntityReferenceSerializer<String> localSerializer)
+    {
+        return name.startsWith(WIKI_DESCRIPTOR_PREFIX)
+            && xcontext.isMainWiki(ref.getWikiReference().getName())
+            && XWIKI_SPACE_DOT.equals(localSerializer.serialize(ref.getLastSpaceReference()) + ".");
     }
 
     /**

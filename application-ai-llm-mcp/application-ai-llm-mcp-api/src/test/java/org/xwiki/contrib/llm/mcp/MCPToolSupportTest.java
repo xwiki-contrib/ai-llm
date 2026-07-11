@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.mcp;
 
 import java.time.Instant;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +49,8 @@ class MCPToolSupportTest
 
     private static final String TAGS = "tags";
 
+    private static final String FIELDS = "fields";
+
     private static final String TYPE = "type";
 
     private static final String DESCRIPTION = "description";
@@ -60,11 +63,17 @@ class MCPToolSupportTest
 
     private static final String STRING_ARRAY_ERROR = "Error: 'tags' parameter must be an array of strings.";
 
+    private static final String STRING_MAP_ERROR = "Error: 'fields' parameter must be an object mapping "
+        + "names to string values (write every value as a string, e.g. \"1\" rather than 1).";
+
+    private static final String FIELDS_DESCRIPTION = "The fields.";
+
     private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
         .requiredString(REF, "The reference.")
         .integer(LIMIT, "The limit.")
         .bool(HIDDEN, "Include hidden.")
         .stringArray(TAGS, TAGS_DESCRIPTION)
+        .stringMap(FIELDS, FIELDS_DESCRIPTION)
         .build();
 
     @Test
@@ -79,6 +88,8 @@ class MCPToolSupportTest
         assertEquals(Map.of(TYPE, "boolean", DESCRIPTION, "Include hidden."), properties.get(HIDDEN));
         assertEquals(Map.of(TYPE, "array", "items", Map.of(TYPE, "string"), DESCRIPTION, TAGS_DESCRIPTION),
             properties.get(TAGS));
+        assertEquals(Map.of(TYPE, "object", "additionalProperties", Map.of(TYPE, "string"),
+            DESCRIPTION, FIELDS_DESCRIPTION), properties.get(FIELDS));
         assertEquals(List.of(REF), schema.get(REQUIRED));
     }
 
@@ -88,7 +99,23 @@ class MCPToolSupportTest
         Map<String, Object> schema = PARAMS.inputSchema();
 
         Map<?, ?> properties = (Map<?, ?>) schema.get(PROPERTIES);
-        assertEquals(List.of(REF, LIMIT, HIDDEN, TAGS), List.copyOf(properties.keySet()));
+        assertEquals(List.of(REF, LIMIT, HIDDEN, TAGS, FIELDS), List.copyOf(properties.keySet()));
+    }
+
+    @Test
+    void requiredStringMapAndRequiredIntegerAppearInTheRequiredList()
+    {
+        MCPToolSupport params = MCPToolSupport.builder()
+            .requiredStringMap(FIELDS, FIELDS_DESCRIPTION)
+            .requiredInteger(LIMIT, "The limit.")
+            .build();
+
+        Map<String, Object> schema = params.inputSchema();
+
+        assertEquals(List.of(FIELDS, LIMIT), schema.get(REQUIRED));
+        Map<?, ?> properties = (Map<?, ?>) schema.get(PROPERTIES);
+        assertEquals("object", ((Map<?, ?>) properties.get(FIELDS)).get(TYPE));
+        assertEquals("integer", ((Map<?, ?>) properties.get(LIMIT)).get(TYPE));
     }
 
     @Test
@@ -216,6 +243,86 @@ class MCPToolSupportTest
         IllegalArgumentException thrown =
             assertThrows(IllegalArgumentException.class, () -> PARAMS.stringList(args, TAGS));
         assertEquals(STRING_ARRAY_ERROR, thrown.getMessage());
+    }
+
+    @Test
+    void stringMapReadsDeclaredStringMapParameterPreservingOrderAndRawValues()
+    {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("title", " Hello ");
+        fields.put("published", "1");
+        fields.put("summary", "");
+
+        Map<String, String> read = PARAMS.stringMap(Map.of(FIELDS, fields), FIELDS);
+
+        // Values are kept raw (no trimming, empty allowed) and entry order is preserved.
+        assertEquals(List.of("title", "published", "summary"), List.copyOf(read.keySet()));
+        assertEquals(" Hello ", read.get("title"));
+        assertEquals("", read.get("summary"));
+    }
+
+    @Test
+    void stringMapReturnsEmptyMapForAbsentParameter()
+    {
+        assertEquals(Map.of(), PARAMS.stringMap(Map.of(), FIELDS));
+    }
+
+    @Test
+    void stringMapRejectsNonObjectValueWithAgentFacingError()
+    {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> PARAMS.stringMap(Map.of(FIELDS, "title=Hello"), FIELDS));
+        assertEquals(STRING_MAP_ERROR, thrown.getMessage());
+    }
+
+    @Test
+    void stringMapRejectsNonStringEntryValueWithTeachingError()
+    {
+        Map<String, Object> fields = Map.of("published", 1);
+
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> PARAMS.stringMap(Map.of(FIELDS, fields), FIELDS));
+        assertEquals(STRING_MAP_ERROR, thrown.getMessage());
+    }
+
+    @Test
+    void stringMapIsAProgrammerErrorOnUndeclaredParameter()
+    {
+        assertThrows(IllegalStateException.class, () -> PARAMS.stringMap(Map.of(), TAGS));
+    }
+
+    @Test
+    void requireStringMapReturnsEntriesWhenPresent()
+    {
+        Map<String, String> read = PARAMS.requireStringMap(Map.of(FIELDS, Map.of("title", "Hello")), FIELDS);
+
+        assertEquals(Map.of("title", "Hello"), read);
+    }
+
+    @Test
+    void requireStringMapRefusesAbsentAndEmptyValues()
+    {
+        String expected = "Error: 'fields' parameter is required and must contain at least one entry.";
+
+        IllegalArgumentException absent = assertThrows(IllegalArgumentException.class,
+            () -> PARAMS.requireStringMap(Map.of(), FIELDS));
+        assertEquals(expected, absent.getMessage());
+        IllegalArgumentException empty = assertThrows(IllegalArgumentException.class,
+            () -> PARAMS.requireStringMap(Map.of(FIELDS, Map.of()), FIELDS));
+        assertEquals(expected, empty.getMessage());
+    }
+
+    @Test
+    void requireIntegerEnforcesPresenceWithAgentFacingError()
+    {
+        assertEquals(5, PARAMS.requireInteger(Map.of(LIMIT, 5), LIMIT));
+
+        IllegalArgumentException absent = assertThrows(IllegalArgumentException.class,
+            () -> PARAMS.requireInteger(Map.of(), LIMIT));
+        assertEquals("Error: 'limit' parameter is required.", absent.getMessage());
+        IllegalArgumentException mistyped = assertThrows(IllegalArgumentException.class,
+            () -> PARAMS.requireInteger(Map.of(LIMIT, "lots"), LIMIT));
+        assertTrue(mistyped.getMessage().contains("must be an integer"), mistyped.getMessage());
     }
 
     @Test

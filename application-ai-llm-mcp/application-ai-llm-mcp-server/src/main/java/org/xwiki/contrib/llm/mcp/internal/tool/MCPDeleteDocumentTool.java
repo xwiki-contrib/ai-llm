@@ -101,31 +101,6 @@ public class MCPDeleteDocumentTool implements MCPTool
 
     private static final String WEB_HOME = "WebHome";
 
-    private static final String WEB_PREFERENCES = "WebPreferences";
-
-    /**
-     * The wiki-level preferences document name (wiki rights and configuration), refused outright.
-     */
-    private static final String XWIKI_PREFERENCES = "XWikiPreferences";
-
-    /**
-     * Document-name prefix of the wiki descriptor documents in the main wiki's {@code XWiki} space.
-     */
-    private static final String WIKI_DESCRIPTOR_PREFIX = "XWikiServer";
-
-    /**
-     * The space-dot prefix ({@link #spaceDotPrefix}) identifying the main wiki's {@code XWiki} space,
-     * where the wiki descriptor documents live.
-     */
-    private static final String XWIKI_SPACE_DOT = "XWiki.";
-
-    /**
-     * The wiki-local full name of the MCP server configuration document. Mirrors
-     * {@code MCPServerConfiguration.CONFIG_SPACES} + {@code CONFIG_DOC_NAME} (the source of truth,
-     * package-private in {@code internal.server}).
-     */
-    private static final String MCP_CONFIG_LOCAL_FULLNAME = "AI.MCP.Code.MCPServerConfig";
-
     /**
      * The children lookup of the platform delete UI (flamingo {@code delete.vm}): every document under
      * the space prefix except the document itself, deliberately including hidden documents and
@@ -369,7 +344,7 @@ public class MCPDeleteDocumentTool implements MCPTool
      */
     private McpSchema.CallToolResult sensitiveRefusal(XWikiContext xcontext, DocumentReference ref)
     {
-        if (!isSensitive(xcontext, ref)) {
+        if (!MCPWriteSupport.isSensitiveDocument(xcontext, ref, this.localSerializer)) {
             return null;
         }
         String url = MCPWriteSupport.safeDocumentUrl(this.documentAccessBridge, this.logger, ref, null);
@@ -377,40 +352,6 @@ public class MCPDeleteDocumentTool implements MCPTool
             + MCPToolSupport.stripLineBreaks(this.serializer.serialize(ref)) + QUOTE
             + ": this page defines access rights or wiki configuration. If you really intend to delete "
             + "it, do it manually in the wiki UI" + (url != null ? ": " + url : PERIOD));
-    }
-
-    /**
-     * Decides the sensitive-reference denylist: {@code WebPreferences} (space rights overrides),
-     * {@code XWikiPreferences} (wiki-level rights and configuration), the main wiki's wiki descriptor
-     * documents and the MCP server configuration document.
-     *
-     * @param xcontext the XWiki context, for the main-wiki check
-     * @param ref the resolved document reference
-     * @return whether the document is denylisted
-     */
-    private boolean isSensitive(XWikiContext xcontext, DocumentReference ref)
-    {
-        String name = ref.getName();
-        return WEB_PREFERENCES.equals(name) || XWIKI_PREFERENCES.equals(name)
-            || isWikiDescriptor(xcontext, ref, name)
-            || MCP_CONFIG_LOCAL_FULLNAME.equals(this.localSerializer.serialize(ref));
-    }
-
-    /**
-     * Decides whether the document is a wiki descriptor: a document in the main wiki's {@code XWiki}
-     * space whose name starts with {@code XWikiServer}. The rule is main-wiki-scoped - descriptors only
-     * exist there.
-     *
-     * @param xcontext the XWiki context, for the main-wiki check
-     * @param ref the resolved document reference
-     * @param name the document name
-     * @return whether the document is a wiki descriptor
-     */
-    private boolean isWikiDescriptor(XWikiContext xcontext, DocumentReference ref, String name)
-    {
-        return name.startsWith(WIKI_DESCRIPTOR_PREFIX)
-            && xcontext.isMainWiki(ref.getWikiReference().getName())
-            && XWIKI_SPACE_DOT.equals(spaceDotPrefix(ref));
     }
 
     /**
@@ -518,7 +459,8 @@ public class MCPDeleteDocumentTool implements MCPTool
      */
     private boolean isOnlyChildWebPreferences(DocumentReference ref, List<String> children)
     {
-        return children.size() == 1 && children.get(0).equals(spaceDotPrefix(ref) + WEB_PREFERENCES);
+        return children.size() == 1
+            && children.get(0).equals(spaceDotPrefix(ref) + MCPWriteSupport.WEB_PREFERENCES);
     }
 
     /**

@@ -74,6 +74,25 @@ final class MCPObjectQuerySupport
      */
     static final String CLASSNAME_BIND = "className";
 
+    /**
+     * The {@link PropertyClass#getClassType()} values with special handling: Password fields are refused
+     * as filter/sort targets and masked in output; computed fields have no stored values at all; Boolean
+     * fields get their vocabulary pre-validated because the platform parse cannot signal failure for them.
+     * Package-private because {@link MCPObjectWriteSupport} applies the same type dispatch on the write
+     * side.
+     */
+    static final String PASSWORD_TYPE = "Password";
+
+    /**
+     * See {@link #PASSWORD_TYPE}.
+     */
+    static final String COMPUTED_TYPE = "ComputedField";
+
+    /**
+     * See {@link #PASSWORD_TYPE}.
+     */
+    static final String BOOLEAN_TYPE = "Boolean";
+
     private static final String EQUALS_OP = "=";
 
     private static final String GREATER_OP = ">";
@@ -114,17 +133,6 @@ final class MCPObjectQuerySupport
      * stored shape (a serialized blob or a relational element table) does not compare like a scalar.
      */
     private static final List<String> LIST_ENTITIES = List.of("StringListProperty", "DBStringListProperty");
-
-    /**
-     * The {@link PropertyClass#getClassType()} values with special handling: Password fields are refused
-     * as filter/sort targets and masked in output; computed fields have no stored values at all; Boolean
-     * fields get their vocabulary pre-validated because the platform parse cannot signal failure for them.
-     */
-    private static final String PASSWORD_TYPE = "Password";
-
-    private static final String COMPUTED_TYPE = "ComputedField";
-
-    private static final String BOOLEAN_TYPE = "Boolean";
 
     private static final String BASE_FROM = "from XWikiDocument doc, BaseObject obj";
 
@@ -544,10 +552,11 @@ final class MCPObjectQuerySupport
      * (the platform parse stores {@code null} for garbage instead of failing) and Date values fall back to
      * ISO-8601 when the class's own format does not match.
      *
-     * <p>Contract boundary: as of platform 17.10 (XWIKI-20910), {@code fromString} declares a checked
-     * {@code XWikiException} instead of the null signal. Building against such a platform turns this call
-     * into a compile error, at which point this method and {@link #dateBind(DateClass, String)} switch
-     * from null-checking to catching that exception.</p>
+     * <p>Contract boundary: on the platform this builds against (17.4), {@code fromString} returns
+     * {@code null} on unparseable input; on platform 17.10 and later (XWIKI-20910) it instead declares a
+     * checked {@code XWikiException}. Building against 17.10+ therefore turns this call into a compile
+     * error that flags this method and {@link #dateBind(DateClass, String)} as the two sites whose null
+     * check no longer matches the contract.</p>
      *
      * @param property the field's definition
      * @param raw the raw value text
@@ -572,23 +581,28 @@ final class MCPObjectQuerySupport
     }
 
     /**
+     * Shared with {@link MCPObjectWriteSupport} so filter values and written field values are refused
+     * with identical phrasing.
+     *
      * @param property the field's definition
      * @param raw the rejected raw value
      * @param expected the expected type/format description
      * @return the agent-facing validation error
      */
-    private static IllegalArgumentException invalidValue(PropertyClass property, String raw, String expected)
+    static IllegalArgumentException invalidValue(PropertyClass property, String raw, String expected)
     {
         return new IllegalArgumentException("Error: invalid value " + QUOTE + strip(raw) + QUOTE
             + " for" + FIELD_INFIX + strip(property.getName()) + QUOTE + ": expected " + expected + PERIOD);
     }
 
     /**
+     * Shared with {@link MCPObjectWriteSupport} (see {@link #invalidValue}).
+     *
      * @param property the field's definition
      * @return the expected-value description for a validation error, with the type detail a schema line
      *     would carry (e.g. the number's storage type)
      */
-    private static String expectedDetail(PropertyClass property)
+    static String expectedDetail(PropertyClass property)
     {
         if (property instanceof NumberClass number) {
             return "a number of type " + number.getNumberType();
@@ -599,14 +613,15 @@ final class MCPObjectQuerySupport
     /**
      * Coerces a Boolean filter value. Booleans store as integers, and the platform parse cannot signal
      * failure for them (garbage stores as a {@code null} value), so the vocabulary is validated here:
-     * {@code 0}, {@code 1}, {@code true} and {@code false} (case-insensitive).
+     * {@code 0}, {@code 1}, {@code true} and {@code false} (case-insensitive). Shared with
+     * {@link MCPObjectWriteSupport}, whose Boolean pre-validation accepts the same vocabulary.
      *
      * @param property the field's definition, for the error message
      * @param raw the raw value text
      * @return the integer bind value
      * @throws IllegalArgumentException with an agent-facing message on any other value
      */
-    private static Integer booleanBind(PropertyClass property, String raw)
+    static Integer booleanBind(PropertyClass property, String raw)
     {
         if ("1".equals(raw) || "true".equalsIgnoreCase(raw)) {
             return 1;
@@ -661,11 +676,13 @@ final class MCPObjectQuerySupport
     }
 
     /**
+     * Shared with {@link MCPObjectWriteSupport} (see {@link #invalidValue}).
+     *
      * @param xclass the class definition
      * @param name the unknown field name
      * @return the agent-facing validation error, listing the class's enabled field names
      */
-    private static IllegalArgumentException unknownField(BaseClass xclass, String name)
+    static IllegalArgumentException unknownField(BaseClass xclass, String name)
     {
         String fields = xclass.getEnabledProperties().stream()
             .map(PropertyClass::getName)
