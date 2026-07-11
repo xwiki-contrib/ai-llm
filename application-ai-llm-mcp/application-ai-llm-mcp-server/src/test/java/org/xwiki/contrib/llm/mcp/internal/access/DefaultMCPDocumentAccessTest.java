@@ -40,6 +40,7 @@ import com.xpn.xwiki.XWikiContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -108,6 +109,21 @@ class DefaultMCPDocumentAccessTest
             () -> this.access.resolveAndAuthorize(REFERENCE, Right.EDIT));
         assertEquals("You do not have permission to edit \"Help.GettingStarted\".", exception.getMessage());
         verify(this.authorization).hasAccess(Right.EDIT, this.target);
+        verify(this.spaceFilter, never()).isAllowed(any());
+    }
+
+    @Test
+    void throwsWithDeleteVerbWhenDeleteRightDenied()
+    {
+        when(this.authorization.hasAccess(Right.DELETE, this.target)).thenReturn(false);
+        // The space filter must never be consulted once rights deny access.
+        lenient().when(this.spaceFilter.isAllowed(this.target)).thenReturn(true);
+
+        MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
+            () -> this.access.resolveAndAuthorize(REFERENCE, Right.DELETE));
+        assertEquals("You do not have permission to delete \"Help.GettingStarted\".", exception.getMessage());
+        verify(this.authorization).hasAccess(Right.DELETE, this.target);
+        verify(this.spaceFilter, never()).isAllowed(any());
     }
 
     @Test

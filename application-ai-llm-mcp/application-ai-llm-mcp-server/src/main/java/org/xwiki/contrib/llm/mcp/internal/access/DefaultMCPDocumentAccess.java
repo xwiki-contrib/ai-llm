@@ -123,7 +123,14 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
 
     private String rightsDeniedMessage(String reference, Right right)
     {
-        String verb = Right.EDIT.equals(right) ? "edit" : "view";
+        String verb;
+        if (Right.EDIT.equals(right)) {
+            verb = "edit";
+        } else if (Right.DELETE.equals(right)) {
+            verb = "delete";
+        } else {
+            verb = "view";
+        }
         return "You do not have permission to " + verb + " " + QUOTE + reference + QUOTE + ".";
     }
 }

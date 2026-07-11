@@ -36,12 +36,12 @@ import io.modelcontextprotocol.spec.McpSchema;
 
 /**
  * Shared write-path plumbing for the document-writing MCP tools ({@link MCPEditDocumentTool},
- * {@link MCPWriteDocumentTool}): edit-right resolution, the authenticated-user guard and target-wiki
- * context switch around a save, the {@code [AI]}-prefixed version-comment construction, the minor-edit
- * policy, the review-URL result line and the agent-facing message fragments both tools' {@code
- * base_version} checks share. Not a component: a plain holder of static helpers, kept in this module so
- * the oldcore types it handles ({@link XWikiContext}, {@link XWikiDocument}) stay out of the API
- * module's surface.
+ * {@link MCPWriteDocumentTool}, {@link MCPDeleteDocumentTool}): write-right resolution, the
+ * authenticated-user guard and target-wiki context switch around a write, the {@code [AI]}-prefixed
+ * version-comment construction, the minor-edit policy, the review-URL result line and the agent-facing
+ * message fragments the tools' {@code base_version} checks share. Not a component: a plain holder of
+ * static helpers, kept in this module so the oldcore types it handles ({@link XWikiContext},
+ * {@link XWikiDocument}) stay out of the API module's surface.
  *
  * @version $Id$
  * @since 0.9.1
@@ -87,10 +87,8 @@ final class MCPWriteSupport
 
     /**
      * Resolves and authorizes a document reference for {@link Right#EDIT} through
-     * {@link MCPDocumentAccess#resolveAndAuthorize(String, Right)}, so the per-wiki space filter is
-     * applied and the existence of a protected document is never leaked. A denial is rethrown as an
-     * {@link IllegalArgumentException} carrying the denial's agent-facing message, which the calling
-     * tool's argument-error handling returns as an error result.
+     * {@link #resolveFor(MCPDocumentAccess, String, Right)}, keeping the edit-right call sites of the
+     * content-writing tools to a single argument list.
      *
      * @param documentAccess the resolution and authorization component of the calling tool
      * @param reference the reference string from the tool call
@@ -100,8 +98,28 @@ final class MCPWriteSupport
      */
     static DocumentReference resolveForEdit(MCPDocumentAccess documentAccess, String reference)
     {
+        return resolveFor(documentAccess, reference, Right.EDIT);
+    }
+
+    /**
+     * Resolves and authorizes a document reference for the given right through
+     * {@link MCPDocumentAccess#resolveAndAuthorize(String, Right)}, so the per-wiki space filter is
+     * applied and the existence of a protected document is never leaked. A denial is rethrown as an
+     * {@link IllegalArgumentException} carrying the denial's agent-facing message, which the calling
+     * tool's argument-error handling returns as an error result.
+     *
+     * @param documentAccess the resolution and authorization component of the calling tool
+     * @param reference the reference string from the tool call
+     * @param right the right required on the document
+     * @return the resolved and authorized document reference
+     * @throws IllegalArgumentException when the reference is malformed, filtered out or denied the
+     *             required right for the calling user, with the agent-facing message as the exception
+     *             message
+     */
+    static DocumentReference resolveFor(MCPDocumentAccess documentAccess, String reference, Right right)
+    {
         try {
-            return documentAccess.resolveAndAuthorize(reference, Right.EDIT);
+            return documentAccess.resolveAndAuthorize(reference, right);
         } catch (MCPAccessDeniedException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
@@ -115,7 +133,7 @@ final class MCPWriteSupport
      * the body throws).
      *
      * @param xcontext the XWiki context, possibly {@code null} when none is available
-     * @param ref the resolved reference of the document to write
+     * @param ref the resolved reference of the target document
      * @param body the tool-specific write logic
      * @return the body's result, or an error result when no authenticated user is in the context
      * @throws XWikiException when loading the document or the body fails
@@ -230,8 +248,8 @@ final class MCPWriteSupport
 
     /**
      * Builds an external view-mode URL for the given document, returning {@code null} instead of
-     * propagating a URL-building failure: the review line is a convenience, never worth failing a
-     * completed save over.
+     * propagating a URL-building failure: a URL in a result message is a convenience, never worth
+     * failing the operation over.
      *
      * @param documentAccessBridge the URL-building bridge of the calling tool
      * @param logger the calling tool's logger
@@ -239,7 +257,7 @@ final class MCPWriteSupport
      * @param queryString the query string, or {@code null} for none
      * @return the URL, or {@code null} when it could not be built
      */
-    private static String safeDocumentUrl(DocumentAccessBridge documentAccessBridge, Logger logger,
+    static String safeDocumentUrl(DocumentAccessBridge documentAccessBridge, Logger logger,
         DocumentReference docRef, String queryString)
     {
         try {
@@ -261,13 +279,13 @@ final class MCPWriteSupport
     interface WriteBody
     {
         /**
-         * Applies the tool's changes to the loaded document and saves it, or returns an error result
-         * without saving.
+         * Applies the tool's changes to the loaded document and persists them (save or delete), or
+         * returns an error result without persisting anything.
          *
          * @param xcontext the XWiki context, switched to the target wiki
          * @param xdoc the loaded target document (a new in-memory instance when it does not exist yet)
          * @return the tool result
-         * @throws XWikiException when the save fails
+         * @throws XWikiException when persisting fails
          */
         McpSchema.CallToolResult write(XWikiContext xcontext, XWikiDocument xdoc) throws XWikiException;
     }
