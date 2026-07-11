@@ -16,4 +16,5 @@ org.xwiki.contrib.llm.mcp.internal.tool.MCPDeleteDocumentTool
 org.xwiki.contrib.llm.mcp.internal.tool.MCPListWikisTool
 org.xwiki.contrib.llm.mcp.internal.tool.MCPGetTreeTool
 org.xwiki.contrib.llm.mcp.internal.tool.MCPGetSchemaTool
+org.xwiki.contrib.llm.mcp.internal.tool.MCPQueryObjectsTool
 org.xwiki.contrib.llm.mcp.script.MCPFarmScriptService

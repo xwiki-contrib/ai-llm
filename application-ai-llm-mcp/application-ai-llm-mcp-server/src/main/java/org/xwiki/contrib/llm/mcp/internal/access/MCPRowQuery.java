@@ -52,6 +52,21 @@ public interface MCPRowQuery
     int MAX_FETCH_PER_QUERY = 2000;
 
     /**
+     * Marks a bind value as a substring match: the door binds it through the query parameter escaping API
+     * ({@code bindValue(name).anyChars().literal(text).anyChars().query()}), so the platform escapes the
+     * {@code LIKE} wildcard characters ({@code %}, {@code _}, {@code !}) inside the text and appends the
+     * {@code ESCAPE} clause, while the surrounding {@code %} wildcards stay live. Callers wrap the RAW
+     * user-supplied text - never pre-escaped - and pair it with a {@code like} operator in the statement.
+     *
+     * @param text the raw substring to match, escaped by the platform at execution time
+     * @version $Id$
+     * @since 0.9.1
+     */
+    record Contains(String text)
+    {
+    }
+
+    /**
      * Runs a complete HQL statement against the given wiki, with a bounded row ceiling and an optional named
      * bind. The statement reaches the query manager verbatim: no hidden clause and no ordering is appended.
      *
@@ -79,7 +94,8 @@ public interface MCPRowQuery
      *
      * <p>The single-select-item caveat of {@link #rows(String, String, String, Object, int)} applies here
      * too: a single-column statement yields scalar row elements at runtime despite the declared
-     * {@code List<Object[]>} element type.</p>
+     * {@code List<Object[]>} element type. A {@link Contains} value is bound through the escaping query
+     * parameter API instead of as a plain value.</p>
      *
      * @param statement the complete HQL statement
      * @param wiki the id of the wiki to query

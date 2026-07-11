@@ -103,14 +103,6 @@ final class MCPSchemaText
     private static final String DEFAULT_PREFIX = " default=";
 
     /**
-     * Cap on one neutralized wiki-authored fragment (a name, pretty name, list value, date format,
-     * validation regexp or message), so a single crafted fragment cannot dominate a field line; a longer
-     * fragment is cut and marked with {@link #ELLIPSIS}. Mirrors the tree tool's per-fragment cap on page
-     * text.
-     */
-    private static final int MAX_FRAGMENT_CHARS = 200;
-
-    /**
      * Cap on the joined static-list values detail: the values parenthetical is the only place one field
      * folds an unbounded wiki-authored collection into a single line, so a hostile editor storing megabytes
      * of list values must not blow up the response. Values are joined at value boundaries until the budget
@@ -118,12 +110,7 @@ final class MCPSchemaText
      */
     private static final int MAX_VALUES_CHARS = 300;
 
-    /**
-     * Marks a fragment cut at {@link #MAX_FRAGMENT_CHARS} (the horizontal ellipsis, U+2026).
-     */
-    private static final String ELLIPSIS = "…";
-
-    private static final String VALUES_TRUNCATED_SUFFIX = ELLIPSIS + " (values truncated)";
+    private static final String VALUES_TRUNCATED_SUFFIX = MCPTextGuards.ELLIPSIS + " (values truncated)";
 
     /**
      * The rendered detail of a {@code TextArea} holding wiki content. The stored content-type value is
@@ -393,16 +380,11 @@ final class MCPSchemaText
 
     /**
      * @param value the wiki-authored fragment, possibly {@code null}
-     * @return the fragment with the newline/control family removed (so it cannot forge a line of the
-     *     grammar) and cut at {@link #MAX_FRAGMENT_CHARS} with an ellipsis mark (so it cannot dominate
-     *     one); {@code null} stays {@code null}
+     * @return the fragment neutralized and length-capped by the shared guard
+     *     ({@link MCPTextGuards#fragment(String)}); {@code null} stays {@code null}
      */
     private static String strip(String value)
     {
-        String stripped = MCPToolSupport.stripLineBreaks(value);
-        if (stripped != null && stripped.length() > MAX_FRAGMENT_CHARS) {
-            stripped = stripped.substring(0, MAX_FRAGMENT_CHARS) + ELLIPSIS;
-        }
-        return stripped;
+        return MCPTextGuards.fragment(value);
     }
 }

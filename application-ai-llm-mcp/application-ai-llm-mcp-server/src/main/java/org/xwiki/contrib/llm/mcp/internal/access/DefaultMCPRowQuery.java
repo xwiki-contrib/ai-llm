@@ -100,7 +100,13 @@ public class DefaultMCPRowQuery implements MCPRowQuery
         // non-positive value would fetch an unbounded row set instead of nothing.
         query.setLimit(Math.min(Math.max(limit, 1), MAX_FETCH_PER_QUERY));
         for (Map.Entry<String, Object> bind : bindValues.entrySet()) {
-            query.bindValue(bind.getKey(), bind.getValue());
+            if (bind.getValue() instanceof Contains contains) {
+                // The escaping query parameter API: the literal text has its %, _ and ! escaped by the
+                // platform (with an ESCAPE clause appended), while the surrounding wildcards stay live.
+                query.bindValue(bind.getKey()).anyChars().literal(contains.text()).anyChars().query();
+            } else {
+                query.bindValue(bind.getKey(), bind.getValue());
+            }
         }
         return query.execute();
     }

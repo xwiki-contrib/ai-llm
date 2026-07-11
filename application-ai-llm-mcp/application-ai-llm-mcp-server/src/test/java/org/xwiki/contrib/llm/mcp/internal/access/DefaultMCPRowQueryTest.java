@@ -32,6 +32,7 @@ import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryManager;
+import org.xwiki.query.QueryParameter;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -47,6 +48,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -206,6 +208,28 @@ class DefaultMCPRowQueryTest
 
         verify(this.query, never()).bindValue(anyString(), any());
         verify(this.query).execute();
+    }
+
+    @Test
+    void containsBindGoesThroughTheEscapingParameterApi() throws Exception
+    {
+        QueryParameter parameter = mock(QueryParameter.class);
+        when(this.query.bindValue("v0")).thenReturn(parameter);
+        when(parameter.anyChars()).thenReturn(parameter);
+        when(parameter.literal("50%")).thenReturn(parameter);
+        when(parameter.query()).thenReturn(this.query);
+
+        this.rowQuery.rows(COMPLETE_STATEMENT, WIKI,
+            Map.of("v0", new MCPRowQuery.Contains("50%"), BIND_NAME, BIND_VALUE), 100);
+
+        // The raw text goes through the escaping parameter API between two live wildcards: the platform
+        // escapes %, _ and ! inside the literal and appends the ESCAPE clause.
+        verify(parameter, times(2)).anyChars();
+        verify(parameter).literal("50%");
+        verify(parameter).query();
+        // A Contains value is never bound as a plain value; plain values still are.
+        verify(this.query, never()).bindValue(eq("v0"), any());
+        verify(this.query).bindValue(BIND_NAME, BIND_VALUE);
     }
 
     @Test
