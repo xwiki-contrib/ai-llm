@@ -1,0 +1,84 @@
+/*
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+package org.xwiki.contrib.llm.mcp.internal.access;
+
+import java.util.List;
+
+import org.xwiki.component.annotation.Role;
+import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
+import org.xwiki.model.reference.DocumentReference;
+
+/**
+ * Applies the source endpoint's MCP space whitelist/blacklist configured in {@link MCPServerConfiguration}.
+ *
+ * <p>The filter always reads the current (source) endpoint's own configuration, and its configured entries are
+ * interpreted by their own wiki: an entry may be wiki-qualified (e.g. {@code second:Sandbox}) to target another
+ * wiki's content, or unqualified (e.g. {@code Docs}) to target the source wiki. The target wiki's own filter is
+ * never consulted cross-wiki.</p>
+ *
+ * <p>This filter narrows the set of documents the endpoint's MCP tools may reach; it is a content-visibility
+ * restriction layered <em>on top of</em> the regular rights checks, never a replacement for them. A document
+ * that the space filter allows must still pass the usual {@code VIEW}/{@code EDIT} authorization. A
+ * legitimately empty configuration or {@code mode=none} imposes no restriction; on a configuration-read error
+ * the filter fails closed (denies the document / yields no search results).</p>
+ *
+ * @version $Id$
+ * @since 0.9
+ */
+@Role
+public interface MCPSpaceFilter
+{
+    /**
+     * Returns whether the given document may be accessed under the source endpoint's space filter. This answers
+     * only the space-filter question; callers must still perform the regular rights check.
+     *
+     * @param target the document being accessed
+     * @return {@code true} when the endpoint's space filter allows the document (or imposes no restriction)
+     */
+    boolean isAllowed(DocumentReference target);
+
+    /**
+     * Returns the Solr filter-query clauses that restrict a document search to the source endpoint's allowed
+     * spaces and documents. Each returned clause is an independent {@code fq} entry to be ANDed into the search;
+     * a wiki-qualified entry carries its own {@code wiki} scope, so entries targeting different wikis coexist in
+     * one search. The list is empty when the endpoint imposes no restriction.
+     *
+     * @return the filter-query clauses to AND into a search, or an empty list when unrestricted
+     */
+    List<String> filterQueries();
+
+    /**
+     * Drops the cached parsed filter configuration for the given source wiki, so the next check re-reads the
+     * wiki's configuration document. Called by {@code MCPConfigChangeEventListener} (a cluster-global listener,
+     * so the cache is dropped on every node) when that wiki's MCP configuration document is saved.
+     *
+     * @param wikiId the wiki whose cached filter configuration to drop
+     * @since 0.9.1
+     */
+    void invalidate(String wikiId);
+
+    /**
+     * Drops every wiki's cached parsed filter configuration. Called when the MAIN wiki's MCP configuration
+     * document is saved, mirroring the granularity of the per-wiki server invalidation.
+     *
+     * @since 0.9.1
+     */
+    void invalidateAll();
+}

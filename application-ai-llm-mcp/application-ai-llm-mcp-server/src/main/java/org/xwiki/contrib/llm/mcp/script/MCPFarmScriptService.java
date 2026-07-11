@@ -38,7 +38,7 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
-import org.xwiki.contrib.llm.mcp.internal.MCPServerConfiguration;
+import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.script.service.ScriptService;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
