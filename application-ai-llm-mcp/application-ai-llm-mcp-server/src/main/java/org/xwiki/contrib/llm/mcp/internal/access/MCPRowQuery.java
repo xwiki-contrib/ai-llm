@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.mcp.internal.access;
 
 import java.util.List;
+import java.util.Map;
 
 import org.xwiki.component.annotation.Role;
 import org.xwiki.model.reference.DocumentReference;
@@ -54,6 +55,12 @@ public interface MCPRowQuery
      * Runs a complete HQL statement against the given wiki, with a bounded row ceiling and an optional named
      * bind. The statement reaches the query manager verbatim: no hidden clause and no ordering is appended.
      *
+     * <p>The declared {@code List<Object[]>} element type holds only for multi-column selects: a statement
+     * selecting a SINGLE item yields the scalar itself as each row element at runtime (the store does not
+     * wrap it, and erasure means the declared element type is never checked). A caller running a
+     * single-column statement must read the elements as plain {@code Object} and dispatch on the actual
+     * shape, as the {@code get_schema} instance count does.</p>
+     *
      * @param statement the complete HQL statement
      * @param wiki the id of the wiki to query
      * @param bindName the name of the bind parameter, or {@code null} when the statement binds nothing
@@ -63,6 +70,25 @@ public interface MCPRowQuery
      * @throws QueryException if the query fails
      */
     List<Object[]> rows(String statement, String wiki, String bindName, Object bindValue, int limit)
+        throws QueryException;
+
+    /**
+     * Runs a complete HQL statement against the given wiki, with a bounded row ceiling and any number of
+     * named binds. The statement reaches the query manager verbatim: no hidden clause and no ordering is
+     * appended. Each map entry is bound by name; an empty map binds nothing.
+     *
+     * <p>The single-select-item caveat of {@link #rows(String, String, String, Object, int)} applies here
+     * too: a single-column statement yields scalar row elements at runtime despite the declared
+     * {@code List<Object[]>} element type.</p>
+     *
+     * @param statement the complete HQL statement
+     * @param wiki the id of the wiki to query
+     * @param bindValues the named bind values, one entry per bind parameter; an empty map binds nothing
+     * @param limit the row ceiling, clamped into the {@code 1..}{@link #MAX_FETCH_PER_QUERY} range
+     * @return the raw result rows
+     * @throws QueryException if the query fails
+     */
+    List<Object[]> rows(String statement, String wiki, Map<String, Object> bindValues, int limit)
         throws QueryException;
 
     /**

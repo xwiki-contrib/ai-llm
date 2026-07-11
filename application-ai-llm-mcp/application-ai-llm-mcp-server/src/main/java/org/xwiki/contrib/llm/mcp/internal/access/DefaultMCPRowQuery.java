@@ -19,7 +19,9 @@
  */
 package org.xwiki.contrib.llm.mcp.internal.access;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -82,13 +84,23 @@ public class DefaultMCPRowQuery implements MCPRowQuery
     public List<Object[]> rows(String statement, String wiki, String bindName, Object bindValue, int limit)
         throws QueryException
     {
+        // singletonMap rather than Map.of: the contract ignores bindValue when bindName is null, but a
+        // caller may legitimately pass a non-null name with a null value, which Map.of would reject.
+        return rows(statement, wiki,
+            bindName == null ? Map.of() : Collections.singletonMap(bindName, bindValue), limit);
+    }
+
+    @Override
+    public List<Object[]> rows(String statement, String wiki, Map<String, Object> bindValues, int limit)
+        throws QueryException
+    {
         Query query = this.queryManager.createQuery(statement, Query.HQL);
         query.setWiki(wiki);
         // Clamped on both sides: the store only applies a limit when it is strictly positive, so a
         // non-positive value would fetch an unbounded row set instead of nothing.
         query.setLimit(Math.min(Math.max(limit, 1), MAX_FETCH_PER_QUERY));
-        if (bindName != null) {
-            query.bindValue(bindName, bindValue);
+        for (Map.Entry<String, Object> bind : bindValues.entrySet()) {
+            query.bindValue(bind.getKey(), bind.getValue());
         }
         return query.execute();
     }

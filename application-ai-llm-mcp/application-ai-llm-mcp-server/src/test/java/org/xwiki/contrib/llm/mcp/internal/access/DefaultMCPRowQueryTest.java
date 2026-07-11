@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.mcp.internal.access;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.inject.Named;
 
@@ -169,6 +170,52 @@ class DefaultMCPRowQueryTest
 
         verify(this.query, never()).bindValue(anyString(), any());
         verify(this.query).execute();
+    }
+
+    @Test
+    void rowsWithSingleBindAndNullValueStillBindsIt() throws Exception
+    {
+        this.rowQuery.rows(COMPLETE_STATEMENT, WIKI, BIND_NAME, null, 100);
+
+        // A non-null bind name with a null value is bound as-is, exactly as before the multi-bind overload
+        // (which the single-bind method delegates to) was introduced.
+        verify(this.query).bindValue(BIND_NAME, null);
+    }
+
+    @Test
+    void rowsWithBindMapBindsEveryEntryAndReturnsTheRows() throws Exception
+    {
+        List<Object[]> stored = List.<Object[]>of(new Object[] {"Blog.BlogPostClass", 12L});
+        when(this.query.<Object[]>execute()).thenReturn(stored);
+
+        List<Object[]> result = this.rowQuery.rows(COMPLETE_STATEMENT, WIKI,
+            Map.of(BIND_NAME, BIND_VALUE, "names", FULL_NAME), 500);
+
+        verify(this.queryManager).createQuery(COMPLETE_STATEMENT, Query.HQL);
+        verify(this.query).setWiki(WIKI);
+        verify(this.query).setLimit(500);
+        verify(this.query).bindValue(BIND_NAME, BIND_VALUE);
+        verify(this.query).bindValue("names", FULL_NAME);
+        assertSame(stored, result);
+    }
+
+    @Test
+    void rowsWithEmptyBindMapBindsNothing() throws Exception
+    {
+        this.rowQuery.rows(COMPLETE_STATEMENT, WIKI, Map.of(), 100);
+
+        verify(this.query, never()).bindValue(anyString(), any());
+        verify(this.query).execute();
+    }
+
+    @Test
+    void bindMapLimitIsClampedLikeTheOtherEntryPoints() throws Exception
+    {
+        this.rowQuery.rows(COMPLETE_STATEMENT, WIKI, Map.of(), 5000);
+        this.rowQuery.rows(COMPLETE_STATEMENT, WIKI, Map.of(), 0);
+
+        verify(this.query).setLimit(MCPRowQuery.MAX_FETCH_PER_QUERY);
+        verify(this.query).setLimit(1);
     }
 
     @Test
