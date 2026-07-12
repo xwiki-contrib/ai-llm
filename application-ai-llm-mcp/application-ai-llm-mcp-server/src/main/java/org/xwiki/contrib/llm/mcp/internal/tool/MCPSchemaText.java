@@ -162,6 +162,20 @@ final class MCPSchemaText
     }
 
     /**
+     * Renders one field definition into the grammar line ({@link #fieldLine(PropertyClass, XWikiContext)}),
+     * for the schema-writing tool's success output: the same line the {@code get_schema} FIELDS block would
+     * show, without indentation.
+     *
+     * @param property the field definition to render
+     * @param context the XWiki context, needed to expand a static list's values
+     * @return the composed grammar line, without indentation or a trailing newline
+     */
+    static String renderField(PropertyClass property, XWikiContext context)
+    {
+        return fieldLine(property, context);
+    }
+
+    /**
      * Composes one field line of the grammar: the name, the type with its optional detail parenthetical,
      * the quoted pretty name (only when non-blank and different from the name), the modifiers, the fixed
      * trailing note of the opaque types, and the validation block.

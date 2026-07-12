@@ -380,9 +380,10 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
       box.addEventListener('change', function () {
         var cat = box.getAttribute('data-mcp-category');
         tools(cat).forEach(function (t) {
-          if (!t.disabled) {
-            t.checked = box.checked;
+          if (t.disabled) {
+            return;
           }
+          t.checked = box.checked;
         });
         updateCategory(cat);
       });

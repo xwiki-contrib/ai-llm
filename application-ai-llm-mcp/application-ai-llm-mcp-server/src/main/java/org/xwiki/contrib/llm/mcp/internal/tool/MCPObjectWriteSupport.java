@@ -156,13 +156,27 @@ final class MCPObjectWriteSupport
                 + "change it, do it manually in the wiki UI" + (url != null ? ": " + url : PERIOD));
         }
         String localClassName = localSerializer.serialize(classRef);
-        if (SENSITIVE_CLASSES.contains(localClassName)) {
+        if (isSensitiveClass(localClassName)) {
             return MCPToolSupport.errorResult("Refusing to change objects of class " + QUOTE
                 + MCPTextGuards.fragment(localClassName) + QUOTE
                 + ": objects of this class define access rights, group membership, user accounts or wiki "
                 + "configuration. Manage them in the wiki UI.");
         }
         return null;
+    }
+
+    /**
+     * Decides the sensitive-class denylist ({@link #SENSITIVE_CLASSES}) from the wiki-local serialized
+     * class name alone. Shared with {@code write_schema}, which refuses to redefine these classes at the
+     * schema level for the same reason the object-writing tools refuse to write their objects: their
+     * definitions govern access rights, group membership, user accounts or wiki configuration.
+     *
+     * @param localClassName the wiki-local serialized class name
+     * @return whether the class is denylisted
+     */
+    static boolean isSensitiveClass(String localClassName)
+    {
+        return SENSITIVE_CLASSES.contains(localClassName);
     }
 
     /**
