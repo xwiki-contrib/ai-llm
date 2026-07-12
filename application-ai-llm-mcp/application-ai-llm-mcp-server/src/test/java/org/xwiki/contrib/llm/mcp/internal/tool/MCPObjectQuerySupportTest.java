@@ -37,6 +37,7 @@ import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
 
 import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.StringProperty;
 import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.objects.classes.BooleanClass;
 import com.xpn.xwiki.objects.classes.ComputedFieldClass;
@@ -315,6 +316,31 @@ class MCPObjectQuerySupportTest
         // The platform's own parse logs the rejection before returning null; the compiler's validation
         // error is the agent-facing signal on top of it.
         assertTrue(this.logCapture.getMessage(0).contains("Invalid number"), this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void filterValueThrowingOnParseBecomesTheTeachingRefusal()
+    {
+        // On the 17.10 runtime PropertyClass.fromString throws instead of returning null (XWIKI-20910);
+        // the 17.4 build cannot reproduce that, so a stub throws in its place. A RuntimeException is used
+        // because Mockito rejects thenThrow of a checked exception fromString does not declare here.
+        PropertyClass property = mock(PropertyClass.class);
+        when(property.getClassType()).thenReturn("String");
+        when(property.getName()).thenReturn(TITLE_FIELD);
+        when(property.newProperty()).thenReturn(new StringProperty());
+        when(property.fromString(anyString())).thenThrow(new RuntimeException("boom"));
+        BaseClass xclass = mock(BaseClass.class);
+        when(xclass.get(TITLE_FIELD)).thenReturn(property);
+        XWikiDocument doc = mock(XWikiDocument.class);
+        when(doc.getXClass()).thenReturn(xclass);
+
+        // parseOrNull turns the throw into null, so coerce raises the teaching refusal rather than letting
+        // the XWikiException escape the tool as a raw MCP error.
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> MCPObjectQuerySupport.compile(doc, CLASS_NAME, List.of(TITLE_FIELD + " = x"), null, null));
+
+        assertTrue(error.getMessage().contains("invalid value \"x\""), error.getMessage());
+        assertTrue(error.getMessage().contains("field \"" + TITLE_FIELD + "\""), error.getMessage());
     }
 
     @Test

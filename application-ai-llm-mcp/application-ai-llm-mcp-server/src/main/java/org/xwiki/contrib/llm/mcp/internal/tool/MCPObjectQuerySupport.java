@@ -545,6 +545,30 @@ final class MCPObjectQuerySupport
     }
 
     /**
+     * Parses a value with the field's own type, returning {@code null} on any parse failure. On the 17.4
+     * build target {@code fromString} returns {@code null} for unparseable Number/Date input; on the
+     * 17.10+ runtime (XWIKI-20910) it throws {@code XWikiException} instead. Catching {@code Exception}
+     * treats both the same, so the caller's null-check produces one teaching refusal regardless of
+     * platform version. {@code XWikiException} cannot be caught narrowly here: it is not declared thrown
+     * by {@code fromString} on the 17.4 compile target, so a narrow catch would not compile. Shared with
+     * {@link MCPObjectWriteSupport} so filter values and written field values absorb the difference the
+     * same way.
+     *
+     * @param property the field's definition
+     * @param value the raw value text
+     * @return the parsed property, or {@code null} on any parse failure
+     */
+    @SuppressWarnings("checkstyle:IllegalCatch")
+    static BaseProperty parseOrNull(PropertyClass property, String value)
+    {
+        try {
+            return property.fromString(value);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * Coerces a filter value with the field's own type semantics. The platform parse
      * ({@link PropertyClass#fromString(String)}) returns {@code null} - not an exception - on an
      * unparseable Number or Date, so a {@code null} property or {@code null} parsed value is the
@@ -552,11 +576,11 @@ final class MCPObjectQuerySupport
      * (the platform parse stores {@code null} for garbage instead of failing) and Date values fall back to
      * ISO-8601 when the class's own format does not match.
      *
-     * <p>Contract boundary: on the platform this builds against (17.4), {@code fromString} returns
-     * {@code null} on unparseable input; on platform 17.10 and later (XWIKI-20910) it instead declares a
-     * checked {@code XWikiException}. Building against 17.10+ therefore turns this call into a compile
-     * error that flags this method and {@link #dateBind(DateClass, String)} as the two sites whose null
-     * check no longer matches the contract.</p>
+     * <p>Version note: on the 17.4 build target {@code fromString} returns {@code null} on unparseable
+     * Number or Date input; on the 17.10+ runtime (XWIKI-20910) it throws {@code XWikiException} instead.
+     * The shared {@link #parseOrNull(PropertyClass, String)} helper absorbs that difference by treating a
+     * throw the same as {@code null}, so this method's null check produces one teaching refusal on either
+     * platform.</p>
      *
      * @param property the field's definition
      * @param raw the raw value text
@@ -572,7 +596,7 @@ final class MCPObjectQuerySupport
         if (property instanceof DateClass date) {
             return dateBind(date, raw);
         }
-        BaseProperty parsed = property.fromString(raw);
+        BaseProperty parsed = parseOrNull(property, raw);
         Object value = parsed != null ? parsed.getValue() : null;
         if (value == null) {
             throw invalidValue(property, raw, expectedDetail(property));
@@ -644,7 +668,7 @@ final class MCPObjectQuerySupport
      */
     private static Date dateBind(DateClass date, String raw)
     {
-        BaseProperty parsed = date.fromString(raw);
+        BaseProperty parsed = parseOrNull(date, raw);
         if (parsed != null && parsed.getValue() instanceof Date value) {
             return value;
         }

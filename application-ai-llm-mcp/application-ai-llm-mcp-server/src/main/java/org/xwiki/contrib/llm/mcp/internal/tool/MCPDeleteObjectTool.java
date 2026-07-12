@@ -41,7 +41,6 @@ import org.xwiki.model.reference.EntityReferenceSerializer;
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.api.Document;
-import com.xpn.xwiki.doc.XWikiDocument;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -58,10 +57,10 @@ import io.modelcontextprotocol.spec.McpSchema;
  * never based on a stale or absent view of the document. Rights- and configuration-bearing documents and
  * classes are refused outright (the sensitive denylists shared with {@code write_object}).</p>
  *
- * <p>The removal is applied to the tool's own clone of the loaded document (the loaded instance may be
- * the store cache's, so it is never mutated in place) and the save goes through
- * {@link com.xpn.xwiki.api.Document} so author attribution and save-time rights are applied. The
- * platform nulls the removed object's slot rather than renumbering, so the remaining objects keep their
+ * <p>The removal is applied through {@link com.xpn.xwiki.api.Document}, whose own lazy internal clone is
+ * the cache-safety barrier (the loaded instance may be the store cache's, so it is never mutated in
+ * place), and the same wrapper's save applies author attribution and save-time rights. The platform
+ * nulls the removed object's slot rather than renumbering, so the remaining objects keep their
  * numbers.</p>
  *
  * @version $Id$
@@ -242,8 +241,8 @@ public class MCPDeleteObjectTool implements MCPTool
      * Runs the guarded removal inside the target wiki: the document must exist, the sensitive-document
      * and sensitive-class refusals fire next (before the version check, so a denylisted target is
      * refused regardless of version), then the mandatory {@code base_version} is compared, and the
-     * object is removed from the tool's own clone of the document, which is saved as a single new
-     * version.
+     * object is removed through the {@link com.xpn.xwiki.api.Document} wrapper (whose internal clone is
+     * the cache-safety barrier) and the document is saved as a single new version.
      *
      * @param ref the resolved and authorized document reference
      * @param classRef the resolved and authorized class reference
@@ -275,10 +274,21 @@ public class MCPDeleteObjectTool implements MCPTool
             }
 
             String localClassName = this.localSerializer.serialize(classRef);
-            XWikiDocument editable = xdoc.clone();
-            MCPObjectWriteSupport.removeObject(editable, classRef, localClassName, objectNumber);
-
-            Document apiDoc = new Document(editable, xcontext);
+            // Guard read-only against the cached xdoc BEFORE mutating (negative number, no-object-at-number
+            // listing existing numbers). The api wrapper clones internally on first mutation, so the cache
+            // instance is never mutated in place - do not pre-clone or mutate xdoc here.
+            MCPObjectWriteSupport.requireObjectExists(xdoc, classRef, localClassName, objectNumber);
+            Document apiDoc = new Document(xdoc, xcontext);
+            // Resolve the object by the already-authorized class reference (not a re-resolved name) so the
+            // lookup matches requireObjectExists. requireObjectExists validated presence on xdoc, so a null
+            // here would mean the wrapper's internal clone diverged; guard it defensively because execute()
+            // catches only IllegalArgumentException and XWikiException, not a stray NullPointerException.
+            com.xpn.xwiki.api.Object apiObject = apiDoc.getObject(classRef, objectNumber);
+            if (apiObject == null) {
+                return MCPToolSupport.errorResult(
+                    MCPObjectWriteSupport.noObjectMessage(xdoc, classRef, localClassName, objectNumber));
+            }
+            apiDoc.removeObject(apiObject);
             apiDoc.save(MCPWriteSupport.buildComment(comment, false,
                 "deleted " + localClassName + OBJECT_INFIX + objectNumber), MCPWriteSupport.isMinorEdit(false, false));
 

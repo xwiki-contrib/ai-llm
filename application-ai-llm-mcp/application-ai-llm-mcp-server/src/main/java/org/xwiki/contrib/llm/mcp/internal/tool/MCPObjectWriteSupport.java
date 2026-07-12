@@ -226,24 +226,24 @@ final class MCPObjectWriteSupport
     }
 
     /**
-     * Removes one object, identified by class and number, from the given (already cloned-for-edit)
-     * document. The platform nulls the object's slot rather than compacting the list, so the remaining
-     * objects keep their numbers; the store deletes the object's rows when the document is saved.
+     * Validates, read-only, that an object of the given class exists at the given number on the document,
+     * so the caller can remove it through the {@link com.xpn.xwiki.api.Document} wrapper without first
+     * mutating the (possibly cache-shared) document itself. Reads the document only: no clone, no removal.
+     * The removal is performed by the caller through the api layer, whose own lazy clone is the
+     * cache-safety barrier.
      *
-     * @param editable the tool's editable copy of the target document
+     * @param xdoc the document holding the objects, read only
      * @param classRef the resolved class reference
      * @param localClassName the wiki-local serialized class name, for the error messages
      * @param objectNumber the number of the object to remove
-     * @throws IllegalArgumentException with the no-object message when no object of the class exists at
-     *     that number (including when the platform's removal reports the object as not found)
+     * @throws IllegalArgumentException with the non-negative refusal for a negative number, or the
+     *     no-object message (listing the existing numbers) when no object of the class exists at that
+     *     number
      */
-    static void removeObject(XWikiDocument editable, DocumentReference classRef, String localClassName,
+    static void requireObjectExists(XWikiDocument xdoc, DocumentReference classRef, String localClassName,
         int objectNumber)
     {
-        BaseObject object = objectAt(editable, classRef, localClassName, objectNumber);
-        if (!editable.removeXObject(object)) {
-            throw new IllegalArgumentException(noObjectMessage(editable, classRef, localClassName, objectNumber));
-        }
+        objectAt(xdoc, classRef, localClassName, objectNumber);
     }
 
     /**
@@ -283,7 +283,7 @@ final class MCPObjectWriteSupport
      * @param objectNumber the requested object number
      * @return the agent-facing message
      */
-    private static String noObjectMessage(XWikiDocument xdoc, DocumentReference classRef, String localClassName,
+    static String noObjectMessage(XWikiDocument xdoc, DocumentReference classRef, String localClassName,
         int objectNumber)
     {
         List<String> numbers = new ArrayList<>();
@@ -335,7 +335,7 @@ final class MCPObjectWriteSupport
             // so the vocabulary is pre-validated; the coerced bind value itself is not needed here.
             MCPObjectQuerySupport.booleanBind(property, value);
         }
-        BaseProperty parsed = property.fromString(value);
+        BaseProperty parsed = MCPObjectQuerySupport.parseOrNull(property, value);
         if (parsed == null) {
             throw MCPObjectQuerySupport.invalidValue(property, value, expectedWriteDetail(property));
         }
