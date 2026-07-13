@@ -64,7 +64,8 @@ public class XWikiDocumentStoreEventListener extends AbstractLocalEventListener
     private TaskManager taskManager;
 
     @Inject
-    private EntityReferenceSerializer<String> entityReferenceSerializer;
+    @Named("withparameters")
+    private EntityReferenceSerializer<String> parametersEntityReferenceSerializer;
 
     /**
      * Default constructor.
@@ -101,7 +102,11 @@ public class XWikiDocumentStoreEventListener extends AbstractLocalEventListener
         // If the document has been deleted, delete it from all collections where it was indexed, matching
         // collections by store.
         if (event instanceof DocumentDeletedEvent) {
-            String documentId = this.entityReferenceSerializer.serialize(document.getDocumentReferenceWithLocale());
+            // On deletion, the event source is a blank document built on the locale-free reference; the actually
+            // deleted document, including its locale, is available as the original document. Serialize it with the
+            // "withparameters" serializer to match the chunk IDs written by XWikiDocumentDocument#getID().
+            String documentId = this.parametersEntityReferenceSerializer
+                .serialize(originalDocument.getDocumentReferenceWithLocale());
             this.solrConnector.deleteChunksByStoreHintAndDocId(XWikiDocumentStore.NAME, documentId);
         } else {
             // Queue an indexing task. The task itself will determine if this document is actually part of a collection.
