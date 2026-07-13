@@ -173,6 +173,16 @@
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
+        <!-- BatchOperationExecutor/BatchOperation: XWiki#deleteAllDocuments (used by delete_document)
+             wraps the per-translation deletes in a batch, and the delete_document tests register a mock
+             executor for it. Reaches this module only transitively otherwise; declared since the tests
+             import it directly. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-refactoring-api</artifactId>
+            <version>${platform.version}</version>
+            <scope>test</scope>
+        </dependency>
         <!-- DefaultHTMLCleanerComponentList: wires the real HTMLCleaner component into the
              rendered-HTML tests. -->
         <dependency>

@@ -20,10 +20,12 @@
 package org.xwiki.contrib.llm.mcp.internal.tool;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.inject.Named;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -37,6 +39,8 @@ import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
 import org.xwiki.query.QueryParameter;
+import org.xwiki.refactoring.batch.BatchOperation;
+import org.xwiki.refactoring.batch.BatchOperationExecutor;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
@@ -54,10 +58,12 @@ import io.modelcontextprotocol.spec.McpSchema;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -174,11 +180,29 @@ class MCPDeleteDocumentToolTest
             oldcore.getMocker().registerMockComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki");
         }
         oldcore.getXWikiContext().setUserReference(USER_REFERENCE);
+
+        // XWiki#deleteAllDocuments wraps the per-translation deletes in a batch (one shared recycle-bin
+        // batch ID); MockitoOldcore registers no BatchOperationExecutor, so a pass-through mock runs the
+        // operation inline.
+        BatchOperationExecutor batchOperationExecutor =
+            oldcore.getMocker().registerMockComponent(BatchOperationExecutor.class);
+        doAnswer(invocation -> {
+            invocation.getArgument(0, BatchOperation.class).execute();
+            return null;
+        }).when(batchOperationExecutor).execute(any());
     }
 
     private void storeDocument(MockitoOldcore oldcore, DocumentReference reference, String content) throws Exception
     {
         XWikiDocument doc = new XWikiDocument(reference);
+        doc.setContent(content);
+        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+    }
+
+    private void storeTranslation(MockitoOldcore oldcore, DocumentReference reference, Locale locale,
+        String content) throws Exception
+    {
+        XWikiDocument doc = new XWikiDocument(reference, locale);
         doc.setContent(content);
         oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
     }
@@ -320,9 +344,55 @@ class MCPDeleteDocumentToolTest
         assertTrue(text.contains("Deleted document " + TERMINAL_CANONICAL), text);
         assertTrue(text.contains("recycle bin"), text);
         assertTrue(text.contains("Version: " + currentVersion), text);
+        // A page without translations reports none.
+        assertFalse(text.contains("translation"), text);
         assertTrue(loadDocument(oldcore, TERMINAL_REFERENCE).isNew());
         // A terminal page has no children by definition, so the children lookup never runs.
         verify(this.queryManager, never()).createQuery(anyString(), anyString());
+    }
+
+    @Test
+    void pageWithTranslationsDeletesAllRowsAndReportsThem(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, TERMINAL_REFERENCE, "content");
+        storeTranslation(oldcore, TERMINAL_REFERENCE, Locale.FRENCH, "contenu");
+        storeTranslation(oldcore, TERMINAL_REFERENCE, Locale.GERMAN, "inhalt");
+        String currentVersion = loadDocument(oldcore, TERMINAL_REFERENCE).getVersion();
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, TERMINAL_REF, BASE_VERSION_KEY, currentVersion));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Deleted document " + TERMINAL_CANONICAL), text);
+        // Pin the locale list itself: a bare contains("fr") also matches "...restore it FRom there" in the
+        // fixed message text. The list order follows the mock store's iteration order, so assert membership.
+        String localeList = StringUtils.substringBetween(text, "2 translation(s) (", ")");
+        assertNotNull(localeList, text);
+        assertTrue(localeList.contains("fr"), text);
+        assertTrue(localeList.contains("de"), text);
+        // Every row is gone: the default document and both translation rows.
+        assertTrue(loadDocument(oldcore, TERMINAL_REFERENCE).isNew());
+        assertTrue(loadDocument(oldcore, new DocumentReference(TERMINAL_REFERENCE, Locale.FRENCH)).isNew());
+        assertTrue(loadDocument(oldcore, new DocumentReference(TERMINAL_REFERENCE, Locale.GERMAN)).isNew());
+    }
+
+    @Test
+    void apiLevelRightsRecheckDenialRefusesAfterDoorPassed(MockitoOldcore oldcore) throws Exception
+    {
+        // The door check passed (the mocked MCPDocumentAccess resolves without throwing); the api-level
+        // re-check consults the rights service, which now denies.
+        when(oldcore.getMockRightService().hasAccessLevel(any(), any(), any(), any())).thenReturn(false);
+        storeDocument(oldcore, TERMINAL_REFERENCE, "content");
+        String currentVersion = loadDocument(oldcore, TERMINAL_REFERENCE).getVersion();
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, TERMINAL_REF, BASE_VERSION_KEY, currentVersion));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("You do not have permission to delete"), textOf(result));
+        assertFalse(loadDocument(oldcore, TERMINAL_REFERENCE).isNew());
+        verifyNothingDeleted(oldcore);
     }
 
     @Test
@@ -428,7 +498,7 @@ class MCPDeleteDocumentToolTest
     }
 
     @Test
-    void storageFailureReturnsFixedMessageAndLogsRootCause(MockitoOldcore oldcore) throws Exception
+    void storageFailureReportsPossiblePartialDeletionAndLogsRootCause(MockitoOldcore oldcore) throws Exception
     {
         storeDocument(oldcore, TERMINAL_REFERENCE, "content");
         String currentVersion = loadDocument(oldcore, TERMINAL_REFERENCE).getVersion();
@@ -441,9 +511,12 @@ class MCPDeleteDocumentToolTest
 
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
-        // The fixed message reaches the wire; the storage internals stay in the server logs.
-        assertTrue(text.contains("Could not delete the document"), text);
+        // The per-row deletion is not transactional, so a failure of the delete itself is reported as
+        // possibly partial; the storage internals stay in the server logs, off the wire.
+        assertTrue(text.contains("deletion failed partway"), text);
+        assertTrue(text.contains("retry the deletion"), text);
         assertFalse(text.contains("db down"), text);
+        assertFalse(loadDocument(oldcore, TERMINAL_REFERENCE).isNew());
         assertTrue(this.logCapture.getMessage(0).contains("db down"), this.logCapture.getMessage(0));
     }
 

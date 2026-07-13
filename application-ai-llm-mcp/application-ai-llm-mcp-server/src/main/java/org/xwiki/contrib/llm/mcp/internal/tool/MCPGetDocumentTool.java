@@ -743,8 +743,13 @@ public class MCPGetDocumentTool implements MCPTool
     /**
      * Renders the document to the target output syntax the way a normal page view does: macros are executed
      * and includes expanded with the document content author's rights (via the {@code sdoc} set inside
-     * {@link XWikiDocument#getRenderedContent}), not the current user's. This mirrors the platform's REST
-     * rendered-content path ({@code ModelFactory}); the current user still only needs VIEW (already checked).
+     * {@link XWikiDocument#displayDocument}), not the current user's; the current user still only needs
+     * VIEW (already checked). {@code displayDocument} is deterministic: it renders the addressed document
+     * instance's own content, with no language-preference translation lookup - unlike
+     * {@code getRenderedContent}, which can silently swap in a translation selected by the request's
+     * language preference while the title, version and base_version all describe the default-locale
+     * document. The rendered title is consistent by construction: {@code getRenderedTitle} never
+     * translates.
      *
      * <p>An output syntax (not a wiki syntax) is the target on purpose: rendering to a wiki syntax such as
      * {@code xwiki/2.1} round-trips macros back into their {@code {{...}}} source calls (they are not
@@ -773,7 +778,7 @@ public class MCPGetDocumentTool implements MCPTool
             // Render the title too (it may itself be a macro/translation), so the header is consistent with the
             // executed body instead of showing the raw title source.
             String renderedTitle = StringUtils.trim(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext));
-            String renderedContent = xdoc.getRenderedContent(targetSyntax, xcontext);
+            String renderedContent = xdoc.displayDocument(targetSyntax, xcontext);
             return new RenderedDocument(renderedTitle, renderedContent);
         } catch (Exception e) {
             this.logger.warn("MCP get_document tool failed to render [{}]: [{}]", reference,

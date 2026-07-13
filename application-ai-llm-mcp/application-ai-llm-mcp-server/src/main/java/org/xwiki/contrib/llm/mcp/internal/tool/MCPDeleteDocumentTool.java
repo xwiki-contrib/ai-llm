@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.mcp.internal.tool;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -27,6 +28,7 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
@@ -72,9 +74,13 @@ import io.modelcontextprotocol.spec.McpSchema;
  *
  * <p>Resolution and authorization both go through {@link MCPDocumentAccess} for the delete right before
  * the document is loaded, so the per-wiki space filter is applied and the existence of a protected
- * document is never leaked. The deletion goes through {@link com.xpn.xwiki.api.Document} so the delete
- * right is re-checked at deletion time; the platform itself records the context user as the deleter when
- * it moves the document to the recycle bin.</p>
+ * document is never leaked. The delete right is re-checked at deletion time through
+ * {@link com.xpn.xwiki.api.Document#hasAccessLevel(String)}; the deletion itself goes through
+ * {@link com.xpn.xwiki.XWiki#deleteAllDocuments(XWikiDocument, XWikiContext)} so every translation of
+ * the page is deleted with the default document, matching the platform UI's delete. The delete right
+ * attaches to the locale-free document reference - there is no per-translation right (the platform's
+ * own delete job checks once, then deletes all translations). The platform records the context user as
+ * the deleter when it moves the documents to the recycle bin.</p>
  *
  * @version $Id$
  * @since 0.9.1
@@ -132,6 +138,17 @@ public class MCPDeleteDocumentTool implements MCPTool
      */
     private static final String DELETE_FAILED_MESSAGE = "Could not delete the document. Try again; if it "
         + "persists, report it to a wiki administrator (details are in the server logs).";
+
+    /**
+     * The agent-facing result when the deletion itself failed partway. The platform deletes the
+     * translation rows one by one (default document last) with no transaction across them, so some
+     * translations can already sit in the recycle bin while the document itself survives. Retrying is
+     * safe: the default document holds the {@code base_version}, and it is deleted last.
+     */
+    private static final String DELETE_INCOMPLETE_MESSAGE = "The deletion failed partway: some translations "
+        + "may already have been moved to the recycle bin while the document itself still exists. Re-read "
+        + "it with get_document and retry the deletion; if it persists, report it to a wiki administrator "
+        + "(details are in the server logs).";
 
     /**
      * The refusal for a wiki without a recycle bin: this tool never performs an unrecoverable delete.
@@ -219,8 +236,9 @@ public class MCPDeleteDocumentTool implements MCPTool
         MCPToolSupport schema = PARAMS.advertised(this.wikiReach.isReachEnabled());
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Delete an XWiki document, moving it to the recycle bin (never permanent). "
-                + "Requires base_version from get_document - read the document first. Deleting the home "
-                + "page of a space that still has child pages is refused; there is no recursive delete.")
+                + "All translations of the page are deleted with it. Requires base_version from "
+                + "get_document - read the document first. Deleting the home page of a space that still "
+                + "has child pages is refused; there is no recursive delete.")
             .build();
     }
 
@@ -250,8 +268,12 @@ public class MCPDeleteDocumentTool implements MCPTool
                 delete_document moves the document to the recycle bin - it never deletes permanently.
                 An administrator can restore it from the recycle bin. On a wiki with no recycle bin
                 the deletion is refused entirely.
+                All translations of the page are deleted with it (they all go to the recycle bin),
+                matching the wiki UI's own delete. There is no per-translation delete.
                 base_version is required: read the document with get_document first and pass the
                 version it shows, so every deletion is based on a recent read of what is deleted.
+                base_version covers the default-locale document; translation content has its own
+                version history and is not version-checked.
                 There is no recursive delete: deleting the home page of a space that still has child
                 pages is refused, because they would be orphaned. Delete or move the children first.
                 Exception: a home page whose only remaining child is the space's WebPreferences page
@@ -355,10 +377,15 @@ public class MCPDeleteDocumentTool implements MCPTool
     }
 
     /**
-     * Applies the children guard, then deletes through the API document (which re-checks the delete
-     * right; the platform records the context user as the deleter when it moves the document to the
-     * recycle bin) and builds the success result. A failure of the children lookup itself refuses the
-     * deletion (fail closed) instead of deleting with unknown children.
+     * Applies the children guard, re-checks the delete right through the API document, then deletes the
+     * document and all its translations via {@code XWiki#deleteAllDocuments} - every row goes to the
+     * recycle bin under one shared batch ID, as the platform UI delete does - and builds the success
+     * result. The delete right attaches to the locale-free document reference, so the single re-check
+     * covers the translations too; the platform records the context user as the deleter when it moves
+     * the documents to the recycle bin. A failure of the children lookup itself refuses the deletion
+     * (fail closed) instead of deleting with unknown children. The per-row deletion is not
+     * transactional, so a failure of the delete itself is reported as possibly partial (some
+     * translations already in the recycle bin) rather than as "nothing happened".
      *
      * @param xcontext the XWiki context, switched to the target wiki
      * @param xdoc the loaded target document
@@ -366,7 +393,7 @@ public class MCPDeleteDocumentTool implements MCPTool
      * @param reference the original reference string, for the refusal message
      * @param version the deleted document's version, for the success result
      * @return the tool result
-     * @throws XWikiException when the deletion fails
+     * @throws XWikiException when listing the translations fails (before anything is deleted)
      */
     private McpSchema.CallToolResult guardChildrenAndDelete(XWikiContext xcontext, XWikiDocument xdoc,
         DocumentReference ref, String reference, String version) throws XWikiException
@@ -385,10 +412,25 @@ public class MCPDeleteDocumentTool implements MCPTool
             return MCPToolSupport.errorResult(CHILD_CHECK_FAILED_MESSAGE);
         }
 
+        // Re-check the delete right at deletion time (deleteAllDocuments itself checks nothing); a rights
+        // lookup failure inside hasAccessLevel yields false, so this refusal fails closed.
         Document apiDoc = new Document(xdoc, xcontext);
-        apiDoc.delete();
+        if (!apiDoc.hasAccessLevel(Right.DELETE.getName())) {
+            return MCPToolSupport.errorResult(
+                "You do not have permission to delete " + QUOTE + reference + QUOTE + PERIOD);
+        }
 
-        return MCPToolSupport.result(buildSuccessResult(ref, version, webPreferencesRemains));
+        List<Locale> translationLocales = xdoc.getTranslationLocales(xcontext);
+        try {
+            xcontext.getWiki().deleteAllDocuments(xdoc, xcontext);
+        } catch (XWikiException e) {
+            this.logger.warn("MCP delete_document failed partway through deleting [{}]: [{}]",
+                ref, ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP delete_document deletion failure details", e);
+            return MCPToolSupport.errorResult(DELETE_INCOMPLETE_MESSAGE);
+        }
+
+        return MCPToolSupport.result(buildSuccessResult(ref, version, webPreferencesRemains, translationLocales));
     }
 
     /**
@@ -485,19 +527,26 @@ public class MCPDeleteDocumentTool implements MCPTool
     }
 
     /**
-     * Builds the success result: the canonical reference, the deleted version, the recycle-bin recovery
-     * hint and the {@code WebPreferences} note when applicable.
+     * Builds the success result: the canonical reference, the deleted translations when there were any,
+     * the deleted version, the recycle-bin recovery hint and the {@code WebPreferences} note when
+     * applicable.
      *
      * @param ref the deleted document's reference
      * @param version the version the document had when deleted
      * @param webPreferencesRemains whether the space's {@code WebPreferences} page remains
+     * @param translationLocales the locales of the deleted translations (the default locale excluded)
      * @return the success result text
      */
-    private String buildSuccessResult(DocumentReference ref, String version, boolean webPreferencesRemains)
+    private String buildSuccessResult(DocumentReference ref, String version, boolean webPreferencesRemains,
+        List<Locale> translationLocales)
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("Deleted document ").append(MCPToolSupport.stripLineBreaks(this.serializer.serialize(ref)))
-            .append(PERIOD).append(NEW_LINE);
+        sb.append("Deleted document ").append(MCPToolSupport.stripLineBreaks(this.serializer.serialize(ref)));
+        if (!translationLocales.isEmpty()) {
+            sb.append(", including ").append(translationLocales.size()).append(" translation(s) (")
+                .append(StringUtils.join(translationLocales, ", ")).append(')');
+        }
+        sb.append(PERIOD).append(NEW_LINE);
         sb.append(MCPWriteSupport.VERSION_PREFIX).append(version).append(NEW_LINE);
         sb.append("The document was moved to the recycle bin; an administrator can restore it from there.");
         if (webPreferencesRemains) {

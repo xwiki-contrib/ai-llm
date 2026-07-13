@@ -205,7 +205,7 @@ class MCPGetDocumentToolTest
         when(xcontext.getWiki()).thenReturn(xwiki);
         when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
-        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn("Rendered heading\n\nExpanded body.");
+        when(xdoc.displayDocument(Syntax.PLAIN_1_0, xcontext)).thenReturn("Rendered heading\n\nExpanded body.");
 
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
 
@@ -218,6 +218,10 @@ class MCPGetDocumentToolTest
         assertTrue(text.contains("Rendered heading"), text);
         assertTrue(text.contains("Expanded body."), text);
         assertFalse(text.contains("opaque source"), "Rendered mode must not return the raw source");
+        // Determinism pin: the body is rendered via displayDocument (this document instance's own
+        // content), never via getRenderedContent (which can swap in a request-language translation).
+        verify(xdoc).displayDocument(any(Syntax.class), any(XWikiContext.class));
+        verify(xdoc, never()).getRenderedContent(any(Syntax.class), any(XWikiContext.class));
     }
 
     @Test
@@ -239,7 +243,7 @@ class MCPGetDocumentToolTest
         // The gate consulted the source context wiki, not the target ref's wiki.
         verify(this.mcpConfig).isRenderedContentAllowed("xwiki");
         // The refusal happens before any rendering: the executed view must never be produced.
-        verify(xdoc, never()).getRenderedContent(any(Syntax.class), any(XWikiContext.class));
+        verify(xdoc, never()).displayDocument(any(Syntax.class), any(XWikiContext.class));
     }
 
     @Test
@@ -256,7 +260,7 @@ class MCPGetDocumentToolTest
         when(xcontext.getWikiId()).thenReturn("xwiki");
         when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
-        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn("body");
+        when(xdoc.displayDocument(Syntax.PLAIN_1_0, xcontext)).thenReturn("body");
 
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
 
@@ -265,7 +269,7 @@ class MCPGetDocumentToolTest
         // to the original wiki afterwards.
         InOrder ordered = inOrder(xcontext, xdoc);
         ordered.verify(xcontext).setWikiId("targetwiki");
-        ordered.verify(xdoc).getRenderedContent(Syntax.PLAIN_1_0, xcontext);
+        ordered.verify(xdoc).displayDocument(Syntax.PLAIN_1_0, xcontext);
         ordered.verify(xcontext).setWikiId("xwiki");
     }
 
@@ -280,7 +284,7 @@ class MCPGetDocumentToolTest
         when(xcontext.getWiki()).thenReturn(xwiki);
         when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
-        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn(
+        when(xdoc.displayDocument(Syntax.PLAIN_1_0, xcontext)).thenReturn(
             "Failed to execute the [velocity] macro. Click for details.\n\n"
                 + "org.xwiki.rendering.macro.MacroExecutionException: Script rights required\n"
                 + "\tat org.xwiki.rendering.A(A.java:11)\n"
@@ -316,7 +320,7 @@ class MCPGetDocumentToolTest
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
         // Two anchored "at ...(...)" lines: a frame run below the collapse threshold of 3, so it must
         // survive verbatim rather than be replaced by a marker.
-        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn(
+        when(xdoc.displayDocument(Syntax.PLAIN_1_0, xcontext)).thenReturn(
             "Recipe step one.\nat the bar(now)\nat foo.bar.baz(x)\nRecipe step two.");
 
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
@@ -357,7 +361,7 @@ class MCPGetDocumentToolTest
         when(xcontext.getWiki()).thenReturn(xwiki);
         when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
-        when(xdoc.getRenderedContent(Syntax.HTML_5_0, xcontext)).thenReturn(
+        when(xdoc.displayDocument(Syntax.HTML_5_0, xcontext)).thenReturn(
             "<div class=\"box warningmessage\" style=\"margin:1em\">Watch out</div>"
                 + "<table><tr><td colspan=\"2\">cell</td></tr></table><script>alert(1)</script>");
 
@@ -373,7 +377,7 @@ class MCPGetDocumentToolTest
         assertTrue(text.contains("colspan=\"2\""), text);
         assertFalse(text.contains("style="), "Presentation attributes must be stripped: " + text);
         assertFalse(text.contains("alert(1)"), "Script payload must be removed: " + text);
-        verify(xdoc, never()).getRenderedContent(Syntax.PLAIN_1_0, xcontext);
+        verify(xdoc, never()).displayDocument(Syntax.PLAIN_1_0, xcontext);
     }
 
     @Test
@@ -387,7 +391,7 @@ class MCPGetDocumentToolTest
         when(xcontext.getWiki()).thenReturn(xwiki);
         when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
-        when(xdoc.getRenderedContent(Syntax.HTML_5_0, xcontext)).thenReturn("<p>body</p>");
+        when(xdoc.displayDocument(Syntax.HTML_5_0, xcontext)).thenReturn("<p>body</p>");
 
         McpSchema.CallToolResult result =
             call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "HTML"));
@@ -407,7 +411,7 @@ class MCPGetDocumentToolTest
         when(xcontext.getWiki()).thenReturn(xwiki);
         when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
-        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn("Expanded body.");
+        when(xdoc.displayDocument(Syntax.PLAIN_1_0, xcontext)).thenReturn("Expanded body.");
 
         McpSchema.CallToolResult defaultResult = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
         McpSchema.CallToolResult plainResult =
@@ -415,7 +419,7 @@ class MCPGetDocumentToolTest
 
         assertNotEquals(Boolean.TRUE, plainResult.isError());
         assertEquals(textOf(defaultResult), textOf(plainResult));
-        verify(xdoc, never()).getRenderedContent(Syntax.HTML_5_0, xcontext);
+        verify(xdoc, never()).displayDocument(Syntax.HTML_5_0, xcontext);
     }
 
     @Test
@@ -1067,7 +1071,7 @@ class MCPGetDocumentToolTest
         when(xcontext.getWiki()).thenReturn(xwiki);
         when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Executed Title");
-        when(xdoc.getRenderedContent(Syntax.HTML_5_0, xcontext)).thenReturn(html);
+        when(xdoc.displayDocument(Syntax.HTML_5_0, xcontext)).thenReturn(html);
     }
 
     private XWikiDocument stubEmptyBodyDocWithXObjects() throws Exception
@@ -1630,7 +1634,7 @@ class MCPGetDocumentToolTest
         when(xcontext.getWiki()).thenReturn(xwiki);
         when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
         when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
-        when(xdoc.getRenderedContent(Syntax.PLAIN_1_0, xcontext)).thenReturn("profile view");
+        when(xdoc.displayDocument(Syntax.PLAIN_1_0, xcontext)).thenReturn("profile view");
 
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
 
