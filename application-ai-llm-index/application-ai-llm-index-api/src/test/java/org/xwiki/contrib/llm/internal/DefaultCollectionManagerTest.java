@@ -203,10 +203,10 @@ class DefaultCollectionManagerTest
             this.collectionManager.getCollection(collectionId2).getAuthorizationManager());
 
         List<Context> contextList = List.of(
-            new Context(collectionId2, "allowed4", "url4", "content4", 0.8, List.of(0.7f, 0.8f)),
-            new Context(COLLECTION_ID, "allowed3", "url3", "content3", 0.7, List.of(0.5f, 0.6f)),
-            new Context(collectionId2, "forbidden2", "url2", "content2", 0.6, List.of(0.3f, 0.4f)),
-            new Context(COLLECTION_ID, "allowed1", "url1", "content1", 0.5, List.of(0.1f, 0.2f))
+            new Context(collectionId2, "allowed4", null, "url4", "content4", 0.8, List.of(0.7f, 0.8f)),
+            new Context(COLLECTION_ID, "allowed3", null, "url3", "content3", 0.7, List.of(0.5f, 0.6f)),
+            new Context(collectionId2, "forbidden2", null, "url2", "content2", 0.6, List.of(0.3f, 0.4f)),
+            new Context(COLLECTION_ID, "allowed1", null, "url1", "content1", 0.5, List.of(0.1f, 0.2f))
         );
 
         when(authorization1.canView(Set.of("allowed1", "allowed3")))

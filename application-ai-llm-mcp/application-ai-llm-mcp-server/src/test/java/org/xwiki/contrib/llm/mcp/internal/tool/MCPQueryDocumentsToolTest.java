@@ -1135,4 +1135,86 @@ class MCPQueryDocumentsToolTest
     {
         assertTrue(this.tool.isEnabled());
     }
+
+    @Test
+    void languageLineMarksTranslationRows() throws QueryException
+    {
+        SolrDocument enDoc = buildDoc("id-en", "Home", WIKI, "Help.Home", "content");
+        // The default row stores an empty document locale.
+        enDoc.addField("doclocale", "");
+        SolrDocument frDoc = new SolrDocument();
+        frDoc.addField("locale", "fr");
+        frDoc.addField("doclocale", "fr");
+        frDoc.addField("title_fr", "Accueil");
+        frDoc.addField(FieldUtils.WIKI, WIKI);
+        frDoc.addField(FieldUtils.FULLNAME, "Help.Home");
+        stubQuery(List.of(enDoc, frDoc));
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents", Map.of("query", "x")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        // A translation row is marked, steering the agent to the get_document locale parameter.
+        assertTrue(text.contains("Language: fr (translation)"), text);
+        // A default row carries the plain language line, no suffix.
+        assertTrue(text.contains("Language: en\n"), text);
+        assertFalse(text.contains("Language: en (translation)"), text);
+    }
+
+    @Test
+    void localeFilterProducesEscapedNormalizedLocaleFilter() throws QueryException
+    {
+        stubQuery(List.of());
+
+        this.tool.execute(request("query_documents", Map.of("query", "x", "locale", "fr-FR")));
+
+        // The validated Locale's toString normalizes the dash form to the indexed underscore form.
+        verify(this.solrUtils).toCompleteFilterQueryString("fr_FR");
+        assertTrue(captureFilterQueries().contains("locale:fr_FR"));
+    }
+
+    @Test
+    void invalidLocaleFilterReturnsTeachingRefusal() throws QueryException
+    {
+        stubQuery(List.of());
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "x", "locale", "french")));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Error: 'locale' is not a valid locale: \"french\""), text);
+        assertTrue(text.contains("\"fr\" or \"pt_BR\""), text);
+    }
+
+    @Test
+    void languageLineStripsLineBreaksFromStoredLocale() throws QueryException
+    {
+        SolrDocument doc = buildDoc("id-1", "Home", WIKI, "Help.Home", "content");
+        // Defense in depth: a stored locale value carrying a line break must not forge extra result
+        // lines.
+        doc.setField("locale", "fr\nForged: yes");
+        stubQuery(List.of(doc));
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents", Map.of("query", "x")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Language: frForged: yes"), text);
+        assertFalse(text.contains("\nForged"), text);
+    }
+
+    @Test
+    void emptyResultEchoesLocaleFilter() throws QueryException
+    {
+        stubQuery(List.of(), null, 0);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "nomatch", "locale", "fr")));
+
+        String text = textOf(result);
+        assertTrue(text.contains("No documents found matching \"nomatch\""), text);
+        assertTrue(text.contains("Active filters:"), text);
+        assertTrue(text.contains("locale=fr"), text);
+    }
 }

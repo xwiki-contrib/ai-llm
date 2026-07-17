@@ -43,6 +43,7 @@ import org.xwiki.contrib.llm.mcp.MCPReachAwareParams;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
+import org.xwiki.localization.LocaleUtils;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
@@ -139,6 +140,14 @@ public class MCPQueryDocumentsTool implements MCPTool
     private static final String SPACE_PARAM = "space";
 
     private static final String AUTHOR_PARAM = "author";
+
+    private static final String LOCALE_PARAM = "locale";
+
+    /**
+     * Example locale forms, shared by the {@code locale} parameter description and its invalid-value
+     * error message.
+     */
+    private static final String LOCALE_FORMS = "\"fr\" or \"pt_BR\"";
 
     private static final String MODIFIED_WITHIN_PARAM = "modifiedWithin";
 
@@ -287,6 +296,10 @@ public class MCPQueryDocumentsTool implements MCPTool
             .string(AUTHOR_PARAM, "Optional last author. A user name or reference - \"Admin\""
                 + (crossWiki ? ", \"XWiki.Admin\" and \"xwiki:XWiki.Admin\" all" : " and \"XWiki.Admin\" both")
                 + " resolve to the same user.")
+            .string(LOCALE_PARAM, "Optional content language filter, e.g. " + LOCALE_FORMS + ". Matches "
+                + "documents whose content is in that language (translation rows and default rows alike). "
+                + "Exact match against the stored form: \"fr\" does not match \"fr_FR\" rows; use the "
+                + "underscore form for regional variants.")
             .string(MODIFIED_WITHIN_PARAM, "Optional relative modification window. One of: day, week, "
                 + "month, year. Ignored if 'modifiedRange' is also provided.")
             .string(MODIFIED_RANGE_PARAM, "Advanced. A raw Solr date-range expression on the last-modified "
@@ -334,10 +347,16 @@ public class MCPQueryDocumentsTool implements MCPTool
                 The total is an upper bound: it can include documents you are not allowed to view, so
                 later pages may contain fewer results than expected.
 
+                Each result's Language: line names its content language; a "(translation)" suffix marks
+                a translation row - read it with get_document and its locale parameter. The locale
+                filter matches documents whose content is in that language (translation rows and
+                default rows alike).
+
             EXAMPLES
                 Keywords:   query="script service groovy"
                 Phrase:     query="\\"programming rights\\" -deprecated"
                 In a space: query="release", space="Pro-Apps.Procedures"
+                In French:  query="release", locale="fr"
                 Recent:     sort="newest"   (no query)
                 By date:    query="api", modifiedWithin="month"
                 Next page:  query="api", offset=10
@@ -389,12 +408,36 @@ public class MCPQueryDocumentsTool implements MCPTool
         }
         String space = PARAMS.parser().string(args, SPACE_PARAM);
         String author = normalizeAuthor(PARAMS.parser().string(args, AUTHOR_PARAM));
+        Locale locale = parseLocale(PARAMS.parser().string(args, LOCALE_PARAM));
         String dateRange = resolveDateRange(PARAMS.parser().string(args, MODIFIED_WITHIN_PARAM),
             PARAMS.parser().string(args, MODIFIED_RANGE_PARAM));
         String sort = resolveSort(PARAMS.parser().string(args, SORT_PARAM));
         boolean includeHidden = PARAMS.parser().bool(args, INCLUDE_HIDDEN_PARAM);
-        return new SearchRequest(queryText, limit, offset, space, author, dateRange, sort, includeHidden, wiki,
-            limitCapped);
+        return new SearchRequest(queryText, limit, offset, space, author, locale, dateRange, sort, includeHidden,
+            wiki, limitCapped);
+    }
+
+    /**
+     * Parses and validates the {@code locale} filter argument. The validated locale's canonical form
+     * (e.g. {@code fr_FR} for an agent's {@code fr-FR}) matches the form the Solr {@code locale} field
+     * stores.
+     *
+     * @param raw the trimmed locale value, or {@code null} when absent
+     * @return the parsed locale, or {@code null} when absent
+     * @throws IllegalArgumentException with the agent-facing message when the value is not a valid locale
+     */
+    private static Locale parseLocale(String raw)
+    {
+        if (raw == null) {
+            return null;
+        }
+        Locale locale = LocaleUtils.toLocale(raw, null);
+        if (locale == null) {
+            throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + LOCALE_PARAM
+                + "' is not a valid locale: \"" + MCPToolSupport.stripLineBreaks(raw)
+                + "\". Use forms like " + LOCALE_FORMS + PERIOD);
+        }
+        return locale;
     }
 
     private QueryResponse executeSearch(SearchRequest request, List<String> targetWikis) throws QueryException
@@ -445,6 +488,14 @@ public class MCPQueryDocumentsTool implements MCPTool
         if (StringUtils.isNotBlank(request.author())) {
             filterQueries.add(FieldUtils.AUTHOR + COLON
                 + this.solrUtils.toCompleteFilterQueryString(request.author()));
+        }
+
+        // Filter on the indexed per-row content locale ("locale"): it covers translation rows and default
+        // rows alike. "doclocale" is indexed but empty on default-language rows, so it cannot express
+        // "content in language X", and "locales" also matches enabled-locale expansion.
+        if (request.locale() != null) {
+            filterQueries.add(FieldUtils.LOCALE + COLON
+                + this.solrUtils.toCompleteFilterQueryString(request.locale().toString()));
         }
 
         if (request.dateRange() != null) {
@@ -600,6 +651,8 @@ public class MCPQueryDocumentsTool implements MCPTool
         sb.append("Title: ").append(title != null ? title : "(untitled)").append(NEW_LINE);
         sb.append("Reference: ").append(serializedReference(wiki, fullname)).append(NEW_LINE);
 
+        appendLanguage(sb, doc, localeStr);
+
         String url = safeDocumentUrl(wiki, fullname);
         if (StringUtils.isNotBlank(url)) {
             sb.append("URL: ").append(url).append(NEW_LINE);
@@ -616,6 +669,29 @@ public class MCPQueryDocumentsTool implements MCPTool
         if (StringUtils.isNotBlank(snippet)) {
             sb.append("Snippet: ").append(snippet).append(NEW_LINE);
         }
+    }
+
+    /**
+     * Appends the {@code Language:} line: the stored content locale (never round-tripped through a
+     * language-tag parse, which would mangle underscore forms like {@code pt_BR}), with a
+     * {@code (translation)} suffix when the row is a translation (non-empty stored document locale),
+     * signalling that reading it needs the {@code get_document} {@code locale} parameter. The value is
+     * stripped of line breaks so a stored locale can never forge extra result lines.
+     *
+     * @param sb the result buffer
+     * @param doc the result document
+     * @param localeStr the raw stored locale string, possibly blank
+     */
+    private void appendLanguage(StringBuilder sb, SolrDocument doc, String localeStr)
+    {
+        if (StringUtils.isBlank(localeStr)) {
+            return;
+        }
+        sb.append("Language: ").append(MCPToolSupport.stripLineBreaks(localeStr));
+        if (doc.get(FieldUtils.DOCUMENT_LOCALE) instanceof String docLocale && StringUtils.isNotBlank(docLocale)) {
+            sb.append(" (translation)");
+        }
+        sb.append(NEW_LINE);
     }
 
     /**
@@ -791,6 +867,9 @@ public class MCPQueryDocumentsTool implements MCPTool
         if (StringUtils.isNotBlank(request.author())) {
             parts.add("author=" + request.author());
         }
+        if (request.locale() != null) {
+            parts.add("locale=" + request.locale());
+        }
         if (request.dateRange() != null) {
             parts.add("modified=" + request.dateRange());
         }
@@ -809,6 +888,7 @@ public class MCPQueryDocumentsTool implements MCPTool
      * @param offset the 0-based index of the first raw result to return, already validated as &gt;= 0
      * @param space the optional local space reference filter
      * @param author the optional last-author filter
+     * @param locale the validated content-language filter, or {@code null}
      * @param dateRange the resolved Solr date-range token for the last-modified filter, or {@code null}
      * @param sort the resolved sort key, one of the allowed sort values
      * @param includeHidden whether hidden documents are included
@@ -817,7 +897,7 @@ public class MCPQueryDocumentsTool implements MCPTool
      * @version $Id$
      */
     private record SearchRequest(String queryText, int limit, int offset, String space, String author,
-        String dateRange, String sort, boolean includeHidden, String wiki, boolean limitCapped)
+        Locale locale, String dateRange, String sort, boolean includeHidden, String wiki, boolean limitCapped)
     {
         /**
          * @return whether this is a browse (blank query) rather than a search

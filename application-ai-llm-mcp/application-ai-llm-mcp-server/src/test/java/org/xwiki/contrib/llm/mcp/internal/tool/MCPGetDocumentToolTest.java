@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm.mcp.internal.tool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.inject.Provider;
@@ -37,6 +38,7 @@ import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
+import org.xwiki.localization.LocaleUtils;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.WikiReference;
@@ -95,6 +97,12 @@ class MCPGetDocumentToolTest
     private static final String PLAIN_SYNTAX = "plain/1.0";
 
     private static final String VIEW_URL = "https://wiki.example/bin/view/Space/Page";
+
+    /**
+     * A real (non-mock) resolved reference for the translation tests: the tool clones it with a locale
+     * via the model-api constructor, which reads the source reference's structure.
+     */
+    private static final DocumentReference REAL_REF = new DocumentReference("xwiki", "Help", "GettingStarted");
 
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
@@ -1900,5 +1908,269 @@ class MCPGetDocumentToolTest
         // hook; the always-paid tool description must not grow for it.
         String description = this.tool.getToolDefinition().description();
         assertFalse(description.contains("detail"), description);
+    }
+
+    /**
+     * Stubs a store-loaded {@link XWikiDocument} row with the given locale facts, keyed to the given
+     * reference on the bridge. The row's own locale (ROOT for the default row, the translation locale
+     * for a translation row) is derived from the reference it is keyed under.
+     *
+     * @param ref the (possibly locale-carrying) reference the bridge serves this row for
+     * @param realLocale the row's real locale
+     * @param defaultLocale the document's default locale
+     * @param translations the document's translation locales
+     * @return the stubbed row
+     */
+    private XWikiDocument stubLocalizedDoc(DocumentReference ref, Locale realLocale, Locale defaultLocale,
+        List<Locale> translations) throws Exception
+    {
+        XWikiDocument doc = mock(XWikiDocument.class);
+        lenient().when(doc.getContent()).thenReturn("localized body");
+        lenient().when(doc.getTitle()).thenReturn("Getting Started");
+        lenient().when(doc.getVersion()).thenReturn("2.1");
+        lenient().when(doc.getDocumentReference()).thenReturn(REAL_REF);
+        Syntax syntax = mock(Syntax.class);
+        lenient().when(syntax.toIdString()).thenReturn(XWIKI_SYNTAX);
+        lenient().when(doc.getSyntax()).thenReturn(syntax);
+        lenient().when(doc.getRealLocale()).thenReturn(realLocale);
+        lenient().when(doc.getDefaultLocale()).thenReturn(defaultLocale);
+        lenient().when(doc.getLocale()).thenReturn(ref.getLocale() != null ? ref.getLocale() : Locale.ROOT);
+        lenient().when(doc.getTranslationLocales(any(XWikiContext.class))).thenReturn(translations);
+        lenient().when(this.documentAccessBridge.exists(ref)).thenReturn(true);
+        lenient().when(this.documentAccessBridge.getDocumentInstance(ref)).thenReturn(doc);
+        lenient().when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), any(), isNull(), eq(true)))
+            .thenReturn(VIEW_URL);
+        lenient().when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), isNull(), isNull(), eq(true)))
+            .thenReturn(VIEW_URL);
+        return doc;
+    }
+
+    @Test
+    void localeReadLoadsTranslationRowAndShowsLanguageAndTranslationsHeader() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        DocumentReference frRef = new DocumentReference(REAL_REF, Locale.FRENCH);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of(Locale.FRENCH, Locale.GERMAN));
+        stubLocalizedDoc(frRef, Locale.FRENCH, Locale.ENGLISH, List.of(Locale.FRENCH, Locale.GERMAN));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "fr"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Language: fr"), text);
+        assertTrue(text.contains("Translations: fr, de (default: en)"), text);
+        // The translation row was loaded through the locale-carrying reference.
+        verify(this.documentAccessBridge).getDocumentInstance(frRef);
+    }
+
+    @Test
+    void invalidLocaleReturnsTeachingRefusalWithoutLoading() throws Exception
+    {
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "french"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Error: 'locale' is not a valid locale: \"french\""), text);
+        assertTrue(text.contains("\"fr\" or \"pt_BR\""), text);
+        verify(this.documentAccessBridge, never()).getDocumentInstance(any(DocumentReference.class));
+    }
+
+    @Test
+    void missingTranslationRefusalListsExistingTranslationsAndDefault() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of(Locale.GERMAN, Locale.ITALIAN));
+        DocumentReference frRef = new DocumentReference(REAL_REF, Locale.FRENCH);
+        when(this.documentAccessBridge.exists(frRef)).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "fr"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("no \"fr\" translation of \"" + CANONICAL + "\""), text);
+        assertTrue(text.contains("Translations: de, it."), text);
+        assertTrue(text.contains("The default language is en."), text);
+        assertTrue(text.contains("Omit 'locale' for the default version."), text);
+        verify(this.documentAccessBridge, never()).getDocumentInstance(frRef);
+    }
+
+    @Test
+    void missingTranslationRefusalSaysNoTranslationsWhenNoneExist() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of());
+        DocumentReference frRef = new DocumentReference(REAL_REF, Locale.FRENCH);
+        when(this.documentAccessBridge.exists(frRef)).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "fr"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("This document has no translations."), text);
+        assertFalse(text.contains("Translations: ."), text);
+    }
+
+    @Test
+    void localeEqualToDefaultLanguageReadsDefaultRowWithoutProbe() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of(Locale.FRENCH));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "en"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("Language: en"), textOf(result));
+        // A default-language request is served from the locale-free reference: the default row stores
+        // language='', so a per-translation existence probe for "en" would falsely refuse.
+        verify(this.documentAccessBridge).getDocumentInstance(REAL_REF);
+        verify(this.documentAccessBridge, never()).exists(new DocumentReference(REAL_REF, Locale.ENGLISH));
+    }
+
+    @Test
+    void renderedLocaleReadUsesTranslationReferenceForBothLoads() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        DocumentReference frRef = new DocumentReference(REAL_REF, Locale.FRENCH);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of(Locale.FRENCH));
+        stubLocalizedDoc(frRef, Locale.FRENCH, Locale.ENGLISH, List.of(Locale.FRENCH));
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument renderXdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(frRef, xcontext)).thenReturn(renderXdoc);
+        when(renderXdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("Titre");
+        when(renderXdoc.displayDocument(Syntax.PLAIN_1_0, xcontext)).thenReturn("corps rendu");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true, "locale", "fr"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("corps rendu"), textOf(result));
+        // Coherence pin: header and body describe the same row - BOTH loads use the locale-carrying
+        // reference, and the executed view is rendered from that instance.
+        verify(this.documentAccessBridge).getDocumentInstance(frRef);
+        verify(xwiki).getDocument(frRef, xcontext);
+        verify(renderXdoc).displayDocument(Syntax.PLAIN_1_0, xcontext);
+    }
+
+    @Test
+    void defaultReadOfTranslatedDocumentShowsDiscoveryLines() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of(Locale.FRENCH, Locale.GERMAN));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Language: en"), text);
+        assertTrue(text.contains("Translations: fr, de (default: en)"), text);
+    }
+
+    @Test
+    void translationReadPinsLanguageInViewUrl() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        DocumentReference frRef = new DocumentReference(REAL_REF, Locale.FRENCH);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of(Locale.FRENCH));
+        stubLocalizedDoc(frRef, Locale.FRENCH, Locale.ENGLISH, List.of(Locale.FRENCH));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "fr"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The view URL of a translation read pins the language; the Reference stays locale-free.
+        verify(this.documentAccessBridge).getDocumentURL(REAL_REF, "view", "language=fr", null, true);
+    }
+
+    @Test
+    void missingTranslationRefusalStripsVariantSmuggledLocale() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of());
+
+        // commons-lang3 toLocale accepts an arbitrary variant segment, so a "valid" locale can carry a
+        // raw newline; the echoed refusal must stay a single line.
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "en_US_x\nForged"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("no \"en_US_xForged\" translation"), text);
+        assertFalse(text.contains("\n"), text);
+    }
+
+    @Test
+    void rootDefaultLocaleDocOmitsLanguageLine() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        // A programmatically created page can have no declared locale at all: both the real and the
+        // default locale are ROOT, whose toString is empty.
+        stubLocalizedDoc(REAL_REF, Locale.ROOT, Locale.ROOT, List.of());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        // No dangling "Language: " with an empty value: the line is omitted entirely.
+        assertFalse(text.contains("Language:"), text);
+    }
+
+    @Test
+    void missingTranslationRefusalDropsDefaultLanguageSentenceForRootLocale() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        stubLocalizedDoc(REAL_REF, Locale.ROOT, Locale.ROOT, List.of());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "fr"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        // A ROOT default locale prints empty, so the sentence is dropped instead of ending in "is .".
+        assertFalse(text.contains("The default language is"), text);
+        assertFalse(text.contains("is ."), text);
+        assertTrue(text.contains("Omit 'locale' for the default version."), text);
+    }
+
+    @Test
+    void renderedModeSetsContextLocaleToDocRealLocaleAndRestores() throws Exception
+    {
+        stubDoc("source", XWIKI_SYNTAX);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        XWikiDocument xdoc = mock(XWikiDocument.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xcontext.getLocale()).thenReturn(Locale.GERMAN);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(xdoc);
+        when(xdoc.getRealLocale()).thenReturn(Locale.FRENCH);
+        when(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
+        when(xdoc.displayDocument(Syntax.PLAIN_1_0, xcontext)).thenReturn("body");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The render runs in the loaded row's own language ({{translation}} macros and sheet output match
+        // the emitted language= URL), and the caller's locale is restored afterwards.
+        InOrder ordered = inOrder(xcontext, xdoc);
+        ordered.verify(xcontext).setLocale(Locale.FRENCH);
+        ordered.verify(xdoc).displayDocument(Syntax.PLAIN_1_0, xcontext);
+        ordered.verify(xcontext).setLocale(Locale.GERMAN);
+    }
+
+    @Test
+    void translationViewUrlLanguageValueIsUrlEncoded() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        // commons-lang3 toLocale accepts an arbitrary variant segment, so a "valid" locale can carry URL
+        // metacharacters; the query value must be encoded so they cannot smuggle extra parameters.
+        Locale smuggled = LocaleUtils.toLocale("en_US_a&b=c");
+        DocumentReference smuggledRef = new DocumentReference(REAL_REF, smuggled);
+        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of(smuggled));
+        stubLocalizedDoc(smuggledRef, smuggled, Locale.ENGLISH, List.of(smuggled));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "en_US_a&b=c"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        verify(this.documentAccessBridge).getDocumentURL(REAL_REF, "view", "language=en_US_a%26b%3Dc", null,
+            true);
     }
 }

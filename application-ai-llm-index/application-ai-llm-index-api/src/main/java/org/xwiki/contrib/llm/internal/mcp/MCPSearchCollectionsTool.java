@@ -19,6 +19,7 @@
  */
 package org.xwiki.contrib.llm.internal.mcp;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,14 +28,21 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.openai.Context;
+import org.xwiki.model.EntityType;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.EntityReferenceResolver;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.security.SecurityConfiguration;
 
 import io.modelcontextprotocol.spec.McpSchema;
@@ -98,12 +106,27 @@ public class MCPSearchCollectionsTool implements MCPTool
     @Inject
     private SecurityConfiguration securityConfiguration;
 
+    @Inject
+    @Named("withparameters")
+    private EntityReferenceResolver<String> withParametersReferenceResolver;
+
+    @Inject
+    @Named("withparameters")
+    private EntityReferenceSerializer<String> withParametersReferenceSerializer;
+
+    @Inject
+    private EntityReferenceSerializer<String> defaultReferenceSerializer;
+
     @Override
     public McpSchema.Tool getToolDefinition()
     {
         return McpSchema.Tool.builder(TOOL_ID, PARAMS.inputSchema())
             .description("Search indexed collections using semantic and keyword similarity. "
-                + "Returns the most relevant content chunks from indexed pages.")
+                + "Returns the most relevant content chunks from indexed pages. Each result carries the "
+                + "index-internal <documentId>; results coming from wiki pages also carry <reference> (the "
+                + "locale-free page reference to pass to get_document's 'reference' parameter) and <language> "
+                + "(the language of that content; pass it as get_document's 'locale' parameter to read "
+                + "that translation).")
             .build();
     }
 
@@ -180,6 +203,7 @@ public class MCPSearchCollectionsTool implements MCPTool
             return "No relevant content found.";
         }
         StringBuilder sb = new StringBuilder();
+        Map<String, Boolean> wikiStoreCache = new HashMap<>();
         for (Context ctx : results) {
             sb.append("<result>\n");
             if (ctx.url() != null) {
@@ -187,6 +211,13 @@ public class MCPSearchCollectionsTool implements MCPTool
             }
             if (ctx.documentId() != null) {
                 sb.append("<documentId>").append(ctx.documentId()).append("</documentId>\n");
+                if (wikiStoreCache.computeIfAbsent(ctx.collectionId(), this::isWikiStoreCollection)) {
+                    appendReference(sb, ctx.documentId());
+                }
+            }
+            String language = sanitizeLanguage(ctx.language());
+            if (StringUtils.isNotBlank(language)) {
+                sb.append("<language>").append(language).append("</language>\n");
             }
             if (ctx.content() != null) {
                 sb.append("<content>\n").append(ctx.content()).append("\n</content>\n");
@@ -194,5 +225,66 @@ public class MCPSearchCollectionsTool implements MCPTool
             sb.append("</result>\n");
         }
         return sb.toString().trim();
+    }
+
+    /**
+     * Tells whether the given collection stores its documents in the XWiki document store. Only ids coming from
+     * that store are trusted as wiki document references: internal-store (REST-uploaded) documents have
+     * client-chosen string ids, so a reference-shaped id there could falsely attribute uploaded content to a real
+     * wiki page. A collection that cannot be resolved is treated as not wiki-store (no reference is emitted).
+     *
+     * @param collectionId the id of the collection to resolve
+     * @return {@code true} when the collection uses the XWiki document store
+     */
+    private Boolean isWikiStoreCollection(String collectionId)
+    {
+        if (StringUtils.isBlank(collectionId)) {
+            return false;
+        }
+        try {
+            Collection collection = this.collectionManager.getCollection(collectionId);
+            return collection != null && XWikiDocumentStore.NAME.equals(collection.getDocumentStoreHint());
+        } catch (IndexException e) {
+            this.logger.debug("Failed to resolve collection [{}] while formatting search results, emitting no"
+                + " <reference> for its results", collectionId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Strips line breaks and angle brackets from the given language value so that an uploader-controlled value
+     * (internal-store documents carry free-text language metadata) can neither break the line grammar of the
+     * results nor fake XML elements.
+     *
+     * @param language the raw language value, may be {@code null}
+     * @return the sanitized value, {@code null} when the input is {@code null}
+     */
+    private String sanitizeLanguage(String language)
+    {
+        return StringUtils.replaceChars(language, "\r\n<>", null);
+    }
+
+    /**
+     * Appends a locale-free {@code <reference>} element derived from the given document id, but only when the
+     * document id round-trips as a well-formed XWiki document reference. The caller only invokes this for results
+     * whose collection uses the XWiki document store, so the id is known to come from the wiki index rather than
+     * from an uploader.
+     *
+     * @param sb the output being built
+     * @param documentId the index-internal document id
+     */
+    private void appendReference(StringBuilder sb, String documentId)
+    {
+        try {
+            DocumentReference documentReference = new DocumentReference(
+                this.withParametersReferenceResolver.resolve(documentId, EntityType.DOCUMENT));
+            if (documentId.equals(this.withParametersReferenceSerializer.serialize(documentReference))) {
+                sb.append("<reference>").append(this.defaultReferenceSerializer.serialize(documentReference))
+                    .append("</reference>\n");
+            }
+        } catch (IllegalArgumentException e) {
+            // The document id does not parse as an XWiki reference (e.g. its locale part is not a valid
+            // locale), so the result keeps only its index-internal <documentId>.
+        }
     }
 }

@@ -638,6 +638,7 @@ public class SolrConnector
             .map(document -> new Context(
                 String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_COLLECTION)),
                 String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_DOC_ID)),
+                (String) document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_LANGUAGE),
                 String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_DOC_URL)),
                 String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_CONTENT)),
                 document.getFieldValue(FIELD_SCORE) instanceof Number numericScore

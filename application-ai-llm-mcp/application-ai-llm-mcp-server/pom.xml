@@ -111,6 +111,14 @@
             <artifactId>xwiki-platform-sheet-api</artifactId>
             <version>${platform.version}</version>
         </dependency>
+        <!-- LocaleUtils.toLocale: used by the get_document and query_documents tools to validate their
+             locale parameter. Arrives transitively via oldcore; declared explicitly since we import it
+             directly. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-localization-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
         <!-- oldcore: XWiki, XWikiContext, XWikiDocument and the api.Document save path used by
              MCPEditDocumentTool to apply edits and persist a single revision with author attribution. -->
         <dependency>

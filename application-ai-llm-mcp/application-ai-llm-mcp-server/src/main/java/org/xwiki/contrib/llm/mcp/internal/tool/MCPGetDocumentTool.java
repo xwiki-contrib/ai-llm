@@ -19,6 +19,8 @@
  */
 package org.xwiki.contrib.llm.mcp.internal.tool;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +44,7 @@ import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
+import org.xwiki.localization.LocaleUtils;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
@@ -83,6 +86,10 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPGetDocumentTool.TOOL_ID)
 @Singleton
+// The locale parameter (LLMAI-160) adds java.util.Locale as the 21st referenced type on the module's largest
+// composition-root tool (7 collaborators, 3 response families); suppressed rather than hiding the
+// default-language short-circuit behind a seam for a one-type overshoot.
+@SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class MCPGetDocumentTool implements MCPTool
 {
     /**
@@ -171,6 +178,8 @@ public class MCPGetDocumentTool implements MCPTool
 
     private static final String DETAIL_PARAM = "detail";
 
+    private static final String LOCALE_PARAM = "locale";
+
     private static final String PLAIN_FORMAT = "plain";
 
     private static final String HTML_FORMAT = "html";
@@ -190,6 +199,23 @@ public class MCPGetDocumentTool implements MCPTool
      * error message.
      */
     private static final List<String> DETAIL_VALUES = List.of(STRIPPED_DETAIL, FULL_DETAIL);
+
+    /**
+     * Example locale forms, shared by the {@code locale} parameter description and its invalid-value
+     * error message.
+     */
+    private static final String LOCALE_FORMS = "\"fr\" or \"pt_BR\"";
+
+    /**
+     * Separator of the comma-joined value lists (accepted enum values, translation locales).
+     */
+    private static final String LIST_SEPARATOR = ", ";
+
+    /**
+     * Prefix shared by the {@code Translations:} header line and the translation list of the
+     * missing-translation error.
+     */
+    private static final String TRANSLATIONS_PREFIX = "Translations: ";
 
     /**
      * The unit suffix of the token counts in the Size header lines.
@@ -395,6 +421,8 @@ public class MCPGetDocumentTool implements MCPTool
         }
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
+            .string(LOCALE_PARAM, "Read a specific translation of the document, e.g. " + LOCALE_FORMS
+                + ". Omit for the default language version.")
             .integer(OFFSET_PARAM, "1-based line number to start reading from. Use with limit to read a slice "
                 + "of a large document.")
             .integer(LIMIT_PARAM, "Number of lines to read from offset. Omit (with offset=1) to read from the "
@@ -452,9 +480,17 @@ public class MCPGetDocumentTool implements MCPTool
                 structured data (xobjects) produces the view. Such reads carry a note; read the page
                 with rendered=true, format="html" - editing the body will not change what users see.
 
+                A translation read (locale="fr") is exact-match: there is no language fallback, and a
+                missing translation is refused with the list of translations that do exist. The
+                header's Language: line names the loaded language; the Translations: line shows what
+                else exists. IMPORTANT: write_document and edit_document touch the default language
+                version only, while delete_document removes the document WITH all its translations -
+                a translation's Version line is NOT a valid base_version for any of them.
+
             EXAMPLES
                 Full read:  reference="Help.GettingStarted"
                 A range:    reference="Help.GettingStarted", offset=80, limit=40
+                Translation: reference="Sandbox.Page", locale="fr"  (exact match; no language fallback)
                 Outline:    reference="Help.GettingStarted", outline=true
                 Rendered:   reference="XWiki.XWikiSyntax", rendered=true  (macros executed; read-only)
                 Rendered HTML:  reference="XWiki.XWikiSyntax", rendered=true, format="html"
@@ -492,6 +528,7 @@ public class MCPGetDocumentTool implements MCPTool
 
         try {
             String reference = PARAMS.parser().requireString(args, REFERENCE_PARAM);
+            Locale requestedLocale = parseLocale(PARAMS.parser().string(args, LOCALE_PARAM));
 
             DocumentReference ref;
             try {
@@ -505,10 +542,151 @@ public class MCPGetDocumentTool implements MCPTool
             }
 
             DocumentModelBridge doc = loadDocument(ref, reference);
+            if (requestedLocale != null && !isDefaultLanguageRequest(doc, requestedLocale)) {
+                // The locale attaches to loads only: authorization above used the locale-free reference,
+                // since a document's translations share its rights and the security cache is keyed on
+                // parameter-free references.
+                DocumentReference localizedRef = new DocumentReference(ref, requestedLocale);
+                if (!documentExists(localizedRef, reference)) {
+                    return MCPToolSupport.errorResult(missingTranslationMessage(ref, doc, requestedLocale));
+                }
+                ref = localizedRef;
+                doc = loadDocument(localizedRef, reference);
+            }
             return read(args, ref, reference, doc);
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         }
+    }
+
+    /**
+     * Parses and validates the {@code locale} argument. Exact-match semantics apply downstream: the
+     * parsed locale designates one stored row, with no language fallback.
+     *
+     * @param raw the trimmed locale value, or {@code null} when absent
+     * @return the parsed locale, or {@code null} when absent
+     * @throws IllegalArgumentException with the agent-facing message when the value is not a valid locale
+     */
+    private Locale parseLocale(String raw)
+    {
+        if (raw == null) {
+            return null;
+        }
+        Locale locale = LocaleUtils.toLocale(raw, null);
+        if (locale == null) {
+            throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + LOCALE_PARAM
+                + "' is not a valid locale: " + QUOTE + MCPToolSupport.stripLineBreaks(raw) + QUOTE
+                + ". Use forms like " + LOCALE_FORMS + PERIOD);
+        }
+        return locale;
+    }
+
+    /**
+     * Tests whether the requested locale designates the default-language version of the loaded default
+     * document: its real locale or its declared default locale. The default row stores an empty
+     * language, so a per-translation existence probe for e.g. "en" on an English-default page would
+     * falsely refuse; such a request is served as a plain default read instead.
+     *
+     * @param doc the loaded default document
+     * @param locale the requested locale
+     * @return whether the request is a default-language read
+     */
+    private boolean isDefaultLanguageRequest(DocumentModelBridge doc, Locale locale)
+    {
+        return doc instanceof XWikiDocument xdoc
+            && (locale.equals(xdoc.getRealLocale()) || locale.equals(xdoc.getDefaultLocale()));
+    }
+
+    /**
+     * Builds the missing-translation refusal, listing the translations that do exist and the default
+     * language so the agent can correct the call instead of retrying blindly.
+     *
+     * @param ref the resolved locale-free document reference
+     * @param doc the loaded default document
+     * @param locale the requested locale that has no stored translation
+     * @return the agent-facing error message
+     */
+    private String missingTranslationMessage(DocumentReference ref, DocumentModelBridge doc, Locale locale)
+    {
+        String canonicalRef = MCPToolSupport.stripLineBreaks(this.serializer.serialize(ref));
+        List<Locale> translations = translationLocalesOf(doc);
+        String existing = translations.isEmpty() ? "This document has no translations."
+            : TRANSLATIONS_PREFIX + joinLocales(translations) + PERIOD;
+        // The requested locale is echoed stripped: a validated Locale can still carry line breaks in
+        // its variant segment, which would otherwise forge extra response lines.
+        String message = "Error: no " + QUOTE + MCPToolSupport.stripLineBreaks(locale.toString()) + QUOTE
+            + " translation of " + QUOTE + canonicalRef + QUOTE + PERIOD + ' ' + existing;
+        String defaultDisplay = defaultLocaleDisplay(doc);
+        if (defaultDisplay != null) {
+            message += " The default language is " + defaultDisplay + PERIOD;
+        }
+        return message + " Omit '" + LOCALE_PARAM + "' for the default version.";
+    }
+
+    /**
+     * Lists the document's translation locales (the platform list excludes the default language),
+     * degrading to an empty list on a lookup failure so a discovery nicety can never break a read.
+     *
+     * @param doc the loaded document
+     * @return the translation locales, or an empty list
+     */
+    private List<Locale> translationLocalesOf(DocumentModelBridge doc)
+    {
+        if (!(doc instanceof XWikiDocument xdoc)) {
+            return List.of();
+        }
+        try {
+            List<Locale> translations = xdoc.getTranslationLocales(this.contextProvider.get());
+            return translations != null ? translations : List.of();
+        } catch (Exception e) {
+            this.logger.debug("MCP get_document tool translation-locale lookup failed", e);
+            return List.of();
+        }
+    }
+
+    /**
+     * @param doc the loaded document
+     * @return the document's default locale, falling back to its real locale when the default is ROOT
+     *     (undeclared), or {@code null} when the document does not expose its locale
+     */
+    private Locale defaultLocaleOf(DocumentModelBridge doc)
+    {
+        if (!(doc instanceof XWikiDocument xdoc)) {
+            return null;
+        }
+        Locale defaultLocale = xdoc.getDefaultLocale();
+        if (defaultLocale == null || Locale.ROOT.equals(defaultLocale)) {
+            return xdoc.getRealLocale();
+        }
+        return defaultLocale;
+    }
+
+    /**
+     * @param doc the loaded document
+     * @return the display form of the document's default language, stripped of line breaks, or
+     *     {@code null} when the default locale is undeclared (ROOT prints an empty string) so the
+     *     caller can drop the mention instead of printing a dangling empty value
+     */
+    private String defaultLocaleDisplay(DocumentModelBridge doc)
+    {
+        Locale defaultLocale = defaultLocaleOf(doc);
+        if (defaultLocale == null || defaultLocale.toString().isEmpty()) {
+            return null;
+        }
+        return MCPToolSupport.stripLineBreaks(defaultLocale.toString());
+    }
+
+    /**
+     * Joins the locale identifiers with the list separator, stripping line breaks from each: a stored
+     * locale can carry them in its variant segment and must not forge extra response lines.
+     *
+     * @param locales the locales to list
+     * @return the comma-joined locale identifiers
+     */
+    private static String joinLocales(List<Locale> locales)
+    {
+        return String.join(LIST_SEPARATOR,
+            locales.stream().map(locale -> MCPToolSupport.stripLineBreaks(locale.toString())).toList());
     }
 
     /**
@@ -737,7 +915,8 @@ public class MCPGetDocumentTool implements MCPTool
      */
     private static String invalidValueError(String param, List<String> values)
     {
-        return MCPToolSupport.ERROR_PREFIX + param + "' must be one of: " + String.join(", ", values) + PERIOD;
+        return MCPToolSupport.ERROR_PREFIX + param + "' must be one of: " + String.join(LIST_SEPARATOR, values)
+            + PERIOD;
     }
 
     /**
@@ -769,12 +948,16 @@ public class MCPGetDocumentTool implements MCPTool
         XWikiContext xcontext = this.contextProvider.get();
         XWikiDocument previousContextDocument = xcontext.getDoc();
         String originalWiki = xcontext.getWikiId();
+        Locale previousLocale = xcontext.getLocale();
         try {
             // Rendering must resolve in the document's own wiki (macros, rights, class resolution) for a
             // cross-wiki read, so switch the context wiki to the target for the duration of the render.
             xcontext.setWikiId(ref.getWikiReference().getName());
             XWikiDocument xdoc = xcontext.getWiki().getDocument(ref, xcontext);
             xcontext.setDoc(xdoc);
+            // Render in the loaded row's own language so {{translation}} macros and sheet output come out
+            // in the same language the emitted language= view URL shows.
+            xcontext.setLocale(xdoc.getRealLocale());
             // Render the title too (it may itself be a macro/translation), so the header is consistent with the
             // executed body instead of showing the raw title source.
             String renderedTitle = StringUtils.trim(xdoc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext));
@@ -788,6 +971,7 @@ public class MCPGetDocumentTool implements MCPTool
         } finally {
             xcontext.setDoc(previousContextDocument);
             xcontext.setWikiId(originalWiki);
+            xcontext.setLocale(previousLocale);
         }
     }
 
@@ -902,7 +1086,7 @@ public class MCPGetDocumentTool implements MCPTool
         Syntax renderedSyntax, String extraLine, boolean fullDetail)
     {
         String header = buildHeader(buildReferenceBlock(doc), title, headerSyntaxId(doc, renderedSyntax),
-            doc.getVersion(), sizeDescription);
+            doc.getVersion(), languageBlock(doc), sizeDescription);
         if (extraLine != null) {
             header += NEW_LINE + extraLine;
         }
@@ -1077,13 +1261,46 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     private String buildHeader(String referenceBlock, String title, String syntaxId, String version,
-        String sizeDescription)
+        String languageBlock, String sizeDescription)
     {
         return referenceBlock
             + "Title: " + (StringUtils.isNotBlank(title) ? title : "(untitled)") + NEW_LINE
             + "Syntax: " + syntaxId + NEW_LINE
             + "Version: " + version + NEW_LINE
+            + languageBlock
             + "Size: " + sizeDescription;
+    }
+
+    /**
+     * Builds the {@code Language:} line and, when the document has translations, the
+     * {@code Translations:} discovery line (naming the default language an omitted {@code locale}
+     * yields), each terminated by a newline so the caller can splice them in after the Version line.
+     * Empty when the loaded document does not expose its locale. Locale values are stripped of line
+     * breaks (a stored locale's variant segment can carry them), and an undeclared (ROOT) real locale
+     * omits its line rather than printing an empty value.
+     *
+     * @param doc the loaded document
+     * @return the language block, possibly empty
+     */
+    private String languageBlock(DocumentModelBridge doc)
+    {
+        if (!(doc instanceof XWikiDocument xdoc) || xdoc.getRealLocale() == null) {
+            return "";
+        }
+        String block = "";
+        if (!Locale.ROOT.equals(xdoc.getRealLocale())) {
+            block = "Language: " + MCPToolSupport.stripLineBreaks(xdoc.getRealLocale().toString()) + NEW_LINE;
+        }
+        List<Locale> translations = translationLocalesOf(doc);
+        if (!translations.isEmpty()) {
+            block += TRANSLATIONS_PREFIX + joinLocales(translations);
+            String defaultDisplay = defaultLocaleDisplay(doc);
+            if (defaultDisplay != null) {
+                block += " (default: " + defaultDisplay + ")";
+            }
+            block += NEW_LINE;
+        }
+        return block;
     }
 
     /**
@@ -1098,15 +1315,33 @@ public class MCPGetDocumentTool implements MCPTool
         // Strip any newline/control chars from the serialized reference: an entity name can contain a newline,
         // which would otherwise break the single Reference: line into forged extra lines.
         String canonicalRef = MCPToolSupport.stripLineBreaks(this.serializer.serialize(doc.getDocumentReference()));
-        String url = safeDocumentUrl(doc.getDocumentReference());
+        String url = safeDocumentUrl(doc.getDocumentReference(), translationQueryString(doc));
         String urlLine = StringUtils.isNotBlank(url) ? "URL: " + url + NEW_LINE : "";
         return "Reference: " + canonicalRef + NEW_LINE + urlLine;
     }
 
-    private String safeDocumentUrl(DocumentReference docRef)
+    /**
+     * Builds the view-URL query string pinning the language when the loaded instance is a translation
+     * row, so the URL opens the same content the response describes. {@code null} for a default-language
+     * read, preserving the plain view URL. The value is URL-encoded: a validated Locale's variant
+     * segment can carry URL metacharacters, which must not smuggle extra query parameters.
+     *
+     * @param doc the loaded document
+     * @return the query string, or {@code null} for a default-language read
+     */
+    private String translationQueryString(DocumentModelBridge doc)
+    {
+        if (doc instanceof XWikiDocument xdoc && xdoc.getLocale() != null
+            && !Locale.ROOT.equals(xdoc.getLocale())) {
+            return "language=" + URLEncoder.encode(xdoc.getLocale().toString(), StandardCharsets.UTF_8);
+        }
+        return null;
+    }
+
+    private String safeDocumentUrl(DocumentReference docRef, String queryString)
     {
         try {
-            return this.documentAccessBridge.getDocumentURL(docRef, VIEW_ACTION, null, null, true);
+            return this.documentAccessBridge.getDocumentURL(docRef, VIEW_ACTION, queryString, null, true);
         } catch (Exception e) {
             this.logger.debug(VIEW_URL_FAILURE, e);
             return null;

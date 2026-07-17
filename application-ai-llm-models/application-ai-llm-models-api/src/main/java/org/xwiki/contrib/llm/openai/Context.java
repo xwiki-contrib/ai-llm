@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
  *
  * @param collectionId the unique identifier of the collection containing the context document
  * @param documentId the unique identifier of the context document
+ * @param language the language of the context document, or {@code null} when unknown
  * @param url the URL of the context document
  * @param content the content of the context document
  * @param similarityScore the similarity score between the conversation and the context document
@@ -48,6 +49,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 public record Context(
     String collectionId,
     String documentId,
+    String language,
     String url,
     String content,
     Double similarityScore,
