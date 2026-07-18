@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.mcp.internal.tool;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.inject.Named;
@@ -64,6 +65,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -234,6 +236,19 @@ class MCPWriteSchemaToolTest
         assertTrue(text.contains("Added field \"title\" to class \"MyApp.MyClass\""), text);
         assertTrue(text.contains("title: String"), text);
         assertTrue(text.contains("View: " + VIEW_URL), text);
+    }
+
+    @Test
+    void addFieldOnNewDocumentStampsTheWikiDefaultLocale(MockitoOldcore oldcore) throws Exception
+    {
+        doReturn(Locale.GERMAN).when(oldcore.getSpyXWiki()).getDefaultLocale(any());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, OPERATION_KEY, ADD_FIELD,
+            FIELD_KEY, TITLE_FIELD, TYPE_KEY, "String"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The wiki's default locale is stamped on the created class document, surviving the tool's clone.
+        assertEquals(Locale.GERMAN, loadDocument(oldcore).getDefaultLocale());
     }
 
     @Test

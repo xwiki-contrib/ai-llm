@@ -44,7 +44,6 @@ import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
-import org.xwiki.localization.LocaleUtils;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
@@ -86,9 +85,10 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPGetDocumentTool.TOOL_ID)
 @Singleton
-// The locale parameter (LLMAI-160) adds java.util.Locale as the 21st referenced type on the module's largest
-// composition-root tool (7 collaborators, 3 response families); suppressed rather than hiding the
-// default-language short-circuit behind a seam for a one-type overshoot.
+// The locale parameter (LLMAI-160) adds java.util.Locale as the 21st referenced type (measured 21/20)
+// on the module's largest composition-root tool (7 collaborators, 3 response families); suppressed
+// rather than hiding the default-language short-circuit (shared with the write tools via
+// MCPWriteSupport) behind a seam for a one-type overshoot.
 @SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class MCPGetDocumentTool implements MCPTool
 {
@@ -199,12 +199,6 @@ public class MCPGetDocumentTool implements MCPTool
      * error message.
      */
     private static final List<String> DETAIL_VALUES = List.of(STRIPPED_DETAIL, FULL_DETAIL);
-
-    /**
-     * Example locale forms, shared by the {@code locale} parameter description and its invalid-value
-     * error message.
-     */
-    private static final String LOCALE_FORMS = "\"fr\" or \"pt_BR\"";
 
     /**
      * Separator of the comma-joined value lists (accepted enum values, translation locales).
@@ -421,8 +415,8 @@ public class MCPGetDocumentTool implements MCPTool
         }
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
-            .string(LOCALE_PARAM, "Read a specific translation of the document, e.g. " + LOCALE_FORMS
-                + ". Omit for the default language version.")
+            .string(LOCALE_PARAM, "Read a specific translation of the document, e.g. "
+                + MCPToolSupport.LOCALE_FORMS + ". Omit for the default language version.")
             .integer(OFFSET_PARAM, "1-based line number to start reading from. Use with limit to read a slice "
                 + "of a large document.")
             .integer(LIMIT_PARAM, "Number of lines to read from offset. Omit (with offset=1) to read from the "
@@ -483,9 +477,11 @@ public class MCPGetDocumentTool implements MCPTool
                 A translation read (locale="fr") is exact-match: there is no language fallback, and a
                 missing translation is refused with the list of translations that do exist. The
                 header's Language: line names the loaded language; the Translations: line shows what
-                else exists. IMPORTANT: write_document and edit_document touch the default language
-                version only, while delete_document removes the document WITH all its translations -
-                a translation's Version line is NOT a valid base_version for any of them.
+                else exists. IMPORTANT: write_document and edit_document accept the same locale
+                parameter to create or edit a translation (exact-match, same rules), while
+                delete_document always removes the document WITH all its translations (its
+                base_version takes the DEFAULT row's Version). base_version
+                is per language row - pass the Version read with the SAME locale you write.
 
             EXAMPLES
                 Full read:  reference="Help.GettingStarted"
@@ -528,7 +524,8 @@ public class MCPGetDocumentTool implements MCPTool
 
         try {
             String reference = PARAMS.parser().requireString(args, REFERENCE_PARAM);
-            Locale requestedLocale = parseLocale(PARAMS.parser().string(args, LOCALE_PARAM));
+            Locale requestedLocale =
+                MCPToolSupport.parseLocale(PARAMS.parser().string(args, LOCALE_PARAM), LOCALE_PARAM);
 
             DocumentReference ref;
             try {
@@ -560,32 +557,13 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     /**
-     * Parses and validates the {@code locale} argument. Exact-match semantics apply downstream: the
-     * parsed locale designates one stored row, with no language fallback.
-     *
-     * @param raw the trimmed locale value, or {@code null} when absent
-     * @return the parsed locale, or {@code null} when absent
-     * @throws IllegalArgumentException with the agent-facing message when the value is not a valid locale
-     */
-    private Locale parseLocale(String raw)
-    {
-        if (raw == null) {
-            return null;
-        }
-        Locale locale = LocaleUtils.toLocale(raw, null);
-        if (locale == null) {
-            throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + LOCALE_PARAM
-                + "' is not a valid locale: " + QUOTE + MCPToolSupport.stripLineBreaks(raw) + QUOTE
-                + ". Use forms like " + LOCALE_FORMS + PERIOD);
-        }
-        return locale;
-    }
-
-    /**
      * Tests whether the requested locale designates the default-language version of the loaded default
-     * document: its real locale or its declared default locale. The default row stores an empty
-     * language, so a per-translation existence probe for e.g. "en" on an English-default page would
-     * falsely refuse; such a request is served as a plain default read instead.
+     * document, delegating to the predicate shared with the write side
+     * ({@link MCPWriteSupport#isDefaultLanguageRequest(XWikiContext, XWikiDocument, Locale)}) so read
+     * and write cannot drift. The default row stores an empty language, so a per-translation existence
+     * probe for e.g. "en" on an English-default page would falsely refuse; such a request is served as
+     * a plain default read instead. Non-existent documents never reach this predicate: the read path
+     * returns not-found before any locale handling.
      *
      * @param doc the loaded default document
      * @param locale the requested locale
@@ -594,7 +572,7 @@ public class MCPGetDocumentTool implements MCPTool
     private boolean isDefaultLanguageRequest(DocumentModelBridge doc, Locale locale)
     {
         return doc instanceof XWikiDocument xdoc
-            && (locale.equals(xdoc.getRealLocale()) || locale.equals(xdoc.getDefaultLocale()));
+            && MCPWriteSupport.isDefaultLanguageRequest(this.contextProvider.get(), xdoc, locale);
     }
 
     /**
@@ -645,9 +623,16 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     /**
+     * Resolves the page's EFFECTIVE default language: the declared default locale, or the wiki's
+     * default when the row's is ROOT (undeclared - programmatic creation skips the UI's stamp). The
+     * wiki fallback matches {@link MCPWriteSupport#isDefaultLanguageRequest}: whatever this method
+     * names is exactly what an omitted or equal {@code locale} routes to. Never fall back to the
+     * row's real locale - on a translation row (whose default locale is always ROOT) that would
+     * name the translation's own language as the page default.
+     *
      * @param doc the loaded document
-     * @return the document's default locale, falling back to its real locale when the default is ROOT
-     *     (undeclared), or {@code null} when the document does not expose its locale
+     * @return the effective default locale, or {@code null} when the document does not expose its
+     *     locale
      */
     private Locale defaultLocaleOf(DocumentModelBridge doc)
     {
@@ -656,16 +641,17 @@ public class MCPGetDocumentTool implements MCPTool
         }
         Locale defaultLocale = xdoc.getDefaultLocale();
         if (defaultLocale == null || Locale.ROOT.equals(defaultLocale)) {
-            return xdoc.getRealLocale();
+            XWikiContext xcontext = this.contextProvider.get();
+            return xcontext.getWiki().getDefaultLocale(xcontext);
         }
         return defaultLocale;
     }
 
     /**
      * @param doc the loaded document
-     * @return the display form of the document's default language, stripped of line breaks, or
-     *     {@code null} when the default locale is undeclared (ROOT prints an empty string) so the
-     *     caller can drop the mention instead of printing a dangling empty value
+     * @return the display form of the page's effective default language, stripped of line breaks, or
+     *     {@code null} when the document does not expose its locale, so the caller can drop the
+     *     mention instead of printing a dangling empty value
      */
     private String defaultLocaleDisplay(DocumentModelBridge doc)
     {
@@ -1276,8 +1262,11 @@ public class MCPGetDocumentTool implements MCPTool
      * {@code Translations:} discovery line (naming the default language an omitted {@code locale}
      * yields), each terminated by a newline so the caller can splice them in after the Version line.
      * Empty when the loaded document does not expose its locale. Locale values are stripped of line
-     * breaks (a stored locale's variant segment can carry them), and an undeclared (ROOT) real locale
-     * omits its line rather than printing an empty value.
+     * breaks (a stored locale's variant segment can carry them). The {@code Language:} line names only
+     * a DECLARED content language - an undeclared (ROOT) real locale omits the line, because claiming
+     * a language the row never declared would be a guess. The {@code (default: X)} suffix instead
+     * names the page's EFFECTIVE default ({@link #defaultLocaleOf}): it states what an omitted
+     * {@code locale} routes to, which the wiki-default fallback makes true even for undeclared rows.
      *
      * @param doc the loaded document
      * @return the language block, possibly empty

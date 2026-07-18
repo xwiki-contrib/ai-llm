@@ -500,8 +500,8 @@ public class MCPWriteSchemaTool implements MCPTool
                 + "get_document and pass the base_version it shows.");
         }
         if (!request.baseVersion().equals(currentVersion)) {
-            return MCPToolSupport.errorResult(MCPWriteSupport.versionConflictError(currentVersion,
-                request.baseVersion(), "retry the removal if you still intend it."));
+            return MCPToolSupport.errorResult(MCPWriteSupport.versionConflictError(MCPWriteSupport.DOCUMENT_SUBJECT,
+                currentVersion, request.baseVersion(), "retry the removal if you still intend it."));
         }
         return null;
     }
@@ -522,7 +522,8 @@ public class MCPWriteSchemaTool implements MCPTool
         }
         if (!request.baseVersion().equals(currentVersion)) {
             return MCPToolSupport.errorResult(
-                MCPWriteSupport.versionConflictError(currentVersion, request.baseVersion(), "retry."));
+                MCPWriteSupport.versionConflictError(MCPWriteSupport.DOCUMENT_SUBJECT, currentVersion,
+                    request.baseVersion(), "retry."));
         }
         return null;
     }

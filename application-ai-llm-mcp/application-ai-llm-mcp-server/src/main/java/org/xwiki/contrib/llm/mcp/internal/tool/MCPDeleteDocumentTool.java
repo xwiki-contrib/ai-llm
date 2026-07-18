@@ -269,7 +269,9 @@ public class MCPDeleteDocumentTool implements MCPTool
                 An administrator can restore it from the recycle bin. On a wiki with no recycle bin
                 the deletion is refused entirely.
                 All translations of the page are deleted with it (they all go to the recycle bin),
-                matching the wiki UI's own delete. There is no per-translation delete.
+                matching the wiki UI's own delete. There is no per-translation delete: translations
+                are created and edited via write_document/edit_document locale=..., but deletion is
+                always whole-document.
                 base_version is required: read the document with get_document first and pass the
                 version it shows, so every deletion is based on a recent read of what is deleted.
                 base_version covers the default-locale document; translation content has its own
@@ -344,8 +346,9 @@ public class MCPDeleteDocumentTool implements MCPTool
             }
             String currentVersion = xdoc.getVersion();
             if (!baseVersion.equals(currentVersion)) {
-                return MCPToolSupport.errorResult(MCPWriteSupport.versionConflictError(currentVersion,
-                    baseVersion, "retry the deletion if you still intend it."));
+                return MCPToolSupport.errorResult(MCPWriteSupport.versionConflictError(
+                    MCPWriteSupport.DOCUMENT_SUBJECT, currentVersion, baseVersion,
+                    "retry the deletion if you still intend it."));
             }
             if (!xcontext.getWiki().hasRecycleBin(xcontext)) {
                 return MCPToolSupport.errorResult(NO_RECYCLE_BIN_MESSAGE);

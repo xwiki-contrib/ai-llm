@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -67,6 +68,8 @@ class MCPToolSupportTest
         + "names to string values (write every value as a string, e.g. \"1\" rather than 1).";
 
     private static final String FIELDS_DESCRIPTION = "The fields.";
+
+    private static final String LOCALE_KEY = "locale";
 
     private static final MCPToolSupport PARAMS = MCPToolSupport.builder()
         .requiredString(REF, "The reference.")
@@ -383,5 +386,54 @@ class MCPToolSupportTest
     void stripLineBreaksReturnsNullForNullValue()
     {
         assertNull(MCPToolSupport.stripLineBreaks(null));
+    }
+
+    @Test
+    void parseLocaleAcceptsValidLocaleForms()
+    {
+        assertEquals(Locale.FRENCH, MCPToolSupport.parseLocale("fr", LOCALE_KEY));
+        assertEquals("pt_BR", MCPToolSupport.parseLocale("pt_BR", LOCALE_KEY).toString());
+        // The dash form is normalized to the canonical underscore form.
+        assertEquals("fr_FR", MCPToolSupport.parseLocale("fr-FR", LOCALE_KEY).toString());
+    }
+
+    @Test
+    void parseLocaleReturnsNullForAbsentValue()
+    {
+        assertNull(MCPToolSupport.parseLocale(null, LOCALE_KEY));
+    }
+
+    @Test
+    void parseLocaleRejectsInvalidValueWithTeachingMessage()
+    {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> MCPToolSupport.parseLocale("french", LOCALE_KEY));
+        assertEquals("Error: 'locale' is not a valid locale: \"french\". Use forms like \"fr\" or "
+            + "\"pt_BR\".", thrown.getMessage());
+    }
+
+    @Test
+    void parseLocaleRefusesVariantLocaleLongerThanTheStorageCap()
+    {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> MCPToolSupport.parseLocale("ca_ES_VALENCIA", LOCALE_KEY));
+        assertEquals("Error: 'locale' is too specific for the wiki's storage: \"ca_ES_VALENCIA\". "
+            + "Use a locale of up to 5 characters, e.g. \"fr\" or \"pt_BR\"; variant forms are not "
+            + "supported.", thrown.getMessage());
+    }
+
+    @Test
+    void parseLocaleAcceptsLocaleAtExactlyTheStorageCap()
+    {
+        assertEquals("pt_BR", MCPToolSupport.parseLocale("pt_BR", LOCALE_KEY).toString());
+    }
+
+    @Test
+    void parseLocaleErrorEchoesTheRawValueAsASingleLine()
+    {
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> MCPToolSupport.parseLocale("fr\nzz", LOCALE_KEY));
+        assertFalse(thrown.getMessage().contains("\n"), thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("\"frzz\""), thrown.getMessage());
     }
 }

@@ -24,9 +24,11 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import org.apache.commons.lang3.LocaleUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.xwiki.stability.Unstable;
 
@@ -64,6 +66,15 @@ public final class MCPToolSupport
      */
     public static final String ERROR_PREFIX = "Error: '";
 
+    /**
+     * Example locale forms, shared by the locale-aware tools' {@code locale} parameter descriptions and
+     * by the {@link #parseLocale(String, String)} error message, so the advertised forms and the
+     * teaching message can never drift apart.
+     *
+     * @since 0.9.1
+     */
+    public static final String LOCALE_FORMS = "\"fr\" or \"pt_BR\"";
+
     private static final String REQUIRED_PARAM_ERROR_SUFFIX = "' parameter is required.";
 
     private static final String STRING_PARAM_ERROR_SUFFIX = "' parameter must be a string.";
@@ -76,6 +87,12 @@ public final class MCPToolSupport
 
     private static final String STRING_MAP_PARAM_ERROR_SUFFIX = "' parameter must be an object mapping names "
         + "to string values (write every value as a string, e.g. \"1\" rather than 1).";
+
+    /**
+     * Maximum length of a serialized locale the wiki can store: the legacy XWD_LANGUAGE column is length 5,
+     * and longer values fail the save or silently truncate on lenient databases.
+     */
+    private static final int MAX_STORED_LOCALE_LENGTH = 5;
 
     private static final String TYPE_KEY = "type";
 
@@ -248,6 +265,43 @@ public final class MCPToolSupport
     public static String stripLineBreaks(String value)
     {
         return value == null ? null : LINE_BREAK_CHARS.matcher(value).replaceAll("");
+    }
+
+    /**
+     * Parses and validates a {@code locale} argument, shared by every locale-aware tool so validation
+     * and the teaching message cannot drift between them. Exact-match semantics apply downstream: the
+     * parsed locale designates one stored translation row, with no language fallback.
+     *
+     * <p>Variant-segment caveat: even within the storage-length cap a validated {@link Locale} can
+     * carry variant text like URL metacharacters. A caller echoing {@code locale.toString()} into a
+     * line grammar must pass it through {@link #stripLineBreaks(String)}, and must URL-encode it when
+     * placing it in a query string.</p>
+     *
+     * @param raw the trimmed locale value, or {@code null} when absent
+     * @param key the argument name, used in the error message
+     * @return the parsed locale, or {@code null} when {@code raw} is {@code null}
+     * @throws IllegalArgumentException with the agent-facing message when the value is not a valid
+     *     locale, or serializes to more characters than the wiki's locale storage holds
+     * @since 0.9.1
+     */
+    public static Locale parseLocale(String raw, String key)
+    {
+        if (raw == null) {
+            return null;
+        }
+        Locale locale;
+        try {
+            locale = LocaleUtils.toLocale(raw);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(ERROR_PREFIX + key + "' is not a valid locale: \""
+                + stripLineBreaks(raw) + "\". Use forms like " + LOCALE_FORMS + ".");
+        }
+        if (locale.toString().length() > MAX_STORED_LOCALE_LENGTH) {
+            throw new IllegalArgumentException(ERROR_PREFIX + key + "' is too specific for the wiki's storage: \""
+                + stripLineBreaks(raw) + "\". Use a locale of up to " + MAX_STORED_LOCALE_LENGTH
+                + " characters, e.g. " + LOCALE_FORMS + "; variant forms are not supported.");
+        }
+        return locale;
     }
 
     /**

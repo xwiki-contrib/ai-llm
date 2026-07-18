@@ -359,7 +359,8 @@ public class MCPWriteObjectTool implements MCPTool
         }
         if (!baseVersion.equals(currentVersion)) {
             return MCPToolSupport.errorResult(
-                MCPWriteSupport.versionConflictError(currentVersion, baseVersion, "retry."));
+                MCPWriteSupport.versionConflictError(MCPWriteSupport.DOCUMENT_SUBJECT, currentVersion,
+                    baseVersion, "retry."));
         }
         return null;
     }

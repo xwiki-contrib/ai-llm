@@ -62,7 +62,8 @@
             <artifactId>xwiki-platform-query-manager</artifactId>
             <version>${platform.version}</version>
         </dependency>
-        <!-- StringUtils used by the MCPToolSupport argument coercion. -->
+        <!-- StringUtils used by the MCPToolSupport argument coercion, LocaleUtils by its parseLocale
+             shared helper. -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>

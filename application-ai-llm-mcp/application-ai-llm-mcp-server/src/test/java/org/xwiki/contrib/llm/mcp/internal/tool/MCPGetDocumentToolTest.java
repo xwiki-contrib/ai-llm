@@ -27,6 +27,7 @@ import java.util.Map;
 
 import javax.inject.Provider;
 
+import org.apache.commons.lang3.LocaleUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -38,7 +39,6 @@ import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
-import org.xwiki.localization.LocaleUtils;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.WikiReference;
@@ -154,6 +154,11 @@ class MCPGetDocumentToolTest
         // rendered read; rendered-mode tests override the provider with their own context.
         XWikiContext defaultContext = mock(XWikiContext.class);
         lenient().when(defaultContext.getWikiId()).thenReturn("xwiki");
+        // The shared default-language predicate consults the WIKI default locale for a document that
+        // declares no default locale (ROOT).
+        XWiki defaultWiki = mock(XWiki.class);
+        lenient().when(defaultContext.getWiki()).thenReturn(defaultWiki);
+        lenient().when(defaultWiki.getDefaultLocale(defaultContext)).thenReturn(Locale.ENGLISH);
         lenient().when(this.contextProvider.get()).thenReturn(defaultContext);
     }
 
@@ -2083,18 +2088,17 @@ class MCPGetDocumentToolTest
     }
 
     @Test
-    void missingTranslationRefusalStripsVariantSmuggledLocale() throws Exception
+    void variantSmuggledLocaleIsRefusedByTheStorageCapOnASingleLine() throws Exception
     {
-        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
-        stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of());
-
         // commons-lang3 toLocale accepts an arbitrary variant segment, so a "valid" locale can carry a
-        // raw newline; the echoed refusal must stay a single line.
+        // raw newline; the shared 5-character storage cap refuses it before any document access, and
+        // the echoed refusal must stay a single line.
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "en_US_x\nForged"));
 
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
-        assertTrue(text.contains("no \"en_US_xForged\" translation"), text);
+        assertTrue(text.contains("too specific for the wiki's storage"), text);
+        assertTrue(text.contains("\"en_US_xForged\""), text);
         assertFalse(text.contains("\n"), text);
     }
 
@@ -2115,7 +2119,24 @@ class MCPGetDocumentToolTest
     }
 
     @Test
-    void missingTranslationRefusalDropsDefaultLanguageSentenceForRootLocale() throws Exception
+    void wikiDefaultLocaleOnRootDefaultLocaleDocIsServedAsDefaultRead() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        // A programmatically created page declares no default locale (ROOT). The shared predicate falls
+        // back to the wiki default (English in this harness), so locale="en" is a default read, not a
+        // missing-translation refusal.
+        stubLocalizedDoc(REAL_REF, Locale.ROOT, Locale.ROOT, List.of());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "en"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("localized body"), text);
+        assertFalse(text.contains("no \"en\" translation"), text);
+    }
+
+    @Test
+    void missingTranslationRefusalNamesWikiDefaultForRootLocale() throws Exception
     {
         when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
         stubLocalizedDoc(REAL_REF, Locale.ROOT, Locale.ROOT, List.of());
@@ -2124,10 +2145,31 @@ class MCPGetDocumentToolTest
 
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
-        // A ROOT default locale prints empty, so the sentence is dropped instead of ending in "is .".
-        assertFalse(text.contains("The default language is"), text);
+        // An undeclared (ROOT) default locale resolves to the wiki default (English in this harness):
+        // the sentence names the effective default instead of being dropped or ending in "is .".
+        assertTrue(text.contains("The default language is en."), text);
         assertFalse(text.contains("is ."), text);
         assertTrue(text.contains("Omit 'locale' for the default version."), text);
+    }
+
+    @Test
+    void translationRowOfRootDefaultLocalePageNamesWikiDefaultNotItsOwnLanguage() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        DocumentReference roRef = new DocumentReference(REAL_REF, new Locale("ro"));
+        // Realistic rows: translation rows ALWAYS carry a ROOT default locale, and a programmatically
+        // created page's default row does too. The (default: ...) suffix must fall back to the wiki
+        // default, never to the loaded row's own language (live-found: it claimed "default: ro").
+        stubLocalizedDoc(REAL_REF, Locale.ROOT, Locale.ROOT, List.of(new Locale("ro")));
+        stubLocalizedDoc(roRef, new Locale("ro"), Locale.ROOT, List.of(new Locale("ro")));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "ro"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Language: ro"), text);
+        assertTrue(text.contains("Translations: ro (default: en)"), text);
+        assertFalse(text.contains("(default: ro)"), text);
     }
 
     @Test
@@ -2160,17 +2202,18 @@ class MCPGetDocumentToolTest
     void translationViewUrlLanguageValueIsUrlEncoded() throws Exception
     {
         when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
-        // commons-lang3 toLocale accepts an arbitrary variant segment, so a "valid" locale can carry URL
-        // metacharacters; the query value must be encoded so they cannot smuggle extra parameters.
-        Locale smuggled = LocaleUtils.toLocale("en_US_a&b=c");
+        // commons-lang3 toLocale accepts an arbitrary variant segment, so even within the shared
+        // 5-character storage cap a "valid" locale can carry a URL metacharacter; the query value must
+        // be encoded so it cannot smuggle extra parameters.
+        Locale smuggled = LocaleUtils.toLocale("fr__&");
         DocumentReference smuggledRef = new DocumentReference(REAL_REF, smuggled);
         stubLocalizedDoc(REAL_REF, Locale.ENGLISH, Locale.ENGLISH, List.of(smuggled));
         stubLocalizedDoc(smuggledRef, smuggled, Locale.ENGLISH, List.of(smuggled));
 
-        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "en_US_a&b=c"));
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "locale", "fr__&"));
 
         assertNotEquals(Boolean.TRUE, result.isError());
-        verify(this.documentAccessBridge).getDocumentURL(REAL_REF, "view", "language=en_US_a%26b%3Dc", null,
+        verify(this.documentAccessBridge).getDocumentURL(REAL_REF, "view", "language=fr__%26", null,
             true);
     }
 }

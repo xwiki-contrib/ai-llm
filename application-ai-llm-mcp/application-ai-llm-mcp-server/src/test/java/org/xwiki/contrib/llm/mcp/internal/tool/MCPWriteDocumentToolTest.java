@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.mcp.internal.tool;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,6 +32,7 @@ import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
+import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
@@ -51,6 +53,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,6 +74,8 @@ class MCPWriteDocumentToolTest
     private static final String TITLE_KEY = "title";
 
     private static final String BASE_VERSION_KEY = "base_version";
+
+    private static final String LOCALE_KEY = "locale";
 
     private static final String COMMENT_KEY = "comment";
 
@@ -95,6 +100,12 @@ class MCPWriteDocumentToolTest
 
     private static final DocumentReference USER_REFERENCE =
         new DocumentReference("xwiki", "XWiki", "Author");
+
+    private static final DocumentReference FR_REFERENCE = new DocumentReference(DOC_REFERENCE, Locale.FRENCH);
+
+    private static final String FR_BODY = "corps";
+
+    private static final String NEW_FR_BODY = "nouveau corps";
 
     @InjectMockComponents
     private MCPWriteDocumentTool tool;
@@ -144,6 +155,18 @@ class MCPWriteDocumentToolTest
     private XWikiDocument loadDocument(MockitoOldcore oldcore) throws Exception
     {
         return oldcore.getSpyXWiki().getDocument(DOC_REFERENCE, oldcore.getXWikiContext());
+    }
+
+    private void storeTranslation(MockitoOldcore oldcore, String content) throws Exception
+    {
+        XWikiDocument doc = new XWikiDocument(DOC_REFERENCE, Locale.FRENCH);
+        doc.setContent(content);
+        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+    }
+
+    private XWikiDocument loadTranslation(MockitoOldcore oldcore) throws Exception
+    {
+        return oldcore.getSpyXWiki().getDocument(FR_REFERENCE, oldcore.getXWikiContext());
     }
 
     private static String textOf(McpSchema.CallToolResult result)
@@ -442,7 +465,8 @@ class MCPWriteDocumentToolTest
     {
         McpSchema.Tool definition = this.tool.getToolDefinition();
         Map<?, ?> properties = (Map<?, ?>) definition.inputSchema().get("properties");
-        assertEquals(List.of(REFERENCE_KEY, CONTENT_KEY, TITLE_KEY, BASE_VERSION_KEY, COMMENT_KEY, MAJOR_KEY),
+        assertEquals(
+            List.of(REFERENCE_KEY, CONTENT_KEY, TITLE_KEY, LOCALE_KEY, BASE_VERSION_KEY, COMMENT_KEY, MAJOR_KEY),
             List.copyOf(properties.keySet()));
     }
 
@@ -534,5 +558,301 @@ class MCPWriteDocumentToolTest
     void isWriteIsTrue()
     {
         assertTrue(this.tool.isWrite());
+    }
+
+    @Test
+    void localeCreateSavesTranslationRowWithCopiedSyntaxAndLanguageUrl(MockitoOldcore oldcore) throws Exception
+    {
+        XWikiDocument doc = new XWikiDocument(DOC_REFERENCE);
+        doc.setContent(OLD_BODY);
+        doc.setSyntax(Syntax.XWIKI_2_0);
+        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+        String defaultVersion = loadDocument(oldcore).getVersion();
+        doReturn(true).when(oldcore.getSpyXWiki()).isMultiLingual(any());
+        // Echo the query string so the language pin on the emitted URL is observable.
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), any(), any(), eq(true)))
+            .thenAnswer(invocation -> VIEW_URL + "?" + invocation.getArgument(2));
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr", CONTENT_KEY, FR_BODY));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        XWikiDocument translation = loadTranslation(oldcore);
+        assertFalse(translation.isNew());
+        assertEquals(FR_BODY, translation.getContent());
+        assertEquals("1.1", translation.getVersion());
+        // The page's syntax is copied from the default document onto the new row.
+        assertEquals(Syntax.XWIKI_2_0, translation.getSyntax());
+        // A translation row never carries the default-locale stamp; the stamp belongs to default rows.
+        assertEquals(Locale.ROOT, translation.getDefaultLocale());
+        // The default document is untouched.
+        XWikiDocument defaultDoc = loadDocument(oldcore);
+        assertEquals(OLD_BODY, defaultDoc.getContent());
+        assertEquals(defaultVersion, defaultDoc.getVersion());
+
+        String text = textOf(result);
+        assertTrue(text.contains("Created the fr translation of " + CANONICAL), text);
+        assertTrue(text.contains("Version: 1.1"), text);
+        assertTrue(text.contains("language=fr"), text);
+    }
+
+    @Test
+    void localeCreateWithBaseVersionRefusedAndNothingSaved(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        doReturn(true).when(oldcore.getSpyXWiki()).isMultiLingual(any());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr",
+            CONTENT_KEY, FR_BODY, BASE_VERSION_KEY, "1.1"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("The fr translation of \"" + REF + "\" does not exist"), text);
+        assertTrue(text.contains("omit base_version when creating a translation"), text);
+        assertTrue(loadTranslation(oldcore).isNew());
+    }
+
+    @Test
+    void localeUpdateWithoutBaseVersionPointsToSameLocaleRead(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        storeTranslation(oldcore, FR_BODY);
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr", CONTENT_KEY, NEW_FR_BODY));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("The fr translation of \"" + REF + "\" already exists"), text);
+        // The agent must read the row with the SAME locale, so the version it fetches is the row's own.
+        assertTrue(text.contains("get_document and locale=\"fr\""), text);
+        assertEquals(FR_BODY, loadTranslation(oldcore).getContent());
+    }
+
+    @Test
+    void localeUpdateWithStaleBaseVersionNamesTheTranslationAndItsVersions(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        storeTranslation(oldcore, FR_BODY);
+        String rowVersion = loadTranslation(oldcore).getVersion();
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr",
+            CONTENT_KEY, NEW_FR_BODY, BASE_VERSION_KEY, "9.9"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Version conflict: the fr translation is now at version " + rowVersion
+            + " but base_version is 9.9"), text);
+        assertEquals(FR_BODY, loadTranslation(oldcore).getContent());
+    }
+
+    @Test
+    void localeUpdateWithCorrectBaseVersionOverwritesTheRowOnly(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        storeTranslation(oldcore, FR_BODY);
+        String defaultVersion = loadDocument(oldcore).getVersion();
+        String rowVersion = loadTranslation(oldcore).getVersion();
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), anyString(), any(), eq(true)))
+            .thenAnswer(invocation -> VIEW_URL + "?" + invocation.getArgument(2));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr",
+            CONTENT_KEY, NEW_FR_BODY, BASE_VERSION_KEY, rowVersion));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertEquals(NEW_FR_BODY, loadTranslation(oldcore).getContent());
+        assertEquals(OLD_BODY, loadDocument(oldcore).getContent());
+        assertEquals(defaultVersion, loadDocument(oldcore).getVersion());
+        String text = textOf(result);
+        assertTrue(text.contains("Overwrote the fr translation of " + CANONICAL), text);
+        // The compare URL pins the row, so the diff a reviewer opens is the fr row's.
+        assertTrue(text.contains("rev1=" + rowVersion), text);
+        assertTrue(text.contains("&language=fr"), text);
+    }
+
+    @Test
+    void localeUpdateOfExistingRowSucceedsWithMultilingualOff(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        storeTranslation(oldcore, FR_BODY);
+        // The multilingual gate only guards row CREATION; an existing row is editable regardless, so
+        // this stub is never consulted (hence lenient).
+        lenient().doReturn(false).when(oldcore.getSpyXWiki()).isMultiLingual(any());
+        String rowVersion = loadTranslation(oldcore).getVersion();
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), anyString(), any(), eq(true)))
+            .thenReturn(COMPARE_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr",
+            CONTENT_KEY, NEW_FR_BODY, BASE_VERSION_KEY, rowVersion));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertEquals(NEW_FR_BODY, loadTranslation(oldcore).getContent());
+    }
+
+    @Test
+    void localeCreateOnMonolingualWikiRefused(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        String defaultVersion = loadDocument(oldcore).getVersion();
+        doReturn(false).when(oldcore.getSpyXWiki()).isMultiLingual(any());
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr", CONTENT_KEY, FR_BODY));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("not multilingual"), text);
+        assertTrue(text.contains("enable multilingual support"), text);
+        assertTrue(loadTranslation(oldcore).isNew());
+        assertEquals(defaultVersion, loadDocument(oldcore).getVersion());
+    }
+
+    @Test
+    void localeOnMissingDocumentRefusesWithCreateDefaultFirst(MockitoOldcore oldcore) throws Exception
+    {
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr", CONTENT_KEY, FR_BODY));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("does not exist"), text);
+        assertTrue(text.contains("Create the default language version first"), text);
+        assertTrue(loadDocument(oldcore).isNew());
+        assertTrue(loadTranslation(oldcore).isNew());
+    }
+
+    @Test
+    void localeEqualToDefaultLanguageWritesTheDefaultRow(MockitoOldcore oldcore) throws Exception
+    {
+        XWikiDocument doc = new XWikiDocument(DOC_REFERENCE);
+        doc.setContent(OLD_BODY);
+        doc.setDefaultLocale(Locale.ENGLISH);
+        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+        String currentVersion = loadDocument(oldcore).getVersion();
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), anyString(), any(), eq(true)))
+            .thenReturn(COMPARE_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "en",
+            CONTENT_KEY, NEW_BODY, BASE_VERSION_KEY, currentVersion));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The default-language short-circuit: no "en" row is created next to the default row.
+        assertTrue(oldcore.getSpyXWiki()
+            .getDocument(new DocumentReference(DOC_REFERENCE, Locale.ENGLISH), oldcore.getXWikiContext())
+            .isNew());
+        assertEquals(NEW_BODY, loadDocument(oldcore).getContent());
+        assertTrue(textOf(result).contains("Overwrote document " + CANONICAL), textOf(result));
+    }
+
+    @Test
+    void invalidLocaleReturnsSharedTeachingMessage(MockitoOldcore oldcore) throws Exception
+    {
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "french", CONTENT_KEY, NEW_BODY));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains(
+            "Error: 'locale' is not a valid locale: \"french\". Use forms like \"fr\" or \"pt_BR\"."),
+            textOf(result));
+        verify(oldcore.getSpyXWiki(), never())
+            .saveDocument(any(XWikiDocument.class), anyString(), anyBoolean(), any());
+    }
+
+    @Test
+    void createStampsTheWikiDefaultLocaleOnTheNewDocument(MockitoOldcore oldcore) throws Exception
+    {
+        doReturn(Locale.GERMAN).when(oldcore.getSpyXWiki()).getDefaultLocale(any());
+        when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), any(), any(), eq(true)))
+            .thenReturn(VIEW_URL);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CONTENT_KEY, NEW_BODY));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The wiki's default locale is stamped on the created document (the platform UI also stamps on
+        // create, but persists its request-resolved locale preference instead of the wiki default).
+        assertEquals(Locale.GERMAN, loadDocument(oldcore).getDefaultLocale());
+    }
+
+    @Test
+    void localeNoOpNamesTheTranslationRow(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        storeTranslation(oldcore, FR_BODY);
+        String rowVersion = loadTranslation(oldcore).getVersion();
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr",
+            CONTENT_KEY, FR_BODY, BASE_VERSION_KEY, rowVersion));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The no-op result names the row it compared against, not "the current document".
+        assertTrue(textOf(result).contains(
+            "No changes: the given content is identical to the current fr translation. Nothing was saved."),
+            textOf(result));
+        assertEquals(rowVersion, loadTranslation(oldcore).getVersion());
+    }
+
+    @Test
+    void wikiDefaultLocaleOnRootDefaultLocaleDocWritesTheDefaultRowWithoutBogusEnRow(MockitoOldcore oldcore)
+        throws Exception
+    {
+        // A programmatically created page (extension initializer, REST import, older tool) declares no
+        // default locale: it stores ROOT. The shared predicate falls back to the WIKI default, so
+        // locale="en" writes the default row instead of fabricating an "en" translation row next to it.
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        assertEquals(Locale.ROOT, loadDocument(oldcore).getDefaultLocale());
+        doReturn(Locale.ENGLISH).when(oldcore.getSpyXWiki()).getDefaultLocale(any());
+        String currentVersion = loadDocument(oldcore).getVersion();
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "en",
+            CONTENT_KEY, NEW_BODY, BASE_VERSION_KEY, currentVersion));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // No bogus "en" translation row exists next to the default row.
+        assertTrue(oldcore.getSpyXWiki()
+            .getDocument(new DocumentReference(DOC_REFERENCE, Locale.ENGLISH), oldcore.getXWikiContext())
+            .isNew());
+        assertEquals(NEW_BODY, loadDocument(oldcore).getContent());
+        assertTrue(textOf(result).contains("Overwrote document " + CANONICAL), textOf(result));
+    }
+
+    @Test
+    void wikiDefaultLocaleOnMissingPageCreatesTheDefaultDocument(MockitoOldcore oldcore) throws Exception
+    {
+        doReturn(Locale.GERMAN).when(oldcore.getSpyXWiki()).getDefaultLocale(any());
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "de", CONTENT_KEY, NEW_BODY));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        XWikiDocument created = loadDocument(oldcore);
+        // locale=<wiki default> on a missing page is a plain default-document creation (the creation
+        // stamp applies), not a create-the-default-first refusal and not a translation row.
+        assertFalse(created.isNew());
+        assertEquals(NEW_BODY, created.getContent());
+        assertEquals(Locale.GERMAN, created.getDefaultLocale());
+        assertTrue(oldcore.getSpyXWiki()
+            .getDocument(new DocumentReference(DOC_REFERENCE, Locale.GERMAN), oldcore.getXWikiContext())
+            .isNew());
+        assertTrue(textOf(result).contains("Created document " + CANONICAL), textOf(result));
+    }
+
+    @Test
+    void nonDefaultLocaleOnRootDefaultLocaleDocStillWritesATranslationRow(MockitoOldcore oldcore)
+        throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        doReturn(Locale.ENGLISH).when(oldcore.getSpyXWiki()).getDefaultLocale(any());
+        doReturn(true).when(oldcore.getSpyXWiki()).isMultiLingual(any());
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, LOCALE_KEY, "fr", CONTENT_KEY, FR_BODY));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The ROOT-defaultLocale fallback covers the wiki default only: "fr" on this English-default
+        // wiki is still a translation write, leaving the default row untouched.
+        XWikiDocument translation = loadTranslation(oldcore);
+        assertFalse(translation.isNew());
+        assertEquals(FR_BODY, translation.getContent());
+        assertEquals(OLD_BODY, loadDocument(oldcore).getContent());
     }
 }

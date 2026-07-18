@@ -65,6 +65,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -348,6 +349,20 @@ class MCPWriteObjectToolTest
         assertTrue(text.contains("Created document " + CANONICAL + " with Blog.BlogPostClass object 0"),
             text);
         assertTrue(text.contains("View: " + VIEW_URL), text);
+    }
+
+    @Test
+    void createdDocumentIsStampedWithTheWikiDefaultLocale(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        doReturn(Locale.GERMAN).when(oldcore.getSpyXWiki()).getDefaultLocale(any());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            FIELDS_KEY, Map.of(TITLE_FIELD, "Draft")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        // The wiki's default locale is stamped on the created document, surviving the tool's clone.
+        assertEquals(Locale.GERMAN, loadDocument(oldcore).getDefaultLocale());
     }
 
     @Test

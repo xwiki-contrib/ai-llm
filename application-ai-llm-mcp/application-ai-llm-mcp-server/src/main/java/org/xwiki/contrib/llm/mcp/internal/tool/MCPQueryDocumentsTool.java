@@ -43,7 +43,6 @@ import org.xwiki.contrib.llm.mcp.MCPReachAwareParams;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
-import org.xwiki.localization.LocaleUtils;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
@@ -85,8 +84,9 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPQueryDocumentsTool.TOOL_ID)
 @Singleton
-// Author normalization pulls in a user reference resolver and serializer; the extra collaborators push the
-// fan-out one over the limit on an otherwise cohesive tool.
+// Author normalization pulls in a user reference resolver and serializer, and the locale filter
+// (LLMAI-160) adds java.util.Locale and the localized content-field plumbing, measuring 23 referenced
+// types out of the 20 allowed on an otherwise cohesive tool.
 @SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class MCPQueryDocumentsTool implements MCPTool
 {
@@ -142,12 +142,6 @@ public class MCPQueryDocumentsTool implements MCPTool
     private static final String AUTHOR_PARAM = "author";
 
     private static final String LOCALE_PARAM = "locale";
-
-    /**
-     * Example locale forms, shared by the {@code locale} parameter description and its invalid-value
-     * error message.
-     */
-    private static final String LOCALE_FORMS = "\"fr\" or \"pt_BR\"";
 
     private static final String MODIFIED_WITHIN_PARAM = "modifiedWithin";
 
@@ -296,7 +290,8 @@ public class MCPQueryDocumentsTool implements MCPTool
             .string(AUTHOR_PARAM, "Optional last author. A user name or reference - \"Admin\""
                 + (crossWiki ? ", \"XWiki.Admin\" and \"xwiki:XWiki.Admin\" all" : " and \"XWiki.Admin\" both")
                 + " resolve to the same user.")
-            .string(LOCALE_PARAM, "Optional content language filter, e.g. " + LOCALE_FORMS + ". Matches "
+            .string(LOCALE_PARAM, "Optional content language filter, e.g. " + MCPToolSupport.LOCALE_FORMS
+                + ". Matches "
                 + "documents whose content is in that language (translation rows and default rows alike). "
                 + "Exact match against the stored form: \"fr\" does not match \"fr_FR\" rows; use the "
                 + "underscore form for regional variants.")
@@ -348,9 +343,9 @@ public class MCPQueryDocumentsTool implements MCPTool
                 later pages may contain fewer results than expected.
 
                 Each result's Language: line names its content language; a "(translation)" suffix marks
-                a translation row - read it with get_document and its locale parameter. The locale
-                filter matches documents whose content is in that language (translation rows and
-                default rows alike).
+                a translation row - read or edit it with its locale (get_document / edit_document
+                locale=...). The locale filter matches documents whose content is in that language
+                (translation rows and default rows alike).
 
             EXAMPLES
                 Keywords:   query="script service groovy"
@@ -408,36 +403,13 @@ public class MCPQueryDocumentsTool implements MCPTool
         }
         String space = PARAMS.parser().string(args, SPACE_PARAM);
         String author = normalizeAuthor(PARAMS.parser().string(args, AUTHOR_PARAM));
-        Locale locale = parseLocale(PARAMS.parser().string(args, LOCALE_PARAM));
+        Locale locale = MCPToolSupport.parseLocale(PARAMS.parser().string(args, LOCALE_PARAM), LOCALE_PARAM);
         String dateRange = resolveDateRange(PARAMS.parser().string(args, MODIFIED_WITHIN_PARAM),
             PARAMS.parser().string(args, MODIFIED_RANGE_PARAM));
         String sort = resolveSort(PARAMS.parser().string(args, SORT_PARAM));
         boolean includeHidden = PARAMS.parser().bool(args, INCLUDE_HIDDEN_PARAM);
         return new SearchRequest(queryText, limit, offset, space, author, locale, dateRange, sort, includeHidden,
             wiki, limitCapped);
-    }
-
-    /**
-     * Parses and validates the {@code locale} filter argument. The validated locale's canonical form
-     * (e.g. {@code fr_FR} for an agent's {@code fr-FR}) matches the form the Solr {@code locale} field
-     * stores.
-     *
-     * @param raw the trimmed locale value, or {@code null} when absent
-     * @return the parsed locale, or {@code null} when absent
-     * @throws IllegalArgumentException with the agent-facing message when the value is not a valid locale
-     */
-    private static Locale parseLocale(String raw)
-    {
-        if (raw == null) {
-            return null;
-        }
-        Locale locale = LocaleUtils.toLocale(raw, null);
-        if (locale == null) {
-            throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + LOCALE_PARAM
-                + "' is not a valid locale: \"" + MCPToolSupport.stripLineBreaks(raw)
-                + "\". Use forms like " + LOCALE_FORMS + PERIOD);
-        }
-        return locale;
     }
 
     private QueryResponse executeSearch(SearchRequest request, List<String> targetWikis) throws QueryException

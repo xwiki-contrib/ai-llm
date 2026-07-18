@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.mcp.internal.tool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -73,6 +74,10 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPEditDocumentTool.TOOL_ID)
 @Singleton
+// The translation support (LLMAI-160) adds java.util.Locale as the 21st referenced type on a composition-root
+// tool that already carries the edit-application pipeline and four nested carrier types; suppressed (measured
+// 21/20) rather than hiding the locale plumbing behind a seam for a one-type overshoot.
+@SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class MCPEditDocumentTool implements MCPTool
 {
     /**
@@ -108,6 +113,8 @@ public class MCPEditDocumentTool implements MCPTool
     private static final String EDITS_PARAM = "edits";
 
     private static final String TITLE_PARAM = "title";
+
+    private static final String LOCALE_PARAM = "locale";
 
     private static final String BASE_VERSION_PARAM = "base_version";
 
@@ -212,9 +219,13 @@ public class MCPEditDocumentTool implements MCPTool
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
             .string(TITLE_PARAM, "Optional new title. May be set alone (retitle) or together with edits.")
+            .string(LOCALE_PARAM, "Edit a specific translation of the document, e.g. "
+                + MCPToolSupport.LOCALE_FORMS + " (exact-match, like get_document). Omit for the default "
+                + "language version, which must exist before a translation can be created.")
             .string(BASE_VERSION_PARAM, "Optional optimistic lock: the document version you read (shown by "
-                + "get_document). The save is refused (best-effort check at save time) if the document has "
-                + "changed since, instead of silently overwriting the concurrent change.")
+                + "get_document for the same locale). The save is refused (best-effort check at save time) "
+                + "if the document has changed since, instead of silently overwriting the concurrent "
+                + "change.")
             .string(COMMENT_PARAM, "Version comment shown in the document history. Stored prefixed with "
                 + "[AI]. Default: a generic [AI] comment.")
             .bool(MAJOR_PARAM, "Set true to record this edit as a major version. Default false (minor). "
@@ -255,8 +266,9 @@ public class MCPEditDocumentTool implements MCPTool
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema(Map.of(EDITS_PARAM, editsProperty)))
             .description("Edit an XWiki document by exact search-and-replace on its raw source (the "
                 + "text returned by get_document - always read first). For targeted changes; to create a "
-                + "document prefer write_document. Write XWiki 2.1 syntax, NOT Markdown - `man xwiki-syntax` "
-                + "is the reference; `man edit_document` shows examples.")
+                + "document prefer write_document. Pass locale to edit a translation. Write XWiki 2.1 "
+                + "syntax, NOT Markdown - `man xwiki-syntax` is the reference; `man edit_document` shows "
+                + "examples.")
             .build();
     }
 
@@ -296,6 +308,10 @@ public class MCPEditDocumentTool implements MCPTool
                 Comment:     reference="Sandbox.WebHome", comment="fix typo in installation steps",
                              edits=[{"old_string":"teh","new_string":"the"}]
                 Retitle:     reference="Sandbox.WebHome", title="New Title"
+                Edit a translation: reference="Sandbox.WebHome", locale="fr",
+                             edits=[{"old_string":"ancien","new_string":"nouveau"}]
+                             (targets the fr row exactly; read it with get_document locale="fr"
+                             first - base_version, if given, is that row's own Version)
 
             SEE ALSO
                 man write_document  Create a document or replace its entire content.
@@ -312,6 +328,7 @@ public class MCPEditDocumentTool implements MCPTool
         try {
             String reference = PARAMS.parser().requireString(args, REFERENCE_PARAM);
             String title = PARAMS.parser().string(args, TITLE_PARAM);
+            Locale locale = MCPToolSupport.parseLocale(PARAMS.parser().string(args, LOCALE_PARAM), LOCALE_PARAM);
             String baseVersion = PARAMS.parser().string(args, BASE_VERSION_PARAM);
             String comment = PARAMS.parser().string(args, COMMENT_PARAM);
             boolean major = PARAMS.parser().bool(args, MAJOR_PARAM);
@@ -325,7 +342,7 @@ public class MCPEditDocumentTool implements MCPTool
 
             DocumentReference ref = MCPWriteSupport.resolveForEdit(this.documentAccess, reference);
 
-            return applyAndSave(ref, reference, title, baseVersion, edits, comment, major);
+            return applyAndSave(ref, new Request(reference, title, locale, baseVersion, comment, major, edits));
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (XWikiException e) {
@@ -335,41 +352,78 @@ public class MCPEditDocumentTool implements MCPTool
         }
     }
 
-    private McpSchema.CallToolResult applyAndSave(DocumentReference ref, String reference, String title,
-        String baseVersion, List<EditOp> edits, String comment, boolean major) throws XWikiException
+    private McpSchema.CallToolResult applyAndSave(DocumentReference ref, Request request) throws XWikiException
     {
         return MCPWriteSupport.inTargetWiki(this.contextProvider.get(), ref, (xcontext, xdoc) -> {
-            boolean creating = xdoc.isNew();
-            String oldVersion = xdoc.getVersion();
-            String original = MCPSourceText.normalizeLineEndings(xdoc.getContent());
-
-            McpSchema.CallToolResult versionConflict = checkBaseVersion(reference, baseVersion, creating, oldVersion);
-            if (versionConflict != null) {
-                return versionConflict;
+            MCPWriteSupport.WriteTarget target =
+                MCPWriteSupport.resolveWriteTarget(xcontext, xdoc, request.reference(), request.locale());
+            if (target.refusal() != null) {
+                return target.refusal();
             }
-
-            List<AppliedEdit> appliedReplacements = new ArrayList<>();
-            String newContent = computeNewContent(reference, creating, original, edits, appliedReplacements);
-            if (newContent.length() > MCPWriteSupport.MAX_CONTENT_CHARS) {
-                throw new IllegalArgumentException("Error: the resulting content exceeds the maximum size ("
-                    + MCPWriteSupport.MAX_CONTENT_CHARS + CHARACTERS_SUFFIX);
-            }
-
-            boolean titleChanged = title != null && !title.equals(xdoc.getTitle());
-
-            if (!creating && newContent.equals(original) && !titleChanged) {
-                return MCPToolSupport.result("No changes: the edits produced content identical to the current "
-                    + "document. Nothing was saved.");
-            }
-
-            Document apiDoc = prepareSave(xdoc, xcontext, newContent, original, titleChanged, title);
-            apiDoc.save(MCPWriteSupport.buildComment(comment, creating, editSummary(edits.size(), titleChanged)),
-                MCPWriteSupport.isMinorEdit(creating, major));
-
-            SaveOutcome outcome = new SaveOutcome(ref, creating, title != null,
-                titleChanged, oldVersion, apiDoc.getVersion(), edits.size(), newContent, appliedReplacements);
-            return MCPToolSupport.result(buildSuccessResult(outcome));
+            return editTarget(xcontext, xdoc, target, ref, request);
         });
+    }
+
+    /**
+     * Applies the edits to the resolved target row (the default document, or the exact translation row)
+     * and saves it as a single version. A translation creation (the empty-old-string branch) copies the
+     * page's syntax from the default document before the save - a deliberate divergence from the UI,
+     * which leaves the wiki default syntax: a translation is the same page in another language, so it
+     * must parse under the same syntax as the content it translates (a new row's syntax is unset, and
+     * {@code XWikiDocument#getSyntax} lazily reports the wiki default for an unset syntax, so the
+     * explicit copy wins). The default document is never cloned into the
+     * translation row: objects are keyed by full name across rows, so a clone would re-save the default
+     * document's objects onto the translation.
+     *
+     * @param xcontext the XWiki context, switched to the target wiki
+     * @param defaultDoc the loaded default document, the syntax source of a translation creation
+     * @param target the resolved row to edit
+     * @param ref the resolved document reference
+     * @param request the parsed arguments
+     * @return the tool result
+     * @throws XWikiException when the save fails
+     */
+    private McpSchema.CallToolResult editTarget(XWikiContext xcontext, XWikiDocument defaultDoc,
+        MCPWriteSupport.WriteTarget target, DocumentReference ref, Request request) throws XWikiException
+    {
+        XWikiDocument xdoc = target.doc();
+        boolean creating = xdoc.isNew();
+        String oldVersion = xdoc.getVersion();
+        String original = MCPSourceText.normalizeLineEndings(xdoc.getContent());
+
+        McpSchema.CallToolResult versionConflict = checkBaseVersion(request, target.locale(), creating, oldVersion);
+        if (versionConflict != null) {
+            return versionConflict;
+        }
+
+        List<AppliedEdit> appliedReplacements = new ArrayList<>();
+        String newContent = computeNewContent(request.reference(), creating, original, request.edits(),
+            appliedReplacements);
+        if (newContent.length() > MCPWriteSupport.MAX_CONTENT_CHARS) {
+            throw new IllegalArgumentException("Error: the resulting content exceeds the maximum size ("
+                + MCPWriteSupport.MAX_CONTENT_CHARS + CHARACTERS_SUFFIX);
+        }
+
+        boolean titleChanged = request.title() != null && !request.title().equals(xdoc.getTitle());
+
+        if (!creating && newContent.equals(original) && !titleChanged) {
+            return MCPToolSupport.result("No changes: the edits produced content identical to "
+                + MCPWriteSupport.currentRowSubject(target.locale()) + ". Nothing was saved.");
+        }
+
+        if (creating && target.locale() != null) {
+            xdoc.setSyntax(defaultDoc.getSyntax());
+        }
+        Document apiDoc = prepareSave(xdoc, xcontext, newContent, original, titleChanged, request.title());
+        apiDoc.save(
+            MCPWriteSupport.buildComment(request.comment(), creating,
+                editSummary(request.edits().size(), titleChanged)),
+            MCPWriteSupport.isMinorEdit(creating, request.major()));
+
+        SaveOutcome outcome = new SaveOutcome(ref, target.locale(), creating, request.title() != null,
+            titleChanged, oldVersion, apiDoc.getVersion(), request.edits().size(), newContent,
+            appliedReplacements);
+        return MCPToolSupport.result(buildSuccessResult(outcome));
     }
 
     /**
@@ -400,31 +454,36 @@ public class MCPEditDocumentTool implements MCPTool
     }
 
     /**
-     * Checks the optional {@code base_version} optimistic lock against the version the document actually
-     * has now, before any edit is attempted.
+     * Checks the optional {@code base_version} optimistic lock against the version the written row
+     * actually has now, before any edit is attempted. The lock is row-scoped: a translation edit
+     * compares against the translation row's own version, and its messages name the row.
      *
      * <p>The check is best-effort: a concurrent save landing between this check and the save below can
      * still win. It protects the agent's read-modify-write loop against stale reads, not transactional
      * integrity.</p>
      *
-     * @param reference the original reference string, for error messages
-     * @param baseVersion the version the agent read, or {@code null} when the lock was not requested
-     * @param creating whether the document does not exist yet
-     * @param currentVersion the document's current version
+     * @param request the parsed arguments
+     * @param locale the written translation row's locale, or {@code null} for a default-language edit
+     * @param creating whether the written row does not exist yet
+     * @param currentVersion the written row's current version
      * @return an error result describing the conflict, or {@code null} when the save may proceed
      */
-    private McpSchema.CallToolResult checkBaseVersion(String reference, String baseVersion, boolean creating,
+    private McpSchema.CallToolResult checkBaseVersion(Request request, Locale locale, boolean creating,
         String currentVersion)
     {
-        if (baseVersion == null) {
+        if (request.baseVersion() == null) {
             return null;
         }
         if (creating) {
-            return MCPToolSupport.errorResult(MCPWriteSupport.missingDocumentBaseVersionError(reference));
+            return MCPToolSupport.errorResult(locale == null
+                ? MCPWriteSupport.missingDocumentBaseVersionError(request.reference())
+                : MCPWriteSupport.missingTranslationBaseVersionError(request.reference(), locale));
         }
-        if (!baseVersion.equals(currentVersion)) {
-            return MCPToolSupport.errorResult(
-                MCPWriteSupport.versionConflictError(currentVersion, baseVersion, "re-apply your edits."));
+        if (!request.baseVersion().equals(currentVersion)) {
+            String subject = locale == null ? MCPWriteSupport.DOCUMENT_SUBJECT
+                : MCPWriteSupport.translationSubject(locale);
+            return MCPToolSupport.errorResult(MCPWriteSupport.versionConflictError(subject, currentVersion,
+                request.baseVersion(), "re-apply your edits."));
         }
         return null;
     }
@@ -558,15 +617,17 @@ public class MCPEditDocumentTool implements MCPTool
     private String buildSuccessResult(SaveOutcome outcome)
     {
         String canonicalRef = this.serializer.serialize(outcome.ref());
+        String target = outcome.locale() == null ? MCPWriteSupport.DOCUMENT_NOUN
+            : MCPWriteSupport.translationSubject(outcome.locale()) + " of ";
         StringBuilder sb = new StringBuilder();
         if (outcome.creating()) {
-            sb.append("Created document ").append(canonicalRef).append(PERIOD).append(NEW_LINE);
+            sb.append("Created ").append(target).append(canonicalRef).append(PERIOD).append(NEW_LINE);
             sb.append(MCPWriteSupport.VERSION_PREFIX).append(outcome.newVersion());
             if (outcome.titleGiven()) {
                 sb.append(NEW_LINE).append("Title set.");
             }
         } else {
-            sb.append("Updated document ").append(canonicalRef).append(PERIOD).append(NEW_LINE);
+            sb.append("Updated ").append(target).append(canonicalRef).append(PERIOD).append(NEW_LINE);
             sb.append(MCPWriteSupport.VERSION_PREFIX).append(outcome.oldVersion()).append(" -> ")
                 .append(outcome.newVersion()).append(NEW_LINE);
             sb.append(outcome.editCount()).append(" edit(s) applied");
@@ -581,7 +642,7 @@ public class MCPEditDocumentTool implements MCPTool
         }
 
         String urlLine = MCPWriteSupport.buildReviewLine(this.documentAccessBridge, this.logger, outcome.ref(),
-            outcome.creating(), outcome.oldVersion(), outcome.newVersion());
+            outcome.creating(), outcome.oldVersion(), outcome.newVersion(), outcome.locale());
         if (urlLine != null) {
             sb.append(NEW_LINE).append(urlLine);
         }
@@ -695,19 +756,38 @@ public class MCPEditDocumentTool implements MCPTool
      * function of this value.
      *
      * @param ref the resolved document reference, used both for the canonical display reference and the review URL
-     * @param creating whether the document was created rather than updated
+     * @param locale the edited translation row's locale, or {@code null} for a default-language edit
+     * @param creating whether the row was created rather than updated
      * @param titleGiven whether a title argument was supplied (relevant only on create)
      * @param titleChanged whether the title actually changed
-     * @param oldVersion the version before the save
-     * @param newVersion the version after the save
+     * @param oldVersion the row's version before the save
+     * @param newVersion the row's version after the save
      * @param editCount the number of edits applied
      * @param newContent the final saved content, used for the context echo
      * @param appliedReplacements the applied edits, in order, used for the context echo and replacement totals
      * @version $Id$
      */
-    private record SaveOutcome(DocumentReference ref, boolean creating,
+    private record SaveOutcome(DocumentReference ref, Locale locale, boolean creating,
         boolean titleGiven, boolean titleChanged, String oldVersion, String newVersion, int editCount,
         String newContent, List<AppliedEdit> appliedReplacements)
+    {
+    }
+
+    /**
+     * The parsed and validated arguments of an edit call, bundled so the target resolution, the
+     * base-version check and the save share one immutable view of the request.
+     *
+     * @param reference the original reference string, echoed in error messages
+     * @param title the requested title, or {@code null} when not requested
+     * @param locale the validated translation locale, or {@code null} for a default-language edit
+     * @param baseVersion the version the agent read, or {@code null} when the lock was not requested
+     * @param comment the agent-supplied version comment, or {@code null}
+     * @param major whether the caller asked for a major version
+     * @param edits the parsed edit operations, in order
+     * @version $Id$
+     */
+    private record Request(String reference, String title, Locale locale, String baseVersion, String comment,
+        boolean major, List<EditOp> edits)
     {
     }
 }

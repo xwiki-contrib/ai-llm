@@ -269,8 +269,9 @@ public class MCPDeleteObjectTool implements MCPTool
             }
             String oldVersion = xdoc.getVersion();
             if (!baseVersion.equals(oldVersion)) {
-                return MCPToolSupport.errorResult(MCPWriteSupport.versionConflictError(oldVersion,
-                    baseVersion, "retry the removal if you still intend it."));
+                return MCPToolSupport.errorResult(MCPWriteSupport.versionConflictError(
+                    MCPWriteSupport.DOCUMENT_SUBJECT, oldVersion, baseVersion,
+                    "retry the removal if you still intend it."));
             }
 
             String localClassName = this.localSerializer.serialize(classRef);
