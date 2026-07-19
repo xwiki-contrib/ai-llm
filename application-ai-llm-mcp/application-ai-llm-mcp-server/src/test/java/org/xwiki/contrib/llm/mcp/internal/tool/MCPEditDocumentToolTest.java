@@ -204,6 +204,25 @@ class MCPEditDocumentToolTest
     }
 
     @Test
+    void scriptMacroBodyGetsViewTimeNoteAndPlainBodyDoesNot(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, "alpha\nbeta", "Title");
+
+        McpSchema.CallToolResult scripted = call(Map.of(REFERENCE_KEY, REF, EDITS_KEY,
+            List.of(edit("beta", "{{Groovy}}println(doc){{/groovy}}"))));
+
+        assertNotEquals(Boolean.TRUE, scripted.isError());
+        assertTrue(textOf(scripted).contains("Note: the body contains script macros, so what users see is "
+            + "generated at view time - check the result with get_document rendered=true."), textOf(scripted));
+
+        McpSchema.CallToolResult plain = call(Map.of(REFERENCE_KEY, REF, EDITS_KEY,
+            List.of(edit("{{Groovy}}println(doc){{/groovy}}", "gamma"))));
+
+        assertNotEquals(Boolean.TRUE, plain.isError());
+        assertFalse(textOf(plain).contains("generated at view time"), textOf(plain));
+    }
+
+    @Test
     void notFoundOldStringErrorsWithReReadHintAndDoesNotSave(MockitoOldcore oldcore) throws Exception
     {
         storeDocument(oldcore, "alpha\nbeta", "Title");

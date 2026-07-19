@@ -258,7 +258,10 @@ public class MCPGetDocumentTool implements MCPTool
      */
     private static final String RENDERED_BANNER =
         "RENDERED VIEW - plain text, macros executed and includes expanded (structure such as tables and "
-            + "link targets is flattened)." + RENDERED_BANNER_TAIL;
+            + "link targets is flattened). To VERIFY content you just wrote, re-read with rendered=true, "
+            + "format=\"html\" instead: links, code blocks and tables keep their structure there, and a "
+            + "link whose target does not exist is marked with the wikicreatelink class."
+            + RENDERED_BANNER_TAIL;
 
     private static final String OFFSET_EQUALS = OFFSET_PARAM + "=";
 

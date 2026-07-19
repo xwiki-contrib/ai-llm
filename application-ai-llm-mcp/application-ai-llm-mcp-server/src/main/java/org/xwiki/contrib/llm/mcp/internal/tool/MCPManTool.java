@@ -190,6 +190,10 @@ public class MCPManTool implements MCPTool
         ESCAPING
             Escape one character with a tilde: ~[~[not a link~]~]
             A literal tilde is two tildes: ~~
+            Pitfalls when writing ABOUT syntax: formatting and link markup are STILL parsed inside
+            ##monospace## - a literal [[...]] example must be escaped ~[~[...~]~]. Any word:// in
+            prose is auto-detected as a URI scheme and breaks the surrounding formatting - escape
+            the colon (word~://) or rephrase.
 
         MACROS
             With content:  {{code language="java"}}int total = a + b;{{/code}}

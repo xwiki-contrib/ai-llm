@@ -244,6 +244,24 @@ class MCPWriteDocumentToolTest
     }
 
     @Test
+    void scriptMacroBodyGetsViewTimeNoteAndPlainBodyDoesNot(MockitoOldcore oldcore) throws Exception
+    {
+        McpSchema.CallToolResult scripted =
+            call(Map.of(REFERENCE_KEY, REF, CONTENT_KEY, "{{Velocity}}$doc.title{{/velocity}}"));
+
+        assertNotEquals(Boolean.TRUE, scripted.isError());
+        assertTrue(textOf(scripted).contains("Note: the body contains script macros, so what users see is "
+            + "generated at view time - check the result with get_document rendered=true."), textOf(scripted));
+
+        String version = loadDocument(oldcore).getVersion();
+        McpSchema.CallToolResult plain =
+            call(Map.of(REFERENCE_KEY, REF, CONTENT_KEY, NEW_BODY, BASE_VERSION_KEY, version));
+
+        assertNotEquals(Boolean.TRUE, plain.isError());
+        assertFalse(textOf(plain).contains("generated at view time"), textOf(plain));
+    }
+
+    @Test
     void createWithBaseVersionErrorsAndDoesNotSave(MockitoOldcore oldcore) throws Exception
     {
         McpSchema.CallToolResult result =

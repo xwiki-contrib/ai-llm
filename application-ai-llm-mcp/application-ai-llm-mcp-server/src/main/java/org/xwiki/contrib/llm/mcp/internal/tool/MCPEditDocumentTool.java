@@ -299,9 +299,13 @@ public class MCPEditDocumentTool implements MCPTool
                 If old_string is not found, the document changed since you read it - re-read and retry.
                 When editing, match the document's existing syntax (shown by get_document). New documents
                 use XWiki syntax: "= Heading =", "[[Label>>Target]]" - NOT "# Heading" or "[label](url)".
+                To append to a large page, anchor on the tail: old_string = the exact final line(s) of
+                the current content, new_string = that tail plus the appended content. Empty old_string
+                is refused on existing pages precisely so appends stay anchored on a recent read.
 
             EXAMPLES
                 Edit:        reference="Sandbox.WebHome", edits=[{"old_string":"old","new_string":"new"}]
+                Append:      edits=[{"old_string":"last line","new_string":"last line\\n\\n== More ==\\nText."}]
                 Replace all: edits=[{"old_string":"foo","new_string":"bar","replace_all":true}]
                 Safe edit:   reference="Sandbox.WebHome", base_version="4.3", edits=[...]
                              (refused if the document is no longer at the version you read)
@@ -645,6 +649,11 @@ public class MCPEditDocumentTool implements MCPTool
             outcome.creating(), outcome.oldVersion(), outcome.newVersion(), outcome.locale());
         if (urlLine != null) {
             sb.append(NEW_LINE).append(urlLine);
+        }
+
+        String scriptNote = MCPWriteSupport.scriptMacroNote(outcome.newContent());
+        if (scriptNote != null) {
+            sb.append(NEW_LINE).append(scriptNote);
         }
 
         String echo = buildContextEcho(outcome.newContent(), outcome.appliedReplacements());

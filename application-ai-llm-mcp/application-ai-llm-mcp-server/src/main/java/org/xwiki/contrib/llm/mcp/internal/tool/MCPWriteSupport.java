@@ -137,6 +137,24 @@ final class MCPWriteSupport
     private static final int MAX_COMMENT_CHARS = 1000;
 
     /**
+     * The brace-adjacent, lowercase opening of the Velocity script macro, matched case-insensitively by
+     * {@link #scriptMacroNote(String)}.
+     */
+    private static final String VELOCITY_MACRO_PREFIX = "{{velocity";
+
+    /**
+     * The brace-adjacent, lowercase opening of the Groovy script macro, matched case-insensitively by
+     * {@link #scriptMacroNote(String)}.
+     */
+    private static final String GROOVY_MACRO_PREFIX = "{{groovy";
+
+    /**
+     * The note line appended to a successful write result whose saved body contains a script macro.
+     */
+    private static final String SCRIPT_MACRO_NOTE = "Note: the body contains script macros, so what users "
+        + "see is generated at view time - check the result with get_document rendered=true.";
+
+    /**
      * Shared opening of the agent-facing messages that quote a document reference.
      */
     private static final String DOCUMENT_QUOTE = "Document \"";
@@ -453,6 +471,25 @@ final class MCPWriteSupport
     static boolean isMinorEdit(boolean creating, boolean major)
     {
         return !creating && !major;
+    }
+
+    /**
+     * Builds the note line the content-writing tools append to a SUCCESS result when the saved body
+     * contains a script macro ({@code {{velocity}}} or {@code {{groovy}}}, matched case-insensitively
+     * on the brace-adjacent opening): the persisted source is not what users see, so the agent is
+     * steered to check the rendered view. Applied to the final saved content string (translation rows
+     * included), never to no-change or refusal results.
+     *
+     * @param savedContent the final saved content
+     * @return the note line, or {@code null} when the body carries no script macro
+     */
+    static String scriptMacroNote(String savedContent)
+    {
+        if (StringUtils.containsIgnoreCase(savedContent, VELOCITY_MACRO_PREFIX)
+            || StringUtils.containsIgnoreCase(savedContent, GROOVY_MACRO_PREFIX)) {
+            return SCRIPT_MACRO_NOTE;
+        }
+        return null;
     }
 
     /**

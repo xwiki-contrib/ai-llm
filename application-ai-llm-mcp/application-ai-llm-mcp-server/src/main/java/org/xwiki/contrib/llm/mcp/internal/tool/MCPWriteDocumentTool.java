@@ -333,7 +333,8 @@ public class MCPWriteDocumentTool implements MCPTool
             MCPWriteSupport.isMinorEdit(creating, request.major()));
 
         return MCPToolSupport.result(buildSuccessResult(new Outcome(ref, target.locale(), creating,
-            request.title() != null, titleChanged, oldVersion, apiDoc.getVersion(), syntaxIdOf(xdoc))));
+            request.title() != null, titleChanged, oldVersion, apiDoc.getVersion(), syntaxIdOf(xdoc)),
+            request.content()));
     }
 
     /**
@@ -421,7 +422,15 @@ public class MCPWriteDocumentTool implements MCPTool
         return str;
     }
 
-    private String buildSuccessResult(Outcome outcome)
+    /**
+     * Builds the success text of a save, from the outcome carrier plus the saved content (consulted
+     * only for the script-macro note, so the carrier stays a rendering-only value).
+     *
+     * @param outcome the save outcome
+     * @param savedContent the final saved content
+     * @return the success text
+     */
+    private String buildSuccessResult(Outcome outcome, String savedContent)
     {
         String canonicalRef = this.serializer.serialize(outcome.ref());
         String target = outcome.locale() == null ? MCPWriteSupport.DOCUMENT_NOUN
@@ -446,6 +455,10 @@ public class MCPWriteDocumentTool implements MCPTool
             outcome.creating(), outcome.oldVersion(), outcome.newVersion(), outcome.locale());
         if (urlLine != null) {
             sb.append(NEW_LINE).append(urlLine);
+        }
+        String scriptNote = MCPWriteSupport.scriptMacroNote(savedContent);
+        if (scriptNote != null) {
+            sb.append(NEW_LINE).append(scriptNote);
         }
         return sb.toString();
     }
