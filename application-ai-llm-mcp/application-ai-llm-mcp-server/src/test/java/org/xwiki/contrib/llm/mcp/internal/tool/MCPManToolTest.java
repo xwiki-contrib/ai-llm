@@ -52,6 +52,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.request;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.textOf;
 
 /**
  * Tests for {@link MCPManTool}.
@@ -59,7 +61,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @ComponentTest
-class MCPManToolTest
+class MCPManToolTest extends AbstractMCPToolTest
 {
     private static final String QUERY_DOCUMENTS = "query_documents";
 
@@ -137,22 +139,17 @@ class MCPManToolTest
         return tool;
     }
 
+    @Override
+    protected MCPTool getTool()
+    {
+        return this.manTool;
+    }
+
     private static String callMan(MCPManTool manTool, String toolArg)
     {
         Map<String, Object> args = toolArg == null ? Map.of() : Map.of(TOOL_PARAM, toolArg);
-        McpSchema.CallToolResult result = manTool.execute(manRequest(args));
+        McpSchema.CallToolResult result = manTool.execute(request("man", args));
         return textOf(result);
-    }
-
-    private static McpSchema.CallToolRequest manRequest(Map<String, Object> args)
-    {
-        return McpSchema.CallToolRequest.builder("man").arguments(args).build();
-    }
-
-    private static String textOf(McpSchema.CallToolResult result)
-    {
-        McpSchema.Content content = result.content().get(0);
-        return ((McpSchema.TextContent) content).text();
     }
 
     @Test
@@ -229,7 +226,7 @@ class MCPManToolTest
         assertFalse(catalog.contains("write_document"), catalog);
 
         // A man page for a tool disabled on this wiki is not served; it is reported as unknown.
-        McpSchema.CallToolResult page = this.manTool.execute(manRequest(Map.of(TOOL_PARAM, "write_document")));
+        McpSchema.CallToolResult page = call(Map.of(TOOL_PARAM, "write_document"));
         assertTrue(page.isError());
         assertTrue(textOf(page).contains("No manual entry for \"write_document\""), textOf(page));
     }
@@ -317,7 +314,7 @@ class MCPManToolTest
         registerTool(componentManager, "demo_tool", "A demo tool.", "A demo tool, in depth.",
             "Search & Navigation", true, Map.of(), List.of(), null);
 
-        McpSchema.CallToolResult result = this.manTool.execute(manRequest(Map.of(TOOL_PARAM, "does_not_exist")));
+        McpSchema.CallToolResult result = call(Map.of(TOOL_PARAM, "does_not_exist"));
 
         assertTrue(result.isError());
         String text = textOf(result);
@@ -430,7 +427,7 @@ class MCPManToolTest
         registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Search pages and more.",
             "Search & Navigation", true, Map.of(), List.of(), null);
 
-        McpSchema.CallToolResult result = this.manTool.execute(manRequest(Map.of(TOOL_PARAM, "nope")));
+        McpSchema.CallToolResult result = call(Map.of(TOOL_PARAM, "nope"));
 
         assertTrue(result.isError());
         assertTrue(textOf(result).contains("Reference pages: xwiki-syntax."), textOf(result));
@@ -440,7 +437,7 @@ class MCPManToolTest
     void nonStringToolArgReturnsError()
     {
         Map<String, Object> args = Map.of(TOOL_PARAM, 42);
-        McpSchema.CallToolResult result = this.manTool.execute(manRequest(args));
+        McpSchema.CallToolResult result = call(args);
 
         assertTrue(result.isError());
         assertEquals("Error: 'tool' parameter must be a string.", textOf(result));

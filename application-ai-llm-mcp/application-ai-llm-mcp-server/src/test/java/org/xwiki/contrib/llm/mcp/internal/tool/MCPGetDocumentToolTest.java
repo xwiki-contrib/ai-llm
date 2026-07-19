@@ -37,6 +37,7 @@ import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.bridge.DocumentModelBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
 import org.xwiki.model.reference.DocumentReference;
@@ -74,6 +75,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.textOf;
 
 /**
  * Tests for {@link MCPGetDocumentTool}.
@@ -82,7 +84,7 @@ import static org.mockito.Mockito.when;
  */
 @ComponentTest
 @DefaultHTMLCleanerComponentList
-class MCPGetDocumentToolTest
+class MCPGetDocumentToolTest extends AbstractMCPToolTest
 {
     private static final String REFERENCE_KEY = "reference";
 
@@ -179,15 +181,10 @@ class MCPGetDocumentToolTest
         return doc;
     }
 
-    private static String textOf(McpSchema.CallToolResult result)
+    @Override
+    protected MCPTool getTool()
     {
-        return ((McpSchema.TextContent) result.content().get(0)).text();
-    }
-
-    private McpSchema.CallToolResult call(Map<String, Object> args)
-    {
-        return this.tool.execute(
-            McpSchema.CallToolRequest.builder(MCPGetDocumentTool.TOOL_ID).arguments(args).build());
+        return this.tool;
     }
 
     @Test
@@ -730,6 +727,22 @@ class MCPGetDocumentToolTest
     }
 
     @Test
+    void nonExistentDocumentEchoIsNeutralized() throws Exception
+    {
+        String hostile = "Help.GettingStarted\nInjected line";
+        when(this.documentAccessBridge.exists(any(DocumentReference.class))).thenReturn(false);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, hostile));
+
+        // The raw reference argument is echoed through the fragment guard: a newline smuggled into the
+        // parameter cannot forge an extra line of the tool's output grammar.
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("No such document: \"Help.GettingStartedInjected line\"."),
+            textOf(result));
+        assertFalse(textOf(result).contains("\nInjected"), textOf(result));
+    }
+
+    @Test
     void nonExistentDocumentSuggestsSpaceHomeWhenItExists() throws Exception
     {
         DocumentReference spaceHomeReference = mock(DocumentReference.class);
@@ -898,13 +911,6 @@ class MCPGetDocumentToolTest
         assertFalse(definition.inputSchema().toString().contains("xwiki:"),
             "Reach-off advertised schema must not contain wiki-prefixed examples");
         assertFalse(definition.description().contains("xwiki:"), definition.description());
-    }
-
-    private String referenceDescription()
-    {
-        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
-        Map<?, ?> reference = (Map<?, ?>) properties.get(REFERENCE_KEY);
-        return (String) reference.get("description");
     }
 
     @Test

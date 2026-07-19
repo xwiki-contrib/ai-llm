@@ -27,13 +27,9 @@ import javax.inject.Named;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
-import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
-import org.xwiki.contrib.llm.mcp.MCPWikiReach;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.DocumentReferenceResolver;
-import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.Right;
@@ -65,6 +61,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.textOf;
 
 /**
  * Tests for {@link MCPDeleteObjectTool}, against the real oldcore store so the removal semantics (nulled
@@ -73,7 +70,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @OldcoreTest
-class MCPDeleteObjectToolTest
+class MCPDeleteObjectToolTest extends AbstractMCPWriteToolTest
 {
     private static final String REFERENCE_KEY = "reference";
 
@@ -106,9 +103,6 @@ class MCPDeleteObjectToolTest
     private static final DocumentReference RIGHTS_CLASS_REFERENCE =
         new DocumentReference("xwiki", "XWiki", "XWikiRights");
 
-    private static final DocumentReference USER_REFERENCE =
-        new DocumentReference("xwiki", "XWiki", "Author");
-
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
 
@@ -116,20 +110,8 @@ class MCPDeleteObjectToolTest
     private MCPDeleteObjectTool tool;
 
     @MockComponent
-    private MCPDocumentAccess documentAccess;
-
-    @MockComponent
-    private EntityReferenceSerializer<String> serializer;
-
-    @MockComponent
     @Named("local")
     private EntityReferenceSerializer<String> localSerializer;
-
-    @MockComponent
-    private DocumentAccessBridge documentAccessBridge;
-
-    @MockComponent
-    private MCPWikiReach wikiReach;
 
     @BeforeEach
     void setUp(MockitoOldcore oldcore) throws Exception
@@ -139,27 +121,17 @@ class MCPDeleteObjectToolTest
             .thenReturn(CLASS_REFERENCE);
         lenient().when(this.serializer.serialize(any())).thenReturn(CANONICAL);
         lenient().when(this.localSerializer.serialize(CLASS_REFERENCE)).thenReturn(CLASS_REF);
-        lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
         lenient().when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), any(), any(), eq(true)))
             .thenReturn(VIEW_URL);
 
-        // Take the simple save path in api.Document.save (skip the saveAsAuthor branch).
-        oldcore.getConfigurationSource().setProperty("security.script.save.checkAuthor", false);
-        when(oldcore.getMockRightService().hasAccessLevel(any(), any(), any(), any())).thenReturn(true);
+        allowSimpleSavePath(oldcore);
+        registerCurrentResolver(oldcore, CLASS_REFERENCE);
+    }
 
-        // XWikiContext.setUserReference() resolves the legacy string user via the "compactwiki" serializer.
-        if (!oldcore.getMocker().hasComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki")) {
-            oldcore.getMocker().registerMockComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki");
-        }
-        oldcore.getXWikiContext().setUserReference(USER_REFERENCE);
-
-        // removeXObject resolves the object's relative class reference through the "current" resolver,
-        // which the oldcore fixture does not provide; the tests use a single class, so a fixed answer
-        // reproduces the platform resolution.
-        DocumentReferenceResolver<EntityReference> currentResolver = oldcore.getMocker()
-            .registerMockComponent(DocumentReferenceResolver.TYPE_REFERENCE, "current");
-        lenient().when(currentResolver.resolve(any(EntityReference.class), any()))
-            .thenReturn(CLASS_REFERENCE);
+    @Override
+    protected MCPTool getTool()
+    {
+        return this.tool;
     }
 
     /**
@@ -183,23 +155,12 @@ class MCPDeleteObjectToolTest
 
     private XWikiDocument loadDocument(MockitoOldcore oldcore) throws Exception
     {
-        return oldcore.getSpyXWiki().getDocument(DOC_REFERENCE, oldcore.getXWikiContext());
+        return loadDocument(oldcore, DOC_REFERENCE);
     }
 
     private String currentVersion(MockitoOldcore oldcore) throws Exception
     {
-        return loadDocument(oldcore).getVersion();
-    }
-
-    private static String textOf(McpSchema.CallToolResult result)
-    {
-        return ((McpSchema.TextContent) result.content().get(0)).text();
-    }
-
-    private McpSchema.CallToolResult call(Map<String, Object> args)
-    {
-        return this.tool.execute(
-            McpSchema.CallToolRequest.builder(MCPDeleteObjectTool.TOOL_ID).arguments(args).build());
+        return currentVersion(oldcore, DOC_REFERENCE);
     }
 
     @Test
@@ -296,6 +257,21 @@ class MCPDeleteObjectToolTest
         String text = textOf(result);
         assertTrue(text.contains("does not exist"), text);
         assertTrue(text.contains("no object to delete"), text);
+    }
+
+    @Test
+    void nonexistentDocumentEchoIsNeutralized() throws Exception
+    {
+        String hostile = "Blog.MyPost\nInjected line";
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, hostile, CLASS_KEY, CLASS_REF,
+            OBJECT_KEY, 0, BASE_VERSION_KEY, "1.1"));
+
+        // The raw reference argument is echoed through the fragment guard: a newline smuggled into the
+        // parameter cannot forge an extra line of the tool's output grammar.
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Document \"Blog.MyPostInjected line\" does not exist; there is no object to delete.",
+            textOf(result));
     }
 
     @Test

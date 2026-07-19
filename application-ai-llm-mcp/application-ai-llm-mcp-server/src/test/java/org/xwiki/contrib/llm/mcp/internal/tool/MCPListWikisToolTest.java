@@ -27,6 +27,7 @@ import javax.inject.Provider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
@@ -60,7 +61,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @ComponentTest
-class MCPListWikisToolTest
+class MCPListWikisToolTest extends AbstractMCPToolTest
 {
     private static final String CURRENT = "current";
 
@@ -110,11 +111,15 @@ class MCPListWikisToolTest
         when(this.wikiDescriptorManager.getById(wikiId)).thenReturn(descriptor);
     }
 
+    @Override
+    protected MCPTool getTool()
+    {
+        return this.tool;
+    }
+
     private String callList()
     {
-        McpSchema.CallToolResult result = this.tool.execute(
-            McpSchema.CallToolRequest.builder(MCPListWikisTool.TOOL_ID).arguments(Map.of()).build());
-        return ((McpSchema.TextContent) result.content().get(0)).text();
+        return callText(Map.of());
     }
 
     @Test

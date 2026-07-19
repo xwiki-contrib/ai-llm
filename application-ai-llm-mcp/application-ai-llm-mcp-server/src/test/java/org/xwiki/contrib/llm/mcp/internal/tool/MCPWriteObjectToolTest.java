@@ -29,14 +29,9 @@ import javax.inject.Named;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
-import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
-import org.xwiki.contrib.llm.mcp.MCPWikiReach;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.DocumentReferenceResolver;
-import org.xwiki.model.reference.EntityReference;
-import org.xwiki.localization.LocalizationContext;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.Right;
@@ -71,6 +66,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.textOf;
 
 /**
  * Tests for {@link MCPWriteObjectTool}, against the real oldcore store and real class definitions so the
@@ -79,7 +75,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @OldcoreTest
-class MCPWriteObjectToolTest
+class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
 {
     private static final String REFERENCE_KEY = "reference";
 
@@ -136,9 +132,6 @@ class MCPWriteObjectToolTest
     private static final DocumentReference USERS_CLASS_REFERENCE =
         new DocumentReference("xwiki", "XWiki", "XWikiUsers");
 
-    private static final DocumentReference USER_REFERENCE =
-        new DocumentReference("xwiki", "XWiki", "Author");
-
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
 
@@ -146,20 +139,8 @@ class MCPWriteObjectToolTest
     private MCPWriteObjectTool tool;
 
     @MockComponent
-    private MCPDocumentAccess documentAccess;
-
-    @MockComponent
-    private EntityReferenceSerializer<String> serializer;
-
-    @MockComponent
     @Named("local")
     private EntityReferenceSerializer<String> localSerializer;
-
-    @MockComponent
-    private DocumentAccessBridge documentAccessBridge;
-
-    @MockComponent
-    private MCPWikiReach wikiReach;
 
     @BeforeEach
     void setUp(MockitoOldcore oldcore) throws Exception
@@ -169,33 +150,18 @@ class MCPWriteObjectToolTest
             .thenReturn(CLASS_REFERENCE);
         lenient().when(this.serializer.serialize(any())).thenReturn(CANONICAL);
         lenient().when(this.localSerializer.serialize(CLASS_REFERENCE)).thenReturn(CLASS_REF);
-        lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
         lenient().when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), any(), any(), eq(true)))
             .thenReturn(VIEW_URL);
 
-        // Take the simple save path in api.Document.save (skip the saveAsAuthor branch).
-        oldcore.getConfigurationSource().setProperty("security.script.save.checkAuthor", false);
-        when(oldcore.getMockRightService().hasAccessLevel(any(), any(), any(), any())).thenReturn(true);
+        allowSimpleSavePath(oldcore);
+        registerCurrentResolver(oldcore, CLASS_REFERENCE);
+        registerLocalizationContext(oldcore);
+    }
 
-        // XWikiContext.setUserReference() resolves the legacy string user via the "compactwiki" serializer.
-        if (!oldcore.getMocker().hasComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki")) {
-            oldcore.getMocker().registerMockComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki");
-        }
-        oldcore.getXWikiContext().setUserReference(USER_REFERENCE);
-
-        // removeXObject resolves the object's relative class reference through the "current" resolver,
-        // which the oldcore fixture does not provide; the tests use a single class, so a fixed answer
-        // reproduces the platform resolution.
-        DocumentReferenceResolver<EntityReference> currentResolver = oldcore.getMocker()
-            .registerMockComponent(DocumentReferenceResolver.TYPE_REFERENCE, "current");
-        lenient().when(currentResolver.resolve(any(EntityReference.class), any()))
-            .thenReturn(CLASS_REFERENCE);
-
-        // DateClass.fromString resolves the context locale through Utils; without a LocalizationContext
-        // the parse would spill a WARN that the LogCaptureExtension then requires asserting.
-        LocalizationContext localizationContext =
-            oldcore.getMocker().registerMockComponent(LocalizationContext.class);
-        lenient().when(localizationContext.getCurrentLocale()).thenReturn(Locale.ENGLISH);
+    @Override
+    protected MCPTool getTool()
+    {
+        return this.tool;
     }
 
     /**
@@ -222,9 +188,7 @@ class MCPWriteObjectToolTest
 
     private void storeDocument(MockitoOldcore oldcore) throws Exception
     {
-        XWikiDocument doc = new XWikiDocument(DOC_REFERENCE);
-        doc.setContent("body");
-        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+        storeDocument(oldcore, DOC_REFERENCE, "body", null);
     }
 
     private void storeDocumentWithObject(MockitoOldcore oldcore, String title) throws Exception
@@ -238,29 +202,12 @@ class MCPWriteObjectToolTest
 
     private XWikiDocument loadDocument(MockitoOldcore oldcore) throws Exception
     {
-        return oldcore.getSpyXWiki().getDocument(DOC_REFERENCE, oldcore.getXWikiContext());
+        return loadDocument(oldcore, DOC_REFERENCE);
     }
 
     private String currentVersion(MockitoOldcore oldcore) throws Exception
     {
-        return loadDocument(oldcore).getVersion();
-    }
-
-    private static String textOf(McpSchema.CallToolResult result)
-    {
-        return ((McpSchema.TextContent) result.content().get(0)).text();
-    }
-
-    private McpSchema.CallToolResult call(Map<String, Object> args)
-    {
-        return this.tool.execute(
-            McpSchema.CallToolRequest.builder(MCPWriteObjectTool.TOOL_ID).arguments(args).build());
-    }
-
-    private void verifyNothingSaved(MockitoOldcore oldcore) throws Exception
-    {
-        verify(oldcore.getSpyXWiki(), never())
-            .saveDocument(any(XWikiDocument.class), anyString(), anyBoolean(), any());
+        return currentVersion(oldcore, DOC_REFERENCE);
     }
 
     @Test
@@ -474,6 +421,24 @@ class MCPWriteObjectToolTest
         assertTrue(text.contains("Version conflict"), text);
         assertTrue(text.contains(versionBefore), text);
         assertNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
+    }
+
+    @Test
+    void baseVersionRequiredEchoIsNeutralized(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+        String hostile = "Blog.MyPost\nInjected line";
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, hostile, CLASS_KEY, CLASS_REF,
+            FIELDS_KEY, Map.of(TITLE_FIELD, HELLO)));
+
+        // The raw reference argument is echoed through the fragment guard: a newline smuggled into the
+        // parameter cannot forge an extra line of the tool's output grammar.
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Document \"Blog.MyPostInjected line\" already exists. First read it with "
+            + "get_document and pass the base_version it shows, so the object change is based on a "
+            + "recent read.", textOf(result));
     }
 
     @Test

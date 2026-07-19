@@ -35,10 +35,10 @@ import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
 import org.xwiki.contrib.llm.mcp.MCPSourceText;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.contrib.llm.mcp.internal.access.DefaultMCPRowQuery;
 import org.xwiki.contrib.llm.mcp.internal.access.MCPSpaceFilter;
-import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
@@ -88,7 +88,7 @@ import static org.mockito.Mockito.when;
  */
 @ComponentTest
 @ComponentList(DefaultMCPRowQuery.class)
-class MCPGetSchemaToolTest
+class MCPGetSchemaToolTest extends AbstractMCPToolTest
 {
     private static final String WIKI = "xwiki";
 
@@ -186,37 +186,10 @@ class MCPGetSchemaToolTest
         return query;
     }
 
-    /**
-     * Mirrors the {@code current} resolver with a wiki parameter: the dotted full name is parsed into spaces
-     * plus a page name, landing in the given wiki (the reverse of the serializer answer).
-     */
-    private static DocumentReference parseRef(String fullName, Object wikiParameter)
+    @Override
+    protected MCPTool getTool()
     {
-        String wiki = ((WikiReference) wikiParameter).getName();
-        List<String> parts = List.of(fullName.split("\\.", -1));
-        return new DocumentReference(wiki, parts.subList(0, parts.size() - 1), parts.get(parts.size() - 1));
-    }
-
-    private static String localName(EntityReference reference)
-    {
-        List<String> parts = new ArrayList<>();
-        EntityReference current = reference;
-        while (current != null && current.getType() != EntityType.WIKI) {
-            parts.add(0, current.getName());
-            current = current.getParent();
-        }
-        return String.join(".", parts);
-    }
-
-    private McpSchema.CallToolResult call(Map<String, Object> args)
-    {
-        return this.tool.execute(
-            McpSchema.CallToolRequest.builder(MCPGetSchemaTool.TOOL_ID).arguments(args).build());
-    }
-
-    private String callText(Map<String, Object> args)
-    {
-        return ((McpSchema.TextContent) call(args).content().get(0)).text();
+        return this.tool;
     }
 
     /**
@@ -432,6 +405,22 @@ class MCPGetSchemaToolTest
 
         assertTrue(result.isError(), "expected an error result");
         assertEquals("No such document: \"Blog.Missing\".",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+    }
+
+    @Test
+    void notFoundClassEchoIsNeutralized() throws Exception
+    {
+        String hostile = "Blog.Missing\nInjected line";
+        XWikiDocument xdoc = stubClassDocument(hostile, WIKI, new BaseClass());
+        when(xdoc.isNew()).thenReturn(true);
+
+        McpSchema.CallToolResult result = call(Map.of("class", hostile));
+
+        // The raw class argument is echoed through the fragment guard: a newline smuggled into the
+        // parameter cannot forge an extra line of the tool's output grammar.
+        assertTrue(result.isError(), "expected an error result");
+        assertEquals("No such document: \"Blog.MissingInjected line\".",
             ((McpSchema.TextContent) result.content().get(0)).text());
     }
 

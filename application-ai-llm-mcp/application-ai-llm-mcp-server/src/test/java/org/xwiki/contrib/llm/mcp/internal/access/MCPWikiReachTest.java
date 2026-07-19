@@ -263,6 +263,21 @@ class MCPWikiReachTest
     }
 
     @Test
+    void singleWikiNonExistentEchoIsNeutralized() throws Exception
+    {
+        String hostile = "other\nInjected line";
+        reachEnabled(true);
+        when(this.wikiDescriptorManager.getById(hostile)).thenReturn(null);
+
+        MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
+            () -> this.wikiReach.resolveSingleWiki(hostile));
+        // The raw wiki id is echoed with line breaks stripped: a newline smuggled into the parameter
+        // cannot forge an extra line of the denial message.
+        assertEquals("Wiki \"otherInjected line\" does not exist. Use list_wikis to see reachable wikis.",
+            exception.getMessage());
+    }
+
+    @Test
     void singleWikiUnverifiableFailsClosed() throws Exception
     {
         reachEnabled(true);

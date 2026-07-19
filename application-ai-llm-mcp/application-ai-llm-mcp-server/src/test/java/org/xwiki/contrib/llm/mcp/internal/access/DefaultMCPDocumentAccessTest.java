@@ -127,6 +127,21 @@ class DefaultMCPDocumentAccessTest
     }
 
     @Test
+    void rightsDeniedEchoIsNeutralized()
+    {
+        String hostile = "Help.GettingStarted\nInjected line";
+        when(this.referenceResolver.resolve(hostile)).thenReturn(this.target);
+        when(this.authorization.hasAccess(Right.EDIT, this.target)).thenReturn(false);
+
+        MCPAccessDeniedException exception = assertThrows(MCPAccessDeniedException.class,
+            () -> this.access.resolveAndAuthorize(hostile, Right.EDIT));
+        // The raw reference is echoed with line breaks stripped: a newline smuggled into the parameter
+        // cannot forge an extra line of the denial message.
+        assertEquals("You do not have permission to edit \"Help.GettingStartedInjected line\".",
+            exception.getMessage());
+    }
+
+    @Test
     void throwsWhenSpaceFilterDenies()
     {
         when(this.authorization.hasAccess(Right.VIEW, this.target)).thenReturn(true);

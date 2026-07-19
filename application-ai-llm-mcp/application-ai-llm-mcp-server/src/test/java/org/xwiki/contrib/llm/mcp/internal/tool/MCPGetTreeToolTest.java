@@ -36,6 +36,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.contrib.llm.mcp.internal.access.DefaultMCPRowQuery;
 import org.xwiki.contrib.llm.mcp.internal.access.MCPSpaceFilter;
@@ -73,6 +74,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.textOf;
 
 /**
  * Tests for {@link MCPGetTreeTool}.
@@ -85,7 +87,7 @@ import static org.mockito.Mockito.when;
  */
 @ComponentTest
 @ComponentList(DefaultMCPRowQuery.class)
-class MCPGetTreeToolTest
+class MCPGetTreeToolTest extends AbstractMCPToolTest
 {
     private static final String WIKI = "xwiki";
 
@@ -269,28 +271,6 @@ class MCPGetTreeToolTest
         return new DocumentReference(WIKI, space, name);
     }
 
-    /**
-     * Mirrors the {@code current} resolver with a wiki parameter: the dotted full name is parsed into spaces
-     * plus a page name, landing in the given wiki (the reverse of the serializer answers).
-     */
-    private static DocumentReference parseRef(String fullName, Object wikiParameter)
-    {
-        String wiki = ((WikiReference) wikiParameter).getName();
-        List<String> parts = List.of(fullName.split("\\.", -1));
-        return new DocumentReference(wiki, parts.subList(0, parts.size() - 1), parts.get(parts.size() - 1));
-    }
-
-    private static String localName(EntityReference reference)
-    {
-        List<String> parts = new ArrayList<>();
-        EntityReference current = reference;
-        while (current != null && current.getType() != EntityType.WIKI) {
-            parts.add(0, current.getName());
-            current = current.getParent();
-        }
-        return String.join(".", parts);
-    }
-
     private static String fullName(EntityReference reference)
     {
         EntityReference current = reference;
@@ -307,11 +287,15 @@ class MCPGetTreeToolTest
             .thenReturn(target);
     }
 
+    @Override
+    protected MCPTool getTool()
+    {
+        return this.tool;
+    }
+
     private String callTree(Map<String, Object> args)
     {
-        McpSchema.CallToolResult result = this.tool.execute(
-            McpSchema.CallToolRequest.builder(MCPGetTreeTool.TOOL_ID).arguments(args).build());
-        return ((McpSchema.TextContent) result.content().get(0)).text();
+        return callText(args);
     }
 
     private static Timestamp ago(long millis)
@@ -524,12 +508,10 @@ class MCPGetTreeToolTest
             any(WikiReference.class)))
             .thenThrow(new MCPAccessDeniedException("Access denied to Secret.WebHome."));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpSchema.CallToolRequest.builder(
-            MCPGetTreeTool.TOOL_ID).arguments(Map.of("root", "Secret.WebHome")).build());
+        McpSchema.CallToolResult result = call(Map.of("root", "Secret.WebHome"));
 
         assertTrue(result.isError(), "expected an error result");
-        assertEquals("Access denied to Secret.WebHome.",
-            ((McpSchema.TextContent) result.content().get(0)).text());
+        assertEquals("Access denied to Secret.WebHome.", textOf(result));
     }
 
     @Test
@@ -830,12 +812,10 @@ class MCPGetTreeToolTest
         when(this.wikiReach.resolveSingleWiki(SECOND))
             .thenThrow(new MCPAccessDeniedException("Cross-wiki access is not enabled for this endpoint."));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpSchema.CallToolRequest.builder(
-            MCPGetTreeTool.TOOL_ID).arguments(Map.of("wiki", SECOND)).build());
+        McpSchema.CallToolResult result = call(Map.of("wiki", SECOND));
 
         assertTrue(result.isError(), "expected an error result");
-        assertEquals("Cross-wiki access is not enabled for this endpoint.",
-            ((McpSchema.TextContent) result.content().get(0)).text());
+        assertEquals("Cross-wiki access is not enabled for this endpoint.", textOf(result));
     }
 
     @Test
@@ -948,11 +928,10 @@ class MCPGetTreeToolTest
         when(this.queryManager.createQuery(anyString(), eq(Query.HQL)))
             .thenThrow(new QueryException("boom", null, new IllegalStateException("schema detail")));
 
-        McpSchema.CallToolResult result = this.tool.execute(McpSchema.CallToolRequest.builder(
-            MCPGetTreeTool.TOOL_ID).arguments(Map.of()).build());
+        McpSchema.CallToolResult result = call(Map.of());
 
         assertTrue(result.isError(), "expected an error result");
-        String text = ((McpSchema.TextContent) result.content().get(0)).text();
+        String text = textOf(result);
         assertEquals("Failed to read the page hierarchy. Try again; if it persists, report it to a wiki "
             + "administrator (details are in the server logs).", text);
         assertFalse(text.contains("schema detail"), text);

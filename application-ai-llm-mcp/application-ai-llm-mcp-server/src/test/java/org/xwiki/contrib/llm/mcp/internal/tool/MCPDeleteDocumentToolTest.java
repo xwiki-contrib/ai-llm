@@ -29,10 +29,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
-import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
-import org.xwiki.contrib.llm.mcp.MCPWikiReach;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.query.Query;
@@ -71,6 +69,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.textOf;
 
 /**
  * Tests for {@link MCPDeleteDocumentTool}.
@@ -78,7 +77,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @OldcoreTest
-class MCPDeleteDocumentToolTest
+class MCPDeleteDocumentToolTest extends AbstractMCPWriteToolTest
 {
     private static final String REFERENCE_KEY = "reference";
 
@@ -101,9 +100,6 @@ class MCPDeleteDocumentToolTest
 
     private static final DocumentReference WEBHOME_REFERENCE =
         new DocumentReference("xwiki", "Sandbox", "WebHome");
-
-    private static final DocumentReference USER_REFERENCE =
-        new DocumentReference("xwiki", "XWiki", "Author");
 
     private static final DocumentReference WEBPREFS_REFERENCE =
         new DocumentReference("xwiki", "Sandbox", "WebPreferences");
@@ -131,23 +127,11 @@ class MCPDeleteDocumentToolTest
     private MCPDeleteDocumentTool tool;
 
     @MockComponent
-    private MCPDocumentAccess documentAccess;
-
-    @MockComponent
-    private EntityReferenceSerializer<String> serializer;
-
-    @MockComponent
     @Named("local")
     private EntityReferenceSerializer<String> localSerializer;
 
     @MockComponent
-    private MCPWikiReach wikiReach;
-
-    @MockComponent
     private QueryManager queryManager;
-
-    @MockComponent
-    private DocumentAccessBridge documentAccessBridge;
 
     /**
      * The escaped-literal parameter of the last mocked children query, kept so tests can verify the
@@ -165,21 +149,12 @@ class MCPDeleteDocumentToolTest
         lenient().when(this.localSerializer.serialize(WEBHOME_REFERENCE)).thenReturn(WEBHOME_REF);
         lenient().when(this.localSerializer.serialize(WEBHOME_REFERENCE.getLastSpaceReference()))
             .thenReturn("Sandbox");
-        lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
         // The manual-deletion URL of the sensitive-reference refusals.
         lenient().when(this.documentAccessBridge.getDocumentURL(any(), eq("view"), any(), any(), eq(true)))
             .thenReturn(VIEW_URL);
 
-        // The API document re-checks the delete right itself before deleting.
-        when(oldcore.getMockRightService().hasAccessLevel(any(), any(), any(), any())).thenReturn(true);
         // The recycle bin is available unless a test says otherwise.
         lenient().doReturn(true).when(oldcore.getSpyXWiki()).hasRecycleBin(any());
-
-        // XWikiContext.setUserReference() resolves the legacy string user via the "compactwiki" serializer.
-        if (!oldcore.getMocker().hasComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki")) {
-            oldcore.getMocker().registerMockComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki");
-        }
-        oldcore.getXWikiContext().setUserReference(USER_REFERENCE);
 
         // XWiki#deleteAllDocuments wraps the per-translation deletes in a batch (one shared recycle-bin
         // batch ID); MockitoOldcore registers no BatchOperationExecutor, so a pass-through mock runs the
@@ -192,35 +167,15 @@ class MCPDeleteDocumentToolTest
         }).when(batchOperationExecutor).execute(any());
     }
 
+    @Override
+    protected MCPTool getTool()
+    {
+        return this.tool;
+    }
+
     private void storeDocument(MockitoOldcore oldcore, DocumentReference reference, String content) throws Exception
     {
-        XWikiDocument doc = new XWikiDocument(reference);
-        doc.setContent(content);
-        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
-    }
-
-    private void storeTranslation(MockitoOldcore oldcore, DocumentReference reference, Locale locale,
-        String content) throws Exception
-    {
-        XWikiDocument doc = new XWikiDocument(reference, locale);
-        doc.setContent(content);
-        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
-    }
-
-    private XWikiDocument loadDocument(MockitoOldcore oldcore, DocumentReference reference) throws Exception
-    {
-        return oldcore.getSpyXWiki().getDocument(reference, oldcore.getXWikiContext());
-    }
-
-    private static String textOf(McpSchema.CallToolResult result)
-    {
-        return ((McpSchema.TextContent) result.content().get(0)).text();
-    }
-
-    private McpSchema.CallToolResult call(Map<String, Object> args)
-    {
-        return this.tool.execute(
-            McpSchema.CallToolRequest.builder(MCPDeleteDocumentTool.TOOL_ID).arguments(args).build());
+        storeDocument(oldcore, reference, content, null);
     }
 
     /**
@@ -245,13 +200,18 @@ class MCPDeleteDocumentToolTest
 
     private Query mockCountQuery(long count) throws Exception
     {
+        return mockCountRows(List.of(count));
+    }
+
+    private Query mockCountRows(List<?> rows) throws Exception
+    {
         Query query = mock(Query.class);
         QueryParameter parameter = mock(QueryParameter.class);
         when(query.bindValue("space")).thenReturn(parameter);
         when(parameter.literal(anyString())).thenReturn(parameter);
         when(parameter.anyChars()).thenReturn(parameter);
         when(parameter.query()).thenReturn(query);
-        when(query.<Long>execute()).thenReturn(List.of(count));
+        doReturn(rows).when(query).execute();
         when(this.queryManager.createQuery(COUNT_XWQL, Query.XWQL)).thenReturn(query);
         return query;
     }
@@ -295,6 +255,21 @@ class MCPDeleteDocumentToolTest
         String text = textOf(result);
         assertTrue(text.contains("does not exist"), text);
         assertTrue(text.contains("nothing to delete"), text);
+        verifyNothingDeleted(oldcore);
+    }
+
+    @Test
+    void nonexistentDocumentEchoIsNeutralized(MockitoOldcore oldcore) throws Exception
+    {
+        String hostile = "Sandbox.Page\nInjected line";
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, hostile, BASE_VERSION_KEY, "1.1"));
+
+        // The raw reference argument is echoed through the fragment guard: a newline smuggled into the
+        // parameter cannot forge an extra line of the tool's output grammar.
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Document \"Sandbox.PageInjected line\" does not exist; nothing to delete.",
+            textOf(result));
         verifyNothingDeleted(oldcore);
     }
 
@@ -437,6 +412,28 @@ class MCPDeleteDocumentToolTest
         verify(childrenQuery).setLimit(2);
         verify(childrenQuery).bindValue("fullName", WEBHOME_REF);
         verify(this.spaceParameter).literal("Sandbox.");
+    }
+
+    @Test
+    void webHomeChildCountSurvivesAlternateRowShape(MockitoOldcore oldcore) throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.DELETE)))
+            .thenReturn(WEBHOME_REFERENCE);
+        storeDocument(oldcore, WEBHOME_REFERENCE, "home");
+        String currentVersion = loadDocument(oldcore, WEBHOME_REFERENCE).getVersion();
+        mockChildrenQuery(List.of("Sandbox.A"));
+        // The count row's runtime shape depends on the store: pin the dispatch on an Object[] row
+        // carrying a non-Long Number, so a refactor cannot silently revert to the raw Long cast.
+        mockCountRows(List.<Object>of(new Object[] {3}));
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, WEBHOME_REF, BASE_VERSION_KEY, currentVersion));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("home page of a space with 3 child pages"), text);
+        assertFalse(loadDocument(oldcore, WEBHOME_REFERENCE).isNew());
+        verifyNothingDeleted(oldcore);
     }
 
     @Test

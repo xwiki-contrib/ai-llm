@@ -26,16 +26,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
-import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
-import org.xwiki.contrib.llm.mcp.MCPWikiReach;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
-import org.xwiki.test.junit5.mockito.MockComponent;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
@@ -58,6 +54,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.textOf;
 
 /**
  * Tests for {@link MCPWriteDocumentTool}.
@@ -65,7 +62,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @OldcoreTest
-class MCPWriteDocumentToolTest
+class MCPWriteDocumentToolTest extends AbstractMCPWriteToolTest
 {
     private static final String REFERENCE_KEY = "reference";
 
@@ -98,9 +95,6 @@ class MCPWriteDocumentToolTest
     private static final DocumentReference DOC_REFERENCE =
         new DocumentReference("xwiki", "Sandbox", "WebHome");
 
-    private static final DocumentReference USER_REFERENCE =
-        new DocumentReference("xwiki", "XWiki", "Author");
-
     private static final DocumentReference FR_REFERENCE = new DocumentReference(DOC_REFERENCE, Locale.FRENCH);
 
     private static final String FR_BODY = "corps";
@@ -110,74 +104,39 @@ class MCPWriteDocumentToolTest
     @InjectMockComponents
     private MCPWriteDocumentTool tool;
 
-    @MockComponent
-    private MCPDocumentAccess documentAccess;
-
-    @MockComponent
-    private EntityReferenceSerializer<String> serializer;
-
-    @MockComponent
-    private DocumentAccessBridge documentAccessBridge;
-
-    @MockComponent
-    private MCPWikiReach wikiReach;
-
     @BeforeEach
     void setUp(MockitoOldcore oldcore) throws Exception
     {
         when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.EDIT))).thenReturn(DOC_REFERENCE);
         when(this.serializer.serialize(any())).thenReturn(CANONICAL);
-        // By default the endpoint has cross-wiki reach, so the advertised reference description mentions it;
-        // the reach-off test overrides this.
-        lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
 
-        // Take the simple save path in api.Document.save (skip the saveAsAuthor branch).
-        oldcore.getConfigurationSource().setProperty("security.script.save.checkAuthor", false);
-        when(oldcore.getMockRightService().hasAccessLevel(any(), any(), any(), any())).thenReturn(true);
+        allowSimpleSavePath(oldcore);
+    }
 
-        // XWikiContext.setUserReference() resolves the legacy string user via the "compactwiki" serializer.
-        if (!oldcore.getMocker().hasComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki")) {
-            oldcore.getMocker().registerMockComponent(EntityReferenceSerializer.TYPE_STRING, "compactwiki");
-        }
-        oldcore.getXWikiContext().setUserReference(USER_REFERENCE);
+    @Override
+    protected MCPTool getTool()
+    {
+        return this.tool;
     }
 
     private void storeDocument(MockitoOldcore oldcore, String content, String title) throws Exception
     {
-        XWikiDocument doc = new XWikiDocument(DOC_REFERENCE);
-        doc.setContent(content);
-        if (title != null) {
-            doc.setTitle(title);
-        }
-        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+        storeDocument(oldcore, DOC_REFERENCE, content, title);
     }
 
     private XWikiDocument loadDocument(MockitoOldcore oldcore) throws Exception
     {
-        return oldcore.getSpyXWiki().getDocument(DOC_REFERENCE, oldcore.getXWikiContext());
+        return loadDocument(oldcore, DOC_REFERENCE);
     }
 
     private void storeTranslation(MockitoOldcore oldcore, String content) throws Exception
     {
-        XWikiDocument doc = new XWikiDocument(DOC_REFERENCE, Locale.FRENCH);
-        doc.setContent(content);
-        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+        storeTranslation(oldcore, DOC_REFERENCE, Locale.FRENCH, content);
     }
 
     private XWikiDocument loadTranslation(MockitoOldcore oldcore) throws Exception
     {
-        return oldcore.getSpyXWiki().getDocument(FR_REFERENCE, oldcore.getXWikiContext());
-    }
-
-    private static String textOf(McpSchema.CallToolResult result)
-    {
-        return ((McpSchema.TextContent) result.content().get(0)).text();
-    }
-
-    private McpSchema.CallToolResult call(Map<String, Object> args)
-    {
-        return this.tool.execute(
-            McpSchema.CallToolRequest.builder(MCPWriteDocumentTool.TOOL_ID).arguments(args).build());
+        return loadDocument(oldcore, FR_REFERENCE);
     }
 
     @Test
@@ -276,6 +235,38 @@ class MCPWriteDocumentToolTest
         assertTrue(loadDocument(oldcore).isNew());
         verify(oldcore.getSpyXWiki(), never())
             .saveDocument(any(XWikiDocument.class), anyString(), anyBoolean(), any());
+    }
+
+    @Test
+    void createWithBaseVersionEchoIsNeutralized(MockitoOldcore oldcore) throws Exception
+    {
+        String hostile = "Sandbox.WebHome\nInjected line";
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, hostile, CONTENT_KEY, NEW_BODY, BASE_VERSION_KEY, "1.1"));
+
+        // The shared MCPWriteSupport message echoes the raw reference through the fragment guard: a
+        // newline smuggled into the parameter cannot forge an extra line of the tool's output grammar.
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Document \"Sandbox.WebHomeInjected line\" does not exist; omit base_version when "
+            + "creating a document.", textOf(result));
+        assertTrue(loadDocument(oldcore).isNew());
+    }
+
+    @Test
+    void overwriteWithoutBaseVersionEchoIsNeutralized(MockitoOldcore oldcore) throws Exception
+    {
+        storeDocument(oldcore, OLD_BODY, TITLE);
+        String hostile = "Sandbox.WebHome\nInjected line";
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, hostile, CONTENT_KEY, NEW_BODY));
+
+        // The raw reference argument is echoed through the fragment guard: a newline smuggled into the
+        // parameter cannot forge an extra line of the tool's output grammar.
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Document \"Sandbox.WebHomeInjected line\" already exists."), text);
+        assertFalse(text.contains("\nInjected"), text);
     }
 
     @Test
@@ -520,13 +511,6 @@ class MCPWriteDocumentToolTest
         assertFalse(definition.inputSchema().toString().contains("xwiki:"),
             "Reach-off advertised schema must not contain wiki-prefixed examples");
         assertFalse(definition.description().contains("xwiki:"), definition.description());
-    }
-
-    private String referenceDescription()
-    {
-        Map<?, ?> properties = (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
-        Map<?, ?> reference = (Map<?, ?>) properties.get(REFERENCE_KEY);
-        return (String) reference.get("description");
     }
 
     @Test

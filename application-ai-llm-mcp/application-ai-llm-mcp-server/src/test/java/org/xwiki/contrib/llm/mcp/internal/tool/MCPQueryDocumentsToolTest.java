@@ -36,6 +36,7 @@ import org.mockito.ArgumentCaptor;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentSearch;
+import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
@@ -67,6 +68,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.request;
+import static org.xwiki.contrib.llm.mcp.internal.tool.MCPToolTestUtils.textOf;
 
 /**
  * Tests for {@link MCPQueryDocumentsTool}.
@@ -74,7 +77,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @ComponentTest
-class MCPQueryDocumentsToolTest
+class MCPQueryDocumentsToolTest extends AbstractMCPToolTest
 {
     private static final String QF_WEIGHTS = "title^10.0 doccontent^2.0 doccontentraw^0.4";
 
@@ -184,14 +187,10 @@ class MCPQueryDocumentsToolTest
         return doc;
     }
 
-    private static String textOf(McpSchema.CallToolResult result)
+    @Override
+    protected MCPTool getTool()
     {
-        return ((McpSchema.TextContent) result.content().get(0)).text();
-    }
-
-    private static McpSchema.CallToolRequest request(String name, Map<String, Object> args)
-    {
-        return McpSchema.CallToolRequest.builder(name).arguments(args).build();
+        return this.tool;
     }
 
     @SuppressWarnings("unchecked")
@@ -437,6 +436,23 @@ class MCPQueryDocumentsToolTest
         assertTrue(text.contains("Active filters:"), text);
         assertTrue(text.contains("space=Help"), text);
         assertTrue(text.contains("author=xwiki:XWiki.Admin"), text);
+    }
+
+    @Test
+    void emptyResultEchoIsNeutralized() throws QueryException
+    {
+        stubQuery(List.of(), null, 0);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "nomatch\nInjected line", "space", "Help\nEvil")));
+
+        // The query text goes through the fragment guard and the filter echo through the line-break
+        // strip: a newline smuggled into either parameter cannot forge an extra output line.
+        String text = textOf(result);
+        assertTrue(text.contains("No documents found matching \"nomatchInjected line\""), text);
+        assertTrue(text.contains("space=HelpEvil"), text);
+        assertFalse(text.contains("\nInjected"), text);
+        assertFalse(text.contains("\nEvil"), text);
     }
 
     @Test
