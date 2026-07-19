@@ -105,6 +105,17 @@ class DefaultSearchResourceTest
     }
 
     @Test
+    void searchForwardsSemanticAndKeywordLimitsInInterfaceOrder() throws XWikiRestException, IndexException
+    {
+        // The REST parameter order is (limitKeywordResults, limitSemanticResults) while the manager's is
+        // (limitSemanticSimilarity, limitKeywordSearch); the call passed them swapped from LLMAI-130
+        // until LLMAI-163, silently letting the keyword budget drive the KNN topK and vice versa.
+        this.searchResource.search(WIKI, QUERY, COLLECTIONS, 5, 3, null);
+
+        verify(this.collectionManager).hybridSearch(eq(QUERY), eq(COLLECTIONS), eq(3), eq(5), isNull());
+    }
+
+    @Test
     void searchWithBlankLocaleForwardsNullLocale() throws XWikiRestException, IndexException
     {
         this.searchResource.search(WIKI, QUERY, COLLECTIONS, 5, 3, "   ");

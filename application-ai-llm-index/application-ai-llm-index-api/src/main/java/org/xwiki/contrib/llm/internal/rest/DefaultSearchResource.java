@@ -105,8 +105,8 @@ public class DefaultSearchResource extends XWikiResource implements SearchResour
             return this.collectionManager.hybridSearch(
                 query,
                 collectionsToSearch,
-                limitKeywordResults,
                 limitSemanticResults,
+                limitKeywordResults,
                 parseLocale(locale)
             );
         } catch (IndexException e) {
