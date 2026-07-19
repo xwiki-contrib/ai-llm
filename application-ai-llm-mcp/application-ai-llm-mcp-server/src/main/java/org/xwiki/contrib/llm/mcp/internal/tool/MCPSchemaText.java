@@ -103,6 +103,14 @@ final class MCPSchemaText
     private static final String DEFAULT_PREFIX = " default=";
 
     /**
+     * Marker appended to a static list's {@code default=} modifier when the stored default is not among
+     * the list's values (compared case-sensitively: a stored value only matches an allowed value when it
+     * is byte-identical, so e.g. {@code How-To} against a {@code howto} value is a real mismatch the
+     * agent must know about before echoing the default back in a write).
+     */
+    private static final String DEFAULT_NOT_AMONG_VALUES = " (not among the values)";
+
+    /**
      * Cap on the joined static-list values detail: the values parenthetical is the only place one field
      * folds an unbounded wiki-authored collection into a single line, so a hostile editor storing megabytes
      * of list values must not blow up the response. Values are joined at value boundaries until the budget
@@ -113,11 +121,35 @@ final class MCPSchemaText
     private static final String VALUES_TRUNCATED_SUFFIX = MCPTextGuards.ELLIPSIS + " (values truncated)";
 
     /**
-     * The rendered detail of a {@code TextArea} holding wiki content. The stored content-type value is
-     * {@code FullyRenderedText} ({@code TextAreaClass.ContentType.WIKI_TEXT}), which would read as noise in
-     * the grammar; {@code wiki} names what the field actually holds.
+     * The rendered details of a {@code TextArea}'s content types: the stored values
+     * ({@code FullyRenderedText}, {@code PureText}, {@code VelocityCode}, {@code VelocityWiki}) would read
+     * as noise in the grammar, so each {@link TextAreaClass.ContentType} renders as a short name of what
+     * the field actually holds.
      */
     private static final String WIKI_CONTENT_DETAIL = "wiki";
+
+    /**
+     * See {@link #WIKI_CONTENT_DETAIL}.
+     */
+    private static final String PLAIN_CONTENT_DETAIL = "plain";
+
+    /**
+     * See {@link #WIKI_CONTENT_DETAIL}.
+     */
+    private static final String VELOCITY_CODE_DETAIL = "velocityCode";
+
+    /**
+     * See {@link #WIKI_CONTENT_DETAIL}.
+     */
+    private static final String VELOCITY_WIKI_DETAIL = "velocityWiki";
+
+    /**
+     * The placeholder the class editor stores in a {@code TextArea}'s {@code contenttype} and
+     * {@code editor} meta-properties when nothing is selected: the platform's {@code TextAreaMetaClass}
+     * defines {@code ---} as the first (default) value of both select lists, so an untouched field stores
+     * the literal placeholder rather than an empty string.
+     */
+    private static final String UNSET_META_VALUE = "---";
 
     private MCPSchemaText()
     {
@@ -200,7 +232,7 @@ final class MCPSchemaText
             line.append(SPACE).append(QUOTE).append(pretty).append(QUOTE);
         }
 
-        appendModifiers(line, property);
+        appendModifiers(line, property, context);
 
         String note = note(property, type);
         if (note != null) {
@@ -293,32 +325,148 @@ final class MCPSchemaText
     }
 
     /**
+     * The content-kind detail of a text area, resolved the way the platform resolves what the field
+     * holds. A stored content type in the platform vocabulary maps to its short name
+     * ({@link #contentTypeDetail(TextAreaClass.ContentType)}). The class editor's unset placeholder
+     * ({@link #UNSET_META_VALUE}) is resolved through the {@code editor} meta-property with the
+     * platform's own compatibility rule ({@link TextAreaClass#getContentType(TextAreaClass.EditorType,
+     * TextAreaClass.ContentType)}): every editor except pure text implies wiki content - matching
+     * {@code TextAreaClass#isWikiContent}, which treats the placeholder as wiki content - while a pure
+     * text editor is compatible with several content kinds, so the detail is omitted entirely rather than
+     * guessed. A custom stored value outside the platform vocabulary is echoed as-is (lowercased by the
+     * platform getter).
+     *
      * @param property the field definition, guarded to really be a {@link TextAreaClass}
-     * @return the content-kind detail: {@code wiki} for wiki content (the stored default), otherwise the
-     *     lowercased stored content-type value as-is ({@code puretext}, {@code velocitycode},
-     *     {@code velocitywiki}, or whatever a customized field stores)
+     * @return the content-kind detail, or {@code null} when the content kind is genuinely undecidable
      */
     private static String textAreaDetail(PropertyClass property)
     {
         if (!(property instanceof TextAreaClass textArea)) {
             return null;
         }
-        String contentType = strip(textArea.getContentType());
-        if (TextAreaClass.ContentType.WIKI_TEXT == TextAreaClass.ContentType.getByValue(contentType)) {
-            return WIKI_CONTENT_DETAIL;
+        String stored = textArea.getContentType();
+        TextAreaClass.ContentType contentType = TextAreaClass.ContentType.getByValue(stored);
+        if (contentType == null) {
+            if (!UNSET_META_VALUE.equals(stored)) {
+                return strip(stored);
+            }
+            contentType = TextAreaClass.getContentType(
+                TextAreaClass.EditorType.getByValue(textArea.getEditor()), null);
         }
-        return contentType;
+        return contentType == null ? null : contentTypeDetail(contentType);
+    }
+
+    /**
+     * @param contentType the resolved content type
+     * @return the short detail name of the content type (see {@link #WIKI_CONTENT_DETAIL})
+     */
+    private static String contentTypeDetail(TextAreaClass.ContentType contentType)
+    {
+        return switch (contentType) {
+            case WIKI_TEXT -> WIKI_CONTENT_DETAIL;
+            case PURE_TEXT -> PLAIN_CONTENT_DETAIL;
+            case VELOCITY_CODE -> VELOCITY_CODE_DETAIL;
+            case VELOCITYWIKI -> VELOCITY_WIKI_DETAIL;
+        };
+    }
+
+    /**
+     * Maps a {@code contentType} attribute value of the schema-writing tool to the canonical stored
+     * platform value ({@link TextAreaClass.ContentType#toString()}, the exact form the platform's own
+     * {@code TextAreaClass#setContentType(TextAreaClass.ContentType)} stores). Both vocabularies are
+     * accepted, case-insensitively: the display tokens this class renders in a schema line ({@code plain},
+     * {@code wiki}, {@code velocityCode}, {@code velocityWiki} - what {@code get_schema} shows, so an agent
+     * echoing a schema line back is understood) and the platform's stored tokens ({@code PureText},
+     * {@code FullyRenderedText}, {@code VelocityCode}, {@code VelocityWiki}). Anything else maps to
+     * {@code null} and must be refused by the caller: an out-of-vocabulary stored value matches no
+     * {@link TextAreaClass.ContentType} on read and the field silently renders as wiki content.
+     *
+     * @param raw the attribute value
+     * @return the canonical stored value, or {@code null} when the token is in neither vocabulary
+     */
+    static String storedContentType(String raw)
+    {
+        TextAreaClass.ContentType contentType = displayedContentType(raw);
+        if (contentType == null) {
+            contentType = TextAreaClass.ContentType.getByValue(raw);
+        }
+        return contentType == null ? null : contentType.toString();
+    }
+
+    /**
+     * @return the accepted {@code contentType} tokens for a teaching error, in display vocabulary (the
+     *     form {@code get_schema} shows), in the order this class renders them
+     */
+    static String acceptedContentTypes()
+    {
+        return String.join(LIST_SEPARATOR, PLAIN_CONTENT_DETAIL, WIKI_CONTENT_DETAIL, VELOCITY_CODE_DETAIL,
+            VELOCITY_WIKI_DETAIL);
+    }
+
+    /**
+     * The reverse of {@link #contentTypeDetail(TextAreaClass.ContentType)}: resolves a display token,
+     * case-insensitively.
+     *
+     * @param raw the attribute value
+     * @return the content type the display token names, or {@code null} when it names none
+     */
+    private static TextAreaClass.ContentType displayedContentType(String raw)
+    {
+        if (PLAIN_CONTENT_DETAIL.equalsIgnoreCase(raw)) {
+            return TextAreaClass.ContentType.PURE_TEXT;
+        }
+        if (WIKI_CONTENT_DETAIL.equalsIgnoreCase(raw)) {
+            return TextAreaClass.ContentType.WIKI_TEXT;
+        }
+        if (VELOCITY_CODE_DETAIL.equalsIgnoreCase(raw)) {
+            return TextAreaClass.ContentType.VELOCITY_CODE;
+        }
+        if (VELOCITY_WIKI_DETAIL.equalsIgnoreCase(raw)) {
+            return TextAreaClass.ContentType.VELOCITYWIKI;
+        }
+        return null;
+    }
+
+    /**
+     * Maps an {@code editor} attribute value of the schema-writing tool to the canonical stored platform
+     * value ({@link TextAreaClass.EditorType#toString()}), matched case-insensitively against the
+     * platform's editor vocabulary ({@code PureText}, {@code Text}, {@code Wysiwyg}).
+     *
+     * @param raw the attribute value
+     * @return the canonical stored value, or {@code null} when the token names no editor type
+     */
+    static String storedEditor(String raw)
+    {
+        TextAreaClass.EditorType editor = TextAreaClass.EditorType.getByValue(raw);
+        return editor == null ? null : editor.toString();
+    }
+
+    /**
+     * @return the accepted {@code editor} tokens for a teaching error, from the platform's own vocabulary
+     */
+    static String acceptedEditors()
+    {
+        List<String> tokens = new ArrayList<>();
+        for (TextAreaClass.EditorType editor : TextAreaClass.EditorType.values()) {
+            tokens.add(editor.toString());
+        }
+        return String.join(LIST_SEPARATOR, tokens);
     }
 
     /**
      * Appends the space-separated modifiers: {@code multiselect} for a multi-select list, and
      * {@code default=<value>} for a list with a non-blank default or a boolean with an explicit default
-     * ({@link BooleanClass#getDefaultValue()} returns {@code -1} for "no default").
+     * ({@link BooleanClass#getDefaultValue()} returns {@code -1} for "no default"). A static list's
+     * default additionally carries the {@link #DEFAULT_NOT_AMONG_VALUES} marker when it does not match
+     * any allowed value exactly (case-sensitive - the stored default must be byte-identical to a value
+     * to be usable), so the agent is never taught an unusable default. Only static lists get the check:
+     * a database list's values come from an admin-authored query that is never executed here.
      *
      * @param line the line being composed
      * @param property the field definition
+     * @param context the XWiki context, needed to expand a static list's values for the default check
      */
-    private static void appendModifiers(StringBuilder line, PropertyClass property)
+    private static void appendModifiers(StringBuilder line, PropertyClass property, XWikiContext context)
     {
         if (property instanceof ListClass list) {
             if (list.isMultiSelect()) {
@@ -326,6 +474,10 @@ final class MCPSchemaText
             }
             if (StringUtils.isNotBlank(list.getDefaultValue())) {
                 line.append(DEFAULT_PREFIX).append(strip(list.getDefaultValue()));
+                if (property instanceof StaticListClass staticList
+                    && !staticList.getList(context).contains(list.getDefaultValue())) {
+                    line.append(DEFAULT_NOT_AMONG_VALUES);
+                }
             }
         } else if (property instanceof BooleanClass bool && bool.getDefaultValue() != -1) {
             line.append(DEFAULT_PREFIX).append(bool.getDefaultValue());

@@ -49,6 +49,7 @@ import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.objects.classes.NumberClass;
 import com.xpn.xwiki.objects.classes.PropertyClass;
 import com.xpn.xwiki.objects.classes.StringClass;
+import com.xpn.xwiki.objects.classes.TextAreaClass;
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.OldcoreTest;
 
@@ -307,6 +308,73 @@ class MCPWriteSchemaToolTest
         String text = textOf(result);
         assertTrue(text.contains("total: ComputedField"), text);
         assertFalse(text.contains("secret"), text);
+    }
+
+    @Test
+    void textAreaContentTypeDisplayTokenIsNormalizedToTheStoredVocabulary(MockitoOldcore oldcore)
+        throws Exception
+    {
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, OPERATION_KEY, ADD_FIELD,
+            FIELD_KEY, "notes", TYPE_KEY, "TextArea", ATTRIBUTES_KEY, Map.of("contentType", "plain")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        TextAreaClass property = (TextAreaClass) loadClass(oldcore).get("notes");
+        // The display token "plain" is stored as the platform vocabulary: stored raw it would match no
+        // ContentType on read and the field would silently render as wiki content.
+        assertEquals("puretext", property.getContentType());
+        assertEquals(TextAreaClass.ContentType.PURE_TEXT,
+            TextAreaClass.ContentType.getByValue(property.getContentType()));
+        // get_schema round-trip: the stored value reads back as the display detail the agent wrote.
+        assertTrue(textOf(result).contains("notes: TextArea(plain)"), textOf(result));
+    }
+
+    @Test
+    void textAreaContentTypePlatformTokenPassesThrough(MockitoOldcore oldcore) throws Exception
+    {
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, OPERATION_KEY, ADD_FIELD,
+            FIELD_KEY, "code", TYPE_KEY, "TextArea", ATTRIBUTES_KEY, Map.of("contentType", "VelocityCode")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        TextAreaClass property = (TextAreaClass) loadClass(oldcore).get("code");
+        assertEquals("velocitycode", property.getContentType());
+        assertTrue(textOf(result).contains("code: TextArea(velocityCode)"), textOf(result));
+    }
+
+    @Test
+    void unknownContentTypeTokenRefusedListingTheDisplayVocabulary(MockitoOldcore oldcore) throws Exception
+    {
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, OPERATION_KEY, ADD_FIELD,
+            FIELD_KEY, "notes", TYPE_KEY, "TextArea", ATTRIBUTES_KEY, Map.of("contentType", "fancy")));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        // The error teaches the display vocabulary, since that is what get_schema shows.
+        assertTrue(textOf(result).contains(
+            "must be one of plain, wiki, velocityCode, velocityWiki, got \"fancy\""), textOf(result));
+        verifyNothingSaved(oldcore);
+    }
+
+    @Test
+    void textAreaEditorTokenIsNormalizedToTheStoredVocabulary(MockitoOldcore oldcore) throws Exception
+    {
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, OPERATION_KEY, ADD_FIELD,
+            FIELD_KEY, "notes", TYPE_KEY, "TextArea", ATTRIBUTES_KEY, Map.of("editor", "wysiwyg")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        TextAreaClass property = (TextAreaClass) loadClass(oldcore).get("notes");
+        // The stored meta-property carries the canonical platform token, not the raw lowercase input.
+        assertEquals("Wysiwyg", property.getStringValue("editor"));
+    }
+
+    @Test
+    void unknownEditorTokenRefusedListingThePlatformVocabulary(MockitoOldcore oldcore) throws Exception
+    {
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, OPERATION_KEY, ADD_FIELD,
+            FIELD_KEY, "notes", TYPE_KEY, "TextArea", ATTRIBUTES_KEY, Map.of("editor", "emacs")));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("must be one of PureText, Text, Wysiwyg, got \"emacs\""),
+            textOf(result));
+        verifyNothingSaved(oldcore);
     }
 
     @Test

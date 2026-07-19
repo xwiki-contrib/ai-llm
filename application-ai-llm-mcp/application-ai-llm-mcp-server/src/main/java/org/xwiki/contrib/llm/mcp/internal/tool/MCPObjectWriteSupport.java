@@ -97,6 +97,12 @@ final class MCPObjectWriteSupport
 
     private static final String NO_OBJECT_PREFIX = "No object of class " + QUOTE;
 
+    /**
+     * The tail shared by the unsettable-field refusals, following the write-path convention: what
+     * failed, that nothing was saved, and the corrective next action.
+     */
+    private static final String NOTHING_SAVED_TAIL = " Nothing was saved - omit the field and retry.";
+
     private MCPObjectWriteSupport()
     {
     }
@@ -338,11 +344,13 @@ final class MCPObjectWriteSupport
         String type = property.getClassType();
         if (MCPObjectQuerySupport.PASSWORD_TYPE.equals(type)) {
             throw new IllegalArgumentException(CANNOT_SET_PREFIX + " Password" + FIELD_INFIX
-                + MCPTextGuards.fragment(name) + QUOTE + ": set passwords via the wiki UI.");
+                + MCPTextGuards.fragment(name) + QUOTE + ": set passwords via the wiki UI."
+                + NOTHING_SAVED_TAIL);
         }
         if (MCPObjectQuerySupport.COMPUTED_TYPE.equals(type)) {
             throw new IllegalArgumentException(CANNOT_SET_PREFIX + FIELD_INFIX + MCPTextGuards.fragment(name)
-                + QUOTE + ": computed fields have no stored value.");
+                + QUOTE + ": it is computed by the class's script and has no stored value."
+                + NOTHING_SAVED_TAIL);
         }
         if (MCPObjectQuerySupport.BOOLEAN_TYPE.equals(type)) {
             // Booleans are the one type whose platform parse cannot fail (garbage stores a null value),

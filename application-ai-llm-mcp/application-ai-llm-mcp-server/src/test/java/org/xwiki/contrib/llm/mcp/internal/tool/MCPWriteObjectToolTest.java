@@ -442,8 +442,10 @@ class MCPWriteObjectToolTest
 
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
-        assertTrue(text.contains("Password"), text);
-        assertTrue(text.contains("wiki UI"), text);
+        // The refusal follows the same write-path convention as the computed-field one: what failed, that
+        // nothing was saved, and the corrective next action.
+        assertTrue(text.contains("Cannot set Password field \"secret\": set passwords via the wiki UI. "
+            + "Nothing was saved - omit the field and retry."), text);
         assertNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
     }
 
@@ -458,8 +460,10 @@ class MCPWriteObjectToolTest
 
         assertEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
-        assertTrue(text.contains("computed"), text);
-        assertTrue(text.contains("no stored value"), text);
+        // The refusal follows the write-path convention: what failed, that nothing was saved, and the
+        // corrective next action.
+        assertTrue(text.contains("Cannot set field \"total\": it is computed by the class's script and "
+            + "has no stored value. Nothing was saved - omit the field and retry."), text);
         assertNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
     }
 

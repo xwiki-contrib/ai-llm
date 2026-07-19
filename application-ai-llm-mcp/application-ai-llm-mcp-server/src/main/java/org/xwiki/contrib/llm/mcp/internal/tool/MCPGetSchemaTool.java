@@ -197,7 +197,7 @@ public class MCPGetSchemaTool implements MCPTool
                 published: Boolean(yesno) "Published" default=1
                 publishDate: Date(dd/MM/yyyy HH:mm:ss) "Publish date"
                 content: TextArea(wiki) "Content"
-                setup: TextArea(velocitycode) "Setup" (executable script)
+                setup: TextArea(velocityCode) "Setup" (executable script)
                 reviewer: Users "Reviewer"
                 secret: Password "Secret" (values masked in query results)
                 source: DBList "Source" (values come from a database query)

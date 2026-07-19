@@ -135,11 +135,11 @@ final class MCPSchemaWriteSupport
 
     private static final Attr SEPARATOR = new Attr("separator", AttrKind.STRING);
 
-    private static final Attr EDITOR = new Attr("editor", AttrKind.STRING);
+    private static final Attr EDITOR = new Attr("editor", AttrKind.EDITOR);
 
     private static final Attr DATE_FORMAT = new Attr("dateFormat", AttrKind.STRING);
 
-    private static final Attr CONTENT_TYPE = new Attr("contentType", CONTENT_TYPE_STORED, AttrKind.STRING);
+    private static final Attr CONTENT_TYPE = new Attr("contentType", CONTENT_TYPE_STORED, AttrKind.CONTENT_TYPE);
 
     private static final Attr SQL = new Attr("sql", AttrKind.LARGE_STRING);
 
@@ -452,6 +452,8 @@ final class MCPSchemaWriteSupport
             case BOOL -> property.setIntValue(attr.stored(), coerceBool(attr.name(), raw));
             case STRING -> property.setStringValue(attr.stored(), raw);
             case LARGE_STRING -> property.setLargeStringValue(attr.stored(), raw);
+            case CONTENT_TYPE -> property.setStringValue(attr.stored(), coerceContentType(attr.name(), raw));
+            case EDITOR -> property.setStringValue(attr.stored(), coerceEditor(attr.name(), raw));
             default -> {
             }
         }
@@ -475,8 +477,54 @@ final class MCPSchemaWriteSupport
         if ("0".equals(raw) || "false".equalsIgnoreCase(raw)) {
             return 0;
         }
-        throw new IllegalArgumentException(ATTRIBUTE_LABEL + QUOTE + strip(attrName) + QUOTE
-            + " must be one of 0, 1, true, false, got " + QUOTE + strip(raw) + QUOTE + PERIOD);
+        throw unknownTokenError(attrName, raw, "0, 1, true, false");
+    }
+
+    /**
+     * Coerces a {@code contentType} attribute to the canonical stored platform vocabulary
+     * ({@link MCPSchemaText#storedContentType(String)}). Storing the raw token would break the read side:
+     * a display token like {@code plain} matches no platform content type, so the field would silently
+     * render as wiki content.
+     *
+     * @param attrName the agent-facing attribute name, for the error message
+     * @param raw the attribute value
+     * @return the canonical stored value
+     * @throws IllegalArgumentException listing the accepted display tokens when the value is in neither
+     *     vocabulary
+     */
+    private static String coerceContentType(String attrName, String raw)
+    {
+        String stored = MCPSchemaText.storedContentType(raw);
+        if (stored == null) {
+            throw unknownTokenError(attrName, raw, MCPSchemaText.acceptedContentTypes());
+        }
+        return stored;
+    }
+
+    /**
+     * Coerces an {@code editor} attribute to the canonical stored platform vocabulary
+     * ({@link MCPSchemaText#storedEditor(String)}), for the same reason as
+     * {@link #coerceContentType(String, String)}: an out-of-vocabulary stored editor matches no platform
+     * editor type on read.
+     *
+     * @param attrName the agent-facing attribute name, for the error message
+     * @param raw the attribute value
+     * @return the canonical stored value
+     * @throws IllegalArgumentException listing the accepted tokens when the value names no editor type
+     */
+    private static String coerceEditor(String attrName, String raw)
+    {
+        String stored = MCPSchemaText.storedEditor(raw);
+        if (stored == null) {
+            throw unknownTokenError(attrName, raw, MCPSchemaText.acceptedEditors());
+        }
+        return stored;
+    }
+
+    private static IllegalArgumentException unknownTokenError(String attrName, String raw, String accepted)
+    {
+        return new IllegalArgumentException(ATTRIBUTE_LABEL + QUOTE + strip(attrName) + QUOTE
+            + " must be one of " + accepted + ", got " + QUOTE + strip(raw) + QUOTE + PERIOD);
     }
 
     private static IllegalArgumentException unknownType(String type)
@@ -514,7 +562,18 @@ final class MCPSchemaWriteSupport
         STRING,
 
         /** A long-string meta-property (e.g. {@code sql}, {@code script}). */
-        LARGE_STRING
+        LARGE_STRING,
+
+        /**
+         * The text area's {@code contenttype} meta-property, normalized to the platform's stored
+         * vocabulary (display and platform tokens accepted, anything else refused).
+         */
+        CONTENT_TYPE,
+
+        /**
+         * The text area's {@code editor} meta-property, normalized to the platform's stored vocabulary.
+         */
+        EDITOR
     }
 
     /**

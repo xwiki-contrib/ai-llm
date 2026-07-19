@@ -138,7 +138,7 @@ class MCPSchemaTextTest
               published: Boolean(yesno) "Published" default=1
               publishDate: Date(dd/MM/yyyy HH:mm:ss) "Publish date"
               content: TextArea(wiki) "Content"
-              setup: TextArea(velocitycode) "Setup" (executable script)
+              setup: TextArea(velocityCode) "Setup" (executable script)
               reviewer: Users "Reviewer"
               secret: Password "Secret" (values masked in query results)
               source: DBList "Source" (values come from a database query)
@@ -164,11 +164,11 @@ class MCPSchemaTextTest
 
         String rendered = MCPSchemaText.render(xclass, this.context);
 
-        assertTrue(rendered.contains("macro: TextArea(velocitywiki) (executable script)"), rendered);
+        assertTrue(rendered.contains("macro: TextArea(velocityWiki) (executable script)"), rendered);
     }
 
     @Test
-    void pureTextContentCarriesItsStoredKindAndNoNote()
+    void pureTextContentRendersAsPlainAndNoNote()
     {
         BaseClass xclass = new BaseClass();
         TextAreaClass notes = field(new TextAreaClass(), "notes", null, 1);
@@ -177,8 +177,67 @@ class MCPSchemaTextTest
 
         String rendered = MCPSchemaText.render(xclass, this.context);
 
-        assertTrue(rendered.contains("notes: TextArea(puretext)"), rendered);
+        assertTrue(rendered.contains("notes: TextArea(plain)"), rendered);
         assertFalse(rendered.contains("executable"), rendered);
+    }
+
+    @Test
+    void unsetContentTypePlaceholderResolvesToWikiContent()
+    {
+        BaseClass xclass = new BaseClass();
+        TextAreaClass notes = field(new TextAreaClass(), "notes", null, 1);
+        // The class editor stores the literal "---" placeholder when no content type is selected; the
+        // platform treats such a field as wiki content, so the schema line must say "wiki", never "---".
+        notes.setContentType("---");
+        add(xclass, notes);
+
+        String rendered = MCPSchemaText.render(xclass, this.context);
+
+        assertTrue(rendered.contains("notes: TextArea(wiki)"), rendered);
+        assertFalse(rendered.contains("---"), rendered);
+    }
+
+    @Test
+    void unsetContentTypeWithPureTextEditorOmitsTheUndecidableDetail()
+    {
+        BaseClass xclass = new BaseClass();
+        TextAreaClass notes = field(new TextAreaClass(), "notes", null, 1);
+        notes.setContentType("---");
+        // A pure text editor is compatible with several content kinds, so with the content type unset the
+        // kind is genuinely undecidable: the detail is omitted rather than guessed.
+        notes.setEditor("PureText");
+        add(xclass, notes);
+
+        String rendered = MCPSchemaText.render(xclass, this.context);
+
+        assertTrue(rendered.endsWith("notes: TextArea"), rendered);
+        assertFalse(rendered.contains("TextArea("), rendered);
+    }
+
+    @Test
+    void staticListDefaultOutsideTheValuesCarriesTheMismatchMarker()
+    {
+        BaseClass xclass = new BaseClass();
+        // The live shape this guards: a default typed with different casing/punctuation than any allowed
+        // value. The comparison is case-sensitive because only a byte-identical default is usable.
+        StaticListClass docType = field(new StaticListClass(), "docType", null, 1);
+        docType.setValues("tutorial|howto|reference|explanation");
+        docType.setDefaultValue("How-To");
+        add(xclass, docType);
+
+        StaticListClass docKind = field(new StaticListClass(), "docKind", null, 2);
+        docKind.setValues("tutorial|howto|reference|explanation");
+        docKind.setDefaultValue("howto");
+        add(xclass, docKind);
+
+        String rendered = MCPSchemaText.render(xclass, this.context);
+
+        assertTrue(rendered.contains(
+            "docType: StaticList(tutorial|howto|reference|explanation) default=How-To (not among the values)"),
+            rendered);
+        // An exact match carries no marker: the line ends at the default value.
+        assertTrue(rendered.endsWith("docKind: StaticList(tutorial|howto|reference|explanation) default=howto"),
+            rendered);
     }
 
     @Test
