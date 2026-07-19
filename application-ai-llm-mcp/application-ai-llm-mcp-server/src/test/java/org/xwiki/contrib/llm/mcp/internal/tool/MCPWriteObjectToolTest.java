@@ -89,6 +89,8 @@ class MCPWriteObjectToolTest
 
     private static final String FIELDS_KEY = "fields";
 
+    private static final String TITLE_KEY = "title";
+
     private static final String BASE_VERSION_KEY = "base_version";
 
     private static final String COMMENT_KEY = "comment";
@@ -327,6 +329,80 @@ class MCPWriteObjectToolTest
         // The default save of an existing document is a minor edit.
         verify(oldcore.getSpyXWiki()).saveDocument(any(XWikiDocument.class),
             eq("[AI] set 1 field(s) on Blog.BlogPostClass object 0"), eq(true), any());
+    }
+
+    @Test
+    void createWithTitleSetsThePageTitleInTheSameSave(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            TITLE_KEY, "Draft post", FIELDS_KEY, Map.of(TITLE_FIELD, "Draft")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        XWikiDocument saved = loadDocument(oldcore);
+        assertEquals("Draft post", saved.getTitle());
+        // One save, one version: the object-first creation names its page in the same call.
+        assertEquals("1.1", saved.getVersion());
+        assertNotNull(saved.getXObject(CLASS_REFERENCE, 0));
+        assertTrue(textOf(result).contains("Title set."), textOf(result));
+    }
+
+    @Test
+    void updateWithTitleUpdatesThePageTitle(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocumentWithObject(oldcore, "First");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            OBJECT_KEY, 0, TITLE_KEY, "Renamed", BASE_VERSION_KEY, currentVersion(oldcore),
+            FIELDS_KEY, Map.of(TITLE_FIELD, "Updated")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        XWikiDocument saved = loadDocument(oldcore);
+        assertEquals("Renamed", saved.getTitle());
+        assertEquals("Updated", saved.getXObject(CLASS_REFERENCE, 0).getStringValue(TITLE_FIELD));
+        assertTrue(textOf(result).contains("Title updated."), textOf(result));
+    }
+
+    @Test
+    void titleIdenticalToTheCurrentOneIsNotEchoedAsAChange(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        XWikiDocument doc = new XWikiDocument(DOC_REFERENCE);
+        doc.setTitle("Kept title");
+        doc.newXObject(CLASS_REFERENCE, oldcore.getXWikiContext());
+        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            OBJECT_KEY, 0, TITLE_KEY, "Kept title", BASE_VERSION_KEY, currentVersion(oldcore),
+            FIELDS_KEY, Map.of(TITLE_FIELD, "Updated")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        XWikiDocument saved = loadDocument(oldcore);
+        assertEquals("Kept title", saved.getTitle());
+        assertEquals("Updated", saved.getXObject(CLASS_REFERENCE, 0).getStringValue(TITLE_FIELD));
+        // A title argument identical to the current title changes nothing, so no "Title updated." line.
+        assertFalse(textOf(result).contains("Title updated."), textOf(result));
+    }
+
+    @Test
+    void omittedTitleLeavesThePageTitleUntouched(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        XWikiDocument doc = new XWikiDocument(DOC_REFERENCE);
+        doc.setTitle("Existing title");
+        doc.newXObject(CLASS_REFERENCE, oldcore.getXWikiContext());
+        oldcore.getSpyXWiki().saveDocument(doc, oldcore.getXWikiContext());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            OBJECT_KEY, 0, BASE_VERSION_KEY, currentVersion(oldcore),
+            FIELDS_KEY, Map.of(TITLE_FIELD, "Updated")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        XWikiDocument saved = loadDocument(oldcore);
+        assertEquals("Existing title", saved.getTitle());
+        assertFalse(textOf(result).contains("Title"), textOf(result));
     }
 
     @Test

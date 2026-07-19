@@ -84,6 +84,8 @@ public class MCPWriteObjectTool implements MCPTool
 
     private static final String FIELDS_PARAM = "fields";
 
+    private static final String TITLE_PARAM = "title";
+
     private static final String BASE_VERSION_PARAM = "base_version";
 
     private static final String COMMENT_PARAM = "comment";
@@ -154,6 +156,8 @@ public class MCPWriteObjectTool implements MCPTool
                 + "converted with the field's own type (get_schema shows the types and formats; "
                 + "multi-select list values accept \"|\" or \",\" separators; booleans accept 0, 1, true "
                 + "or false).")
+            .string(TITLE_PARAM, "Optional new title for the document holding the object, applied in the "
+                + "same save (create and update alike). Kept unchanged when omitted.")
             .string(BASE_VERSION_PARAM, "The document version you read (shown by get_document and "
                 + "query_objects). Required when the document already exists; omit it when creating a new "
                 + "document. The save is refused if the document has changed since you read it.")
@@ -208,6 +212,9 @@ public class MCPWriteObjectTool implements MCPTool
                 Multi-select list values accept "|" or "," separators (e.g. "News|Personal");
                 booleans accept 0, 1, true or false. Unknown fields are refused (the error lists
                 the class's fields); Password and computed fields cannot be set with this tool.
+                title sets the DOCUMENT's title in the same save (create and update alike), so
+                an object-first page creation names its page without a second call; omitted, the
+                title stays untouched.
                 base_version is required when the document already exists: read it first
                 (get_document and query_objects show the version) and pass what you read. Omit
                 base_version when the document does not exist yet - it is then created carrying
@@ -221,8 +228,9 @@ public class MCPWriteObjectTool implements MCPTool
                 Update:      reference="Blog.MyPost", class="Blog.BlogPostClass", object=0,
                              base_version="2.2", fields={"published": "0"}
                 New page:    reference="Blog.NewPost", class="Blog.BlogPostClass",
-                             fields={"title": "Draft"}
-                             (no base_version: the document does not exist and is created)
+                             title="Draft post", fields={"title": "Draft"}
+                             (no base_version: the document does not exist and is created
+                             carrying the object, with its page title set in the same save)
 
             SEE ALSO
                 man get_schema       The classes of the wiki and each class's fields and types.
@@ -269,6 +277,7 @@ public class MCPWriteObjectTool implements MCPTool
             PARAMS.parser().requireString(args, CLASS_PARAM),
             PARAMS.parser().integer(args, OBJECT_PARAM),
             PARAMS.parser().requireStringMap(args, FIELDS_PARAM),
+            PARAMS.parser().string(args, TITLE_PARAM),
             PARAMS.parser().string(args, BASE_VERSION_PARAM),
             PARAMS.parser().string(args, COMMENT_PARAM),
             PARAMS.parser().bool(args, MAJOR_PARAM));
@@ -318,13 +327,18 @@ public class MCPWriteObjectTool implements MCPTool
             var applied = MCPObjectWriteSupport.applyFields(editable, classDoc, classRef, localClassName,
                 request.objectNumber(), request.fields(), xcontext);
 
+            boolean titleChanged = request.title() != null && !request.title().equals(editable.getTitle());
             Document apiDoc = new Document(editable, xcontext);
+            if (titleChanged) {
+                apiDoc.setTitle(request.title());
+            }
             apiDoc.save(
                 MCPWriteSupport.buildComment(request.comment(), creating, changeSummary(applied, localClassName)),
                 MCPWriteSupport.isMinorEdit(creating, request.major()));
 
             return MCPToolSupport.result(
-                buildSuccessResult(ref, creating, oldVersion, apiDoc.getVersion(), localClassName, applied));
+                buildSuccessResult(ref, creating, oldVersion, apiDoc.getVersion(), localClassName, applied,
+                    titleLine(creating, request.title() != null, titleChanged)));
         });
     }
 
@@ -384,9 +398,27 @@ public class MCPWriteObjectTool implements MCPTool
     }
 
     /**
+     * Builds the title echo of the success result the way {@code write_document} words it: {@code Title
+     * set.} for a creation given a title, {@code Title updated.} for an update whose title actually
+     * changed, nothing otherwise (omitted title, or a title identical to the current one).
+     *
+     * @param creatingDocument whether the document itself was created
+     * @param titleGiven whether a title argument was supplied
+     * @param titleChanged whether the title actually changed
+     * @return the title line, or {@code null} when the result carries none
+     */
+    private static String titleLine(boolean creatingDocument, boolean titleGiven, boolean titleChanged)
+    {
+        if (creatingDocument) {
+            return titleGiven ? "Title set." : null;
+        }
+        return titleChanged ? "Title updated." : null;
+    }
+
+    /**
      * Builds the success result: what happened to which object, the version (transition), the names of
      * the fields set (names only - values are on the document, and the compare URL is the authoritative
-     * review) and the review line.
+     * review), the title echo when a title was applied, and the review line.
      *
      * @param ref the saved document's reference
      * @param creatingDocument whether the document itself was created
@@ -394,10 +426,11 @@ public class MCPWriteObjectTool implements MCPTool
      * @param newVersion the version after the save
      * @param localClassName the wiki-local serialized class name
      * @param applied the applied write
+     * @param titleLine the title echo line, or {@code null} when none
      * @return the result text
      */
     private String buildSuccessResult(DocumentReference ref, boolean creatingDocument, String oldVersion,
-        String newVersion, String localClassName, MCPObjectWriteSupport.AppliedWrite applied)
+        String newVersion, String localClassName, MCPObjectWriteSupport.AppliedWrite applied, String titleLine)
     {
         String canonicalRef = MCPToolSupport.stripLineBreaks(this.serializer.serialize(ref));
         String className = MCPToolSupport.stripLineBreaks(localClassName);
@@ -411,6 +444,9 @@ public class MCPWriteObjectTool implements MCPTool
                 .append(OBJECT_INFIX).append(applied.number()).append(ON_DOCUMENT_INFIX).append(canonicalRef)
                 .append(PERIOD).append(NEW_LINE);
             sb.append(MCPWriteSupport.VERSION_PREFIX).append(oldVersion).append(" -> ").append(newVersion);
+        }
+        if (titleLine != null) {
+            sb.append(NEW_LINE).append(titleLine);
         }
         sb.append(NEW_LINE).append("Fields set: ").append(String.join(", ", applied.fieldNames()));
         String urlLine = MCPWriteSupport.buildReviewLine(this.documentAccessBridge, this.logger, ref,
@@ -429,13 +465,14 @@ public class MCPWriteObjectTool implements MCPTool
      * @param classReference the raw {@code class} argument
      * @param objectNumber the number of the object to update, or {@code null} to create one
      * @param fields the field name to raw string value entries, in call order
+     * @param title the requested document title, or {@code null} when not requested
      * @param baseVersion the version the agent read, or {@code null} when none was given
      * @param comment the agent-supplied version comment, or {@code null}
      * @param major whether to record a major version
      * @version $Id$
      */
     private record Request(String reference, String classReference, Integer objectNumber,
-        Map<String, String> fields, String baseVersion, String comment, boolean major)
+        Map<String, String> fields, String title, String baseVersion, String comment, boolean major)
     {
     }
 }
