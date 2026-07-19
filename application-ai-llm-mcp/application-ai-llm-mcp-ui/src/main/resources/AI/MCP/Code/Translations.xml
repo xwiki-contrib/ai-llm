@@ -43,9 +43,16 @@ AI.MCP.Code.security.notice.filters=Filters are scoping, not secrecy: a request 
 # Class fields
 AI.MCP.Code.MCPServerConfigClass_serverName=Server Name
 AI.MCP.Code.MCPServerConfigClass_serverDescription=Server Description
+# Server URL
+AI.MCP.Code.serverUrl.label=MCP server URL
+AI.MCP.Code.serverUrl.hint=Configure this URL in your MCP client to connect it to this wiki's MCP endpoint. It works from any wiki of the farm - the wiki the endpoint serves is selected by the URL path.
+AI.MCP.Code.serverUrl.copy=Copy the MCP server URL
+AI.MCP.Code.serverUrl.copied=MCP server URL copied.
+AI.MCP.Code.serverUrl.copyFailed=Could not copy automatically - select the URL and copy it manually.
 # Farm dashboard
 AI.MCP.Code.dashboard.heading=MCP across all wikis
 AI.MCP.Code.dashboard.intro=Enable or disable the MCP endpoint for each wiki of this farm, and grant cross-wiki reach. An endpoint with reach can search and act (read and write) across every wiki of the farm using its own tool set and space filter - the other wikis' own MCP settings (whether their endpoint is enabled, their tool toggles, their space filter) do not restrict it. Only the acting user's document rights always apply, so reach never grants access a user would not otherwise have. You can only change wikis on which you have admin rights.
+AI.MCP.Code.dashboard.column.url=Server URL
 AI.MCP.Code.dashboard.column.enabled=MCP enabled
 AI.MCP.Code.dashboard.column.reach=Cross-wiki reach
 AI.MCP.Code.dashboard.column.wiki=Wiki

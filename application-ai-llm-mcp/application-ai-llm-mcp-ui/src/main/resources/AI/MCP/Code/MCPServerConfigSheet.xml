@@ -58,6 +58,12 @@
   #set ($discard = $configObject.set('enabled', 1))
 #end
 #set ($configClass = $xwiki.getDocument($configClassName).getxWikiClass())
+## The MCP endpoint URL rows/cells below are display niceties: when the URL cannot be composed the service
+## returns null and nothing is rendered. The copy button labels are shared with the farm dashboard column.
+#set ($mcpServerUrl = $services.mcp.getServerUrl($services.wiki.currentWikiId))
+#set ($mcpCopyLabel = $services.localization.render('AI.MCP.Code.serverUrl.copy'))
+#set ($mcpCopiedLabel = $services.localization.render('AI.MCP.Code.serverUrl.copied'))
+#set ($mcpCopyFailedLabel = $services.localization.render('AI.MCP.Code.serverUrl.copyFailed'))
 {{info}}
 $services.localization.render('AI.MCP.Code.security.notice')
 
@@ -78,6 +84,18 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
           &lt;span class="xHint"&gt;$configClass.get('enabled').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('enabled', 'edit'){{html clean="false"}}&lt;/dd&gt;
+#end
+#if ("$!mcpServerUrl" != '')
+        &lt;dt&gt;
+          &lt;label for="mcp-server-url"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.serverUrl.label'))&lt;/label&gt;
+          &lt;span class="xHint"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.serverUrl.hint'))&lt;/span&gt;
+        &lt;/dt&gt;
+        &lt;dd&gt;
+          &lt;div class="input-group"&gt;
+            &lt;input type="text" id="mcp-server-url" class="form-control" readonly="readonly" value="$escapetool.xml($mcpServerUrl)" /&gt;
+            &lt;span class="input-group-btn"&gt;&lt;button type="button" class="btn btn-default mcp-copy-url" data-mcp-url="$escapetool.xml($mcpServerUrl)" data-mcp-copied="$escapetool.xml($mcpCopiedLabel)" data-mcp-copyfailed="$escapetool.xml($mcpCopyFailedLabel)" title="$escapetool.xml($mcpCopyLabel)"&gt;$services.icon.renderHTML('copy')&lt;/button&gt;&lt;/span&gt;
+          &lt;/div&gt;
+        &lt;/dd&gt;
 #end
         &lt;dt&gt;
           &lt;label for="${configClassName}_${configObject.number}_serverName"&gt;$configClass.get('serverName').getTranslatedPrettyName()&lt;/label&gt;
@@ -243,6 +261,7 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
           &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.reach'))&lt;/th&gt;
           &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.wiki'))&lt;/th&gt;
           &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.configure'))&lt;/th&gt;
+          &lt;th&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.column.url'))&lt;/th&gt;
         &lt;/tr&gt;
       &lt;/thead&gt;
       &lt;tbody&gt;
@@ -258,6 +277,7 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
             &lt;td&gt;#if ($canFarmAdmin)&lt;input type="hidden" name="mcpReachManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpReach" value="$escapetool.xml($w.id)"#if ($services.mcp.isCrossWikiReach($w.id)) checked="checked"#end /&gt;#else#if ($services.mcp.isCrossWikiReach($w.id))$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.enabled'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.disabled'))#end#end&lt;/td&gt;
             &lt;td&gt;$escapetool.xml($wikiName)&lt;/td&gt;
             &lt;td&gt;#if ($canAdmin)#set ($configRef = $services.model.createDocumentReference($w.id, 'XWiki', 'XWikiPreferences'))&lt;a href="$escapetool.xml($xwiki.getURL($configRef, 'admin', "section=$escapetool.url($mcpSectionId)"))"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.configure.link'))&lt;/a&gt;#end&lt;/td&gt;
+            &lt;td&gt;#set ($mcpRowUrl = $services.mcp.getServerUrl($w.id))#if ("$!mcpRowUrl" != '')&lt;button type="button" class="btn btn-default mcp-copy-url" data-mcp-url="$escapetool.xml($mcpRowUrl)" data-mcp-copied="$escapetool.xml($mcpCopiedLabel)" data-mcp-copyfailed="$escapetool.xml($mcpCopyFailedLabel)" title="$escapetool.xml($mcpCopyLabel)"&gt;$services.icon.renderHTML('copy')&lt;/button&gt;#end&lt;/td&gt;
           &lt;/tr&gt;
         #end
       &lt;/tbody&gt;
@@ -355,6 +375,75 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
     </property>
     <property>
       <code>  (function () {
+    // Copy-to-clipboard for the MCP endpoint URL buttons (config row and farm dashboard column). All texts
+    // come from the buttons' data- attributes; delegation on the document covers both surfaces.
+    function notify(button, attribute, type) {
+      // Older platform Notification widgets render their text as HTML: escape defensively so the
+      // widget version never matters (getAttribute returns the entity-decoded value).
+      var text = button.getAttribute(attribute)
+        .replace(/&amp;/g, '&amp;amp;').replace(/&lt;/g, '&amp;lt;').replace(/&gt;/g, '&amp;gt;');
+      new XWiki.widgets.Notification(text, type);
+    }
+    function showCopied(button) {
+      notify(button, 'data-mcp-copied', 'done');
+    }
+    function fallbackCopy(button, url) {
+      // For the config row the adjacent readonly input can be selected directly; dashboard buttons have no
+      // input, so a transient off-screen textarea carries the value instead.
+      var group = button.closest('.input-group');
+      var input = group ? group.querySelector('input[readonly]') : null;
+      var temp = null;
+      if (!input) {
+        temp = document.createElement('textarea');
+        temp.value = url;
+        temp.style.position = 'fixed';
+        temp.style.left = '-9999px';
+        document.body.appendChild(temp);
+        input = temp;
+      }
+      input.focus();
+      input.select();
+      var copied = false;
+      try {
+        copied = document.execCommand('copy');
+      } catch (e) {
+        copied = false;
+      }
+      if (temp) {
+        document.body.removeChild(temp);
+      }
+      if (copied) {
+        showCopied(button);
+      } else {
+        notify(button, 'data-mcp-copyfailed', 'error');
+      }
+    }
+    document.addEventListener('click', function (event) {
+      var button = event.target.closest('.mcp-copy-url');
+      if (!button) {
+        return;
+      }
+      var url = button.getAttribute('data-mcp-url');
+      if (navigator.clipboard &amp;&amp; navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () {
+          showCopied(button);
+        }, function () {
+          fallbackCopy(button, url);
+        });
+      } else {
+        fallbackCopy(button, url);
+      }
+    });
+    var urlInput = document.getElementById('mcp-server-url');
+    if (urlInput) {
+      // The readonly URL input sits inside the config save form: Enter while focused in it must not
+      // submit (on a subwiki that save would persist the display-seeded enable state).
+      urlInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+        }
+      });
+    }
     var form = document.getElementById('mcp-server-config');
     if (!form) {
       return;

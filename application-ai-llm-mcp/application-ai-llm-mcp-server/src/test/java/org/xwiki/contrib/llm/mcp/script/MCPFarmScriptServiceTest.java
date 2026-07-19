@@ -19,11 +19,16 @@
  */
 package org.xwiki.contrib.llm.mcp.script;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.inject.Provider;
+
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
@@ -35,8 +40,13 @@ import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 
+import com.xpn.xwiki.XWiki;
+import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.web.XWikiURLFactory;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -58,6 +68,14 @@ class MCPFarmScriptServiceTest
 
     private static final String MAIN_WIKI = "xwiki";
 
+    private static final String SECOND_WIKI = "second";
+
+    private static final String BASE_URL = "http://host:8080";
+
+    private static final String WEB_APP_PATH = "xwiki/";
+
+    private static final String EXPECTED_SERVER_URL = "http://host:8080/xwiki/rest/wikis/second/aiLLM/mcp";
+
     @InjectMockComponents
     private MCPFarmScriptService service;
 
@@ -73,6 +91,18 @@ class MCPFarmScriptServiceTest
     @MockComponent
     private ComponentManager componentManager;
 
+    @MockComponent
+    private Provider<XWikiContext> xcontextProvider;
+
+    @Mock
+    private XWikiContext xcontext;
+
+    @Mock
+    private XWiki xwiki;
+
+    @Mock
+    private XWikiURLFactory urlFactory;
+
     private void farmAdmin(boolean allowed)
     {
         when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);
@@ -87,6 +117,73 @@ class MCPFarmScriptServiceTest
 
         when(this.mcpConfig.isEnabled(WIKI)).thenReturn(false);
         assertFalse(this.service.isEnabled(WIKI));
+    }
+
+    private void serverUrlContext(String webAppPath)
+    {
+        when(this.xcontextProvider.get()).thenReturn(this.xcontext);
+        when(this.xcontext.getWiki()).thenReturn(this.xwiki);
+        when(this.xwiki.getWebAppPath(this.xcontext)).thenReturn(webAppPath);
+    }
+
+    @Test
+    void getServerUrlComposesTheExactEndpointShape() throws Exception
+    {
+        serverUrlContext(WEB_APP_PATH);
+        when(this.xwiki.getServerURL(SECOND_WIKI, this.xcontext)).thenReturn(new URL(BASE_URL));
+
+        assertEquals(EXPECTED_SERVER_URL, this.service.getServerUrl(SECOND_WIKI));
+        // The wiki's advertised base is preferred: the request URL factory is only a null fallback.
+        verify(this.urlFactory, never()).getServerURL(any());
+    }
+
+    @Test
+    void getServerUrlEncodesTheWikiIdPathSegment() throws Exception
+    {
+        serverUrlContext(WEB_APP_PATH);
+        when(this.xwiki.getServerURL("odd id", this.xcontext)).thenReturn(new URL(BASE_URL));
+
+        // Defensive encoding for ids outside the alphanumeric convention: no raw space in the URL.
+        assertEquals("http://host:8080/xwiki/rest/wikis/odd+id/aiLLM/mcp", this.service.getServerUrl("odd id"));
+    }
+
+    @Test
+    void getServerUrlDoesNotDoubleTheSlashAfterATrailingSlashBase() throws Exception
+    {
+        serverUrlContext(WEB_APP_PATH);
+        when(this.xwiki.getServerURL(SECOND_WIKI, this.xcontext)).thenReturn(new URL(BASE_URL + "/"));
+
+        assertEquals(EXPECTED_SERVER_URL, this.service.getServerUrl(SECOND_WIKI));
+    }
+
+    @Test
+    void getServerUrlSkipsTheRootWebAppPath() throws Exception
+    {
+        serverUrlContext("/");
+        when(this.xwiki.getServerURL(SECOND_WIKI, this.xcontext)).thenReturn(new URL(BASE_URL));
+
+        assertEquals("http://host:8080/rest/wikis/second/aiLLM/mcp", this.service.getServerUrl(SECOND_WIKI));
+    }
+
+    @Test
+    void getServerUrlFallsBackToTheCurrentServerUrlWhenTheWikiHasNone() throws Exception
+    {
+        serverUrlContext(WEB_APP_PATH);
+        when(this.xwiki.getServerURL(SECOND_WIKI, this.xcontext)).thenReturn(null);
+        when(this.xcontext.getURLFactory()).thenReturn(this.urlFactory);
+        when(this.urlFactory.getServerURL(this.xcontext)).thenReturn(new URL(BASE_URL));
+
+        assertEquals(EXPECTED_SERVER_URL, this.service.getServerUrl(SECOND_WIKI));
+    }
+
+    @Test
+    void getServerUrlReturnsNullWhenTheBaseCannotBeResolved() throws Exception
+    {
+        when(this.xcontextProvider.get()).thenReturn(this.xcontext);
+        when(this.xcontext.getWiki()).thenReturn(this.xwiki);
+        when(this.xwiki.getServerURL(SECOND_WIKI, this.xcontext)).thenThrow(new MalformedURLException("no base"));
+
+        assertNull(this.service.getServerUrl(SECOND_WIKI));
     }
 
     @Test

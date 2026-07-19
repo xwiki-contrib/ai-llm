@@ -19,6 +19,10 @@
  */
 package org.xwiki.contrib.llm.mcp.script;
 
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -29,6 +33,7 @@ import java.util.Set;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
@@ -45,6 +50,8 @@ import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.stability.Unstable;
 import org.xwiki.wiki.descriptor.WikiDescriptorManager;
+
+import com.xpn.xwiki.XWikiContext;
 
 /**
  * Provides the farm-level MCP administration Script APIs used by the main wiki's MCP admin dashboard:
@@ -74,6 +81,9 @@ public class MCPFarmScriptService implements ScriptService
     private ComponentManager componentManager;
 
     @Inject
+    private Provider<XWikiContext> xcontextProvider;
+
+    @Inject
     private Logger logger;
 
     /**
@@ -84,6 +94,47 @@ public class MCPFarmScriptService implements ScriptService
     public boolean isEnabled(String wikiId)
     {
         return this.mcpConfig.isEnabled(wikiId);
+    }
+
+    /**
+     * Composes the externally reachable MCP endpoint URL of the given wiki, ready to paste into an MCP client
+     * configuration. The base is the server URL the platform advertises for the wiki (its descriptor
+     * alias, or for the main wiki the configured {@code xwiki.home}) when available, the
+     * current request's server URL otherwise. Read-only; no rights gate, consistent with
+     * {@link #isEnabled(String)}.
+     *
+     * @param wikiId the wiki whose MCP endpoint URL to compose
+     * @return the endpoint URL, or {@code null} when it cannot be composed - the URL is a display nicety, so
+     *     failing to compose it must not break the admin page
+     * @since 0.9.1
+     */
+    public String getServerUrl(String wikiId)
+    {
+        try {
+            XWikiContext xcontext = this.xcontextProvider.get();
+            URL base = xcontext.getWiki().getServerURL(wikiId, xcontext);
+            if (base == null) {
+                base = xcontext.getURLFactory().getServerURL(xcontext);
+            }
+            StringBuilder url = new StringBuilder(base.toString());
+            if (url.charAt(url.length() - 1) != '/') {
+                url.append('/');
+            }
+            // The web application path comes with a trailing slash and no leading one; a root webapp exposes
+            // it as "/", which must be skipped to avoid a double slash before "rest".
+            String webAppPath = xcontext.getWiki().getWebAppPath(xcontext);
+            if (!"/".equals(webAppPath)) {
+                url.append(webAppPath);
+            }
+            // The endpoint path below mirrors MCPResource's @Path("/wikis/{wikiName}/aiLLM/mcp"), which is
+            // the source of truth for it.
+            url.append("rest").append("/wikis/")
+                .append(URLEncoder.encode(wikiId, StandardCharsets.UTF_8)).append("/aiLLM/mcp");
+            return url.toString();
+        } catch (MalformedURLException e) {
+            this.logger.debug("Could not compose the MCP endpoint URL for wiki [{}]", wikiId, e);
+            return null;
+        }
     }
 
     /**
