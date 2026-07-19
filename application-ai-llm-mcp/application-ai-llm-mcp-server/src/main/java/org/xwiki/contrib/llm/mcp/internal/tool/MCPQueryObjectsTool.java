@@ -27,6 +27,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -54,7 +55,9 @@ import io.modelcontextprotocol.spec.McpSchema;
  * MCP tool that finds structured objects (XObjects) by class and field filters. The declarative parameters
  * are compiled by {@link MCPObjectQuerySupport} into one bound HQL statement - the agent never writes a
  * statement, and every dynamic statement fragment comes from closed maps owned by this module while all
- * input travels as bind values.
+ * input travels as bind values. With a {@code document} and no {@code class}, the call inventories that
+ * document instead: every object it carries across classes, class names and numbers only - never a field
+ * value, so the any-class listing exposes nothing a per-class call would mask.
  *
  * <p>This is a default (read-only) tool bundled with the MCP server module. A call operates on exactly one
  * wiki: the current wiki by default, or another farm wiki via the reach-gated {@code wiki} parameter. The
@@ -117,6 +120,18 @@ public class MCPQueryObjectsTool implements MCPTool
 
     private static final String LIST_SEPARATOR = ", ";
 
+    private static final String IN_WIKI = " in wiki ";
+
+    /**
+     * Closing of the two result headers: the quoted wiki id's closing quote, the colon and the blank
+     * line before the body.
+     */
+    private static final String HEADER_END = QUOTE + ":" + DOUBLE_NEW_LINE;
+
+    private static final String DOCUMENT_QUOTE_PREFIX = "Document " + QUOTE;
+
+    private static final String NO_SUCH_DOCUMENT_PREFIX = "No such document: " + QUOTE;
+
     private static final String CONTINUE_HINT = " Continue with offset=";
 
     /**
@@ -144,7 +159,8 @@ public class MCPQueryObjectsTool implements MCPTool
     private static final String DESCRIPTION =
         "Find structured objects (XObjects) by class and field filters: each result names the document "
             + "holding the object, the object number and the requested field values. get_schema lists the "
-            + "classes and each class's fields.";
+            + "classes and each class's fields. With document and no class, lists every object on that "
+            + "document across classes - class, number and document version only, no field values.";
 
     /**
      * The man-page NOTES shown on every endpoint, without any cross-wiki mention.
@@ -153,6 +169,12 @@ public class MCPQueryObjectsTool implements MCPTool
         NOTES
             Finds the objects (instances) of one class. get_schema shows the classes of the
             wiki and each class's fields with their types; use it first.
+
+            With document and NO class, the call inventories that document instead: every
+            object it carries, across classes, grouped by class and ordered by object
+            number, with the document's version. Answers "what objects does this page
+            carry?". No field values are shown in this mode, and select, filters and sort
+            are refused (they are class-scoped).
 
             Each filters entry is one condition: "<field> <op> <value>". The field is the
             first word, the op the second, and everything after the op is the value (it may
@@ -206,6 +228,8 @@ public class MCPQueryObjectsTool implements MCPTool
                              filters=["published = 1", "title contains release"],
                              select=["title", "publishDate"]
             One document:    class="XWiki.XWikiComments", document="Blog.MyPost"
+            Page inventory:  document="Blog.MyPost"
+                             (no class: what objects does this page carry?)
             Sort and page:   class="Blog.BlogPostClass", sort="publishDate desc",
                              limit=10, offset=10
         """;
@@ -274,15 +298,17 @@ public class MCPQueryObjectsTool implements MCPTool
     private static MCPToolSupport params(boolean crossWiki)
     {
         return MCPToolSupport.builder()
-            .requiredString(CLASS_PARAM, "Reference of the class whose objects to find (e.g. "
-                + "\"Blog.BlogPostClass\"). get_schema with no arguments lists the classes of this wiki.")
+            .string(CLASS_PARAM, "Reference of the class whose objects to find (e.g. "
+                + "\"Blog.BlogPostClass\"). get_schema with no arguments lists the classes of this wiki. "
+                + "Optional only when document is given: without it, every object on that document is "
+                + "listed (class and number only, no field values).")
             .stringArray(FILTERS_PARAM, "Optional conditions, each \"<field> <op> <value>\": the field is "
                 + "the first word, the op the second (one of =, !=, >, <, contains), and the rest is the "
                 + "value (it may contain spaces). All conditions must match. get_schema class=\"...\" "
                 + "lists the fields.")
             .stringArray(SELECT_PARAM, "Optional field names to show for each match (at most 10).")
             .string(DOCUMENT_PARAM, "Optional document reference: only that document's objects of the "
-                + "class.")
+                + "class. Without class, lists every object on the document.")
             .string(SORT_PARAM, "Optional ordering by an object field: \"<field> asc\" or \"<field> "
                 + "desc\". Objects without a stored value for the field are excluded.")
             .integer(LIMIT_PARAM, "Maximum number of results to return (default: %d, max: %d)."
@@ -330,6 +356,9 @@ public class MCPQueryObjectsTool implements MCPTool
             Request parsed = parseRequest(args);
             try {
                 String targetWiki = this.wikiReach.resolveSingleWiki(parsed.wiki());
+                if (parsed.classReference() == null) {
+                    return runInventory(parsed, targetWiki);
+                }
                 return run(parsed, targetWiki);
             } catch (MCPAccessDeniedException e) {
                 return MCPToolSupport.errorResult(e.getMessage());
@@ -366,11 +395,11 @@ public class MCPQueryObjectsTool implements MCPTool
             this.documentAccess.resolveAndAuthorize(request.classReference(), Right.VIEW, wikiRef);
         XWikiDocument classDoc = loadDocument(classRef, request.classReference());
         if (classDoc.isNew()) {
-            return MCPToolSupport.errorResult("No such document: " + QUOTE + request.classReference()
+            return MCPToolSupport.errorResult(NO_SUCH_DOCUMENT_PREFIX + request.classReference()
                 + QUOTE + PERIOD);
         }
         if (MCPObjectQuerySupport.definesNoFields(classDoc)) {
-            return MCPToolSupport.errorResult("Document " + QUOTE + request.classReference() + QUOTE
+            return MCPToolSupport.errorResult(DOCUMENT_QUOTE_PREFIX + request.classReference() + QUOTE
                 + " exists but defines no class fields. Use get_schema with no arguments to list the "
                 + "classes of this wiki.");
         }
@@ -390,18 +419,111 @@ public class MCPQueryObjectsTool implements MCPTool
         if (total == 0) {
             return MCPToolSupport.result(noMatches(request, hitCeiling));
         }
-        if (request.offset() >= total) {
-            throw new IllegalArgumentException("offset " + request.offset() + " is beyond the last match ("
-                + total + " total matches). Use an offset below " + total + PERIOD);
-        }
-        List<Object[]> page =
-            authorized.subList(request.offset(), Math.min(request.offset() + request.limit(), total));
+        requireOffsetWithinTotal(request.offset(), total);
+        List<Object[]> page = pageOf(authorized, request, total);
         List<String> blocks = renderRows(page, classDoc, classRef, wikiRef, request.select());
         String body = budgeted("OBJECTS of class " + QUOTE
-            + MCPTextGuards.fragment(this.localSerializer.serialize(classRef)) + QUOTE + " in wiki "
-            + QUOTE + targetWiki + QUOTE + ":" + DOUBLE_NEW_LINE + String.join(DOUBLE_NEW_LINE, blocks));
+            + MCPTextGuards.fragment(this.localSerializer.serialize(classRef)) + QUOTE + IN_WIKI
+            + QUOTE + targetWiki + HEADER_END + String.join(DOUBLE_NEW_LINE, blocks));
         return MCPToolSupport.result(body + DOUBLE_NEW_LINE
             + footer(total, blocks.size(), hitCeiling, request));
+    }
+
+    /**
+     * Runs one document-only call (no {@code class}): resolves and authorizes the document exactly like
+     * the class-scoped document restriction, runs the any-class inventory statement through the door,
+     * authorizes every fetched row the same way, applies the same paging, and renders the objects grouped
+     * by class - class names and object numbers only, never a field value. The document version shown in
+     * the header is the version every listed object was read at (a single document has a single version).
+     *
+     * @param request the parsed arguments
+     * @param targetWiki the resolved wiki id the call operates on
+     * @return the tool result
+     * @throws MCPAccessDeniedException when the document fails the reach gate, the rights check or the
+     *     space filter
+     * @throws QueryException if the query fails
+     */
+    private McpSchema.CallToolResult runInventory(Request request, String targetWiki)
+        throws MCPAccessDeniedException, QueryException
+    {
+        WikiReference wikiRef = new WikiReference(targetWiki);
+        DocumentReference docRef =
+            this.documentAccess.resolveAndAuthorize(request.document(), Right.VIEW, wikiRef);
+        String localDocName = this.localSerializer.serialize(docRef);
+        MCPObjectQuerySupport.CompiledObjectQuery compiled =
+            MCPObjectQuerySupport.compileDocumentInventory(localDocName);
+        List<Object[]> rows = this.rowQuery.rows(compiled.statement(), targetWiki, compiled.binds(),
+            MCPRowQuery.MAX_FETCH_PER_QUERY);
+        boolean hitCeiling = rows.size() >= MCPRowQuery.MAX_FETCH_PER_QUERY;
+        List<Object[]> authorized = authorizedRows(rows, wikiRef);
+        int total = authorized.size();
+        if (total == 0) {
+            return emptyInventoryResult(docRef, localDocName, hitCeiling);
+        }
+        requireOffsetWithinTotal(request.offset(), total);
+        List<Object[]> page = pageOf(authorized, request, total);
+        XWikiDocument resultDoc = loadResult(docRef);
+        String versionSuffix = resultDoc != null
+            ? " (v" + MCPTextGuards.fragment(resultDoc.getVersion()) + ")" : "";
+        String body = budgeted("OBJECTS on document " + QUOTE + MCPTextGuards.fragment(localDocName)
+            + QUOTE + versionSuffix
+            + IN_WIKI + QUOTE + targetWiki + HEADER_END
+            + MCPObjectQuerySupport.renderDocumentInventory(page));
+        return MCPToolSupport.result(body + DOUBLE_NEW_LINE
+            + footer(total, page.size(), hitCeiling, request));
+    }
+
+    /**
+     * Builds the result of an inventory that found no rows, distinguishing a nonexistent document from a
+     * really object-free one: the (already authorized) document is loaded and a new document gets the same
+     * no-such-document error as the class-scoped mode, so an agent inventorying a mistyped reference is
+     * told the page does not exist instead of reading that it carries no objects. The distinction costs
+     * one document load and only ever runs on the empty path; a document that exists but cannot be loaded
+     * keeps the carries-no-objects message (zero viewable objects remains true).
+     *
+     * @param docRef the resolved and authorized document reference
+     * @param localDocName the wiki-local serialized document name
+     * @param hitCeiling whether the raw fetch came back at the door's row ceiling
+     * @return the tool result
+     */
+    private McpSchema.CallToolResult emptyInventoryResult(DocumentReference docRef, String localDocName,
+        boolean hitCeiling)
+    {
+        XWikiDocument targetDoc = loadResult(docRef);
+        if (targetDoc != null && targetDoc.isNew()) {
+            return MCPToolSupport.errorResult(NO_SUCH_DOCUMENT_PREFIX + MCPTextGuards.fragment(localDocName)
+                + QUOTE + PERIOD);
+        }
+        String message = DOCUMENT_QUOTE_PREFIX + MCPTextGuards.fragment(localDocName) + QUOTE
+            + " carries no objects.";
+        return MCPToolSupport.result(hitCeiling ? message + NEW_LINE + CEILING_NOTE : message);
+    }
+
+    /**
+     * Refuses an offset pointing beyond the last authorized match, shared by the class-scoped and
+     * inventory modes.
+     *
+     * @param offset the requested 0-based offset
+     * @param total the number of authorized matches
+     * @throws IllegalArgumentException with an agent-facing message when the offset is out of range
+     */
+    private static void requireOffsetWithinTotal(int offset, int total)
+    {
+        if (offset >= total) {
+            throw new IllegalArgumentException("offset " + offset + " is beyond the last match ("
+                + total + " total matches). Use an offset below " + total + PERIOD);
+        }
+    }
+
+    /**
+     * @param authorized the authorized rows
+     * @param request the parsed arguments, carrying the validated offset and clamped limit
+     * @param total the number of authorized rows
+     * @return the page slice of the authorized rows
+     */
+    private static List<Object[]> pageOf(List<Object[]> authorized, Request request, int total)
+    {
+        return authorized.subList(request.offset(), Math.min(request.offset() + request.limit(), total));
     }
 
     /**
@@ -540,16 +662,19 @@ public class MCPQueryObjectsTool implements MCPTool
      *
      * @param args the tool call arguments
      * @return the parsed request
-     * @throws IllegalArgumentException with an agent-facing message on a missing class or invalid paging
-     *     value
+     * @throws IllegalArgumentException with an agent-facing message on a missing class, a class-scoped
+     *     parameter sent without a class, or an invalid paging value
      */
     private Request parseRequest(Map<String, Object> args)
     {
-        String classReference = PARAMS.parser().requireString(args, CLASS_PARAM);
+        String classReference = PARAMS.parser().string(args, CLASS_PARAM);
         List<String> filters = PARAMS.parser().stringList(args, FILTERS_PARAM);
         List<String> select = PARAMS.parser().stringList(args, SELECT_PARAM);
         String document = PARAMS.parser().string(args, DOCUMENT_PARAM);
         String sort = PARAMS.parser().string(args, SORT_PARAM);
+        if (classReference == null) {
+            validateClassOmitted(document, filters, select, sort);
+        }
         int requestedLimit = PARAMS.parser().integer(args, LIMIT_PARAM, DEFAULT_LIMIT);
         int limit = Math.min(Math.max(requestedLimit, MIN_LIMIT), MAX_LIMIT);
         int offset = PARAMS.parser().integer(args, OFFSET_PARAM, 0);
@@ -560,6 +685,33 @@ public class MCPQueryObjectsTool implements MCPTool
         String wiki = PARAMS.parser().string(args, WIKI_PARAM);
         return new Request(classReference, filters, select, document, sort, limit, offset, wiki,
             requestedLimit > MAX_LIMIT);
+    }
+
+    /**
+     * Validates a call sent without a {@code class}: it must carry a {@code document} (the call is then a
+     * document inventory) and must not carry the class-scoped parameters - {@code select}, {@code filters}
+     * and {@code sort} are validated against a class's field definitions, so without a class they cannot
+     * mean anything.
+     *
+     * @param document the raw {@code document} argument, possibly {@code null}
+     * @param filters the raw filter entries, possibly {@code null}
+     * @param select the requested field names, possibly {@code null}
+     * @param sort the raw sort parameter, possibly {@code null}
+     * @throws IllegalArgumentException with a teaching message on either violation
+     */
+    private static void validateClassOmitted(String document, List<String> filters, List<String> select,
+        String sort)
+    {
+        if (document == null) {
+            throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + CLASS_PARAM
+                + "' parameter is required unless '" + DOCUMENT_PARAM + "' is given: a document-only call "
+                + "lists every object on that document.");
+        }
+        if (CollectionUtils.isNotEmpty(filters) || CollectionUtils.isNotEmpty(select) || sort != null) {
+            throw new IllegalArgumentException(MCPToolSupport.ERROR_PREFIX + SELECT_PARAM + "', '"
+                + FILTERS_PARAM + "' and '" + SORT_PARAM + "' are class-scoped; pass '" + CLASS_PARAM
+                + "' to use them. A document-only call lists only each object's class and number.");
+        }
     }
 
     /**
@@ -630,7 +782,8 @@ public class MCPQueryObjectsTool implements MCPTool
      * The parsed and validated arguments of one call, bundled so the compile, execute and format steps
      * share one immutable view of the request.
      *
-     * @param classReference the raw {@code class} argument
+     * @param classReference the raw {@code class} argument, or {@code null} for a document-only inventory
+     *     (then {@code document} is guaranteed non-{@code null} and the class-scoped parameters are absent)
      * @param filters the raw filter entries, possibly {@code null}
      * @param select the field names to show per match, possibly {@code null}
      * @param document the raw document restriction, possibly {@code null}

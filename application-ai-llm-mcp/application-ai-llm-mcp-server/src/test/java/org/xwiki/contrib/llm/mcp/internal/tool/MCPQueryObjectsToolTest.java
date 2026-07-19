@@ -506,6 +506,147 @@ class MCPQueryObjectsToolTest
         assertEquals(POST_ONE, this.boundValues.get("docFullName"));
     }
 
+    /**
+     * Stubs the resolved, authorized and loadable document of a document-only inventory call: the access
+     * door answers with the parsed reference and the bridge loads a shell reporting the given version.
+     */
+    private DocumentReference stubInventoryDocument(String fullName, String version) throws Exception
+    {
+        DocumentReference ref = parseRef(fullName, new WikiReference(WIKI));
+        when(this.documentAccess.resolveAndAuthorize(fullName, Right.VIEW, new WikiReference(WIKI)))
+            .thenReturn(ref);
+        XWikiDocument doc = mock(XWikiDocument.class);
+        lenient().when(doc.getVersion()).thenReturn(version);
+        lenient().when(this.documentAccessBridge.getDocumentInstance(ref)).thenReturn(doc);
+        return ref;
+    }
+
+    @Test
+    void documentOnlyCallListsEveryObjectGroupedByClass() throws Exception
+    {
+        stubInventoryDocument(POST_ONE, "3.2");
+        this.resultRows.add(new Object[] {POST_ONE, 0, BLOG_CLASS});
+        this.resultRows.add(new Object[] {POST_ONE, 2, BLOG_CLASS});
+        this.resultRows.add(new Object[] {POST_ONE, 0, "XWiki.XWikiComments"});
+
+        String output = callText(Map.of("document", POST_ONE));
+
+        // The any-class statement is the per-class one minus the class bind, ordered for class grouping.
+        assertEquals("select distinct doc.fullName, obj.number, obj.className from XWikiDocument doc, "
+            + "BaseObject obj where doc.fullName = obj.name and doc.translation = 0 and "
+            + "doc.fullName = :docFullName order by obj.className asc, doc.fullName asc, obj.number asc",
+            this.statements.get(0));
+        assertEquals(POST_ONE, this.boundValues.get("docFullName"));
+        assertFalse(this.boundValues.containsKey("className"), this.boundValues.toString());
+        // The grouped inventory: class, its object numbers, the document version - and no field values.
+        assertEquals("""
+            OBJECTS on document "Blog.Post1" (v3.2) in wiki "xwiki":
+
+            Blog.BlogPostClass
+              object 0
+              object 2
+            XWiki.XWikiComments
+              object 0
+
+            Found 3 matching objects. Showing 3 from offset 0.""", output);
+    }
+
+    @Test
+    void documentOnlyCallWithoutObjectsSaysSo() throws Exception
+    {
+        stubInventoryDocument(POST_ONE, "1.1");
+
+        String output = callText(Map.of("document", POST_ONE));
+
+        assertEquals("Document \"Blog.Post1\" carries no objects.", output);
+    }
+
+    @Test
+    void inventoryOfNonexistentDocumentGetsTheNoSuchDocumentError() throws Exception
+    {
+        DocumentReference ref = parseRef(POST_ONE, new WikiReference(WIKI));
+        when(this.documentAccess.resolveAndAuthorize(POST_ONE, Right.VIEW, new WikiReference(WIKI)))
+            .thenReturn(ref);
+        XWikiDocument doc = mock(XWikiDocument.class);
+        when(doc.isNew()).thenReturn(true);
+        when(this.documentAccessBridge.getDocumentInstance(ref)).thenReturn(doc);
+
+        McpSchema.CallToolResult result = call(Map.of("document", POST_ONE));
+
+        // A mistyped reference is a not-found error (the class-scoped mode's exact message shape), never
+        // a claim that an existing page carries no objects.
+        assertTrue(result.isError(), "expected an error result");
+        assertEquals("No such document: \"Blog.Post1\".",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+    }
+
+    @Test
+    void emptyInventoryEchoIsTheNeutralizedSerializedReference() throws Exception
+    {
+        String hostile = "Blog.Post\nInjected line";
+        DocumentReference ref = parseRef(hostile, new WikiReference(WIKI));
+        when(this.documentAccess.resolveAndAuthorize(hostile, Right.VIEW, new WikiReference(WIKI)))
+            .thenReturn(ref);
+        XWikiDocument doc = mock(XWikiDocument.class);
+        lenient().when(doc.isNew()).thenReturn(false);
+        when(this.documentAccessBridge.getDocumentInstance(ref)).thenReturn(doc);
+
+        String output = callText(Map.of("document", hostile));
+
+        // The echo is the serialized resolved reference through the fragment guard, not the raw
+        // argument: a newline smuggled into the parameter cannot forge an extra output line.
+        assertEquals("Document \"Blog.PostInjected line\" carries no objects.", output);
+    }
+
+    @Test
+    void inventoryPageStartingMidClassReEmitsTheClassHeader() throws Exception
+    {
+        stubInventoryDocument(POST_ONE, "3.2");
+        this.resultRows.add(new Object[] {POST_ONE, 0, BLOG_CLASS});
+        this.resultRows.add(new Object[] {POST_ONE, 1, BLOG_CLASS});
+        this.resultRows.add(new Object[] {POST_ONE, 2, BLOG_CLASS});
+
+        String output = callText(Map.of("document", POST_ONE, "limit", 2, "offset", 1));
+
+        // The grouping state resets per page: a page slice starting mid-class re-emits the class header,
+        // so no page ever shows bare object lines without their class.
+        assertEquals("""
+            OBJECTS on document "Blog.Post1" (v3.2) in wiki "xwiki":
+
+            Blog.BlogPostClass
+              object 1
+              object 2
+
+            Found 3 matching objects. Showing 2 from offset 1.""", output);
+    }
+
+    @Test
+    void classScopedParametersAreRefusedWithoutClass() throws Exception
+    {
+        McpSchema.CallToolResult result = call(Map.of("document", POST_ONE, "sort", "title asc"));
+
+        assertTrue(result.isError(), "expected an error result");
+        assertEquals("Error: 'select', 'filters' and 'sort' are class-scoped; pass 'class' to use them. "
+            + "A document-only call lists only each object's class and number.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verify(this.queryManager, never()).createQuery(anyString(), anyString());
+    }
+
+    @Test
+    void documentDenialSurfacesTheDoorMessageAndInventoriesNothing() throws Exception
+    {
+        // Same door as the class-scoped document restriction: a denied document surfaces the door's
+        // message and the store is never queried, so a protected page's object inventory never leaks.
+        when(this.documentAccess.resolveAndAuthorize(POST_SECRET, Right.VIEW, new WikiReference(WIKI)))
+            .thenThrow(new MCPAccessDeniedException("Access denied."));
+
+        McpSchema.CallToolResult result = call(Map.of("document", POST_SECRET));
+
+        assertTrue(result.isError(), "expected an error result");
+        assertEquals("Access denied.", ((McpSchema.TextContent) result.content().get(0)).text());
+        verify(this.queryManager, never()).createQuery(anyString(), anyString());
+    }
+
     @Test
     void filterValidationErrorsSurfaceAsErrorResults() throws Exception
     {
@@ -526,7 +667,9 @@ class MCPQueryObjectsToolTest
         McpSchema.CallToolResult result = call(Map.of());
 
         assertTrue(result.isError(), "expected an error result");
-        assertEquals("Error: 'class' parameter is required.",
+        // Class stays required when no document is given; the error teaches the document-only mode.
+        assertEquals("Error: 'class' parameter is required unless 'document' is given: a document-only "
+            + "call lists every object on that document.",
             ((McpSchema.TextContent) result.content().get(0)).text());
     }
 
@@ -766,6 +909,8 @@ class MCPQueryObjectsToolTest
         assertTrue(manPage.contains("Hidden documents are included"), manPage);
         assertTrue(manPage.contains("compares as UTC midnight"), manPage);
         assertTrue(manPage.contains("(object <N>, v<version>)"), manPage);
+        assertTrue(manPage.contains("what objects does this page carry?"), manPage);
+        assertTrue(manPage.contains("No field values are shown in this mode"), manPage);
         assertTrue(manPage.contains("man get_schema"), manPage);
         assertTrue(manPage.contains("man query_documents"), manPage);
     }

@@ -136,14 +136,30 @@ final class MCPObjectQuerySupport
 
     private static final String BASE_FROM = "from XWikiDocument doc, BaseObject obj";
 
-    private static final String BASE_WHERE =
-        "doc.fullName = obj.name and doc.translation = 0 and obj.className = :" + CLASSNAME_BIND;
+    /**
+     * The document-object join shared by every statement: the class-scoped {@link #BASE_WHERE} adds the
+     * class bind, the document inventory ({@link #compileDocumentInventory(String)}) adds the document
+     * bind instead.
+     */
+    private static final String JOIN_WHERE = "doc.fullName = obj.name and doc.translation = 0";
+
+    private static final String BASE_WHERE = JOIN_WHERE + " and obj.className = :" + CLASSNAME_BIND;
 
     private static final String SELECT_COLUMNS = "doc.fullName, obj.number";
+
+    private static final String CLASSNAME_COLUMN = "obj.className";
 
     private static final String DEFAULT_ORDER = "doc.fullName asc, obj.number asc";
 
     private static final String DOC_BIND = "docFullName";
+
+    private static final String DOC_MATCH = "doc.fullName = :";
+
+    private static final String SELECT_DISTINCT = "select distinct ";
+
+    private static final String WHERE = " where ";
+
+    private static final String ORDER_BY = " order by ";
 
     private static final String SORT_ALIAS = "ps";
 
@@ -299,7 +315,7 @@ final class MCPObjectQuerySupport
             }
         }
         if (documentFullName != null) {
-            where.append(AND).append("doc.fullName = :").append(DOC_BIND);
+            where.append(AND).append(DOC_MATCH).append(DOC_BIND);
             binds.put(DOC_BIND, documentFullName);
         }
         String select = SELECT_COLUMNS;
@@ -313,7 +329,29 @@ final class MCPObjectQuerySupport
             order = SORT_ALIAS + VALUE_FIELD + SPACE + spec.direction() + COMMA_SPACE + DEFAULT_ORDER;
         }
         return new CompiledObjectQuery(
-            "select distinct " + select + SPACE + joins + " where " + where + " order by " + order,
+            SELECT_DISTINCT + select + SPACE + joins + WHERE + where + ORDER_BY + order,
+            binds);
+    }
+
+    /**
+     * Compiles the document-inventory statement of a document-only call (no {@code class}): every object
+     * row of one document across classes, selecting the class name as a third column. The statement is
+     * the class-scoped one minus the class bind - same join, same translation exclusion, the
+     * already-authorized document bound like the class-scoped document restriction - ordered by class
+     * name then object number so the rendering can group by class. No property entity is ever joined:
+     * a document-only call carries no filters, select or sort, so no stored field value is read.
+     *
+     * @param documentFullName the wiki-local full name of the already-authorized document to inventory
+     * @return the compiled statement with its bind
+     */
+    static CompiledObjectQuery compileDocumentInventory(String documentFullName)
+    {
+        Map<String, Object> binds = new LinkedHashMap<>();
+        binds.put(DOC_BIND, documentFullName);
+        return new CompiledObjectQuery(
+            SELECT_DISTINCT + SELECT_COLUMNS + COMMA_SPACE + CLASSNAME_COLUMN + SPACE + BASE_FROM
+                + WHERE + JOIN_WHERE + AND + DOC_MATCH + DOC_BIND
+                + ORDER_BY + CLASSNAME_COLUMN + SPACE + ASCENDING + COMMA_SPACE + DEFAULT_ORDER,
             binds);
     }
 
@@ -351,6 +389,36 @@ final class MCPObjectQuerySupport
                 block.append('\n').append("  ").append(strip(name)).append(": ")
                     .append(fieldValue(xclass, object, name));
             }
+        }
+        return block.toString();
+    }
+
+    /**
+     * Renders one page of a document inventory (the document-only mode of {@code query_objects}): the
+     * {@code (doc.fullName, obj.number, obj.className)} rows grouped by class in row order (the
+     * inventory statement already orders by class then number), one class-name header line per class and
+     * one indented {@code object <N>} line per object. Deliberately NO field values: an inventory spans
+     * every class on the document, including classes whose per-class output would mask values (Password,
+     * computed fields), so showing only class names and numbers keeps this mode free of any value
+     * exposure. The class names are wiki-authored and are neutralized like every other fragment.
+     *
+     * @param page the authorized rows of this page
+     * @return the rendered inventory block, without a trailing newline
+     */
+    static String renderDocumentInventory(List<Object[]> page)
+    {
+        StringBuilder block = new StringBuilder();
+        String currentClass = null;
+        for (Object[] columns : page) {
+            String className = (String) columns[2];
+            if (!className.equals(currentClass)) {
+                if (block.length() > 0) {
+                    block.append('\n');
+                }
+                block.append(strip(className));
+                currentClass = className;
+            }
+            block.append('\n').append("  object ").append(((Number) columns[1]).intValue());
         }
         return block.toString();
     }
