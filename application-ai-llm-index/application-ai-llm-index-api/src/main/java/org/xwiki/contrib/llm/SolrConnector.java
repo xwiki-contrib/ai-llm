@@ -618,6 +618,10 @@ public class SolrConnector
                     this.solrUtils.toCompleteFilterQueryString(textQuery)));
                 query.setRows(limit);
                 setContextQueryFields(query);
+                // Collection names in the filter query are not wiki-qualified, so without the wiki filter a
+                // same-named collection on another wiki leaks its chunks into the results - past the
+                // collection-level group gate, which was evaluated against the current wiki's collection only.
+                query.addFilterQuery(buildWikiQuery(this.contextProvider.get().getWikiId()));
                 // Constructing the filter query from the collections list
                 addCollectionsQuery(collections, query);
                 addLanguageQuery(locale, query);

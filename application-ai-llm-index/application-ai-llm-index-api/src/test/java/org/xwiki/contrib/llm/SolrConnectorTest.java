@@ -210,6 +210,21 @@ class SolrConnectorTest
             Arrays.toString(query.getFilterQueries()));
     }
 
+    @Test
+    void keywordSearchAppliesTheWikiFilterLikeTheSemanticPath() throws Exception
+    {
+        // Collection names in the filter query are not wiki-qualified: without the wiki filter, a
+        // same-named collection on another wiki leaked its chunks into keyword results (LLMAI-164).
+        when(this.solrUtils.toCompleteFilterQueryString("mywiki")).thenReturn("escaped(mywiki)");
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.keywordSearch("query", List.of("col1"), 5);
+
+        SolrQuery query = capturedQuery();
+        assertTrue(Arrays.stream(query.getFilterQueries()).anyMatch(fq -> fq.contains("wiki:escaped(mywiki)")),
+            Arrays.toString(query.getFilterQueries()));
+    }
+
     private SolrQuery capturedQuery() throws Exception
     {
         ArgumentCaptor<SolrQuery> captor = ArgumentCaptor.forClass(SolrQuery.class);
