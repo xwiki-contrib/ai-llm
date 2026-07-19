@@ -19,26 +19,39 @@
  */
 package org.xwiki.contrib.llm;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import javax.inject.Provider;
 
 import org.apache.solr.client.solrj.SolrClient;
+import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.search.solr.Solr;
+import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.search.solr.XWikiSolrCore;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 
+import com.xpn.xwiki.XWikiContext;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,6 +75,18 @@ class SolrConnectorTest
     @MockComponent
     private Solr solr;
 
+    @MockComponent
+    private SolrUtils solrUtils;
+
+    @MockComponent
+    private EmbeddingsUtils embeddingsUtils;
+
+    @MockComponent
+    private Provider<XWikiContext> contextProvider;
+
+    @Mock
+    private XWikiContext xcontext;
+
     @Mock
     private XWikiSolrCore core;
 
@@ -77,6 +102,8 @@ class SolrConnectorTest
         when(this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE)).thenReturn(this.core);
         when(this.core.getClient()).thenReturn(this.client);
         when(this.client.query(any())).thenReturn(this.queryResponse);
+        when(this.contextProvider.get()).thenReturn(this.xcontext);
+        when(this.xcontext.getWikiId()).thenReturn("mywiki");
     }
 
     @Test
@@ -123,5 +150,70 @@ class SolrConnectorTest
 
         assertEquals(1, results.size());
         assertNull(results.get(0).language());
+    }
+
+    @Test
+    void similaritySearchAppliesLocaleAsFilterQueryNotInKnnQuery() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenReturn(new double[] { 0.1, 0.2 });
+        when(this.solrUtils.toCompleteFilterQueryString("fr")).thenReturn("escaped(fr)");
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.similaritySearch("query", Map.of("col1", "model1"), 5, Locale.FRENCH);
+
+        SolrQuery query = capturedQuery();
+        // The locale restriction must be a filter query (a KNN pre-filter), never part of the knn main query.
+        assertTrue(Arrays.asList(query.getFilterQueries()).contains("language:escaped(fr)"),
+            Arrays.toString(query.getFilterQueries()));
+        assertTrue(query.getQuery().startsWith("{!knn"), query.getQuery());
+        assertFalse(query.getQuery().contains("language"), query.getQuery());
+    }
+
+    @Test
+    void similaritySearchWithoutLocaleAddsNoLanguageFilter() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenReturn(new double[] { 0.1, 0.2 });
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.similaritySearch("query", Map.of("col1", "model1"), 5);
+
+        SolrQuery query = capturedQuery();
+        assertTrue(Arrays.stream(query.getFilterQueries()).noneMatch(fq -> fq.startsWith("language:")),
+            Arrays.toString(query.getFilterQueries()));
+    }
+
+    @Test
+    void keywordSearchAppliesLocaleAsFilterQueryNotInMainQuery() throws Exception
+    {
+        when(this.solrUtils.toCompleteFilterQueryString("fr")).thenReturn("escaped(fr)");
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.keywordSearch("query", List.of("col1"), 5, Locale.FRENCH);
+
+        SolrQuery query = capturedQuery();
+        assertTrue(Arrays.asList(query.getFilterQueries()).contains("language:escaped(fr)"),
+            Arrays.toString(query.getFilterQueries()));
+        assertFalse(query.getQuery().contains("language"), query.getQuery());
+    }
+
+    @Test
+    void keywordSearchWithoutLocaleAddsNoLanguageFilter() throws Exception
+    {
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.keywordSearch("query", List.of("col1"), 5);
+
+        SolrQuery query = capturedQuery();
+        assertTrue(Arrays.stream(query.getFilterQueries()).noneMatch(fq -> fq.startsWith("language:")),
+            Arrays.toString(query.getFilterQueries()));
+    }
+
+    private SolrQuery capturedQuery() throws Exception
+    {
+        ArgumentCaptor<SolrQuery> captor = ArgumentCaptor.forClass(SolrQuery.class);
+        verify(this.client).query(captor.capture());
+        return captor.getValue();
     }
 }

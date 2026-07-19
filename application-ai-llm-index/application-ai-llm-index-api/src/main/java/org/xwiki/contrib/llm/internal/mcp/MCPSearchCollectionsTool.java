@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal.mcp;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -71,6 +72,8 @@ public class MCPSearchCollectionsTool implements MCPTool
 
     private static final String COLLECTIONS_PARAM = "collections";
 
+    private static final String LOCALE_PARAM = "locale";
+
     private static final String LIMIT_KEYWORD_PARAM = "limitKeywordResults";
 
     private static final String LIMIT_SEMANTIC_PARAM = "limitSemanticResults";
@@ -91,6 +94,10 @@ public class MCPSearchCollectionsTool implements MCPTool
         .requiredString(QUERY_PARAM, "The text to search for")
         .stringArray(COLLECTIONS_PARAM,
             "Optional list of collection IDs to search in. Omit to search all accessible collections.")
+        .string(LOCALE_PARAM, "Optional content language filter, e.g. " + MCPToolSupport.LOCALE_FORMS
+            + ". Exact match on the stored language of each chunk: \"fr\" does not match \"fr_BR\" chunks; use "
+            + "the underscore form for regional variants. Documents uploaded through the REST API carry "
+            + "uploader-typed language metadata, so junk values simply never match.")
         .integer(LIMIT_KEYWORD_PARAM, "Maximum number of keyword search results (default: %d)".formatted(
             DEFAULT_LIMIT))
         .integer(LIMIT_SEMANTIC_PARAM, "Maximum number of semantic similarity results (default: %d)".formatted(
@@ -155,13 +162,15 @@ public class MCPSearchCollectionsTool implements MCPTool
 
             validateLimits(keywordLimit, semanticLimit);
 
+            Locale locale = MCPToolSupport.parseLocale(PARAMS.string(args, LOCALE_PARAM), LOCALE_PARAM);
+
             List<String> collections = PARAMS.stringList(args, COLLECTIONS_PARAM);
             if (CollectionUtils.isEmpty(collections)) {
                 collections = this.collectionManager.getCollections();
             }
 
             List<Context> results =
-                this.collectionManager.hybridSearch(query, collections, semanticLimit, keywordLimit);
+                this.collectionManager.hybridSearch(query, collections, semanticLimit, keywordLimit, locale);
             return MCPToolSupport.result(formatResults(results));
         } catch (IndexException e) {
             // Keep the root cause in the logs, off the wire.
@@ -206,8 +215,9 @@ public class MCPSearchCollectionsTool implements MCPTool
         Map<String, Boolean> wikiStoreCache = new HashMap<>();
         for (Context ctx : results) {
             sb.append("<result>\n");
-            if (ctx.url() != null) {
-                sb.append("<url>").append(ctx.url()).append("</url>\n");
+            String url = sanitizeElementText(ctx.url());
+            if (StringUtils.isNotBlank(url)) {
+                sb.append("<url>").append(url).append("</url>\n");
             }
             if (ctx.documentId() != null) {
                 sb.append("<documentId>").append(ctx.documentId()).append("</documentId>\n");
@@ -215,7 +225,7 @@ public class MCPSearchCollectionsTool implements MCPTool
                     appendReference(sb, ctx.documentId());
                 }
             }
-            String language = sanitizeLanguage(ctx.language());
+            String language = sanitizeElementText(ctx.language());
             if (StringUtils.isNotBlank(language)) {
                 sb.append("<language>").append(language).append("</language>\n");
             }
@@ -252,16 +262,17 @@ public class MCPSearchCollectionsTool implements MCPTool
     }
 
     /**
-     * Strips line breaks and angle brackets from the given language value so that an uploader-controlled value
-     * (internal-store documents carry free-text language metadata) can neither break the line grammar of the
-     * results nor fake XML elements.
+     * Strips line breaks and angle brackets from a value emitted as element text. Both callers (the language and
+     * the url emission) handle uploader-controlled metadata: internal-store documents carry free-text language and
+     * url values, which must neither break the line grammar of the results nor forge elements such as the
+     * store-provenance-guarded {@code <reference>}.
      *
-     * @param language the raw language value, may be {@code null}
+     * @param value the raw value, may be {@code null}
      * @return the sanitized value, {@code null} when the input is {@code null}
      */
-    private String sanitizeLanguage(String language)
+    private String sanitizeElementText(String value)
     {
-        return StringUtils.replaceChars(language, "\r\n<>", null);
+        return StringUtils.replaceChars(value, "\r\n<>", null);
     }
 
     /**

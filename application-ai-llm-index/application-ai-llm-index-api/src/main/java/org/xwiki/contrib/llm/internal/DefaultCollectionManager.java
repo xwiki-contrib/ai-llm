@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,7 +42,6 @@ import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
-import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
@@ -161,7 +161,7 @@ public class DefaultCollectionManager implements CollectionManager
         try {
             Collection collection = getCollection(id);
             if (deleteDocuments) {
-                DocumentStore documentStore = collection.getDocumentStore();
+                var documentStore = collection.getDocumentStore();
                 for (String docID : documentStore.getDocumentNames(0, -1)) {
                     documentStore.deleteDocument(documentStore.getDocument(docID));
                 }
@@ -215,6 +215,13 @@ public class DefaultCollectionManager implements CollectionManager
     public List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
         int limitKeywordSearch) throws IndexException
     {
+        return hybridSearch(textQuery, collections, limitSemanticSimilarity, limitKeywordSearch, null);
+    }
+
+    @Override
+    public List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
+        int limitKeywordSearch, Locale locale) throws IndexException
+    {
         Map<String, DefaultCollection> collectionMap = getAccessibleCollections(collections);
 
         Map<String, AuthorizationManager> authorizationManagerMap = getAuthorizationManagerMap(collectionMap);
@@ -230,9 +237,9 @@ public class DefaultCollectionManager implements CollectionManager
 
         try {
             List<Context> semanticResults = this.solrConnector.similaritySearch(textQuery, collectionEmbeddingModelMap,
-                limitSemanticSimilarity);
+                limitSemanticSimilarity, locale);
             List<Context> keywordResults = this.solrConnector.keywordSearch(textQuery,
-                collectionEmbeddingModelMap.keySet(), limitKeywordSearch);
+                collectionEmbeddingModelMap.keySet(), limitKeywordSearch, locale);
 
             Set<String> uniqueContent = new HashSet<>();
             List<Context> results = Stream.concat(semanticResults.stream(), keywordResults.stream())
@@ -290,7 +297,7 @@ public class DefaultCollectionManager implements CollectionManager
             // everything into a single stream again.
             .flatMap(entry -> {
                 String collectionName = entry.getKey();
-                AuthorizationManager authorizationManager = authorizationManagerForCollection.get(collectionName);
+                var authorizationManager = authorizationManagerForCollection.get(collectionName);
                 if (authorizationManager == null) {
                     this.logger.warn("Authorization manager for collection [{}] not found, skipping",
                         collectionName);

@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -518,6 +519,26 @@ public class SolrConnector
                                                Map<String, String> collectionEmbeddingModelMap,
                                                int limit) throws SolrServerException
     {
+        return similaritySearch(textQuery, collectionEmbeddingModelMap, limit, null);
+    }
+
+    /**
+     * Simple similarity search in the Solr index, optionally restricted to chunks stored in a given content
+     * language.
+     *
+     * @param textQuery the query to search for
+     * @param collectionEmbeddingModelMap a map of collections and their corresponding embedding models
+     * @param limit the maximum number of results to return
+     * @param locale the content language the returned chunks must be indexed under (exact match on the stored
+     *     language field), or {@code null} to search all languages
+     * @return a list of document details
+     * @since 0.9.1
+     */
+    public List<Context> similaritySearch(String textQuery,
+                                               Map<String, String> collectionEmbeddingModelMap,
+                                               int limit,
+                                               Locale locale) throws SolrServerException
+    {
         List<Context> resultsList = new ArrayList<>();
 
         if (limit <= 0) {
@@ -540,7 +561,7 @@ public class SolrConnector
                                                                             CurrentUserReference.INSTANCE,
                                                                             EmbeddingModel.EmbeddingPurpose.QUERY);
                 String embeddingsAsString = arrayToString(queryEmbeddings);
-                SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel, limit);
+                SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel, limit, locale);
                 QueryResponse response = client.query(query);
                 SolrDocumentList documents = response.getResults();
                 resultsList.addAll(collectResults(documents, false));
@@ -570,6 +591,24 @@ public class SolrConnector
      */
     public List<Context> keywordSearch(String textQuery, java.util.Collection<String> collections, int limit)
     {
+        return keywordSearch(textQuery, collections, limit, null);
+    }
+
+    /**
+     * Perform a keyword search in the content of the chunks in the given collections, optionally restricted to
+     * chunks stored in a given content language.
+     *
+     * @param textQuery the query to search for
+     * @param collections the collections to search in
+     * @param limit the maximum number of results to return
+     * @param locale the content language the returned chunks must be indexed under (exact match on the stored
+     *     language field), or {@code null} to search all languages
+     * @return a list of context chunks
+     * @since 0.9.1
+     */
+    public List<Context> keywordSearch(String textQuery, java.util.Collection<String> collections, int limit,
+        Locale locale)
+    {
         List<Context> resultsList = new ArrayList<>();
 
         if (limit > 0) {
@@ -581,6 +620,7 @@ public class SolrConnector
                 setContextQueryFields(query);
                 // Constructing the filter query from the collections list
                 addCollectionsQuery(collections, query);
+                addLanguageQuery(locale, query);
                 QueryResponse response = client.query(query);
                 SolrDocumentList documents = response.getResults();
                 resultsList = collectResults(documents, false);
@@ -591,16 +631,27 @@ public class SolrConnector
         return resultsList;
     }
 
-    private SolrQuery prepareQuery(String embeddingsAsString, List<String> collections, int limit)
+    private SolrQuery prepareQuery(String embeddingsAsString, List<String> collections, int limit, Locale locale)
     {
         SolrQuery query = new SolrQuery();
         query.addFilterQuery(buildWikiQuery(this.contextProvider.get().getWikiId()));
+        // The language restriction must stay a filter query: Solr applies filter queries as pre-filters of the
+        // KNN main query, so the top-K nearest neighbors are computed among the matching-language chunks only.
+        addLanguageQuery(locale, query);
         query.setQuery(String.format("{!knn f=vector topK=%s}%s", limit, embeddingsAsString));
 
         addCollectionsQuery(collections, query);
 
         setContextQueryFields(query);
         return query;
+    }
+
+    private void addLanguageQuery(Locale locale, SolrQuery query)
+    {
+        if (locale != null) {
+            query.addFilterQuery(AiLLMSolrCoreInitializer.FIELD_LANGUAGE + SOLR_SEPARATOR
+                + this.solrUtils.toCompleteFilterQueryString(locale.toString()));
+        }
     }
 
     private static void setContextQueryFields(SolrQuery query)

@@ -20,10 +20,12 @@
 package org.xwiki.contrib.llm;
 
 import java.util.List;
+import java.util.Locale;
 
 import org.xwiki.component.annotation.Role;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.stability.Unstable;
 
 /**
  * This interface manages collections.
@@ -93,7 +95,7 @@ public interface CollectionManager
      * @param textQuery the text query
      * @param collections the collections to search in
      * @param limit the maximum number of results to return
-     * @return a list of document ids that are similar to the text query
+     * @return the context chunks matching the query
      */
     List<Context> similaritySearch(String textQuery, List<String> collections, int limit) throws IndexException;
 
@@ -104,10 +106,33 @@ public interface CollectionManager
      * @param collections the collections to search in
      * @param limitSemanticSimilarity the maximum number of results to return from a semantic similarity search
      * @param limitKeywordSearch the maximum number of results to return for the keyword search
-     * @return a list of document ids that are similar to the text query
+     * @return the context chunks matching the query
      */
     default List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
         int limitKeywordSearch) throws IndexException
+    {
+        return hybridSearch(textQuery, collections, limitSemanticSimilarity, limitKeywordSearch, null);
+    }
+
+    /**
+     * Perform a hybrid semantic similarity and keyword-based search, optionally restricted to chunks stored in a
+     * given content language.
+     *
+     * <p>The default implementation ignores the locale and delegates to
+     * {@link #similaritySearch(String, List, int)}; implementations that support the locale filter override it.</p>
+     *
+     * @param textQuery the text query
+     * @param collections the collections to search in
+     * @param limitSemanticSimilarity the maximum number of results to return from a semantic similarity search
+     * @param limitKeywordSearch the maximum number of results to return for the keyword search
+     * @param locale the content language the returned chunks must be indexed under (exact match on the stored
+     *     language field), or {@code null} to search all languages
+     * @return the context chunks matching the query
+     * @since 0.9.1
+     */
+    @Unstable
+    default List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
+        int limitKeywordSearch, Locale locale) throws IndexException
     {
         return similaritySearch(textQuery, collections, limitSemanticSimilarity + limitKeywordSearch);
     }

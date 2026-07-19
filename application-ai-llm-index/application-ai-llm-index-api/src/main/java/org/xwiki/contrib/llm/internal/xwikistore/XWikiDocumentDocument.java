@@ -19,6 +19,8 @@
  */
 package org.xwiki.contrib.llm.internal.xwikistore;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -65,6 +67,8 @@ public class XWikiDocumentDocument implements Document
         "This XWiki document store doesn't support changing documents.";
 
     private static final String DELIMITER = "\n\n";
+
+    private static final String VIEW_ACTION = "view";
 
     private String collection;
     private XWikiDocument xWikiDocument;
@@ -129,10 +133,25 @@ public class XWikiDocumentDocument implements Document
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>For a translation row the returned view URL pins the language via a {@code language=} query parameter,
+     * URL-encoded because a locale's variant segment can carry URL metacharacters. Default rows keep the bare
+     * view URL, which follows the wiki's default language even when that default changes. The URL is baked into
+     * the chunks at indexing time, so already-indexed chunks keep the URL they were indexed with until their
+     * collection is reindexed.</p>
+     */
     @Override
     public String getURL()
     {
-        return this.xWikiDocument.getExternalURL("view", this.xWikiContextProvider.get());
+        Locale locale = this.xWikiDocument.getLocale();
+        if (locale != null && !Locale.ROOT.equals(locale)) {
+            return this.xWikiDocument.getExternalURL(VIEW_ACTION,
+                "language=" + URLEncoder.encode(locale.toString(), StandardCharsets.UTF_8),
+                this.xWikiContextProvider.get());
+        }
+        return this.xWikiDocument.getExternalURL(VIEW_ACTION, this.xWikiContextProvider.get());
     }
 
     @Override

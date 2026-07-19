@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.LocaleUtils;
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -123,6 +126,40 @@ class XWikiDocumentDocumentTest
     {
         String url = "https://mywiki/xwiki/bin/view/AI/Documents/MyDocument";
         when(this.xWikiDocument.getExternalURL(eq("view"), any())).thenReturn(url);
+        assertEquals(url, this.xWikiDocumentDocument.getURL());
+    }
+
+    @Test
+    void getURLForTranslationRowPinsTheLanguage()
+    {
+        String url = "https://mywiki/xwiki/bin/view/AI/Documents/MyDocument?language=fr";
+        when(this.xWikiDocument.getLocale()).thenReturn(Locale.FRENCH);
+        when(this.xWikiDocument.getExternalURL(eq("view"), eq("language=fr"), any())).thenReturn(url);
+
+        assertEquals(url, this.xWikiDocumentDocument.getURL());
+    }
+
+    @Test
+    void getURLForDefaultRowCarriesNoLanguageParameter()
+    {
+        String url = "https://mywiki/xwiki/bin/view/AI/Documents/MyDocument";
+        when(this.xWikiDocument.getLocale()).thenReturn(Locale.ROOT);
+        when(this.xWikiDocument.getExternalURL(eq("view"), any())).thenReturn(url);
+
+        assertEquals(url, this.xWikiDocumentDocument.getURL());
+        verify(this.xWikiDocument, never()).getExternalURL(any(), any(), any());
+    }
+
+    @Test
+    void getURLEncodesVariantMetacharacters()
+    {
+        // A validated locale is not a safe URL token: commons-lang3 accepts variant segments carrying URL
+        // metacharacters, which must not smuggle extra query parameters into the view URL.
+        Locale smuggled = LocaleUtils.toLocale("fr__&");
+        String url = "https://mywiki/xwiki/bin/view/AI/Documents/MyDocument?language=fr__%26";
+        when(this.xWikiDocument.getLocale()).thenReturn(smuggled);
+        when(this.xWikiDocument.getExternalURL(eq("view"), eq("language=fr__%26"), any())).thenReturn(url);
+
         assertEquals(url, this.xWikiDocumentDocument.getURL());
     }
 

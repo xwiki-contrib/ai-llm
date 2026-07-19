@@ -54,6 +54,9 @@ public interface SearchResource
      * @param collections the collections to search in, when empty all accessible collections are searched
      * @param limitKeywordResults the maximum number of results to return for the keyword search
      * @param limitSemanticResults the maximum number of results to return for the semantic search
+     * @param locale the content language the returned chunks must be indexed under (exact match on the stored
+     *     language field, e.g., {@code fr}), when empty all languages are searched (parameter available since
+     *     0.9.1)
      * @return a list of context chunks that are similar to the query
      * @throws XWikiRestException if an error occurs
      */
@@ -63,6 +66,7 @@ public interface SearchResource
         @QueryParam("query") String query,
         @QueryParam("collection") List<String> collections,
         @QueryParam("limitKeywordResults") @DefaultValue(DEFAULT_LIMIT) int limitKeywordResults,
-        @QueryParam("limitSemanticResults") @DefaultValue(DEFAULT_LIMIT) int limitSemanticResults
+        @QueryParam("limitSemanticResults") @DefaultValue(DEFAULT_LIMIT) int limitSemanticResults,
+        @QueryParam("locale") String locale
     ) throws XWikiRestException;
 }

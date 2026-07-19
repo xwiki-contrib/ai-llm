@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.internal.rest;
 
 import java.util.List;
+import java.util.Locale;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -28,6 +29,8 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.apache.commons.lang3.LocaleUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
@@ -49,6 +52,19 @@ import com.xpn.xwiki.XWikiContext;
 @Named("org.xwiki.contrib.llm.internal.rest.DefaultSearchResource")
 public class DefaultSearchResource extends XWikiResource implements SearchResource
 {
+    /**
+     * Shared tail of the locale rejection messages, naming the accepted example forms.
+     */
+    private static final String LOCALE_FORMS_HINT = ", use forms like \"fr\" or \"pt_BR\".";
+
+    /**
+     * Longest locale string the wiki stores (5 characters, e.g. "pt_BR"). This is the same cap as
+     * MCPToolSupport#MAX_STORED_LOCALE_LENGTH in the mcp-api module, duplicated as a local constant so this REST
+     * resource keeps no MCP imports. A longer filter can only return empty results with a confusing contract, and
+     * its raw variant text would otherwise reach Solr-adjacent logging.
+     */
+    private static final int MAX_STORED_LOCALE_LENGTH = 5;
+
     @Inject
     @Named("currentUser")
     private CollectionManager collectionManager;
@@ -67,7 +83,8 @@ public class DefaultSearchResource extends XWikiResource implements SearchResour
         String query,
         List<String> collections,
         int limitKeywordResults,
-        int limitSemanticResults
+        int limitSemanticResults,
+        String locale
     ) throws XWikiRestException
     {
         XWikiContext context = this.contextProvider.get();
@@ -89,7 +106,8 @@ public class DefaultSearchResource extends XWikiResource implements SearchResour
                 query,
                 collectionsToSearch,
                 limitKeywordResults,
-                limitSemanticResults
+                limitSemanticResults,
+                parseLocale(locale)
             );
         } catch (IndexException e) {
             throw new XWikiRestException("Failed to search", e);
@@ -98,16 +116,40 @@ public class DefaultSearchResource extends XWikiResource implements SearchResour
         }
     }
 
+    private Locale parseLocale(String locale)
+    {
+        if (StringUtils.isBlank(locale)) {
+            return null;
+        }
+        Locale parsedLocale;
+        try {
+            parsedLocale = LocaleUtils.toLocale(locale);
+        } catch (IllegalArgumentException e) {
+            // Static message on purpose: the invalid value is not reflected back.
+            throw badRequest("The locale parameter is not a valid locale" + LOCALE_FORMS_HINT);
+        }
+        if (parsedLocale.toString().length() > MAX_STORED_LOCALE_LENGTH) {
+            throw badRequest("The locale parameter is longer than any stored locale (max "
+                + MAX_STORED_LOCALE_LENGTH + " characters)" + LOCALE_FORMS_HINT);
+        }
+        return parsedLocale;
+    }
+
     private void validateLimit(int limit)
     {
         // In this case, <= 0 means 0 results and not unlimited, so we only check for positive limits.
         int configuredLimit = this.llmSecurityConfiguration.getQueryItemsLimit();
         if (configuredLimit > 0 && limit > configuredLimit) {
-            throw new WebApplicationException(
-                Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Limit must be less than or equal to " + configuredLimit)
-                    .type(MediaType.TEXT_PLAIN)
-                    .build());
+            throw badRequest("Limit must be less than or equal to " + configuredLimit);
         }
+    }
+
+    private WebApplicationException badRequest(String message)
+    {
+        return new WebApplicationException(
+            Response.status(Response.Status.BAD_REQUEST)
+                .entity(message)
+                .type(MediaType.TEXT_PLAIN)
+                .build());
     }
 }

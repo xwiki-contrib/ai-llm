@@ -20,13 +20,17 @@
 package org.xwiki.contrib.llm.internal;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.inject.Named;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.IndexException;
@@ -174,8 +178,10 @@ class DefaultCollectionManagerTest
         assertEquals(COLLECTION_REFERENCE, this.collectionManager.getDocumentReference(COLLECTION_ID));
     }
 
-    @Test
-    void hybridSearch() throws QueryException, ComponentLookupException, IndexException, SolrServerException
+    @ParameterizedTest
+    @MethodSource("hybridSearchLocales")
+    void hybridSearch(Locale locale)
+        throws QueryException, ComponentLookupException, IndexException, SolrServerException
     {
         XWikiContext context = this.oldcore.getXWikiContext();
         context.setWikiId(WIKI_NAME);
@@ -214,17 +220,25 @@ class DefaultCollectionManagerTest
         when(authorization2.canView(Set.of("forbidden2", "allowed4")))
             .thenReturn(Map.of("forbidden2", false, "allowed4", true));
 
-        when(this.solrConnector.similaritySearch(any(), any(), anyInt())).thenReturn(contextList.subList(0, 3));
-        when(this.solrConnector.keywordSearch(any(), any(), anyInt())).thenReturn(contextList.subList(1, 4));
+        when(this.solrConnector.similaritySearch(any(), any(), anyInt(), any())).thenReturn(contextList.subList(0, 3));
+        when(this.solrConnector.keywordSearch(any(), any(), anyInt(), any())).thenReturn(contextList.subList(1, 4));
 
-        List<Context> result =
-            this.collectionManager.hybridSearch("query", List.of(COLLECTION_ID, collectionId2), 4, 3);
+        // The locale-free entry point must forward a null locale; the locale-aware one must forward its locale
+        // into both search paths.
+        List<Context> result = locale == null
+            ? this.collectionManager.hybridSearch("query", List.of(COLLECTION_ID, collectionId2), 4, 3)
+            : this.collectionManager.hybridSearch("query", List.of(COLLECTION_ID, collectionId2), 4, 3, locale);
 
         List<Context> expected = List.of(contextList.get(0), contextList.get(1), contextList.get(3));
         assertEquals(expected, result);
 
-        verify(this.solrConnector).similaritySearch("query", embeddingModelMap, 4);
-        verify(this.solrConnector).keywordSearch("query", embeddingModelMap.keySet(), 3);
+        verify(this.solrConnector).similaritySearch("query", embeddingModelMap, 4, locale);
+        verify(this.solrConnector).keywordSearch("query", embeddingModelMap.keySet(), 3, locale);
+    }
+
+    private static Stream<Locale> hybridSearchLocales()
+    {
+        return Stream.of(null, Locale.FRENCH);
     }
 
     private void createAndSaveCollection(String collectionId, String embeddingModel)
