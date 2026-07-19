@@ -367,7 +367,8 @@ public class MCPWriteObjectTool implements MCPTool
             return null;
         }
         if (baseVersion == null) {
-            return MCPToolSupport.errorResult("Document " + QUOTE + reference + QUOTE + " already exists. "
+            return MCPToolSupport.errorResult("Document " + QUOTE + MCPTextGuards.fragment(reference)
+                + QUOTE + " already exists. "
                 + "First read it with get_document and pass the base_version it shows, so the object "
                 + "change is based on a recent read.");
         }

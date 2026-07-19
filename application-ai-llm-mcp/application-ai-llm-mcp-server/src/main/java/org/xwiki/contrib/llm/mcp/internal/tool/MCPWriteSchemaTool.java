@@ -517,7 +517,7 @@ public class MCPWriteSchemaTool implements MCPTool
             return null;
         }
         if (request.baseVersion() == null) {
-            return MCPToolSupport.errorResult("Document " + QUOTE + request.reference() + QUOTE
+            return MCPToolSupport.errorResult("Document " + QUOTE + strip(request.reference()) + QUOTE
                 + " already exists. First read it with get_document and pass the base_version it shows.");
         }
         if (!request.baseVersion().equals(currentVersion)) {

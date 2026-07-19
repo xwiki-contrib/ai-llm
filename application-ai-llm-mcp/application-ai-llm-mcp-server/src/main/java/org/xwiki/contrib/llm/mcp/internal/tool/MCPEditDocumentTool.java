@@ -556,7 +556,8 @@ public class MCPEditDocumentTool implements MCPTool
         }
         EditOp edit = edits.get(0);
         if (!edit.oldString().isEmpty()) {
-            throw new IllegalArgumentException(DOCUMENT_PREFIX + reference + QUOTE + " does not exist. To "
+            throw new IllegalArgumentException(DOCUMENT_PREFIX + MCPTextGuards.fragment(reference) + QUOTE
+                + " does not exist. To "
                 + "create it, send a single edit with an empty old_string (its new_string becomes the body).");
         }
         appliedReplacements.add(new AppliedEdit(edit.newString(), 1));

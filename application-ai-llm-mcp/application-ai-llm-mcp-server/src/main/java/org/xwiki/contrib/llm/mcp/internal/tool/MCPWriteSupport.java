@@ -389,7 +389,7 @@ final class MCPWriteSupport
      */
     private static String missingDefaultTranslationTargetError(String reference, Locale locale)
     {
-        return DOCUMENT_QUOTE + reference + "\" does not exist, so a "
+        return DOCUMENT_QUOTE + MCPTextGuards.fragment(reference) + "\" does not exist, so a "
             + MCPToolSupport.stripLineBreaks(locale.toString()) + " translation cannot be added to it. "
             + "Create the default language version first, without 'locale'.";
     }
@@ -501,7 +501,8 @@ final class MCPWriteSupport
      */
     static String missingDocumentBaseVersionError(String reference)
     {
-        return DOCUMENT_QUOTE + reference + "\" does not exist; omit base_version when creating a document.";
+        return DOCUMENT_QUOTE + MCPTextGuards.fragment(reference)
+            + "\" does not exist; omit base_version when creating a document.";
     }
 
     /**
@@ -515,7 +516,8 @@ final class MCPWriteSupport
      */
     static String missingTranslationBaseVersionError(String reference, Locale locale)
     {
-        return "The " + MCPToolSupport.stripLineBreaks(locale.toString()) + " translation of \"" + reference
+        return "The " + MCPToolSupport.stripLineBreaks(locale.toString()) + " translation of \""
+            + MCPTextGuards.fragment(reference)
             + "\" does not exist; omit base_version when creating a translation.";
     }
 

@@ -576,7 +576,7 @@ public class MCPQueryDocumentsTool implements MCPTool
                 + "filtering). Continue with offset=" + (request.offset() + request.limit()) + PERIOD;
         }
         String base = request.browse() ? "No documents found."
-            : "No documents found matching \"" + request.queryText() + "\".";
+            : "No documents found matching \"" + MCPTextGuards.fragment(request.queryText()) + "\".";
         return base + describeActiveFilters(request);
     }
 
@@ -848,7 +848,9 @@ public class MCPQueryDocumentsTool implements MCPTool
         if (StringUtils.isNotBlank(request.wiki())) {
             parts.add("wiki=" + request.wiki());
         }
-        return parts.isEmpty() ? "" : " Active filters: " + String.join(LIST_SEPARATOR, parts) + PERIOD;
+        return parts.isEmpty() ? ""
+            : " Active filters: " + MCPToolSupport.stripLineBreaks(String.join(LIST_SEPARATOR, parts))
+                + PERIOD;
     }
 
     /**

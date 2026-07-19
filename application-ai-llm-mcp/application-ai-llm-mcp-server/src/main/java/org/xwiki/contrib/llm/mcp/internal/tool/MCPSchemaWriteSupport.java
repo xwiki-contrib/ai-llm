@@ -454,8 +454,7 @@ final class MCPSchemaWriteSupport
             case LARGE_STRING -> property.setLargeStringValue(attr.stored(), raw);
             case CONTENT_TYPE -> property.setStringValue(attr.stored(), coerceContentType(attr.name(), raw));
             case EDITOR -> property.setStringValue(attr.stored(), coerceEditor(attr.name(), raw));
-            default -> {
-            }
+            default -> throw new IllegalStateException("Unhandled attribute kind [" + attr.kind() + "].");
         }
     }
 

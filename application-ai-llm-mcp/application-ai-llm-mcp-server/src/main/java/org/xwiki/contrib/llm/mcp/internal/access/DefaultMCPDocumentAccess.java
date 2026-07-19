@@ -27,6 +27,7 @@ import javax.inject.Singleton;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
@@ -82,8 +83,10 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
     {
         DocumentReference target = this.referenceResolver.resolve(reference, wikiContext);
         if (!target.getWikiReference().equals(wikiContext)) {
-            throw new MCPAccessDeniedException("Reference " + QUOTE + reference + QUOTE + " is in wiki " + QUOTE
-                + target.getWikiReference().getName() + QUOTE + " but the call targets wiki " + QUOTE
+            throw new MCPAccessDeniedException("Reference " + QUOTE + MCPToolSupport.stripLineBreaks(reference)
+                + QUOTE + " is in wiki " + QUOTE
+                + MCPToolSupport.stripLineBreaks(target.getWikiReference().getName()) + QUOTE
+                + " but the call targets wiki " + QUOTE
                 + wikiContext.getName() + QUOTE + "; drop the wiki prefix or make them agree.");
         }
         return authorize(reference, target, right);
@@ -108,14 +111,15 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
         // so it is denied unless reach explicitly allows it (which it will not without a context wiki).
         boolean sameWiki = currentWiki != null && currentWiki.equals(targetWiki);
         if (!sameWiki && !this.wikiReach.canReachWiki(targetWiki)) {
-            throw new MCPAccessDeniedException(QUOTE + reference + QUOTE + " is in another wiki (" + QUOTE
-                + targetWiki + QUOTE + "); cross-wiki reach is not enabled for this endpoint.");
+            throw new MCPAccessDeniedException(QUOTE + MCPToolSupport.stripLineBreaks(reference) + QUOTE
+                + " is in another wiki (" + QUOTE + MCPToolSupport.stripLineBreaks(targetWiki) + QUOTE
+                + "); cross-wiki reach is not enabled for this endpoint.");
         }
         if (!this.authorization.hasAccess(right, target)) {
             throw new MCPAccessDeniedException(rightsDeniedMessage(reference, right));
         }
         if (!this.spaceFilter.isAllowed(target)) {
-            throw new MCPAccessDeniedException(QUOTE + reference + QUOTE
+            throw new MCPAccessDeniedException(QUOTE + MCPToolSupport.stripLineBreaks(reference) + QUOTE
                 + " is outside the content this MCP endpoint is configured to expose.");
         }
         return target;
@@ -131,6 +135,7 @@ public class DefaultMCPDocumentAccess implements MCPDocumentAccess
         } else {
             verb = "view";
         }
-        return "You do not have permission to " + verb + " " + QUOTE + reference + QUOTE + ".";
+        return "You do not have permission to " + verb + " " + QUOTE
+            + MCPToolSupport.stripLineBreaks(reference) + QUOTE + ".";
     }
 }

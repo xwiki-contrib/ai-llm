@@ -109,6 +109,32 @@ class MCPSourceTextTest
     }
 
     @Test
+    void budgetedReturnsOutputAtOrUnderTheBudgetUnchanged()
+    {
+        String output = "a".repeat(MCPSourceText.MAX_OUTPUT_CHARS);
+
+        assertEquals(output, MCPSourceText.budgeted(output));
+    }
+
+    @Test
+    void budgetedCutsOverBudgetOutputAtTheLastCompleteLineAndAppendsTheNote()
+    {
+        String kept = "a".repeat(MCPSourceText.MAX_OUTPUT_CHARS - 10);
+        String output = kept + "\n" + "b".repeat(100);
+
+        assertEquals(kept + "\n" + MCPSourceText.OUTPUT_TRUNCATION_NOTE, MCPSourceText.budgeted(output));
+    }
+
+    @Test
+    void budgetedHardCutsOverBudgetOutputWithoutANewlineAtExactlyTheBudget()
+    {
+        String output = "a".repeat(MCPSourceText.MAX_OUTPUT_CHARS + 5);
+
+        assertEquals("a".repeat(MCPSourceText.MAX_OUTPUT_CHARS) + "\n" + MCPSourceText.OUTPUT_TRUNCATION_NOTE,
+            MCPSourceText.budgeted(output));
+    }
+
+    @Test
     void collapseStackTracesReplacesFrameRunsWithAMarker()
     {
         String text = String.join("\n",

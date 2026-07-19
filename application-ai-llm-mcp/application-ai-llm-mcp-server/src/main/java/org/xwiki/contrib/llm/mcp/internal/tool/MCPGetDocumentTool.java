@@ -774,7 +774,8 @@ public class MCPGetDocumentTool implements MCPTool
             this.logger.warn("MCP get_document tool failed to check existence of [{}]: [{}]", reference,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP get_document tool existence-check failure details", e);
-            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
+            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
+                + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);
         }
     }
 
@@ -783,15 +784,16 @@ public class MCPGetDocumentTool implements MCPTool
      * space path an agent meant as the space home.
      *
      * @param ref the resolved reference that was found not to exist
-     * @param reference the raw reference argument, echoed verbatim
+     * @param reference the raw reference argument, echoed neutralized (line breaks stripped, length capped)
      * @return the agent-facing error message
      */
     private String notFoundMessage(DocumentReference ref, String reference)
     {
-        String message = "No such document: " + QUOTE + reference + QUOTE + PERIOD;
+        String message = "No such document: " + QUOTE + MCPTextGuards.fragment(reference) + QUOTE + PERIOD;
         String spaceHome = suggestSpaceHome(ref);
         if (spaceHome != null) {
-            message += " Did you mean " + QUOTE + spaceHome + QUOTE + " (the home page of that space)?";
+            message += " Did you mean " + QUOTE + MCPTextGuards.fragment(spaceHome) + QUOTE
+                + " (the home page of that space)?";
         }
         return message;
     }
@@ -836,7 +838,8 @@ public class MCPGetDocumentTool implements MCPTool
             this.logger.warn("MCP get_document tool failed to load [{}]: [{}]", reference,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP get_document tool load failure details", e);
-            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
+            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
+                + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);
         }
     }
 
@@ -956,7 +959,8 @@ public class MCPGetDocumentTool implements MCPTool
             this.logger.warn("MCP get_document tool failed to render [{}]: [{}]", reference,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP get_document tool render failure details", e);
-            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE + reference + QUOTE + PERIOD);
+            throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
+                + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);
         } finally {
             xcontext.setDoc(previousContextDocument);
             xcontext.setWikiId(originalWiki);

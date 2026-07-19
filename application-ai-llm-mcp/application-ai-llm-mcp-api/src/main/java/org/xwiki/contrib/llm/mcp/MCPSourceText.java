@@ -64,6 +64,15 @@ public final class MCPSourceText
      */
     public static final int MAX_OUTPUT_CHARS = CHARS_PER_TOKEN * MAX_OUTPUT_TOKENS;
 
+    /**
+     * The fixed note {@link #budgeted(String)} appends when it cuts a response at the output budget; its
+     * text is pinned by the tool tests.
+     *
+     * @since 0.9.1
+     */
+    public static final String OUTPUT_TRUNCATION_NOTE =
+        "Output truncated at the ~" + MAX_OUTPUT_TOKENS + "-token cap.";
+
     private static final String LF = "\n";
 
     private static final String XWIKI_SYNTAX_PREFIX = "xwiki/";
@@ -230,6 +239,30 @@ public final class MCPSourceText
         }
         flushFrameRun(out, run);
         return String.join(LF, out);
+    }
+
+    /**
+     * Enforces the shared output budget on a rendered tool response: output at or under
+     * {@link #MAX_OUTPUT_CHARS} is returned unchanged; longer output is cut at the last complete line
+     * within the budget (the tool outputs are line-oriented, so a cut never leaves half a line), falling
+     * back to a hard cut at exactly {@link #MAX_OUTPUT_CHARS} when no newline exists at or before it, and
+     * ends with {@link #OUTPUT_TRUNCATION_NOTE}. Callers append their honesty footers AFTER this cut so
+     * they survive truncation.
+     *
+     * @param output the rendered response, not null
+     * @return the response, cut to the budget when needed
+     * @since 0.9.1
+     */
+    public static String budgeted(String output)
+    {
+        if (output.length() <= MAX_OUTPUT_CHARS) {
+            return output;
+        }
+        int cut = output.lastIndexOf(LF, MAX_OUTPUT_CHARS);
+        if (cut <= 0) {
+            cut = MAX_OUTPUT_CHARS;
+        }
+        return output.substring(0, cut) + LF + OUTPUT_TRUNCATION_NOTE;
     }
 
     /**

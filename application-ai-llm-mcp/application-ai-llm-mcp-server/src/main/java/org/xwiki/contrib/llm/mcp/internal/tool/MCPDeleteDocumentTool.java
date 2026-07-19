@@ -337,8 +337,8 @@ public class MCPDeleteDocumentTool implements MCPTool
     {
         return MCPWriteSupport.inTargetWiki(this.contextProvider.get(), ref, (xcontext, xdoc) -> {
             if (xdoc.isNew()) {
-                return MCPToolSupport.errorResult("Document " + QUOTE + reference + QUOTE
-                    + " does not exist; nothing to delete.");
+                return MCPToolSupport.errorResult("Document " + QUOTE + MCPTextGuards.fragment(reference)
+                    + QUOTE + " does not exist; nothing to delete.");
             }
             McpSchema.CallToolResult refusal = sensitiveRefusal(xcontext, ref);
             if (refusal != null) {
@@ -419,8 +419,8 @@ public class MCPDeleteDocumentTool implements MCPTool
         // lookup failure inside hasAccessLevel yields false, so this refusal fails closed.
         Document apiDoc = new Document(xdoc, xcontext);
         if (!apiDoc.hasAccessLevel(Right.DELETE.getName())) {
-            return MCPToolSupport.errorResult(
-                "You do not have permission to delete " + QUOTE + reference + QUOTE + PERIOD);
+            return MCPToolSupport.errorResult("You do not have permission to delete " + QUOTE
+                + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);
         }
 
         List<Locale> translationLocales = xdoc.getTranslationLocales(xcontext);
@@ -523,10 +523,32 @@ public class MCPDeleteDocumentTool implements MCPTool
         Query countQuery = this.queryManager.createQuery(COUNT_STATEMENT, Query.XWQL);
         countQuery.setWiki(ref.getWikiReference().getName());
         bindChildParams(countQuery, ref);
-        long count = ((Long) countQuery.execute().get(0)).longValue();
-        return MCPToolSupport.errorResult(REFUSING_TO_DELETE + reference + QUOTE + ": it is the "
+        long count = countFirstRow(countQuery.execute());
+        return MCPToolSupport.errorResult(REFUSING_TO_DELETE + MCPTextGuards.fragment(reference) + QUOTE
+            + ": it is the "
             + "home page of a space with " + count + " child pages (including hidden ones). Deleting it "
             + "would orphan them. Delete or move the children first - there is no recursive delete.");
+    }
+
+    /**
+     * Reads the child count out of the count query's result rows.
+     *
+     * @param rows the raw result rows of the count query
+     * @return the count carried by the first row, or 0 when there is none
+     */
+    private static long countFirstRow(List<?> rows)
+    {
+        // A single-column select shapes each row as the scalar itself, not as an Object[]; the declared
+        // row type is erased at runtime, so read the first element as a plain Object and dispatch on its
+        // actual shape.
+        Object first = rows.isEmpty() ? null : rows.get(0);
+        if (first instanceof Number number) {
+            return number.longValue();
+        }
+        if (first instanceof Object[] columns && columns.length > 0 && columns[0] instanceof Number number) {
+            return number.longValue();
+        }
+        return 0;
     }
 
     /**

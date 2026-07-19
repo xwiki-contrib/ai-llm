@@ -30,6 +30,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
 import org.xwiki.wiki.descriptor.WikiDescriptorManager;
@@ -110,7 +111,8 @@ public class DefaultMCPWikiReach implements MCPWikiReach
             return null;
         }
         if (!wikiExists(wikiParam)) {
-            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + DOES_NOT_EXIST + SEE_LIST_WIKIS);
+            throw new MCPAccessDeniedException(WIKI_PREFIX + MCPToolSupport.stripLineBreaks(wikiParam)
+                + DOES_NOT_EXIST + SEE_LIST_WIKIS);
         }
         return List.of(wikiParam);
     }
@@ -136,7 +138,8 @@ public class DefaultMCPWikiReach implements MCPWikiReach
                 + SEE_LIST_WIKIS);
         }
         if (!singleWikiAvailable(wikiParam)) {
-            throw new MCPAccessDeniedException(WIKI_PREFIX + wikiParam + DOES_NOT_EXIST + SEE_LIST_WIKIS);
+            throw new MCPAccessDeniedException(WIKI_PREFIX + MCPToolSupport.stripLineBreaks(wikiParam)
+                + DOES_NOT_EXIST + SEE_LIST_WIKIS);
         }
         return wikiParam;
     }
@@ -151,7 +154,8 @@ public class DefaultMCPWikiReach implements MCPWikiReach
     {
         return verifiedWikiExists(wikiParam, "Could not verify wiki [{}] for a cross-wiki search: [{}]",
             "Wiki descriptor lookup failure for cross-wiki search on [{}]",
-            WIKI_PREFIX + wikiParam + "\" is not available for cross-wiki search. " + SEE_LIST_WIKIS);
+            WIKI_PREFIX + MCPToolSupport.stripLineBreaks(wikiParam)
+                + "\" is not available for cross-wiki search. " + SEE_LIST_WIKIS);
     }
 
     /**
@@ -164,7 +168,8 @@ public class DefaultMCPWikiReach implements MCPWikiReach
     {
         return verifiedWikiExists(wikiParam, "Could not verify wiki [{}] for the 'wiki' parameter: [{}]",
             "Wiki descriptor lookup failure for the 'wiki' parameter on [{}]",
-            WIKI_PREFIX + wikiParam + "\" is not available from this endpoint. " + SEE_LIST_WIKIS);
+            WIKI_PREFIX + MCPToolSupport.stripLineBreaks(wikiParam)
+                + "\" is not available from this endpoint. " + SEE_LIST_WIKIS);
     }
 
     /**

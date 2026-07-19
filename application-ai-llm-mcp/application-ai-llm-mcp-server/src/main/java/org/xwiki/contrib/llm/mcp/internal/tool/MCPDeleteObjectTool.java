@@ -258,8 +258,8 @@ public class MCPDeleteObjectTool implements MCPTool
     {
         return MCPWriteSupport.inTargetWiki(this.contextProvider.get(), ref, (xcontext, xdoc) -> {
             if (xdoc.isNew()) {
-                return MCPToolSupport.errorResult("Document " + QUOTE + reference + QUOTE
-                    + " does not exist; there is no object to delete.");
+                return MCPToolSupport.errorResult("Document " + QUOTE + MCPTextGuards.fragment(reference)
+                    + QUOTE + " does not exist; there is no object to delete.");
             }
             McpSchema.CallToolResult refusal = MCPObjectWriteSupport.sensitiveRefusal(xcontext, ref,
                 classRef, this.serializer, this.localSerializer,

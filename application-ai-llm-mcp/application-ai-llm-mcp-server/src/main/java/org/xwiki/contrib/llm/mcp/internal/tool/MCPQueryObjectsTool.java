@@ -149,13 +149,6 @@ public class MCPQueryObjectsTool implements MCPTool
         "Could not run the object query. Try again; if it persists, report it to a wiki administrator "
             + "(details are in the server logs).";
 
-    /**
-     * The notice ending a response cut at the shared output budget ({@link MCPSourceText#MAX_OUTPUT_CHARS}),
-     * so a page of pathological objects cannot flood the agent's context window.
-     */
-    private static final String OUTPUT_TRUNCATION_NOTE =
-        "Output truncated at the ~" + MCPSourceText.MAX_OUTPUT_TOKENS + "-token cap.";
-
     private static final String DESCRIPTION =
         "Find structured objects (XObjects) by class and field filters: each result names the document "
             + "holding the object, the object number and the requested field values. get_schema lists the "
@@ -395,11 +388,12 @@ public class MCPQueryObjectsTool implements MCPTool
             this.documentAccess.resolveAndAuthorize(request.classReference(), Right.VIEW, wikiRef);
         XWikiDocument classDoc = loadDocument(classRef, request.classReference());
         if (classDoc.isNew()) {
-            return MCPToolSupport.errorResult(NO_SUCH_DOCUMENT_PREFIX + request.classReference()
-                + QUOTE + PERIOD);
+            return MCPToolSupport.errorResult(NO_SUCH_DOCUMENT_PREFIX
+                + MCPTextGuards.fragment(request.classReference()) + QUOTE + PERIOD);
         }
         if (MCPObjectQuerySupport.definesNoFields(classDoc)) {
-            return MCPToolSupport.errorResult(DOCUMENT_QUOTE_PREFIX + request.classReference() + QUOTE
+            return MCPToolSupport.errorResult(DOCUMENT_QUOTE_PREFIX
+                + MCPTextGuards.fragment(request.classReference()) + QUOTE
                 + " exists but defines no class fields. Use get_schema with no arguments to list the "
                 + "classes of this wiki.");
         }
@@ -422,7 +416,7 @@ public class MCPQueryObjectsTool implements MCPTool
         requireOffsetWithinTotal(request.offset(), total);
         List<Object[]> page = pageOf(authorized, request, total);
         List<String> blocks = renderRows(page, classDoc, classRef, wikiRef, request.select());
-        String body = budgeted("OBJECTS of class " + QUOTE
+        String body = MCPSourceText.budgeted("OBJECTS of class " + QUOTE
             + MCPTextGuards.fragment(this.localSerializer.serialize(classRef)) + QUOTE + IN_WIKI
             + QUOTE + targetWiki + HEADER_END + String.join(DOUBLE_NEW_LINE, blocks));
         return MCPToolSupport.result(body + DOUBLE_NEW_LINE
@@ -465,7 +459,7 @@ public class MCPQueryObjectsTool implements MCPTool
         XWikiDocument resultDoc = loadResult(docRef);
         String versionSuffix = resultDoc != null
             ? " (v" + MCPTextGuards.fragment(resultDoc.getVersion()) + ")" : "";
-        String body = budgeted("OBJECTS on document " + QUOTE + MCPTextGuards.fragment(localDocName)
+        String body = MCPSourceText.budgeted("OBJECTS on document " + QUOTE + MCPTextGuards.fragment(localDocName)
             + QUOTE + versionSuffix
             + IN_WIKI + QUOTE + targetWiki + HEADER_END
             + MCPObjectQuerySupport.renderDocumentInventory(page));
@@ -593,7 +587,8 @@ public class MCPQueryObjectsTool implements MCPTool
      */
     private String noMatches(Request request, boolean hitCeiling)
     {
-        String message = "No objects of class " + QUOTE + request.classReference() + QUOTE + " found."
+        String message = "No objects of class " + QUOTE + MCPTextGuards.fragment(request.classReference())
+            + QUOTE + " found."
             + describeActiveFilters(request);
         return hitCeiling ? message + NEW_LINE + CEILING_NOTE : message;
     }
@@ -715,27 +710,6 @@ public class MCPQueryObjectsTool implements MCPTool
     }
 
     /**
-     * Enforces the shared output budget on a rendered response: a response over
-     * {@link MCPSourceText#MAX_OUTPUT_CHARS} is cut at the last complete line within the budget (the
-     * output is line-oriented, so a cut never leaves half a value line) and ends with the truncation
-     * notice. The footer is appended after this cut so its honesty notes always survive.
-     *
-     * @param output the rendered response body
-     * @return the body, cut to the budget when needed
-     */
-    private static String budgeted(String output)
-    {
-        if (output.length() <= MCPSourceText.MAX_OUTPUT_CHARS) {
-            return output;
-        }
-        int cut = output.lastIndexOf(NEW_LINE, MCPSourceText.MAX_OUTPUT_CHARS);
-        if (cut <= 0) {
-            cut = MCPSourceText.MAX_OUTPUT_CHARS;
-        }
-        return output.substring(0, cut) + NEW_LINE + OUTPUT_TRUNCATION_NOTE;
-    }
-
-    /**
      * Loads the already-authorized class document as an {@link XWikiDocument} (the type that exposes the
      * class definition and objects).
      *
@@ -755,8 +729,8 @@ public class MCPQueryObjectsTool implements MCPTool
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP query_objects tool load failure details", e);
         }
-        throw new IllegalArgumentException("Could not read document " + QUOTE + classReference + QUOTE
-            + PERIOD);
+        throw new IllegalArgumentException("Could not read document " + QUOTE
+            + MCPTextGuards.fragment(classReference) + QUOTE + PERIOD);
     }
 
     /**

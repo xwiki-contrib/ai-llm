@@ -137,14 +137,6 @@ public class MCPGetSchemaTool implements MCPTool
     private static final String CATALOG_CEILING_NOTE = "The catalog hit the "
         + MCPRowQuery.MAX_FETCH_PER_QUERY + "-row fetch ceiling: classes beyond it are not listed.";
 
-    /**
-     * The notice ending a response cut at the shared output budget ({@link MCPSourceText#MAX_OUTPUT_CHARS}),
-     * so a pathological class definition (thousands of fields) or catalog (thousands of classes) cannot
-     * flood the agent's context window.
-     */
-    private static final String OUTPUT_TRUNCATION_NOTE =
-        "Output truncated at the ~" + MCPSourceText.MAX_OUTPUT_TOKENS + "-token cap.";
-
     private static final String CATALOG_FOOTER =
         "Counts are upper bounds: they include instances the current user may not view." + NEW_LINE
             + "Only classes with at least one instance are listed." + NEW_LINE
@@ -371,7 +363,7 @@ public class MCPGetSchemaTool implements MCPTool
         }
         // Budget the listing alone, then append the fixed-size honesty tail: the notes must survive a
         // budget cut - a truncated catalog needs its "upper bounds"/"may be incomplete" caveats the most.
-        StringBuilder catalog = new StringBuilder(budgeted("CLASSES with instances in wiki " + QUOTE
+        StringBuilder catalog = new StringBuilder(MCPSourceText.budgeted("CLASSES with instances in wiki " + QUOTE
             + targetWiki + QUOTE + ":" + DOUBLE_NEW_LINE + String.join(NEW_LINE, lines)));
         catalog.append(DOUBLE_NEW_LINE).append(CATALOG_FOOTER);
         if (rows.size() >= MCPRowQuery.MAX_FETCH_PER_QUERY) {
@@ -404,41 +396,21 @@ public class MCPGetSchemaTool implements MCPTool
             this.documentAccess.resolveAndAuthorize(classReference, Right.VIEW, new WikiReference(targetWiki));
         XWikiDocument xdoc = loadDocument(ref, classReference);
         if (xdoc.isNew()) {
-            return MCPToolSupport.errorResult("No such document: " + QUOTE + classReference + QUOTE + PERIOD);
+            return MCPToolSupport.errorResult("No such document: " + QUOTE
+                + MCPTextGuards.fragment(classReference) + QUOTE + PERIOD);
         }
         // getXClass() never returns null; a non-class document is detected by having no fields at all.
         if (MCPSchemaText.definesNoFields(xdoc.getXClass())) {
-            return MCPToolSupport.errorResult("Document " + QUOTE + classReference + QUOTE
+            return MCPToolSupport.errorResult("Document " + QUOTE + MCPTextGuards.fragment(classReference)
+                + QUOTE
                 + " exists but defines no class fields. Use get_schema with no arguments to list the "
                 + "classes of this wiki.");
         }
         long count = countInstances(targetWiki, this.localSerializer.serialize(ref));
-        return MCPToolSupport.result(budgeted("CLASS "
+        return MCPToolSupport.result(MCPSourceText.budgeted("CLASS "
             + MCPToolSupport.stripLineBreaks(this.localSerializer.serialize(ref)) + NEW_LINE
             + "Instances: " + count + " (upper bound; rights apply when reading them)" + DOUBLE_NEW_LINE
             + MCPSchemaText.render(xdoc.getXClass(), this.contextProvider.get())));
-    }
-
-    /**
-     * Enforces the shared output budget on a rendered response: a response over
-     * {@link MCPSourceText#MAX_OUTPUT_CHARS} is cut at the last complete line within the budget (the output
-     * is line-oriented, so a cut never leaves half a field line) and ends with the truncation notice.
-     * The per-fragment caps of {@link MCPSchemaText} keep single lines bounded, so only a class with very
-     * many fields (or a catalog with very many classes) reaches this cut.
-     *
-     * @param output the rendered response
-     * @return the response, cut to the budget when needed
-     */
-    private static String budgeted(String output)
-    {
-        if (output.length() <= MCPSourceText.MAX_OUTPUT_CHARS) {
-            return output;
-        }
-        int cut = output.lastIndexOf(NEW_LINE, MCPSourceText.MAX_OUTPUT_CHARS);
-        if (cut <= 0) {
-            cut = MCPSourceText.MAX_OUTPUT_CHARS;
-        }
-        return output.substring(0, cut) + NEW_LINE + OUTPUT_TRUNCATION_NOTE;
     }
 
     /**
@@ -461,8 +433,8 @@ public class MCPGetSchemaTool implements MCPTool
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP get_schema tool load failure details", e);
         }
-        throw new IllegalArgumentException("Could not read document " + QUOTE + classReference + QUOTE
-            + PERIOD);
+        throw new IllegalArgumentException("Could not read document " + QUOTE
+            + MCPTextGuards.fragment(classReference) + QUOTE + PERIOD);
     }
 
     /**

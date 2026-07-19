@@ -382,19 +382,21 @@ public class MCPWriteDocumentTool implements MCPTool
      * translation variant names the row and tells the agent to read with the same locale, so the
      * version it fetches is the row's own.
      *
-     * @param reference the original reference string, echoed in the message
+     * @param reference the original reference string, echoed neutralized in the message
      * @param locale the written translation row's locale, or {@code null} for a default-language write
      * @return the agent-facing error message
      */
     private static String alreadyExistsMessage(String reference, Locale locale)
     {
         if (locale == null) {
-            return DOCUMENT_QUOTE_PREFIX + reference + QUOTE + " already exists. To overwrite it, first read "
+            return DOCUMENT_QUOTE_PREFIX + MCPTextGuards.fragment(reference) + QUOTE
+                + " already exists. To overwrite it, first read "
                 + "it with get_document and pass the base_version it shows. For small changes prefer "
                 + "edit_document.";
         }
         String localeDisplay = MCPToolSupport.stripLineBreaks(locale.toString());
-        return "The " + localeDisplay + " translation of " + QUOTE + reference + QUOTE + " already exists. To "
+        return "The " + localeDisplay + " translation of " + QUOTE + MCPTextGuards.fragment(reference)
+            + QUOTE + " already exists. To "
             + "overwrite it, first read it with get_document and locale=" + QUOTE + localeDisplay + QUOTE
             + ", and pass the base_version it shows. For small changes prefer edit_document.";
     }

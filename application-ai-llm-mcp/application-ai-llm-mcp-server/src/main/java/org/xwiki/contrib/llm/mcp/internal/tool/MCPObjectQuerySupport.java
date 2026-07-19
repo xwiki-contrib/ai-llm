@@ -626,7 +626,6 @@ final class MCPObjectQuerySupport
      * @param value the raw value text
      * @return the parsed property, or {@code null} on any parse failure
      */
-    @SuppressWarnings("checkstyle:IllegalCatch")
     static BaseProperty parseOrNull(PropertyClass property, String value)
     {
         try {
