@@ -11,7 +11,7 @@ You can find more details about the general plan in the
 * Communication: [Forum](https://forum.xwiki.org/), [Chat](https://dev.xwiki.org/xwiki/bin/view/Community/Chat)
 * [Development Practices](https://dev.xwiki.org/) 
 
-* Minimal XWiki version supported: XWiki 16.2.0
+* Minimal XWiki version supported: XWiki 17.4.0
 * License: LGPL 2.1+
 * Translations: N/A 
 * Sonar Dashboard: N/A 
