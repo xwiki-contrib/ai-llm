@@ -180,8 +180,10 @@
         </dependency>
         <!-- MCP SDK: core transport + Jackson 2.x JSON mapping.
              jackson-annotations and reactive-streams are excluded from mcp-core via
-             dependencyManagement in the root pom; this also covers the transitive path
-             mcp-json-jackson2 -> mcp-core, so no per-dependency exclusion is needed here. -->
+             dependencyManagement in the root pom (covers Maven builds). The reactive-streams
+             exclusion must also be declared on mcp-json-jackson2 below, because the XWiki
+             extension resolver (used by XIP packaging) resolves each POM's transitive tree
+             independently and does not apply parent dependencyManagement exclusions. -->
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp-core</artifactId>
@@ -194,6 +196,17 @@
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-databind</artifactId>
+                </exclusion>
+                <!-- The root pom's dependencyManagement excludes reactive-streams from mcp-core,
+                     which covers Maven builds, but the XWiki extension resolver (used by XIP
+                     packaging) resolves each POM's transitive tree independently and does not
+                     apply dependencyManagement exclusions from the parent. The transitive path
+                     mcp-json-jackson2 -> mcp-core -> reactor-core -> reactive-streams:1.0.4
+                     conflicts with the platform's core reactive-streams:1.0.3, so the exclusion
+                     must also be declared here for XIP packaging to succeed. -->
+                <exclusion>
+                    <groupId>org.reactivestreams</groupId>
+                    <artifactId>reactive-streams</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
