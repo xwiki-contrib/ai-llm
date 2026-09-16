@@ -95,10 +95,14 @@
                 <scope>import</scope>
             </dependency>
             <!-- Exclude artifacts already managed by the XWiki platform from mcp-core.
-                 dependencyManagement exclusions apply wherever mcp-core is pulled into the
-                 dependency graph of a module, direct or transitive (e.g. mcp-json-jackson2
-                 -> mcp-core), so this is declared once here instead of on every dependency
-                 that brings mcp-core in.
+                 These managed exclusions reach every DIRECT mcp-core dependency of a module
+                 (Maven injects them into the effective model). They do NOT reach mcp-core when
+                 it arrives transitively (mcp-json-jackson2 -> mcp-core): the XWiki extension
+                 manager takes only the version from a managed dependency and resolves the
+                 upstream SDK pom's own mcp-core declaration, which has no exclusions. Every
+                 direct dependency that brings mcp-core in transitively must therefore repeat
+                 the exclusions itself (see mcp-json-jackson2 in mcp-server); dropping them
+                 breaks installation on platforms shipping reactive-streams 1.0.3 (17.4.x).
                  - jackson-annotations: provided by XWiki platform
                  - reactive-streams: XWiki platform ships 1.0.3 as a core extension;
                    mcp-core pulls 1.0.4 transitively via reactor-core, which the extension
