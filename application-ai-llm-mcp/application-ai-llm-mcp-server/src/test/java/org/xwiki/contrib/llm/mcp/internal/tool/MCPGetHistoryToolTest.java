@@ -243,8 +243,8 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
 
         callText(Map.of(REFERENCE_KEY, REF));
 
-        // This extension's own writes are minor versions: a criteria without minor versions would hide
-        // them, so both the count and the page read must opt in.
+        // This extension's updates are minor versions unless major=true: a criteria without minor versions
+        // would hide them, so both the count and the page read must opt in.
         ArgumentCaptor<RevisionCriteria> countCriteria = ArgumentCaptor.forClass(RevisionCriteria.class);
         verify(doc).getRevisionsCount(countCriteria.capture(), any());
         assertTrue(countCriteria.getValue().getIncludeMinorVersions());

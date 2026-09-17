@@ -319,12 +319,13 @@ public class MCPGetDocumentTool implements MCPTool
         + "produced by the sheet \"%s\".";
 
     /**
-     * Provenance note on a source read of an empty-body document whose content lives in its xobjects.
-     * One of the two tails below completes the sentence, depending on whether rendered content is
-     * allowed here.
+     * Provenance note on a source read of an empty-body document that carries xobjects but has no sheet
+     * to render them: nothing displays from the body, so the agent is steered to the objects. The
+     * placeholder is the document's serialized reference.
      */
-    private static final String SOURCE_XOBJECT_NOTE = "Note: the body source is empty; this document's content "
-        + "lives in its structured data (xobjects).";
+    private static final String SOURCE_XOBJECT_NOTE = "Note: the body source is empty; the page carries "
+        + "structured data (xobjects) but no sheet renders them, so nothing displays from the body. Inspect "
+        + "them with query_objects document=\"%s\"; editing the body will not change what users see.";
 
     /**
      * Tail of the source provenance note when rendered content is allowed on this wiki: steer the agent
@@ -346,10 +347,12 @@ public class MCPGetDocumentTool implements MCPTool
         + "the sheet \"%s\" - body edits will not change it.";
 
     /**
-     * Provenance note on a rendered read of an empty-body document whose content lives in its xobjects.
+     * Provenance note on a rendered read of an empty-body document that carries xobjects but has no sheet
+     * to render them: the view is empty. The placeholder is the document's serialized reference.
      */
-    private static final String RENDERED_XOBJECT_NOTE = "Note: the body source is empty; this view is produced "
-        + "from the document's structured data - body edits will not change it.";
+    private static final String RENDERED_XOBJECT_NOTE = "Note: the body source is empty and the page carries "
+        + "structured data (xobjects) with no sheet, so this view is empty. Inspect the objects with "
+        + "query_objects document=\"%s\".";
 
     /**
      * Appended to the rendered provenance note in plain mode, where a sheet's raw-HTML output is dropped.
@@ -458,14 +461,17 @@ public class MCPGetDocumentTool implements MCPTool
     {
         return """
             NOTES
-                A page whose body source is empty may still display content: a sheet or the page's
-                structured data (xobjects) produces the view. Such reads carry a note; read the page
-                with rendered=true, format="html" - editing the body will not change what users see.
+                A page whose body source is empty may still display content: a sheet renders the
+                page's structured data (xobjects). Such reads carry a note: read the page with
+                rendered=true, format="html" when a sheet applies, or inspect the objects with
+                query_objects document=... when no sheet does - editing the body will not change
+                what users see.
 
                 A translation read (locale="fr") is exact-match: there is no language fallback, and a
                 missing translation is refused with the list of translations that do exist. The
-                header's Language: line names the loaded language; the Translations: line shows what
-                else exists. IMPORTANT: write_document and edit_document accept the same locale
+                header's Language: line names the loaded language when the row declares one; the
+                Translations: line shows what else exists. IMPORTANT: write_document and
+                edit_document accept the same locale
                 parameter to create or edit a translation (exact-match, same rules), while
                 delete_document always removes the document WITH all its translations (its
                 base_version takes the DEFAULT row's Version). base_version
@@ -974,11 +980,12 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     /**
-     * Builds the provenance note for a document whose body source is empty while its displayed content
-     * is produced by a sheet or by its structured data (xobjects) - the situation that otherwise traps
-     * an agent between a full view and an empty source. Returns {@code null} when the body has content
-     * or when neither a sheet nor xobjects are present; the sheet lookup is only consulted for
-     * empty-body documents.
+     * Builds the provenance note for a document whose body source is empty while it carries a sheet or
+     * structured data (xobjects) - the situation that otherwise traps an agent between a full (or
+     * unexpectedly empty) view and an empty source. A viewable sheet produces the displayed content, so
+     * the note steers to the rendered view; xobjects without a sheet display nothing, so the note
+     * steers to {@code query_objects}. Returns {@code null} when the body has content or when neither
+     * a sheet nor xobjects are present; the sheet lookup is only consulted for empty-body documents.
      *
      * @param doc the loaded document
      * @param renderedSyntax the rendered output syntax, or {@code null} in source mode
@@ -993,15 +1000,46 @@ public class MCPGetDocumentTool implements MCPTool
         if (sheetName == null && !hasXObjects(doc)) {
             return null;
         }
-        if (renderedSyntax == null) {
-            String base = sheetName != null ? String.format(SOURCE_SHEET_NOTE, sheetName) : SOURCE_XOBJECT_NOTE;
-            // Only advise the rendered view when this wiki actually allows it; otherwise the advice
-            // dead-ends in the rendered-disabled refusal.
-            boolean renderingAllowed =
-                this.mcpConfig.isRenderedContentAllowed(this.contextProvider.get().getWikiId());
-            return base + (renderingAllowed ? SOURCE_NOTE_RENDERED_ADVICE : SOURCE_NOTE_NO_RENDER_TAIL);
+        return renderedSyntax == null ? sourceProvenanceNote(doc, sheetName)
+            : renderedProvenanceNote(doc, sheetName, renderedSyntax);
+    }
+
+    /**
+     * The source-mode provenance note: the sheet note with the rendered-view advice (only when this wiki
+     * allows rendered content), or the no-sheet xobject note naming the document for {@code query_objects}.
+     *
+     * @param doc the loaded document
+     * @param sheetName the first viewable sheet's serialized reference, or {@code null} when there is none
+     * @return the note
+     */
+    private String sourceProvenanceNote(DocumentModelBridge doc, String sheetName)
+    {
+        if (sheetName == null) {
+            return String.format(SOURCE_XOBJECT_NOTE, canonicalReference(doc));
         }
-        String note = sheetName != null ? String.format(RENDERED_SHEET_NOTE, sheetName) : RENDERED_XOBJECT_NOTE;
+        // Only advise the rendered view when this wiki actually allows it; otherwise the advice
+        // dead-ends in the rendered-disabled refusal.
+        boolean renderingAllowed = this.mcpConfig.isRenderedContentAllowed(this.contextProvider.get().getWikiId());
+        return String.format(SOURCE_SHEET_NOTE, sheetName)
+            + (renderingAllowed ? SOURCE_NOTE_RENDERED_ADVICE : SOURCE_NOTE_NO_RENDER_TAIL);
+    }
+
+    /**
+     * The rendered-mode provenance note: the sheet note (plus the format hint in plain mode, where the
+     * sheet's HTML output is dropped), or the no-sheet xobject note naming the document for
+     * {@code query_objects}.
+     *
+     * @param doc the loaded document
+     * @param sheetName the first viewable sheet's serialized reference, or {@code null} when there is none
+     * @param renderedSyntax the rendered output syntax
+     * @return the note
+     */
+    private String renderedProvenanceNote(DocumentModelBridge doc, String sheetName, Syntax renderedSyntax)
+    {
+        if (sheetName == null) {
+            return String.format(RENDERED_XOBJECT_NOTE, canonicalReference(doc));
+        }
+        String note = String.format(RENDERED_SHEET_NOTE, sheetName);
         if (Syntax.PLAIN_1_0.equals(renderedSyntax)) {
             note += PLAIN_EMPTY_HINT;
         }
@@ -1172,12 +1210,22 @@ public class MCPGetDocumentTool implements MCPTool
      */
     private String buildReferenceBlock(DocumentModelBridge doc)
     {
-        // Strip any newline/control chars from the serialized reference: an entity name can contain a newline,
-        // which would otherwise break the single Reference: line into forged extra lines.
-        String canonicalRef = MCPToolSupport.stripLineBreaks(this.serializer.serialize(doc.getDocumentReference()));
         String url = safeDocumentUrl(doc.getDocumentReference(), translationQueryString(doc));
         String urlLine = StringUtils.isNotBlank(url) ? "URL: " + url + NEW_LINE : "";
-        return "Reference: " + canonicalRef + NEW_LINE + urlLine;
+        return "Reference: " + canonicalReference(doc) + NEW_LINE + urlLine;
+    }
+
+    /**
+     * Serializes the document's reference for the header and its notes, stripped of any newline/control
+     * chars: an entity name can contain a newline, which would otherwise break a single header line into
+     * forged extra lines.
+     *
+     * @param doc the loaded document
+     * @return the serialized reference, line-break free
+     */
+    private String canonicalReference(DocumentModelBridge doc)
+    {
+        return MCPToolSupport.stripLineBreaks(this.serializer.serialize(doc.getDocumentReference()));
     }
 
     /**

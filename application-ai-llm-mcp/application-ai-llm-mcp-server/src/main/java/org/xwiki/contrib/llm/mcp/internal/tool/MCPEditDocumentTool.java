@@ -237,9 +237,10 @@ public class MCPEditDocumentTool implements MCPTool
                 + MCPToolSupport.LOCALE_FORMS + " (exact-match, like get_document). Omit for the default "
                 + "language version, which must exist before a translation can be created.")
             .string(BASE_VERSION_PARAM, "Optional optimistic lock: the document version you read (shown by "
-                + "get_document for the same locale). The save is refused (best-effort check at save time) "
-                + "if the document has changed since, instead of silently overwriting the concurrent "
-                + "change.")
+                + "get_document for the same locale). The save is refused if the document has changed since, "
+                + "instead of silently overwriting the concurrent change. Writes through this server to the "
+                + "same document are serialized, so the check is reliable against other MCP writes; a save "
+                + "made in the wiki UI or on another cluster node can still land in between.")
             .string(COMMENT_PARAM, "Version comment shown in the document history. Stored prefixed with "
                 + "[AI]. Default: a generic [AI] comment.")
             .bool(MAJOR_PARAM, "Set true to record this edit as a major version. Default false (minor). "
@@ -500,9 +501,10 @@ public class MCPEditDocumentTool implements MCPTool
      * actually has now, before any edit is attempted. The lock is row-scoped: a translation edit
      * compares against the translation row's own version, and its messages name the row.
      *
-     * <p>The check is best-effort: a concurrent save landing between this check and the save below can
-     * still win. It protects the agent's read-modify-write loop against stale reads, not transactional
-     * integrity.</p>
+     * <p>The check runs inside the per-document lock of {@link MCPWriteSupport#inTargetWiki}, serialized with
+     * every other MCP write to this document on this server; only a save made outside the MCP server (wiki
+     * UI, REST) or on another cluster node can still land between the check and the save. It protects the
+     * agent's read-modify-write loop, not cross-node transactional integrity.</p>
      *
      * @param request the parsed arguments
      * @param locale the written translation row's locale, or {@code null} for a default-language edit

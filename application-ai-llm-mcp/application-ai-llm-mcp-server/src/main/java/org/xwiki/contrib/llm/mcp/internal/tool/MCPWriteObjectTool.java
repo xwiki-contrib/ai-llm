@@ -47,8 +47,9 @@ import io.modelcontextprotocol.spec.McpSchema;
 
 /**
  * MCP tool that creates a structured object (an XObject) on a document or sets fields on an existing
- * one, schema-validated: every field entry is checked against the class definition and coerced with the
- * field's own type before anything is mutated (see {@link MCPObjectWriteSupport}).
+ * one, type-checked: every field entry is checked against the class definition for existence and type
+ * conversion (list membership and validation regexps are not enforced) and coerced with the field's own
+ * type before anything is mutated (see {@link MCPObjectWriteSupport}).
  *
  * <p>This is a default tool bundled with the MCP server module. Classes are wiki-local, so the
  * {@code class} argument is resolved in the target document's wiki and a contradicting wiki prefix is
@@ -150,8 +151,9 @@ public class MCPWriteObjectTool implements MCPTool
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
             .requiredString(CLASS_PARAM, "Reference of the object's class, e.g. \"Blog.BlogPostClass\". "
-                + "Classes are wiki-local: the class always lives in the target document's wiki, so never "
-                + "use a wiki prefix here. get_schema lists the classes and each class's fields.")
+                + "Classes are wiki-local: the class is resolved in the target document's wiki, so a wiki "
+                + "prefix is unnecessary, and one naming a different wiki is refused. get_schema lists the "
+                + "classes and each class's fields.")
             .integer(OBJECT_PARAM, "Number of the existing object to update (shown by query_objects as "
                 + "\"object N\"). Omit to create a new object of the class.")
             .requiredStringMap(FIELDS_PARAM, "Field name to value. All values are strings; each is "
@@ -179,8 +181,10 @@ public class MCPWriteObjectTool implements MCPTool
         MCPToolSupport schema = PARAMS.advertised(this.wikiReach.isReachEnabled());
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Create a structured object (an instance of an XWiki class) on a document, or "
-                + "set fields on an existing one. Field values are strings, validated and converted with "
-                + "each field's type - get_schema shows the classes and fields. Omit object to create; "
+                + "set fields on an existing one. Field values are strings, converted with each field's "
+                + "type: the field must exist and Number, Date and Boolean values must parse; list "
+                + "membership, user or page existence and the class's validation regexp are not checked "
+                + "- get_schema shows the classes and fields. Omit object to create; "
                 + "pass the number shown by query_objects to update. Updating an existing document "
                 + "requires base_version.")
             .build();
@@ -201,7 +205,7 @@ public class MCPWriteObjectTool implements MCPTool
     @Override
     public String getSummary()
     {
-        return "Create a structured object or set fields on an existing one (schema-validated).";
+        return "Create a structured object or set fields on an existing one (type-checked).";
     }
 
     @Override
@@ -212,12 +216,19 @@ public class MCPWriteObjectTool implements MCPTool
                 Creates or updates ONE object (an instance of a class) on a document. Omit the
                 object parameter to create a new object; pass object=N (the number shown by
                 query_objects as "object N") to update an existing one.
-                All field values are strings; each is validated and converted with the field's
-                own type - get_schema class="..." shows the fields with their types and formats.
+                All field values are strings; each is converted with the field's own type -
+                get_schema class="..." shows the fields with their types and formats. The field
+                must exist and Number, Date and Boolean values must parse; list membership,
+                user or page existence and the class's validation regexp are NOT checked, so a
+                wrong list value is stored as given.
                 Multi-select list values accept "|" or "," separators (e.g. "News|Personal");
-                booleans accept 0, 1, true or false. Unknown fields are refused (the error lists
-                the class's fields); Password and computed fields cannot be set with this tool.
-                An empty fields map ({}) creates a marker object carrying only the class defaults.
+                booleans accept 0, 1, true or false. Date values must use the class's date
+                format shown by get_schema (the ISO-8601 forms query_objects accepts in filters
+                are not accepted here). Unknown fields are refused (the error lists the class's
+                fields); Password and computed fields cannot be set with this tool.
+                An empty fields map ({}) creates an empty marker object with no stored values
+                (query_objects shows its fields as (unset); the wiki's edit form offers the
+                class defaults).
                 title sets the DOCUMENT's title in the same save (create and update alike), so
                 an object-first page creation names its page without a second call; omitted, the
                 title stays untouched. hidden likewise sets the DOCUMENT's hidden flag in the
@@ -299,7 +310,7 @@ public class MCPWriteObjectTool implements MCPTool
 
     /**
      * Reads the {@code fields} parameter, enforcing its presence but allowing an explicitly empty map:
-     * an object can be created carrying only the class defaults (a marker object), so emptiness is not
+     * an object can be created with no stored values (a marker object), so emptiness is not
      * an error here - the caller guards separately against an update call that changes nothing.
      *
      * @param args the tool call arguments
@@ -396,9 +407,10 @@ public class MCPWriteObjectTool implements MCPTool
      * mirroring {@code write_document}: an update must carry the version the agent read, a creation must
      * not carry one, and a stale version is refused.
      *
-     * <p>The version check is best-effort: a concurrent save landing between this check and the save
-     * below can still win. It protects the agent's read-modify-write loop against stale reads, not
-     * transactional integrity.</p>
+     * <p>The check runs inside the per-document lock of {@link MCPWriteSupport#inTargetWiki}, serialized with
+     * every other MCP write to this document on this server; only a save made outside the MCP server (wiki
+     * UI, REST) or on another cluster node can still land between the check and the save. It protects the
+     * agent's read-modify-write loop, not cross-node transactional integrity.</p>
      *
      * @param reference the original reference string, for error messages
      * @param baseVersion the version the agent read, or {@code null} when none was given
@@ -514,7 +526,7 @@ public class MCPWriteObjectTool implements MCPTool
         if (!applied.fieldNames().isEmpty()) {
             sb.append(NEW_LINE).append("Fields set: ").append(String.join(", ", applied.fieldNames()));
         } else if (applied.createdObject()) {
-            sb.append(NEW_LINE).append("No fields set - the object keeps the class defaults.");
+            sb.append(NEW_LINE).append("No fields set - the object has no stored values yet.");
         }
         String urlLine = MCPWriteSupport.buildReviewLine(this.documentAccessBridge, this.logger, ref,
             creatingDocument, oldVersion, newVersion);

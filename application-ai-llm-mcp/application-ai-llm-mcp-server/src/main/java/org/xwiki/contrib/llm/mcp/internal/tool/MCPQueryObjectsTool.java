@@ -192,10 +192,14 @@ public class MCPQueryObjectsTool implements MCPTool
             bare date like 2026-01-31, which compares as UTC midnight), booleans as
             0/1/true/false. Filters and sort are refused on Password fields, on computed
             fields (they have no stored values) and on list-valued fields; sort is also
-            refused on large text fields.
+            refused on large text fields. Filters and sort join on the field's stored row:
+            an object with no stored row for that field (created without it, or the field
+            was added to the class after the object was saved) never matches a filter on
+            it - not even "!=" - and never appears in a sort on it.
 
             sort orders by an object field ("<field> asc" or "<field> desc"). Objects with
-            no stored value for the sort field are EXCLUDED from sorted results.
+            no stored row for the sort field are EXCLUDED from sorted results; a stored empty
+            value is included and sorts where the database orders nulls.
 
             A result header reads "<reference> (object <N>, v<version>)": N is the object's
             number on its document (stable, and numbering may have holes) and the version is
@@ -313,7 +317,8 @@ public class MCPQueryObjectsTool implements MCPTool
             .string(DOCUMENT_PARAM, "Optional document reference: only that document's objects of the "
                 + "class. Without class, lists every object on the document.")
             .string(SORT_PARAM, "Optional ordering by an object field: \"<field> asc\" or \"<field> "
-                + "desc\". Objects without a stored value for the field are excluded.")
+                + "desc\". Objects with no stored row for the field are excluded; a stored empty value is "
+                + "included and sorts where the database orders nulls.")
             .integer(LIMIT_PARAM, "Maximum number of results to return (default: %d, max: %d)."
                 .formatted(DEFAULT_LIMIT, MAX_LIMIT))
             .integer(OFFSET_PARAM, "0-based index of the first result to return (default: 0). Use with "

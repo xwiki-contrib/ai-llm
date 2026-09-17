@@ -1676,7 +1676,33 @@ class MCPGetDocumentToolTest extends AbstractMCPToolTest
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
 
         assertNotEquals(Boolean.TRUE, result.isError());
-        assertTrue(textOf(result).contains("lives in its structured data (xobjects)"), textOf(result));
+        String text = textOf(result);
+        assertTrue(text.contains("structured data (xobjects) but no sheet renders them"), text);
+        assertTrue(text.contains("query_objects document=\"" + CANONICAL + "\""), text);
+        assertTrue(text.contains("editing the body will not change what users see"), text);
+        // Nothing renders without a sheet, so the note must not send the agent to an empty rendered view.
+        assertFalse(text.contains("rendered=true"), text);
+    }
+
+    @Test
+    void renderedReadOfEmptyBodyWithXObjectsButNoSheetCarriesEmptyViewNote() throws Exception
+    {
+        XWikiDocument doc = stubEmptyBodyDocWithXObjects();
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(doc);
+        when(doc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
+        when(doc.displayDocument(Syntax.HTML_5_0, xcontext)).thenReturn("");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("structured data (xobjects) with no sheet, so this view is empty"), text);
+        assertTrue(text.contains("query_objects document=\"" + CANONICAL + "\""), text);
+        assertFalse(text.contains("produced by the sheet"), text);
     }
 
     @Test
@@ -1711,7 +1737,7 @@ class MCPGetDocumentToolTest extends AbstractMCPToolTest
 
         assertNotEquals(Boolean.TRUE, result.isError());
         String text = textOf(result);
-        assertTrue(text.contains("lives in its structured data (xobjects)"), text);
+        assertTrue(text.contains("structured data (xobjects) but no sheet renders them"), text);
         assertFalse(text.contains("sheet boom"), "Lookup failure must not leak: " + text);
     }
 
@@ -1729,7 +1755,7 @@ class MCPGetDocumentToolTest extends AbstractMCPToolTest
         String text = textOf(result);
         assertFalse(text.contains("produced by the sheet \""),
             "A sheet the caller may not view must never be named: " + text);
-        assertTrue(text.contains("lives in its structured data (xobjects)"), text);
+        assertTrue(text.contains("structured data (xobjects) but no sheet renders them"), text);
     }
 
     @Test

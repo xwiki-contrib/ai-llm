@@ -549,9 +549,10 @@ public class MCPWriteAttachmentTool implements MCPTool
      * save writes a document revision, so this holds even for a NEW attachment), a creation must not
      * carry one, and a stale version is refused.
      *
-     * <p>The version check is best-effort: a concurrent save landing between this check and the save
-     * below can still win. It protects the agent's read-modify-write loop against stale reads, not
-     * transactional integrity.</p>
+     * <p>The check runs inside the per-document lock of {@link MCPWriteSupport#inTargetWiki}, serialized with
+     * every other MCP write to this document on this server; only a save made outside the MCP server (wiki
+     * UI, REST) or on another cluster node can still land between the check and the save. It protects the
+     * agent's read-modify-write loop, not cross-node transactional integrity.</p>
      *
      * @param reference the original reference string, for error messages
      * @param baseVersion the version the agent read, or {@code null} when none was given

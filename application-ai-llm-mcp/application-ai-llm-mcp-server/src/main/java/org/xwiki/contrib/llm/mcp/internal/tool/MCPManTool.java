@@ -358,10 +358,11 @@ public class MCPManTool implements MCPTool
             scope fallback described in TRANSLATIONS.
 
         READING AN EXISTING APP
-            get_schema with no arguments catalogs the classes; get_schema class=... shows the
-            fields; query_objects class=... lists the entries; the Code-space pages are ordinary
-            documents - read them with get_document (they are hidden, so query_documents needs
-            includeHidden=true).
+            get_schema with no arguments catalogs the classes that already have objects (a class
+            you just created shows only through get_schema class=...); get_schema class=... shows
+            the fields; query_objects class=... lists the entries; the Code-space pages are
+            ordinary documents - read them with get_document (they are hidden, so query_documents
+            needs includeHidden=true).
         """;
 
     // Key-sorted map: renderUnknown joins the key set into an agent-facing string, so iteration order must be

@@ -52,8 +52,9 @@ import com.xpn.xwiki.doc.rcs.XWikiRCSNodeInfo;
  * component so the tool composes responses while this class owns the oldcore versioning and
  * xwiki-commons diff machinery.
  *
- * <p>Every criteria this class builds includes minor versions: this extension's own writes are
- * recorded as minor versions and must be visible in the history it reports.</p>
+ * <p>Every criteria this class builds includes minor versions: this extension's updates are recorded
+ * as minor versions unless {@code major=true} (creations are major) and must be visible in the history
+ * it reports.</p>
  *
  * @version $Id$
  * @since 0.9.1
@@ -162,7 +163,8 @@ public class MCPHistorySupport
 
     /**
      * Builds the criteria matching every revision: minor versions MUST be included (the default
-     * excludes them), because this extension's own writes are minor versions.
+     * excludes them), because this extension's updates are minor versions unless {@code major=true}
+     * (creations are major).
      *
      * @return the criteria
      */

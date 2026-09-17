@@ -535,9 +535,9 @@ class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
         assertNotEquals(Boolean.TRUE, result.isError());
         XWikiDocument saved = loadDocument(oldcore);
         assertFalse(saved.isNew());
-        // The marker object exists carrying only the class defaults.
+        // The marker object exists with no stored values.
         assertNotNull(saved.getXObject(CLASS_REFERENCE, 0));
-        assertTrue(textOf(result).contains("No fields set - the object keeps the class defaults."),
+        assertTrue(textOf(result).contains("No fields set - the object has no stored values yet."),
             textOf(result));
         assertFalse(textOf(result).contains("Fields set:"), textOf(result));
     }
@@ -553,7 +553,7 @@ class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
 
         assertNotEquals(Boolean.TRUE, result.isError());
         assertNotNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
-        assertTrue(textOf(result).contains("No fields set - the object keeps the class defaults."),
+        assertTrue(textOf(result).contains("No fields set - the object has no stored values yet."),
             textOf(result));
     }
 
@@ -1103,7 +1103,7 @@ class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
     {
         assertTrue(this.tool.isWrite());
         assertEquals("Structured Data", this.tool.getCategory());
-        assertTrue(this.tool.getSummary().contains("schema-validated"), this.tool.getSummary());
+        assertTrue(this.tool.getSummary().contains("type-checked"), this.tool.getSummary());
         assertTrue(this.tool.getManPage().contains("EXAMPLES"), this.tool.getManPage());
         assertTrue(this.tool.getManPage().contains("base_version"), this.tool.getManPage());
     }

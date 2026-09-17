@@ -300,7 +300,8 @@ public class MCPQueryDocumentsTool implements MCPTool
             .string(MODIFIED_RANGE_PARAM, "Advanced. A raw Solr date-range expression on the last-modified "
                 + "date, e.g. \"[NOW-7DAY TO NOW]\" or \"[2026-01-01T00:00:00Z TO NOW]\". "
                 + "Overrides 'modifiedWithin' when both are given.")
-            .string(SORT_PARAM, "Result ordering. One of: relevance (default), newest, oldest, title.")
+            .string(SORT_PARAM, "Result ordering. One of: relevance (default; with an empty query the default "
+                + "is newest), newest, oldest, title.")
             .integer(LIMIT_PARAM, "Maximum number of results to return (default: %d, max: %d)."
                 .formatted(DEFAULT_LIMIT, MAX_LIMIT))
             .integer(OFFSET_PARAM, "0-based index of the first result to return (default: 0). Use with "

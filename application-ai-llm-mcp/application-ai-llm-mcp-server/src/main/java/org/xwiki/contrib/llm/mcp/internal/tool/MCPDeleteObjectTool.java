@@ -139,7 +139,8 @@ public class MCPDeleteObjectTool implements MCPTool
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)
             .requiredString(CLASS_PARAM, "Reference of the object's class, e.g. \"XWiki.XWikiComments\". "
-                + "Classes are wiki-local: never use a wiki prefix here.")
+                + "Classes are wiki-local: a wiki prefix is unnecessary, and one naming a different wiki "
+                + "is refused.")
             .requiredInteger(OBJECT_PARAM, "Number of the object to remove (shown by query_objects as "
                 + "\"object N\").")
             .requiredString(BASE_VERSION_PARAM, "The document version you last read, shown by get_document "

@@ -211,8 +211,9 @@ public class MCPWriteSchemaTool implements MCPTool
     {
         return McpSchema.Tool.builder(TOOL_ID,
                 PARAMS.advertised(this.wikiReach.isReachEnabled()).inputSchema())
-            .description("Define or change an XWiki class (XClass): add a field, modify a field's name and "
-                + "attributes, or remove a field. Powerful and off by default - it changes the schema every "
+            .description("Define or change an XWiki class (XClass): add a field, modify a field's display "
+                + "name and attributes, or remove a field. Powerful and off by default - it changes the "
+                + "schema every "
                 + "object of the class obeys. See man write_schema before using it. get_schema shows the "
                 + "classes and their fields. Building an app around the class? A class alone does not render "
                 + "or list entries - man awm describes the pieces a working app needs.")
@@ -275,6 +276,7 @@ public class MCPWriteSchemaTool implements MCPTool
                     DBList/DBTreeList      size, sql, multiSelect, relationalStorage, displayType
                     Page                   size, sql, multiSelect, displayType
                     Groups/Users           size, multiSelect
+                    Levels                 size
                     TextArea               size, rows, editor, contentType
                     ComputedField          script
                 An attribute not valid for the type is refused, listing the accepted ones.
@@ -290,7 +292,7 @@ public class MCPWriteSchemaTool implements MCPTool
                              type="String", attributes={"size": "60"}
                 Add field:   reference="MyApp.TaskClass", operation="add_field", field="done",
                              type="Boolean", base_version="1.1"
-                Rename:      reference="MyApp.TaskClass", operation="modify_field", field="title",
+                Relabel:     reference="MyApp.TaskClass", operation="modify_field", field="title",
                              pretty_name="Task title", base_version="2.1"
                 Remove:      reference="MyApp.TaskClass", operation="remove_field", field="done",
                              base_version="3.1"
@@ -523,8 +525,11 @@ public class MCPWriteSchemaTool implements MCPTool
     /**
      * Checks the document's state against the {@code base_version} workflow: remove_field always requires a
      * matching version (destructive), while add_field and modify_field mirror {@code write_object} (required
-     * when the document exists, refused when add_field creates one). Best-effort: a concurrent save landing
-     * between this check and the save can still win.
+     * when the document exists, refused when add_field creates one). The check runs inside the per-document
+     * lock of {@link MCPWriteSupport#inTargetWiki}, serialized with every other MCP write to this document on
+     * this server; only a save made outside the MCP server (wiki UI, REST) or on another cluster node can
+     * still land between the check and the save. It protects the agent's read-modify-write loop, not
+     * cross-node transactional integrity.
      *
      * @param request the parsed arguments
      * @param creating whether the document does not exist yet

@@ -324,9 +324,10 @@ public class MCPDeleteDocumentTool implements MCPTool
      * have a recycle bin and a space home page must have no children (bar the {@code WebPreferences}
      * exception).
      *
-     * <p>The checks are best-effort: a concurrent save landing between them and the delete can still
-     * win. The window is milliseconds, the platform's own delete action carries the same race with no
-     * version check at all, and the recycle bin bounds the damage.</p>
+     * <p>The checks run inside the per-document lock of {@link MCPWriteSupport#inTargetWiki}, serialized with
+     * every other MCP write to this document on this server; only a save made outside the MCP server (wiki
+     * UI, REST) or on another cluster node can still land between them and the delete, and the recycle bin
+     * bounds the damage.</p>
      *
      * @param ref the resolved and authorized document reference
      * @param reference the original reference string, for error messages

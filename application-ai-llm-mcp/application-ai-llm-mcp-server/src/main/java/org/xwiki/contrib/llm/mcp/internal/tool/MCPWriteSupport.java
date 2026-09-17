@@ -43,8 +43,8 @@ import com.xpn.xwiki.doc.XWikiDocument;
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
- * Shared plumbing of the document-writing MCP tools ({@link MCPEditDocumentTool},
- * {@link MCPWriteDocumentTool}, {@link MCPDeleteDocumentTool}): write-right resolution, the
+ * Shared plumbing of the writing MCP tools (document, attachment, object and schema writes and deletes:
+ * every tool that runs its save through {@link #inTargetWiki}): write-right resolution, the
  * authenticated-user guard and target-wiki context switch around a write, the {@code [AI]}-prefixed
  * version-comment construction, the minor-edit policy, the review-URL result line and the agent-facing
  * message fragments the tools' {@code base_version} checks share. The default-language predicate

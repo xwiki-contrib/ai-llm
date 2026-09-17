@@ -367,9 +367,10 @@ public class MCPWriteDocumentTool implements MCPTool
      * a translation write compares against the translation row's own version, and its messages steer
      * the agent to read with the same locale.
      *
-     * <p>The version check is best-effort: a concurrent save landing between this check and the save
-     * below can still win. It protects the agent's read-modify-write loop against stale reads, not
-     * transactional integrity.</p>
+     * <p>The check runs inside the per-document lock of {@link MCPWriteSupport#inTargetWiki}, serialized with
+     * every other MCP write to this document on this server; only a save made outside the MCP server (wiki
+     * UI, REST) or on another cluster node can still land between the check and the save. It protects the
+     * agent's read-modify-write loop, not cross-node transactional integrity.</p>
      *
      * @param request the parsed arguments
      * @param locale the written translation row's locale, or {@code null} for a default-language write

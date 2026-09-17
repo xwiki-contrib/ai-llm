@@ -294,8 +294,9 @@ public class MCPGetHistoryTool implements MCPTool
         return """
             NOTES
                 Three modes. The default lists revision metadata newest first, minor edits
-                included (this server's own writes are minor versions); offset skips the
-                newest revisions and limit caps the page. version="X.Y" returns that
+                included (this server's updates are minor versions unless major=true;
+                creations are major); offset skips the newest revisions and limit caps the
+                page. version="X.Y" returns that
                 revision's source content, line-numbered and windowed like get_document
                 (offset continues a truncated read; do not copy the line-number prefix).
                 from="X.Y" (with an optional to="X.Y", default the current version) returns
