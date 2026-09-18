@@ -32,7 +32,7 @@ import org.xwiki.stability.Unstable;
  * ({@link #advertised(boolean)}), instead of each tool re-implementing that split by convention.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Unstable
 public final class MCPReachAwareParams
@@ -41,7 +41,7 @@ public final class MCPReachAwareParams
      * The shared schema-text sentence appended to reference-parameter descriptions by cross-wiki-capable
      * tools, in their cross-wiki variant only.
      *
-     * @since 0.9.1
+     * @since 0.10
      */
     public static final String CROSS_WIKI_REFERENCE_SENTENCE =
         " A wiki-id prefix reaches another wiki (see list_wikis).";
@@ -73,7 +73,7 @@ public final class MCPReachAwareParams
      *     cross-wiki reach
      * @return the holder of both variants
      * @throws NullPointerException if the builder is {@code null} or returns a {@code null} variant
-     * @since 0.9.1
+     * @since 0.10
      */
     public static MCPReachAwareParams of(Function<Boolean, MCPToolSupport> paramsBuilder)
     {
@@ -91,7 +91,7 @@ public final class MCPReachAwareParams
      *
      * @param reachEnabled whether the endpoint has cross-wiki reach
      * @return the parameter set to advertise
-     * @since 0.9.1
+     * @since 0.10
      */
     public MCPToolSupport advertised(boolean reachEnabled)
     {
@@ -104,7 +104,7 @@ public final class MCPReachAwareParams
      * parses and then hits the reach gate's curated refusal, instead of being silently ignored.
      *
      * @return the parameter set to parse arguments with
-     * @since 0.9.1
+     * @since 0.10
      */
     public MCPToolSupport parser()
     {

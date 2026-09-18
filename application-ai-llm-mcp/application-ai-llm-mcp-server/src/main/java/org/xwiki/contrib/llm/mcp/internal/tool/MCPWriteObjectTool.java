@@ -65,7 +65,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * {@link com.xpn.xwiki.api.Document} so author attribution and save-time rights are applied.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPWriteObjectTool.TOOL_ID)

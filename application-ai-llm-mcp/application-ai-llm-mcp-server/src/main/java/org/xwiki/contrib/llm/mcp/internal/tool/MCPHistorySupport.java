@@ -57,7 +57,7 @@ import com.xpn.xwiki.doc.rcs.XWikiRCSNodeInfo;
  * it reports.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component(roles = MCPHistorySupport.class)
 @Singleton

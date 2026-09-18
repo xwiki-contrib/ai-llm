@@ -71,7 +71,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * line-oriented output, so a crafted name cannot forge extra catalog rows or field lines.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPGetSchemaTool.TOOL_ID)

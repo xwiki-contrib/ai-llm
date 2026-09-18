@@ -31,7 +31,7 @@ import org.xwiki.stability.Unstable;
  * so the document tools and the document search apply the same rule.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Role
 @Unstable
@@ -39,7 +39,7 @@ public interface MCPWikiReach
 {
     /**
      * @return whether the current (context) wiki's endpoint has cross-wiki reach enabled
-     * @since 0.9.1
+     * @since 0.10
      */
     boolean isReachEnabled();
 
@@ -48,7 +48,7 @@ public interface MCPWikiReach
      * @return whether a document tool may operate on a reference in {@code targetWiki} from this endpoint. A
      *     reference in the current wiki is always reachable; another wiki is reachable whenever this endpoint has
      *     cross-wiki reach enabled.
-     * @since 0.9.1
+     * @since 0.10
      */
     boolean canReachWiki(String targetWiki);
 
@@ -62,7 +62,7 @@ public interface MCPWikiReach
      * @return the wiki ids to search, or {@code null} to search the whole farm (no wiki-scope restriction)
      * @throws MCPAccessDeniedException if cross-wiki search is requested but not permitted for this endpoint, or the
      *     requested wiki does not exist
-     * @since 0.9.1
+     * @since 0.10
      */
     List<String> resolveSearchWikis(String wikiParam) throws MCPAccessDeniedException;
 
@@ -76,7 +76,7 @@ public interface MCPWikiReach
      * @param wikiParam the raw {@code wiki} parameter value, possibly blank
      * @return the resolved wiki id, never {@code null}
      * @throws MCPAccessDeniedException if the wiki is not reachable from this endpoint or does not exist
-     * @since 0.9.1
+     * @since 0.10
      */
     String resolveSingleWiki(String wikiParam) throws MCPAccessDeniedException;
 }

@@ -83,7 +83,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * the deleter when it moves the documents to the recycle bin.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPDeleteDocumentTool.TOOL_ID)

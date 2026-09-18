@@ -53,7 +53,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * error meant to be caught by the tool's tests.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Unstable
 public final class MCPToolSupport
@@ -62,7 +62,7 @@ public final class MCPToolSupport
      * Prefix shared by the agent-facing parameter error messages, exposed so tools can build their
      * own parameter errors with consistent phrasing.
      *
-     * @since 0.9.1
+     * @since 0.10
      */
     public static final String ERROR_PREFIX = "Error: '";
 
@@ -71,7 +71,7 @@ public final class MCPToolSupport
      * by the {@link #parseLocale(String, String)} error message, so the advertised forms and the
      * teaching message can never drift apart.
      *
-     * @since 0.9.1
+     * @since 0.10
      */
     public static final String LOCALE_FORMS = "\"fr\" or \"pt_BR\"";
 
@@ -138,7 +138,7 @@ public final class MCPToolSupport
      * Starts the declaration of a tool's flat parameter set.
      *
      * @return a new builder
-     * @since 0.9.1
+     * @since 0.10
      */
     public static Builder builder()
     {
@@ -238,7 +238,7 @@ public final class MCPToolSupport
      * @param key the argument name, used in the error message
      * @return the coerced value, or {@code false} when {@code value} is {@code null}
      * @throws IllegalArgumentException if the value is present but not a boolean
-     * @since 0.9.1
+     * @since 0.10
      */
     public static boolean booleanValue(Object value, String key)
     {
@@ -265,7 +265,7 @@ public final class MCPToolSupport
      *
      * @param value the raw value, possibly {@code null} or not a date
      * @return the ISO-8601 instant, or {@code null} when the value is not a {@link Date}
-     * @since 0.9.1
+     * @since 0.10
      */
     public static String isoInstant(Object value)
     {
@@ -282,7 +282,7 @@ public final class MCPToolSupport
      * @param value the raw value, possibly {@code null}
      * @return the value with all newline/control-family characters removed, or {@code null} when {@code value}
      *     is {@code null}
-     * @since 0.9.1
+     * @since 0.10
      */
     public static String stripLineBreaks(String value)
     {
@@ -304,7 +304,7 @@ public final class MCPToolSupport
      * @return the parsed locale, or {@code null} when {@code raw} is {@code null}
      * @throws IllegalArgumentException with the agent-facing message when the value is not a valid
      *     locale, or serializes to more characters than the wiki's locale storage holds
-     * @since 0.9.1
+     * @since 0.10
      */
     public static Locale parseLocale(String raw, String key)
     {
@@ -331,7 +331,7 @@ public final class MCPToolSupport
      *
      * @param message the result text
      * @return the tool result
-     * @since 0.9.1
+     * @since 0.10
      */
     public static McpSchema.CallToolResult result(String message)
     {
@@ -345,7 +345,7 @@ public final class MCPToolSupport
      *
      * @param message the agent-facing error text
      * @return the tool result
-     * @since 0.9.1
+     * @since 0.10
      */
     public static McpSchema.CallToolResult errorResult(String message)
     {
@@ -388,7 +388,7 @@ public final class MCPToolSupport
      * object map expected by {@code McpSchema.Tool.builder(String, Map)}.
      *
      * @return the input schema map
-     * @since 0.9.1
+     * @since 0.10
      */
     public Map<String, Object> inputSchema()
     {
@@ -404,7 +404,7 @@ public final class MCPToolSupport
      *
      * @param extraProperties additional schema properties to merge in, keyed by parameter name
      * @return the input schema map
-     * @since 0.9.1
+     * @since 0.10
      */
     public Map<String, Object> inputSchema(Map<String, Object> extraProperties)
     {
@@ -432,7 +432,7 @@ public final class MCPToolSupport
      * @param key the parameter name
      * @return the trimmed value, or {@code null} when absent or blank
      * @throws IllegalStateException if the parameter was not declared as a string
-     * @since 0.9.1
+     * @since 0.10
      */
     public String string(Map<String, Object> args, String key)
     {
@@ -453,7 +453,7 @@ public final class MCPToolSupport
      * @return the trimmed value (possibly empty), or {@code null} when absent
      * @throws IllegalArgumentException if the value is present but not a string
      * @throws IllegalStateException if the parameter was not declared as a string
-     * @since 0.9.1
+     * @since 0.10
      */
     public String stringOrEmpty(Map<String, Object> args, String key)
     {
@@ -471,7 +471,7 @@ public final class MCPToolSupport
      * @return the trimmed value, never {@code null}
      * @throws IllegalArgumentException with the agent-facing message if the value is absent or blank
      * @throws IllegalStateException if the parameter was not declared as a string
-     * @since 0.9.1
+     * @since 0.10
      */
     public String requireString(Map<String, Object> args, String key)
     {
@@ -489,7 +489,7 @@ public final class MCPToolSupport
      * @param key the parameter name
      * @return the value, or {@code null} when absent
      * @throws IllegalStateException if the parameter was not declared as an integer
-     * @since 0.9.1
+     * @since 0.10
      */
     public Integer integer(Map<String, Object> args, String key)
     {
@@ -507,7 +507,7 @@ public final class MCPToolSupport
      * @throws IllegalArgumentException with the agent-facing message if the value is absent or not an
      *     integer
      * @throws IllegalStateException if the parameter was not declared as an integer
-     * @since 0.9.1
+     * @since 0.10
      */
     public int requireInteger(Map<String, Object> args, String key)
     {
@@ -526,7 +526,7 @@ public final class MCPToolSupport
      * @param defaultValue the value to use when the parameter is absent
      * @return the value, or {@code defaultValue} when absent
      * @throws IllegalStateException if the parameter was not declared as an integer
-     * @since 0.9.1
+     * @since 0.10
      */
     public int integer(Map<String, Object> args, String key, int defaultValue)
     {
@@ -541,7 +541,7 @@ public final class MCPToolSupport
      * @param key the parameter name
      * @return the value, or {@code false} when absent
      * @throws IllegalStateException if the parameter was not declared as a boolean
-     * @since 0.9.1
+     * @since 0.10
      */
     public boolean bool(Map<String, Object> args, String key)
     {
@@ -560,7 +560,7 @@ public final class MCPToolSupport
      * @return the value, or {@code null} when absent
      * @throws IllegalArgumentException if the value is present but not a boolean
      * @throws IllegalStateException if the parameter was not declared as a boolean
-     * @since 0.9.1
+     * @since 0.10
      */
     public Boolean boolOrNull(Map<String, Object> args, String key)
     {
@@ -581,7 +581,7 @@ public final class MCPToolSupport
      * @return the trimmed string list without its blank elements, or {@code null} when absent
      * @throws IllegalArgumentException if the value is present but not an array of strings
      * @throws IllegalStateException if the parameter was not declared as a string array
-     * @since 0.9.1
+     * @since 0.10
      */
     public List<String> stringList(Map<String, Object> args, String key)
     {
@@ -617,7 +617,7 @@ public final class MCPToolSupport
      * @return the entries in their original order, or an empty map when the parameter is absent
      * @throws IllegalArgumentException if the value is present but not an object with only string values
      * @throws IllegalStateException if the parameter was not declared as a string map
-     * @since 0.9.1
+     * @since 0.10
      */
     public Map<String, String> stringMap(Map<String, Object> args, String key)
     {
@@ -650,7 +650,7 @@ public final class MCPToolSupport
      * @throws IllegalArgumentException with the agent-facing message if the value is absent, empty or
      *     not an object with only string values
      * @throws IllegalStateException if the parameter was not declared as a string map
-     * @since 0.9.1
+     * @since 0.10
      */
     public Map<String, String> requireStringMap(Map<String, Object> args, String key)
     {
@@ -721,7 +721,7 @@ public final class MCPToolSupport
      * Builder collecting a tool's parameter declarations in order.
      *
      * @version $Id$
-     * @since 0.9.1
+     * @since 0.10
      */
     public static final class Builder
     {
@@ -735,7 +735,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder string(String name, String description)
         {
@@ -752,7 +752,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder stringIf(boolean condition, String name, String description)
         {
@@ -768,7 +768,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder requiredString(String name, String description)
         {
@@ -783,7 +783,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder integer(String name, String description)
         {
@@ -797,7 +797,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder bool(String name, String description)
         {
@@ -813,7 +813,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder stringArray(String name, String description)
         {
@@ -829,7 +829,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder stringMap(String name, String description)
         {
@@ -844,7 +844,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder requiredStringMap(String name, String description)
         {
@@ -860,7 +860,7 @@ public final class MCPToolSupport
          * @param name the parameter name
          * @param description the agent-facing description
          * @return this builder
-         * @since 0.9.1
+         * @since 0.10
          */
         public Builder requiredInteger(String name, String description)
         {
@@ -873,7 +873,7 @@ public final class MCPToolSupport
          * Finishes the declaration.
          *
          * @return the immutable parameter set
-         * @since 0.9.1
+         * @since 0.10
          */
         public MCPToolSupport build()
         {

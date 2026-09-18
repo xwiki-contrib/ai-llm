@@ -70,7 +70,7 @@ public interface MCPSpaceFilter
      * so the cache is dropped on every node) when that wiki's MCP configuration document is saved.
      *
      * @param wikiId the wiki whose cached filter configuration to drop
-     * @since 0.9.1
+     * @since 0.10
      */
     void invalidate(String wikiId);
 
@@ -78,7 +78,7 @@ public interface MCPSpaceFilter
      * Drops every wiki's cached parsed filter configuration. Called when the MAIN wiki's MCP configuration
      * document is saved, mirroring the granularity of the per-wiki server invalidation.
      *
-     * @since 0.9.1
+     * @since 0.10
      */
     void invalidateAll();
 }

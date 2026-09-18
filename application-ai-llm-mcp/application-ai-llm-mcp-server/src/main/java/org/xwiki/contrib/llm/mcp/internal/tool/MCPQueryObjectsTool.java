@@ -76,7 +76,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * line-oriented output. Password values are never read at all.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPQueryObjectsTool.TOOL_ID)

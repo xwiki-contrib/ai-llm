@@ -536,7 +536,7 @@ public class SolrConnector
      * @param locale the content language the returned chunks must be indexed under (exact match on the stored
      *     language field), or {@code null} to search all languages
      * @return a list of document details
-     * @since 0.9.1
+     * @since 0.10
      */
     public List<Context> similaritySearch(String textQuery,
                                                Map<String, String> collectionEmbeddingModelMap,
@@ -609,7 +609,7 @@ public class SolrConnector
      * @param locale the content language the returned chunks must be indexed under (exact match on the stored
      *     language field), or {@code null} to search all languages
      * @return a list of context chunks
-     * @since 0.9.1
+     * @since 0.10
      */
     public List<Context> keywordSearch(String textQuery, java.util.Collection<String> collections, int limit,
         Locale locale)

@@ -44,7 +44,7 @@ import org.xwiki.security.authorization.Right;
  * order.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Singleton

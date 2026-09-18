@@ -66,7 +66,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * mutated in place) and whose save applies author attribution and save-time rights.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPDeleteAttachmentTool.TOOL_ID)

@@ -27,7 +27,7 @@ import org.xwiki.contrib.llm.mcp.MCPToolSupport;
  * line, so the tools cannot drift apart on either the cap or the ellipsis convention.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPTextGuards
 {

@@ -56,7 +56,7 @@ public interface SearchResource
      * @param limitSemanticResults the maximum number of results to return for the semantic search
      * @param locale the content language the returned chunks must be indexed under (exact match on the stored
      *     language field, e.g., {@code fr}), when empty all languages are searched (parameter available since
-     *     0.9.1)
+     *     0.10)
      * @return a list of context chunks that are similar to the query
      * @throws XWikiRestException if an error occurs
      */

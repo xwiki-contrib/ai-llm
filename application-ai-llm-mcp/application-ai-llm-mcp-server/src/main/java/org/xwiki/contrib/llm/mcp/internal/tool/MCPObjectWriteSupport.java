@@ -69,7 +69,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * diverge from what was validated.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPObjectWriteSupport
 {

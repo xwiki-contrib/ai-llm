@@ -83,7 +83,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * data, not as instructions.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPGetTreeTool.TOOL_ID)

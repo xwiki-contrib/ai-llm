@@ -54,7 +54,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * types it handles ({@link XWikiContext}, {@link XWikiDocument}) stay out of the API module's surface.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPWriteSupport
 {

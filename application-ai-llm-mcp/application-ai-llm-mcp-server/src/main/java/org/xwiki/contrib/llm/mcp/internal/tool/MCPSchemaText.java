@@ -54,7 +54,7 @@ import com.xpn.xwiki.objects.classes.TextAreaClass;
  * are never echoed - those fields carry a fixed trailing note instead.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPSchemaText
 {

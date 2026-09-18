@@ -73,7 +73,7 @@ import com.xpn.xwiki.doc.XWikiDocument;
  * default, listed with a marker when hidden pages are requested.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component(roles = MCPLinksSupport.class)
 @Singleton

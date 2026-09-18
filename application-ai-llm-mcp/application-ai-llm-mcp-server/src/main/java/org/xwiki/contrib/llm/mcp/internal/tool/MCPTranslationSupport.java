@@ -57,7 +57,7 @@ import com.xpn.xwiki.doc.XWikiDocument;
  * the write tools use, so reads and writes route a {@code locale} argument identically.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component(roles = MCPTranslationSupport.class)
 @Singleton

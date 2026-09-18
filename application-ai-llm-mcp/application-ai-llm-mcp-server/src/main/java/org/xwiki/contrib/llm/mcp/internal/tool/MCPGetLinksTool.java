@@ -65,7 +65,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * document is the broken-link-repair use case, and rights are evaluable on nonexistent references.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPGetLinksTool.TOOL_ID)

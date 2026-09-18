@@ -35,7 +35,7 @@ import org.xwiki.stability.Unstable;
  * adds its own non-fq parameters ({@code qf}, highlighting, sort, limit, offset).</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Role
 @Unstable
@@ -53,7 +53,7 @@ public interface MCPDocumentSearch
      *     clause; the source endpoint's space filter (which carries its own per-entry wiki scope) is always added
      * @return the secure query; the caller adds its own non-fq parameters before executing it
      * @throws QueryException if the query cannot be created
-     * @since 0.9.1
+     * @since 0.10
      */
     Query createQuery(String statement, List<String> additionalFilterQueries, List<String> targetWikiIds)
         throws QueryException;

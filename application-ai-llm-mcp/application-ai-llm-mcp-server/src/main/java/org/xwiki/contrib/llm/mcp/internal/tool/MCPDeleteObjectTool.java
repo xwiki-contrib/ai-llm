@@ -65,7 +65,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * numbers.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPDeleteObjectTool.TOOL_ID)

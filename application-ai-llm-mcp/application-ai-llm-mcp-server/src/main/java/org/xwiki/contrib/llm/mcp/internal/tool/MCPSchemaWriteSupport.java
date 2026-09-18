@@ -57,7 +57,7 @@ import com.xpn.xwiki.objects.classes.PropertyClass;
  * of documents the caller cannot view, consistent with {@code query_objects}.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPSchemaWriteSupport
 {

@@ -36,7 +36,7 @@ import org.xwiki.stability.Unstable;
  * applies the space filter in one step.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Role
 @Unstable
@@ -56,7 +56,7 @@ public interface MCPDocumentAccess
      *     space filter
      * @throws MCPAccessDeniedException with an agent-facing message when the reach gate, the rights check or
      *     the space filter denies access
-     * @since 0.9.1
+     * @since 0.10
      */
     DocumentReference resolveAndAuthorize(String reference, Right right) throws MCPAccessDeniedException;
 
@@ -73,7 +73,7 @@ public interface MCPDocumentAccess
      *     space filter
      * @throws MCPAccessDeniedException when the wikis contradict, or the reach gate, rights check or space
      *     filter denies access
-     * @since 0.9.1
+     * @since 0.10
      */
     DocumentReference resolveAndAuthorize(String reference, Right right, WikiReference wikiContext)
         throws MCPAccessDeniedException;

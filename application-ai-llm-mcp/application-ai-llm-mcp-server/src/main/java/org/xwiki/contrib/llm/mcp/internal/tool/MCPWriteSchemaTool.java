@@ -70,7 +70,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * {@link MCPSchemaWriteSupport} so this tool's own class fan-out stays bounded.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPWriteSchemaTool.TOOL_ID)

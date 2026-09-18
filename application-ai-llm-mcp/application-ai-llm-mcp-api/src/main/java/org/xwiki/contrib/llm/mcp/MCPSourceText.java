@@ -34,7 +34,7 @@ import org.xwiki.stability.Unstable;
  * collapsing of rendered plain text.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Unstable
 public final class MCPSourceText
@@ -43,7 +43,7 @@ public final class MCPSourceText
      * Rough characters-per-token heuristic used wherever an approximate token count is surfaced to the
      * agent (response headers, outline size estimates). Shared so all sizes use the same scale.
      *
-     * @since 0.9.1
+     * @since 0.10
      */
     public static final int CHARS_PER_TOKEN = 4;
 
@@ -52,7 +52,7 @@ public final class MCPSourceText
      * limit is its character equivalent {@link #MAX_OUTPUT_CHARS}. Shared between the read tool's
      * emission caps and the rendered-HTML chunk-map page capacity so both use the same budget.
      *
-     * @since 0.9.1
+     * @since 0.10
      */
     public static final int MAX_OUTPUT_TOKENS = 6000;
 
@@ -60,7 +60,7 @@ public final class MCPSourceText
      * Character equivalent of {@link #MAX_OUTPUT_TOKENS}: the enforced cap on the content emitted in
      * a single tool response.
      *
-     * @since 0.9.1
+     * @since 0.10
      */
     public static final int MAX_OUTPUT_CHARS = CHARS_PER_TOKEN * MAX_OUTPUT_TOKENS;
 
@@ -68,7 +68,7 @@ public final class MCPSourceText
      * The fixed note {@link #budgeted(String)} appends when it cuts a response at the output budget; its
      * text is pinned by the tool tests.
      *
-     * @since 0.9.1
+     * @since 0.10
      */
     public static final String OUTPUT_TRUNCATION_NOTE =
         "Output truncated at the ~" + MAX_OUTPUT_TOKENS + "-token cap.";
@@ -143,7 +143,7 @@ public final class MCPSourceText
      *
      * @param content the raw content, possibly {@code null}
      * @return the LF-normalized content, never {@code null}
-     * @since 0.9.1
+     * @since 0.10
      */
     public static String normalizeLineEndings(String content)
     {
@@ -161,7 +161,7 @@ public final class MCPSourceText
      * @param start the 1-based first line, inclusive
      * @param end the 1-based last line, inclusive
      * @return the numbered block
-     * @since 0.9.1
+     * @since 0.10
      */
     public static String numberedLines(String[] lines, int start, int end)
     {
@@ -181,7 +181,7 @@ public final class MCPSourceText
      *
      * @param syntaxId the document syntax identifier
      * @return whether a heading pattern exists for the syntax
-     * @since 0.9.1
+     * @since 0.10
      */
     public static boolean hasHeadingPattern(String syntaxId)
     {
@@ -197,7 +197,7 @@ public final class MCPSourceText
      * @param totalLines the total number of lines
      * @param syntaxId the document syntax identifier
      * @return the formatted heading entries, or an empty list if none
-     * @since 0.9.1
+     * @since 0.10
      */
     public static List<String> collectHeadingLines(String[] lines, int totalLines, String syntaxId)
     {
@@ -222,7 +222,7 @@ public final class MCPSourceText
      *
      * @param text the LF-normalized rendered plain content
      * @return the content with stack-frame runs collapsed
-     * @since 0.9.1
+     * @since 0.10
      */
     public static String collapseStackTraces(String text)
     {
@@ -251,7 +251,7 @@ public final class MCPSourceText
      *
      * @param output the rendered response, not null
      * @return the response, cut to the budget when needed
-     * @since 0.9.1
+     * @since 0.10
      */
     public static String budgeted(String output)
     {

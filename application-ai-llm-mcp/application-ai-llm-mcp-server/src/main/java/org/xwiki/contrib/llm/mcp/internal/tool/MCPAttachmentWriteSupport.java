@@ -44,7 +44,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * tool's own type surface. Not a component: a plain holder of static helpers.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPAttachmentWriteSupport
 {

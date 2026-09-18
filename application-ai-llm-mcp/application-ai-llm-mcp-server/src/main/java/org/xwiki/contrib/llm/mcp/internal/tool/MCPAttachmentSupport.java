@@ -60,7 +60,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * against the composing tools' fan-out.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPAttachmentSupport
 {

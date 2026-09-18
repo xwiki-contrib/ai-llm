@@ -64,7 +64,7 @@ import com.xpn.xwiki.objects.classes.PropertyClass;
  * (multi-select values) can be neither filtered nor sorted on.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPObjectQuerySupport
 {

@@ -33,7 +33,7 @@ import org.xwiki.contrib.llm.mcp.MCPSourceText;
  * follows its own convention.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 final class MCPContentWindow
 {

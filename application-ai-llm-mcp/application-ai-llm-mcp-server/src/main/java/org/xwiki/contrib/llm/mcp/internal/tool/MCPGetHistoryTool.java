@@ -68,7 +68,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * the document governs all of its history, matching the platform's own history viewer.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPGetHistoryTool.TOOL_ID)

@@ -106,7 +106,7 @@ public class MCPFarmScriptService implements ScriptService
      * @param wikiId the wiki whose MCP endpoint URL to compose
      * @return the endpoint URL, or {@code null} when it cannot be composed - the URL is a display nicety, so
      *     failing to compose it must not break the admin page
-     * @since 0.9.1
+     * @since 0.10
      */
     public String getServerUrl(String wikiId)
     {

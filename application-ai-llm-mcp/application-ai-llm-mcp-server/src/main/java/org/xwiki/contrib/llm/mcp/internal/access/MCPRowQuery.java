@@ -37,7 +37,7 @@ import org.xwiki.query.QueryException;
  * the target wiki ({@link #resolveInto}).</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Role
 public interface MCPRowQuery
@@ -60,7 +60,7 @@ public interface MCPRowQuery
      *
      * @param text the raw substring to match, escaped by the platform at execution time
      * @version $Id$
-     * @since 0.9.1
+     * @since 0.10
      */
     record Contains(String text)
     {

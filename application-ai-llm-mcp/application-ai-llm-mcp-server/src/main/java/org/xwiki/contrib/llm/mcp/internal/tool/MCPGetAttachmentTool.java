@@ -65,7 +65,7 @@ import io.modelcontextprotocol.spec.McpSchema;
  * and the existence of a protected document is never leaked.</p>
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Component
 @Named(MCPGetAttachmentTool.TOOL_ID)

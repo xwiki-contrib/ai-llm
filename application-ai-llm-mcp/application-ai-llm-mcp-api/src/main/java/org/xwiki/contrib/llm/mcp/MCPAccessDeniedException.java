@@ -27,7 +27,7 @@ import org.xwiki.stability.Unstable;
  * the tool error text.
  *
  * @version $Id$
- * @since 0.9.1
+ * @since 0.10
  */
 @Unstable
 public class MCPAccessDeniedException extends Exception
@@ -36,7 +36,7 @@ public class MCPAccessDeniedException extends Exception
 
     /**
      * @param message the agent-facing reason the access was denied
-     * @since 0.9.1
+     * @since 0.10
      */
     public MCPAccessDeniedException(String message)
     {

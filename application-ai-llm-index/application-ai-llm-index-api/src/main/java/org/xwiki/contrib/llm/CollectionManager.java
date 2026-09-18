@@ -128,7 +128,7 @@ public interface CollectionManager
      * @param locale the content language the returned chunks must be indexed under (exact match on the stored
      *     language field), or {@code null} to search all languages
      * @return the context chunks matching the query
-     * @since 0.9.1
+     * @since 0.10
      */
     @Unstable
     default List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
