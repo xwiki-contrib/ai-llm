@@ -215,6 +215,9 @@
       </serverName>
     </class>
     <property>
+      <allowGuest>0</allowGuest>
+    </property>
+    <property>
       <allowRenderedContent>1</allowRenderedContent>
     </property>
     <property>

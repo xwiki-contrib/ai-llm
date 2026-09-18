@@ -86,6 +86,22 @@
       <values/>
       <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
     </enabledTools>
+    <allowGuest>
+      <customDisplay/>
+      <defaultValue>0</defaultValue>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint>When on, callers without a token may use this wiki's MCP endpoint instead of receiving a 401 authentication challenge. This does not widen what the endpoint returns: the space filter and the wiki's view rights still apply, so a guest sees only what a guest sees in the browser. Leave off unless the endpoint is meant to serve anonymous clients.</hint>
+      <name>allowGuest</name>
+      <number>11</number>
+      <prettyName>Allow Guest Access</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </allowGuest>
+
     <allowRenderedContent>
       <customDisplay/>
       <defaultValue/>
