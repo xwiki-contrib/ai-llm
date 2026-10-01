@@ -46,6 +46,10 @@
       <artifactId>nimbus-jose-jwt</artifactId>
       <version>10.10</version>
     </dependency>
+    <!-- Tink: needed at runtime by nimbus-jose-jwt for Ed25519. Pinned to 1.15.0, the last version built
+         on protobuf-java 3.x: Tink 1.16+ requires protobuf-java 4.x while the XWiki platform manages
+         3.25.x, which fails the upper bound dependencies check. Re-check when the parent version changes
+         (Renovate is capped accordingly in .github/renovate.json5). -->
     <dependency>
       <groupId>com.google.crypto.tink</groupId>
       <artifactId>tink</artifactId>

@@ -52,7 +52,9 @@
         <!-- reactive-streams: excluded from mcp-core's transitive deps to avoid conflicting with
              the 1.0.3 core extension shipped by XWiki platform. Declared here as provided so
              reactor-core types that reference Publisher compile correctly; the platform's 1.0.3
-             is used at runtime. -->
+             is used at runtime. Keep this version equal to the one shipped by the minimum supported
+             XWiki version: re-check it, and the reactive-streams exclusions on the MCP SDK, when the
+             parent version changes. -->
         <dependency>
             <groupId>org.reactivestreams</groupId>
             <artifactId>reactive-streams</artifactId>

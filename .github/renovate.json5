@@ -36,6 +36,12 @@
     {
       "matchPackagePrefixes": ["org.xwiki.commons:", "org.xwiki.rendering:", "org.xwiki.platform:", "org.xwiki.enterprise:", "org.xwiki.contrib:parent-"],
       "enabled": false
+    },
+
+    // Tink 1.16+ requires protobuf-java 4.x while the XWiki platform manages 3.25.x (re-check when the parent version changes)
+    {
+      "matchPackageNames": ["com.google.crypto.tink:tink"],
+      "allowedVersions": "<=1.15.0"
     }
   ]
 }
