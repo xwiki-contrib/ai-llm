@@ -374,6 +374,63 @@ class MCPServerConfigurationTest
     }
 
     @Test
+    void isGuestAccessAllowedIsFalseByDefaultWhenFieldUnset() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ALLOW_GUEST)).thenReturn(null);
+
+        assertFalse(this.mcpServerConfiguration.isGuestAccessAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isGuestAccessAllowedIsFalseByDefaultWhenNoXObject() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(null);
+
+        assertFalse(this.mcpServerConfiguration.isGuestAccessAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isGuestAccessAllowedIsTrueWhenExplicitOne() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ALLOW_GUEST))
+            .thenReturn(mock(PropertyInterface.class));
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_ALLOW_GUEST)).thenReturn(1);
+
+        assertTrue(this.mcpServerConfiguration.isGuestAccessAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isGuestAccessAllowedIsFalseWhenExplicitZero() throws Exception
+    {
+        mockConfigDocument(SUB_WIKI);
+        when(this.configDoc.getXObject(classRef(SUB_WIKI))).thenReturn(this.configObject);
+        when(this.configObject.getField(MCPServerConfiguration.FIELD_ALLOW_GUEST))
+            .thenReturn(mock(PropertyInterface.class));
+        when(this.configObject.getIntValue(MCPServerConfiguration.FIELD_ALLOW_GUEST)).thenReturn(0);
+
+        assertFalse(this.mcpServerConfiguration.isGuestAccessAllowed(SUB_WIKI));
+    }
+
+    @Test
+    void isGuestAccessAllowedFailsClosedWhenReadThrows() throws Exception
+    {
+        when(this.xwiki.getDocument(any(DocumentReference.class), eq(this.context)))
+            .thenThrow(new XWikiException(0, 0, "Store down"));
+
+        // Unlike the rendering capability, this flag guards who may reach the endpoint at all, so a read
+        // glitch must keep the authentication challenge rather than open the endpoint up.
+        assertFalse(this.mcpServerConfiguration.isGuestAccessAllowed(SUB_WIKI));
+        assertEquals("Could not read the MCP allow-guest flag for wiki [subwiki]; keeping the "
+            + "authentication challenge: [XWikiException: Error number 0 in 0: Store down]",
+            this.logCapture.getMessage(0));
+    }
+
+    @Test
     void isCrossWikiReachAllowedIsTrueWhenInitializedMainListContainsWiki() throws Exception
     {
         when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);

@@ -151,6 +151,11 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
           &lt;span class="xHint"&gt;$configClass.get('allowRenderedContent').getHint()&lt;/span&gt;
         &lt;/dt&gt;
         &lt;dd&gt;{{/html}}$configObject.display('allowRenderedContent', 'edit'){{html clean="false"}}&lt;/dd&gt;
+        &lt;dt&gt;
+          &lt;label for="${configClassName}_${configObject.number}_allowGuest"&gt;$configClass.get('allowGuest').getTranslatedPrettyName()&lt;/label&gt;
+          &lt;span class="xHint"&gt;$configClass.get('allowGuest').getHint()&lt;/span&gt;
+        &lt;/dt&gt;
+        &lt;dd&gt;{{/html}}$configObject.display('allowGuest', 'edit'){{html clean="false"}}&lt;/dd&gt;
       &lt;/dl&gt;
     &lt;/fieldset&gt;
 ## Space/document picker. Each reference is submitted as its own atomic hidden input under the multi-value list
