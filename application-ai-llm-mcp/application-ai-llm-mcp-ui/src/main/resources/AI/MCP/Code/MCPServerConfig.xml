@@ -91,6 +91,21 @@
         <values/>
         <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
       </enabledTools>
+      <allowGuest>
+        <customDisplay/>
+        <defaultValue>0</defaultValue>
+        <disabled>0</disabled>
+        <displayFormType>checkbox</displayFormType>
+        <displayType/>
+        <hint>When off (the default), callers that are not authenticated are refused with a 401. When on, they may use this wiki's MCP endpoint as the guest user: the wiki's rights and the space filter still apply, so a guest reads only what a guest can read in the browser. Authoring (write) tools are never offered to guests, and a request that presents credentials which fail to authenticate is always refused.</hint>
+        <name>allowGuest</name>
+        <number>11</number>
+        <prettyName>Allow Guest Access</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <validationMessage/>
+        <validationRegExp/>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </allowGuest>
       <allowRenderedContent>
         <customDisplay/>
         <defaultValue/>

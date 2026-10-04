@@ -27,6 +27,7 @@ import java.util.Set;
 
 import javax.inject.Provider;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.xwiki.component.manager.ComponentManager;
@@ -51,6 +52,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -102,6 +105,13 @@ class MCPFarmScriptServiceTest
 
     @Mock
     private XWikiURLFactory urlFactory;
+
+    @BeforeEach
+    void setUp()
+    {
+        // Every wiki id used by these tests is canonical unless a test says otherwise.
+        lenient().when(this.mcpConfig.isCanonicalWikiId(anyString())).thenReturn(true);
+    }
 
     private void farmAdmin(boolean allowed)
     {
@@ -205,12 +215,43 @@ class MCPFarmScriptServiceTest
     }
 
     @Test
+    void canAdminReturnsFalseForNonCanonicalWikiIdEvenWithAdminRight()
+    {
+        // A case variant of the main wiki id resolves to the main wiki for the rights check, so the user has
+        // ADMIN on it; the id is still refused because it is not the wiki's canonical id.
+        String variant = "XWIKI";
+        when(this.mcpConfig.isCanonicalWikiId(variant)).thenReturn(false);
+        lenient().when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(variant))).thenReturn(true);
+
+        assertFalse(this.service.canAdmin(variant));
+    }
+
+    @Test
+    void mutatorsDoNotWriteThroughNonCanonicalWikiId()
+    {
+        String variant = "XWIKI";
+        when(this.mcpConfig.isCanonicalWikiId(variant)).thenReturn(false);
+        lenient().when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(variant))).thenReturn(true);
+
+        assertFalse(this.service.setGuestAccessAllowed(variant, true));
+        assertFalse(this.service.setEnabled(variant, false));
+        assertFalse(this.service.setEnabledTools(variant, new String[] {"man"}));
+        BulkResult result = this.service.applyGuestAccess(new String[] {variant}, new String[] {variant});
+
+        assertEquals(0, result.getChanged());
+        assertEquals(1, result.getSkipped());
+        verify(this.mcpConfig, never()).setGuestAccessAllowed(anyString(), anyBoolean());
+        verify(this.mcpConfig, never()).setEnabled(anyString(), anyBoolean());
+        verify(this.mcpConfig, never()).setEnabledToolIds(anyString(), any());
+    }
+
+    @Test
     void setEnabledRefusesAndDoesNotWriteWhenNotAdmin()
     {
         when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(false);
 
         assertFalse(this.service.setEnabled(WIKI, true));
-        verify(this.mcpConfig, never()).setEnabled(WIKI, true);
+        verify(this.mcpConfig, never()).setEnabled(anyString(), anyBoolean());
     }
 
     @Test
@@ -316,6 +357,147 @@ class MCPFarmScriptServiceTest
     }
 
     @Test
+    void isGuestAccessAllowedDelegatesToConfig()
+    {
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI)).thenReturn(true);
+        assertTrue(this.service.isGuestAccessAllowed(WIKI));
+
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI)).thenReturn(false);
+        assertFalse(this.service.isGuestAccessAllowed(WIKI));
+    }
+
+    @Test
+    void setGuestAccessAllowedRefusesAndDoesNotWriteWhenNotAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(false);
+
+        assertFalse(this.service.setGuestAccessAllowed(WIKI, true));
+        verify(this.mcpConfig, never()).setGuestAccessAllowed(anyString(), anyBoolean());
+    }
+
+    @Test
+    void setGuestAccessAllowedDelegatesAndPropagatesTrueWhenAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.setGuestAccessAllowed(WIKI, true)).thenReturn(true);
+
+        assertTrue(this.service.setGuestAccessAllowed(WIKI, true));
+        verify(this.mcpConfig).setGuestAccessAllowed(WIKI, true);
+    }
+
+    @Test
+    void setGuestAccessAllowedDelegatesAndPropagatesFalseWhenAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.setGuestAccessAllowed(WIKI, false)).thenReturn(false);
+
+        assertFalse(this.service.setGuestAccessAllowed(WIKI, false));
+        verify(this.mcpConfig).setGuestAccessAllowed(WIKI, false);
+    }
+
+    @Test
+    void applyGuestAccessWritesWhenDesiredStateDiffersAndAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI)).thenReturn(false);
+        when(this.mcpConfig.setGuestAccessAllowed(WIKI, true)).thenReturn(true);
+
+        BulkResult result = this.service.applyGuestAccess(new String[] {WIKI}, new String[] {WIKI});
+
+        verify(this.mcpConfig).setGuestAccessAllowed(WIKI, true);
+        // Reconciling guest access never touches the enabled flag.
+        verify(this.mcpConfig, never()).setEnabled(anyString(), anyBoolean());
+        assertEquals(1, result.getChanged());
+        assertEquals(0, result.getSkipped());
+    }
+
+    @Test
+    void applyGuestAccessRefusesWhenManagedButNotInAllowedSet()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI)).thenReturn(true);
+        when(this.mcpConfig.setGuestAccessAllowed(WIKI, false)).thenReturn(true);
+
+        BulkResult result = this.service.applyGuestAccess(new String[] {WIKI}, new String[] {});
+
+        verify(this.mcpConfig).setGuestAccessAllowed(WIKI, false);
+        assertEquals(1, result.getChanged());
+        assertEquals(0, result.getSkipped());
+    }
+
+    @Test
+    void applyGuestAccessSkipsWriteWhenAlreadyInDesiredState()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI)).thenReturn(true);
+
+        BulkResult result = this.service.applyGuestAccess(new String[] {WIKI}, new String[] {WIKI});
+
+        verify(this.mcpConfig, never()).setGuestAccessAllowed(anyString(), anyBoolean());
+        assertEquals(0, result.getChanged());
+        assertEquals(0, result.getSkipped());
+    }
+
+    @Test
+    void applyGuestAccessSkipsWhenNotAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(false);
+
+        BulkResult result = this.service.applyGuestAccess(new String[] {WIKI}, new String[] {WIKI});
+
+        verify(this.mcpConfig, never()).setGuestAccessAllowed(anyString(), anyBoolean());
+        verify(this.mcpConfig, never()).isGuestAccessAllowed(anyString());
+        assertEquals(0, result.getChanged());
+        assertEquals(1, result.getSkipped());
+    }
+
+    @Test
+    void applyGuestAccessSkipsWhenWriteFails()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI)).thenReturn(false);
+        when(this.mcpConfig.setGuestAccessAllowed(WIKI, true)).thenReturn(false);
+
+        BulkResult result = this.service.applyGuestAccess(new String[] {WIKI}, new String[] {WIKI});
+
+        verify(this.mcpConfig).setGuestAccessAllowed(WIKI, true);
+        assertEquals(0, result.getChanged());
+        assertEquals(1, result.getSkipped());
+    }
+
+    @Test
+    void applyGuestAccessChangesAdministeredWikiAndSkipsTheOther()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(SECOND_WIKI))).thenReturn(false);
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI)).thenReturn(false);
+        when(this.mcpConfig.setGuestAccessAllowed(WIKI, true)).thenReturn(true);
+
+        BulkResult result = this.service.applyGuestAccess(new String[] {WIKI, SECOND_WIKI},
+            new String[] {WIKI, SECOND_WIKI});
+
+        verify(this.mcpConfig).setGuestAccessAllowed(WIKI, true);
+        verify(this.mcpConfig, never()).setGuestAccessAllowed(eq(SECOND_WIKI), anyBoolean());
+        verify(this.mcpConfig, never()).isGuestAccessAllowed(SECOND_WIKI);
+        assertEquals(1, result.getChanged());
+        assertEquals(1, result.getSkipped());
+    }
+
+    @Test
+    void applyGuestAccessWithNullArgumentsReturnsZeroCounts()
+    {
+        BulkResult nullManaged = this.service.applyGuestAccess(null, new String[] {WIKI});
+        assertEquals(0, nullManaged.getChanged());
+        assertEquals(0, nullManaged.getSkipped());
+
+        BulkResult emptyManaged = this.service.applyGuestAccess(new String[] {}, null);
+        assertEquals(0, emptyManaged.getChanged());
+        assertEquals(0, emptyManaged.getSkipped());
+
+        verify(this.mcpConfig, never()).setGuestAccessAllowed(anyString(), anyBoolean());
+    }
+
+    @Test
     void canFarmAdminReflectsMainWikiAdminRights()
     {
         farmAdmin(true);
@@ -331,7 +513,7 @@ class MCPFarmScriptServiceTest
         farmAdmin(false);
 
         assertFalse(this.service.setCrossWikiReach(WIKI, true));
-        verify(this.mcpConfig, never()).setCrossWikiReach(WIKI, true);
+        verify(this.mcpConfig, never()).setCrossWikiReach(anyString(), anyBoolean());
     }
 
     @Test

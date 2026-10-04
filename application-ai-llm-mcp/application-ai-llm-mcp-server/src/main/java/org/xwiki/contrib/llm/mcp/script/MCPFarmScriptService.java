@@ -30,6 +30,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -139,12 +141,17 @@ public class MCPFarmScriptService implements ScriptService
 
     /**
      * @param wikiId the wiki to check
-     * @return whether the current user has admin rights on the given wiki
+     * @return whether the current user may administer the MCP settings of the given wiki: the id must be the
+     *     canonical id of an existing wiki (a case variant such as {@code XWIKI} is refused, since it would
+     *     address the same wiki under another document-cache key) and the current user must have admin rights
+     *     on that wiki. Every mutating method of this service gates on this check, so none of them writes
+     *     through a non-canonical id and the bulk methods count such an id as skipped.
      * @since 0.9
      */
     public boolean canAdmin(String wikiId)
     {
-        return this.authorization.hasAccess(Right.ADMIN, new WikiReference(wikiId));
+        return this.mcpConfig.isCanonicalWikiId(wikiId)
+            && this.authorization.hasAccess(Right.ADMIN, new WikiReference(wikiId));
     }
 
     /**
@@ -247,21 +254,86 @@ public class MCPFarmScriptService implements ScriptService
      */
     public BulkResult applyEnabled(String[] managedWikiIds, String[] enabledWikiIds)
     {
-        Set<String> enabledSet =
-            new HashSet<>(enabledWikiIds == null ? List.of() : Arrays.asList(enabledWikiIds));
+        return applyPerWikiFlag(managedWikiIds, enabledWikiIds, this.mcpConfig::isEnabled,
+            this.mcpConfig::setEnabled);
+    }
+
+    /**
+     * @param wikiId the wiki to check
+     * @return whether unauthenticated (guest) callers may use the MCP endpoint of the given wiki
+     * @since 0.10.1
+     */
+    public boolean isGuestAccessAllowed(String wikiId)
+    {
+        return this.mcpConfig.isGuestAccessAllowed(wikiId);
+    }
+
+    /**
+     * Sets the MCP guest access flag on the given wiki, gated by the current user's admin rights on that wiki.
+     *
+     * @param wikiId the wiki whose flag to set
+     * @param allowed whether guest callers may use the MCP endpoint of that wiki
+     * @return {@code true} if the flag was written, {@code false} when the user lacks admin rights on the
+     *     wiki or the write failed
+     * @since 0.10.1
+     */
+    public boolean setGuestAccessAllowed(String wikiId, boolean allowed)
+    {
+        if (!canAdmin(wikiId)) {
+            this.logger.debug("Refused MCP guest-access change for wiki [{}]: missing admin rights", wikiId);
+            return false;
+        }
+        return this.mcpConfig.setGuestAccessAllowed(wikiId, allowed);
+    }
+
+    /**
+     * Applies a desired MCP guest access state across a set of managed wikis. Each wiki in
+     * {@code managedWikiIds} allows guest access if and only if it also appears in {@code allowedWikiIds}. A
+     * wiki is only written when its current state actually differs from the desired one, and only when the
+     * current user has admin rights on that wiki; otherwise it is skipped.
+     *
+     * @param managedWikiIds the wikis whose state should be reconciled (may be {@code null} or empty)
+     * @param allowedWikiIds the subset of those wikis that should end up allowing guest access (may be
+     *     {@code null} or empty)
+     * @return the outcome counts of the apply
+     * @since 0.10.1
+     */
+    public BulkResult applyGuestAccess(String[] managedWikiIds, String[] allowedWikiIds)
+    {
+        return applyPerWikiFlag(managedWikiIds, allowedWikiIds, this.mcpConfig::isGuestAccessAllowed,
+            this.mcpConfig::setGuestAccessAllowed);
+    }
+
+    /**
+     * Reconciles one per-wiki boolean flag across a set of managed wikis: each managed wiki ends up with the
+     * flag on if and only if it appears in {@code onWikiIds}. A wiki the current user cannot administer is
+     * skipped without being read; a wiki already in the desired state is left untouched; a failed write counts
+     * as skipped.
+     *
+     * @param managedWikiIds the wikis whose state should be reconciled (may be {@code null} or empty)
+     * @param onWikiIds the subset of those wikis that should end up with the flag on (may be {@code null} or
+     *     empty)
+     * @param reader reads the current flag of a wiki
+     * @param writer writes the flag of a wiki, returning whether the write succeeded
+     * @return the outcome counts of the apply
+     */
+    private BulkResult applyPerWikiFlag(String[] managedWikiIds, String[] onWikiIds, Predicate<String> reader,
+        BiPredicate<String, Boolean> writer)
+    {
+        Set<String> onSet = new HashSet<>(onWikiIds == null ? List.of() : Arrays.asList(onWikiIds));
         int changed = 0;
         int skipped = 0;
         if (managedWikiIds != null) {
             for (String wiki : managedWikiIds) {
-                boolean desired = enabledSet.contains(wiki);
+                boolean desired = onSet.contains(wiki);
                 if (!canAdmin(wiki)) {
                     skipped++;
                     continue;
                 }
-                if (this.mcpConfig.isEnabled(wiki) == desired) {
+                if (reader.test(wiki) == desired) {
                     continue;
                 }
-                if (this.mcpConfig.setEnabled(wiki, desired)) {
+                if (writer.test(wiki, desired)) {
                     changed++;
                 } else {
                     skipped++;

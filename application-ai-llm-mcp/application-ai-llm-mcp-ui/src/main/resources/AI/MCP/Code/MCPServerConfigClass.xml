@@ -92,7 +92,7 @@
       <disabled>0</disabled>
       <displayFormType>checkbox</displayFormType>
       <displayType/>
-      <hint>When on, callers without a token may use this wiki's MCP endpoint instead of receiving a 401 authentication challenge. This does not widen what the endpoint returns: the space filter and the wiki's view rights still apply, so a guest sees only what a guest sees in the browser. Leave off unless the endpoint is meant to serve anonymous clients.</hint>
+      <hint>When off (the default), callers that are not authenticated are refused with a 401. When on, they may use this wiki's MCP endpoint as the guest user: the wiki's rights and the space filter still apply, so a guest reads only what a guest can read in the browser. Authoring (write) tools are never offered to guests, and a request that presents credentials which fail to authenticate is always refused.</hint>
       <name>allowGuest</name>
       <number>11</number>
       <prettyName>Allow Guest Access</prettyName>
@@ -101,7 +101,6 @@
       <validationRegExp/>
       <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
     </allowGuest>
-
     <allowRenderedContent>
       <customDisplay/>
       <defaultValue/>

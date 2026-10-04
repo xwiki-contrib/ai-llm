@@ -42,6 +42,7 @@ import org.xwiki.contrib.llm.mcp.internal.tool.MCPManTool;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.wiki.descriptor.WikiDescriptor;
 import org.xwiki.wiki.descriptor.WikiDescriptorManager;
+import org.xwiki.wiki.manager.WikiManagerException;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -170,6 +171,34 @@ public class MCPServerConfiguration
     }
 
     /**
+     * Tells whether the given id is the canonical id of an existing wiki, i.e. the exact (case-sensitive) id
+     * its descriptor carries. The main wiki's database is resolved case-insensitively, so a case variant of
+     * its id (e.g. {@code XWIKI}) reaches the same documents under a different document-cache key, where a
+     * later change of the configuration document is not seen. Callers use this check to refuse such variants
+     * before reading any configuration. Fails closed: a blank id, an unknown wiki and a failed descriptor
+     * lookup all resolve to {@code false}.
+     *
+     * @param wikiId the wiki id to check
+     * @return {@code true} only if a wiki descriptor exists for the id and carries exactly that id
+     * @since 0.10.1
+     */
+    public boolean isCanonicalWikiId(String wikiId)
+    {
+        if (StringUtils.isBlank(wikiId)) {
+            return false;
+        }
+        try {
+            WikiDescriptor descriptor = this.wikiDescriptorManager.getById(wikiId);
+            return descriptor != null && wikiId.equals(descriptor.getId());
+        } catch (WikiManagerException e) {
+            this.logger.warn("Could not verify the wiki id [{}]; treating it as not canonical: [{}]", wikiId,
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Wiki descriptor lookup failure for wiki id [{}]", wikiId, e);
+            return false;
+        }
+    }
+
+    /**
      * @param wikiId the wiki to check
      * @return whether the MCP endpoint is enabled for the given wiki. MCP is enabled by default on every
      *     wiki so an endpoint is available with no admin action: an unset flag and a missing config object
@@ -232,17 +261,19 @@ public class MCPServerConfiguration
     }
 
     /**
-     * Returns whether unauthenticated (guest) callers may reach the MCP endpoint of the given wiki while an
-     * OIDC Provider is installed. Without a provider the endpoint never challenges a caller, so this toggle
-     * only matters once one is present: with it off the endpoint answers guests with {@code 401} and the
-     * {@code WWW-Authenticate} challenge required by the MCP authorization specification, and with it on the
-     * request is forwarded to the transport and the caller is treated as guest by the rest of the stack.
+     * Returns whether unauthenticated (guest) callers may use the MCP endpoint of the given wiki. This is the
+     * single gate for unauthenticated callers, with or without an OIDC Provider: with it off the endpoint
+     * answers every guest with {@code 401} (carrying the {@code WWW-Authenticate} challenge required by the
+     * MCP authorization specification when an OIDC Provider is installed), and with it on the request is
+     * forwarded to the transport and served with the guest user's rights. A request that presents credentials
+     * which fail to authenticate is refused with {@code 401} regardless of this flag.
      * <p>
-     * Allowing guests does not widen what the endpoint returns. Every tool resolves its content through the
-     * space filter and XWiki's own view rights, so a guest sees exactly the pages a guest sees in the browser
-     * - typically nothing at all on a private wiki. It does, however, expose the tool list and the wiki's
+     * Allowing guests does not widen what the endpoint returns. Every tool resolves its content through
+     * XWiki's own rights (and, for the document tools, the space filter), so a guest sees exactly the pages a
+     * guest sees in the browser - typically nothing at all on a private wiki - and authoring (write) tools are
+     * neither listed nor callable for guest callers. It does, however, expose the tool list and the wiki's
      * search surface to anyone who can reach the URL, which is why it defaults to off: an unset field, a
-     * missing config object and a failed read all resolve to {@code false}, leaving the challenge in place.
+     * missing config object and a failed read all resolve to {@code false}, so guests stay refused.
      *
      * @param wikiId the wiki to check
      * @return whether guest callers may use the MCP endpoint of the given wiki
@@ -261,8 +292,8 @@ public class MCPServerConfiguration
             }
             return configObject.getIntValue(FIELD_ALLOW_GUEST) == 1;
         } catch (Exception e) {
-            this.logger.warn("Could not read the MCP allow-guest flag for wiki [{}]; keeping the "
-                + "authentication challenge: [{}]", wikiId, ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("Could not read the MCP allow-guest flag for wiki [{}]; refusing guest callers: [{}]",
+                wikiId, ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP allow-guest flag read failure for wiki [{}]", wikiId, e);
             return false;
         }
@@ -288,6 +319,30 @@ public class MCPServerConfiguration
             this.logger.warn("Failed to set the MCP enabled flag for wiki [{}]: [{}]", wikiId,
                 ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("Failed to set the MCP enabled flag for wiki [{}]", wikiId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Sets the MCP guest access flag on the given wiki's configuration document, creating the config XObject
+     * if necessary.
+     *
+     * @param wikiId the wiki whose flag to set
+     * @param allowed whether guest callers may use the MCP endpoint of that wiki
+     * @return {@code true} if the flag was written, {@code false} if the write failed
+     * @since 0.10.1
+     */
+    public boolean setGuestAccessAllowed(String wikiId, boolean allowed)
+    {
+        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
+        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
+        try {
+            this.documentAccessBridge.setProperty(configRef, classRef, FIELD_ALLOW_GUEST, allowed ? 1 : 0);
+            return true;
+        } catch (Exception e) {
+            this.logger.warn("Failed to set the MCP allow-guest flag for wiki [{}]: [{}]", wikiId,
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Failed to set the MCP allow-guest flag for wiki [{}]", wikiId, e);
             return false;
         }
     }

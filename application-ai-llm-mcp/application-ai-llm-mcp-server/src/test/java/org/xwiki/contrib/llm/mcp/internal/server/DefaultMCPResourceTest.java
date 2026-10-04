@@ -57,6 +57,7 @@ import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -79,6 +80,12 @@ class DefaultMCPResourceTest
     private static final String WIKI_NAME = "testwiki";
 
     private static final String INITIAL_WIKI = "xwiki";
+
+    private static final String AUTHORIZATION = "Authorization";
+
+    private static final String WWW_AUTHENTICATE = "WWW-Authenticate";
+
+    private static final String BEARER_TOKEN = "Bearer abc";
 
     private static final DocumentReference TEST_USER =
         new DocumentReference(INITIAL_WIKI, "XWiki", "TestUser");
@@ -118,6 +125,7 @@ class DefaultMCPResourceTest
     {
         this.oldcore.getXWikiContext().setWikiId(INITIAL_WIKI);
         when(this.mcpConfig.isEnabled(WIKI_NAME)).thenReturn(true);
+        when(this.mcpConfig.isCanonicalWikiId(WIKI_NAME)).thenReturn(true);
         ServletRequest servletRequest = mock();
         when(servletRequest.getRequest()).thenReturn(this.mockRequest);
         ServletResponse servletResponse = mock();
@@ -203,18 +211,40 @@ class DefaultMCPResourceTest
         assertEquals(
             "Bearer realm=\"XWiki MCP\", resource_metadata=\""
                 + mcpUri + "/.well-known/oauth-protected-resource\"",
-            response.getHeaderString("WWW-Authenticate")
+            response.getHeaderString(WWW_AUTHENTICATE)
         );
         // The MCP transport must NOT be invoked for an unauthenticated request.
         verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
     }
 
     @Test
-    void delegateToMcpSetsWikiAndCallsServiceWhenGuestUserWithoutOIDC(MockitoComponentManager mockitoComponentManager)
+    void delegateToMcpReturnsBare401WhenGuestUserWithoutOIDC(MockitoComponentManager mockitoComponentManager)
         throws Exception
     {
         unregisterOidcResourceHandler(mockitoComponentManager);
 
+        // Guest access is off by default, and it is the single gate: no OIDC Provider does not open the endpoint.
+        this.oldcore.getXWikiContext().setUserReference(null);
+
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+            () -> this.mcpResource.delegateToMcp(WIKI_NAME));
+
+        Response response = ex.getResponse();
+        assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
+        // Without a provider there is no protected-resource metadata to point at: no challenge header, and the
+        // request URI is never read to build one.
+        assertNull(response.getHeaderString(WWW_AUTHENTICATE));
+        verify(this.mockUriInfo, never()).getAbsolutePath();
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
+    }
+
+    @Test
+    void delegateToMcpServesGuestWithoutOIDCWhenGuestAccessAllowed(MockitoComponentManager mockitoComponentManager)
+        throws Exception
+    {
+        unregisterOidcResourceHandler(mockitoComponentManager);
+
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
         this.oldcore.getXWikiContext().setUserReference(null);
 
         doAnswer(invocation -> {
@@ -226,6 +256,62 @@ class DefaultMCPResourceTest
         this.mcpResource.delegateToMcp(WIKI_NAME);
 
         verify(this.mcpServerManager).handleRequest(WIKI_NAME, this.mockRequest, this.mockResponse);
+    }
+
+    @Test
+    void delegateToMcpReturns401WithChallengeWhenGuestPresentsFailedCredentials() throws Exception
+    {
+        // Guest access is allowed, but the request carried a bearer token that did not authenticate: serving
+        // it as guest would silently downgrade the caller, so it gets the challenge instead.
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
+        when(this.mockRequest.getHeader(AUTHORIZATION)).thenReturn(BEARER_TOKEN);
+        this.oldcore.getXWikiContext().setUserReference(null);
+        URI mcpUri = new URI("https://server/rest/wikis/" + WIKI_NAME + "/aiLLM/mcp");
+        when(this.mockUriInfo.getAbsolutePath()).thenReturn(mcpUri);
+
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+            () -> this.mcpResource.delegateToMcp(WIKI_NAME));
+
+        Response response = ex.getResponse();
+        assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
+        assertEquals(
+            "Bearer realm=\"XWiki MCP\", resource_metadata=\""
+                + mcpUri + "/.well-known/oauth-protected-resource\"",
+            response.getHeaderString(WWW_AUTHENTICATE)
+        );
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
+    }
+
+    @Test
+    void delegateToMcpReturnsBare401WhenGuestPresentsFailedCredentialsWithoutOIDC(
+        MockitoComponentManager mockitoComponentManager) throws Exception
+    {
+        unregisterOidcResourceHandler(mockitoComponentManager);
+
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
+        when(this.mockRequest.getHeader(AUTHORIZATION)).thenReturn("Basic d3Jvbmc6Y3JlZHM=");
+        this.oldcore.getXWikiContext().setUserReference(null);
+
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+            () -> this.mcpResource.delegateToMcp(WIKI_NAME));
+
+        Response response = ex.getResponse();
+        assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
+        assertNull(response.getHeaderString(WWW_AUTHENTICATE));
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
+    }
+
+    @Test
+    void delegateToMcpServesAuthenticatedUserWithoutReadingTheGuestFlag() throws Exception
+    {
+        when(this.mockRequest.getHeader(AUTHORIZATION)).thenReturn(BEARER_TOKEN);
+        this.oldcore.getXWikiContext().setUserReference(TEST_USER);
+
+        this.mcpResource.delegateToMcp(WIKI_NAME);
+
+        verify(this.mcpServerManager).handleRequest(WIKI_NAME, this.mockRequest, this.mockResponse);
+        // The guest flag is a document read: an authenticated caller must never pay for it.
+        verify(this.mcpConfig, never()).isGuestAccessAllowed(any());
     }
 
     @Test
@@ -285,6 +371,93 @@ class DefaultMCPResourceTest
         assertEquals(HttpServletResponse.SC_NOT_FOUND, ex.getResponse().getStatus());
         verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
         assertEquals(INITIAL_WIKI, this.oldcore.getXWikiContext().getWikiId());
+    }
+
+    @Test
+    void delegateToMcpReturns404ForNonCanonicalWikiId() throws Exception
+    {
+        // A case variant of a wiki id is not canonical: it must look absent even to an authenticated user and
+        // even though the configuration read through it would report the endpoint as enabled.
+        String variant = "TESTWIKI";
+        when(this.mcpConfig.isCanonicalWikiId(variant)).thenReturn(false);
+        when(this.mcpConfig.isEnabled(variant)).thenReturn(true);
+        this.oldcore.getXWikiContext().setUserReference(TEST_USER);
+
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+            () -> this.mcpResource.delegateToMcp(variant));
+
+        assertEquals(HttpServletResponse.SC_NOT_FOUND, ex.getResponse().getStatus());
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
+        // No configuration is read through the variant id.
+        verify(this.mcpConfig, never()).isEnabled(variant);
+        assertEquals(INITIAL_WIKI, this.oldcore.getXWikiContext().getWikiId());
+    }
+
+    @Test
+    void delegateToMcpServesGuestWithBlankAuthorizationHeaderWhenGuestAccessAllowed() throws Exception
+    {
+        // A whitespace-only Authorization header presents no credentials: the caller is a plain guest.
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
+        when(this.mockRequest.getHeader(AUTHORIZATION)).thenReturn("   ");
+        this.oldcore.getXWikiContext().setUserReference(null);
+
+        this.mcpResource.delegateToMcp(WIKI_NAME);
+
+        verify(this.mcpServerManager).handleRequest(WIKI_NAME, this.mockRequest, this.mockResponse);
+    }
+
+    @Test
+    void delegateToMcpServesAuthenticatedUserWithoutOIDCWhenGuestAccessOff(
+        MockitoComponentManager mockitoComponentManager) throws Exception
+    {
+        unregisterOidcResourceHandler(mockitoComponentManager);
+
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(false);
+        this.oldcore.getXWikiContext().setUserReference(TEST_USER);
+
+        this.mcpResource.delegateToMcp(WIKI_NAME);
+
+        verify(this.mcpServerManager).handleRequest(WIKI_NAME, this.mockRequest, this.mockResponse);
+    }
+
+    @Test
+    void delegateToMcpReturns401WhenGuestPresentsCredentialsAndGuestAccessOff() throws Exception
+    {
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(false);
+        when(this.mockRequest.getHeader(AUTHORIZATION)).thenReturn(BEARER_TOKEN);
+        this.oldcore.getXWikiContext().setUserReference(null);
+        when(this.mockUriInfo.getAbsolutePath())
+            .thenReturn(new URI("https://server/rest/wikis/" + WIKI_NAME + "/aiLLM/mcp"));
+
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+            () -> this.mcpResource.delegateToMcp(WIKI_NAME));
+
+        assertEquals(HttpServletResponse.SC_UNAUTHORIZED, ex.getResponse().getStatus());
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
+    }
+
+    @Test
+    void handleOAuthMetadataReturns404ForNonCanonicalWikiId() throws Exception
+    {
+        String variant = "TESTWIKI";
+        when(this.mcpConfig.isCanonicalWikiId(variant)).thenReturn(false);
+
+        try (Response response = this.mcpResource.handleGetOAuthMetadata(variant)) {
+            assertEquals(HttpServletResponse.SC_NOT_FOUND, response.getStatus());
+        }
+        verify(this.mcpConfig, never()).isEnabled(variant);
+        verify(this.mockUriInfo, never()).getAbsolutePath();
+    }
+
+    @Test
+    void handleOAuthMetadataReturns404WhenWikiDisabled() throws Exception
+    {
+        when(this.mcpConfig.isEnabled(WIKI_NAME)).thenReturn(false);
+
+        try (Response response = this.mcpResource.handleGetOAuthMetadata(WIKI_NAME)) {
+            assertEquals(HttpServletResponse.SC_NOT_FOUND, response.getStatus());
+        }
+        verify(this.mockUriInfo, never()).getAbsolutePath();
     }
 
     @Test

@@ -39,6 +39,7 @@ import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.wiki.descriptor.WikiDescriptorManager;
+import org.xwiki.wiki.manager.WikiManagerException;
 
 import org.xwiki.wiki.descriptor.WikiDescriptor;
 
@@ -423,11 +424,58 @@ class MCPServerConfigurationTest
             .thenThrow(new XWikiException(0, 0, "Store down"));
 
         // Unlike the rendering capability, this flag guards who may reach the endpoint at all, so a read
-        // glitch must keep the authentication challenge rather than open the endpoint up.
+        // glitch must keep refusing guest callers rather than open the endpoint up.
         assertFalse(this.mcpServerConfiguration.isGuestAccessAllowed(SUB_WIKI));
-        assertEquals("Could not read the MCP allow-guest flag for wiki [subwiki]; keeping the "
-            + "authentication challenge: [XWikiException: Error number 0 in 0: Store down]",
-            this.logCapture.getMessage(0));
+        assertEquals("Could not read the MCP allow-guest flag for wiki [subwiki]; refusing guest callers: "
+            + "[XWikiException: Error number 0 in 0: Store down]", this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void isCanonicalWikiIdIsTrueWhenDescriptorCarriesTheExactId() throws Exception
+    {
+        WikiDescriptor descriptor = mock(WikiDescriptor.class);
+        when(descriptor.getId()).thenReturn(SUB_WIKI);
+        when(this.wikiDescriptorManager.getById(SUB_WIKI)).thenReturn(descriptor);
+
+        assertTrue(this.mcpServerConfiguration.isCanonicalWikiId(SUB_WIKI));
+    }
+
+    @Test
+    void isCanonicalWikiIdIsFalseForCaseVariantOfTheMainWikiId() throws Exception
+    {
+        // The descriptor lookup resolves a case variant to the main wiki, whose descriptor carries the
+        // canonical id: the variant must be refused.
+        WikiDescriptor descriptor = mock(WikiDescriptor.class);
+        when(descriptor.getId()).thenReturn(MAIN_WIKI);
+        when(this.wikiDescriptorManager.getById("XWIKI")).thenReturn(descriptor);
+
+        assertFalse(this.mcpServerConfiguration.isCanonicalWikiId("XWIKI"));
+    }
+
+    @Test
+    void isCanonicalWikiIdIsFalseForUnknownWiki() throws Exception
+    {
+        when(this.wikiDescriptorManager.getById("nowiki")).thenReturn(null);
+
+        assertFalse(this.mcpServerConfiguration.isCanonicalWikiId("nowiki"));
+    }
+
+    @Test
+    void isCanonicalWikiIdIsFalseForBlankIdWithoutLookup() throws Exception
+    {
+        assertFalse(this.mcpServerConfiguration.isCanonicalWikiId(null));
+        assertFalse(this.mcpServerConfiguration.isCanonicalWikiId("  "));
+        verify(this.wikiDescriptorManager, never()).getById(any());
+    }
+
+    @Test
+    void isCanonicalWikiIdFailsClosedWhenLookupThrows() throws Exception
+    {
+        when(this.wikiDescriptorManager.getById(SUB_WIKI)).thenThrow(new WikiManagerException("Descriptors down"));
+
+        assertFalse(this.mcpServerConfiguration.isCanonicalWikiId(SUB_WIKI));
+        assertEquals("Could not verify the wiki id [subwiki]; treating it as not canonical: "
+            + "[WikiManagerException: Descriptors down]", this.logCapture.getMessage(0));
     }
 
     @Test
@@ -654,6 +702,40 @@ class MCPServerConfigurationTest
 
         assertFalse(this.mcpServerConfiguration.setEnabled(SUB_WIKI, true));
         assertEquals("Failed to set the MCP enabled flag for wiki [subwiki]: "
+            + "[XWikiException: Error number 0 in 0: Save down]", this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void setGuestAccessAllowedWritesOneForAllow() throws Exception
+    {
+        DocumentReference configRef = new DocumentReference(SUB_WIKI, MCPServerConfiguration.CONFIG_SPACES,
+            MCPServerConfiguration.CONFIG_DOC_NAME);
+
+        assertTrue(this.mcpServerConfiguration.setGuestAccessAllowed(SUB_WIKI, true));
+        verify(this.documentAccessBridge).setProperty(configRef, classRef(SUB_WIKI),
+            MCPServerConfiguration.FIELD_ALLOW_GUEST, 1);
+    }
+
+    @Test
+    void setGuestAccessAllowedWritesZeroForRefuse() throws Exception
+    {
+        DocumentReference configRef = new DocumentReference(MAIN_WIKI, MCPServerConfiguration.CONFIG_SPACES,
+            MCPServerConfiguration.CONFIG_DOC_NAME);
+
+        assertTrue(this.mcpServerConfiguration.setGuestAccessAllowed(MAIN_WIKI, false));
+        verify(this.documentAccessBridge).setProperty(configRef, classRef(MAIN_WIKI),
+            MCPServerConfiguration.FIELD_ALLOW_GUEST, 0);
+    }
+
+    @Test
+    void setGuestAccessAllowedReturnsFalseAndLogsWhenWriteThrows() throws Exception
+    {
+        doThrow(new XWikiException(0, 0, "Save down")).when(this.documentAccessBridge)
+            .setProperty(any(DocumentReference.class), any(DocumentReference.class),
+                eq(MCPServerConfiguration.FIELD_ALLOW_GUEST), any());
+
+        assertFalse(this.mcpServerConfiguration.setGuestAccessAllowed(SUB_WIKI, true));
+        assertEquals("Failed to set the MCP allow-guest flag for wiki [subwiki]: "
             + "[XWikiException: Error number 0 in 0: Save down]", this.logCapture.getMessage(0));
     }
 
