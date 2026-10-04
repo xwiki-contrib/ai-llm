@@ -166,6 +166,11 @@ class MCPGetSchemaToolTest extends AbstractMCPToolTest
 
         lenient().when(this.queryManager.createQuery(anyString(), eq(Query.HQL)))
             .thenAnswer(invocation -> buildQueryMock(invocation.getArgument(0)));
+
+        // By default the caller is authenticated, so the count-bearing output applies; the guest tests
+        // override this with a null user reference.
+        lenient().when(this.documentAccessBridge.getCurrentUserReference())
+            .thenReturn(new DocumentReference(WIKI, "XWiki", "Alice"));
     }
 
     private Query buildQueryMock(String statement) throws Exception
@@ -316,6 +321,50 @@ class MCPGetSchemaToolTest extends AbstractMCPToolTest
     }
 
     @Test
+    void guestCatalogListsClassNamesWithoutCountsOrUpperBoundCaveat()
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
+        this.catalogRows.add(new Object[] {BLOG_CLASS, 12L});
+        this.catalogRows.add(new Object[] {HIDDEN_CLASS, 5L});
+        this.catalogRows.add(new Object[] {USERS_CLASS, 1L});
+        // The per-row class-document authorization is unchanged for a guest: the walled-off row is dropped.
+        when(this.spaceFilter.isAllowed(new DocumentReference(WIKI, "Secret", "HiddenClass")))
+            .thenReturn(false);
+
+        String output = callText(Map.of());
+
+        assertEquals("CLASSES with instances in wiki \"xwiki\":\n\n"
+            + "  Blog.BlogPostClass\n"
+            + "  XWiki.XWikiUsers\n\n"
+            + "Only classes with at least one instance are listed.\n"
+            + "Use get_schema class=\"<reference>\" for a class's field definitions.", output);
+        // The counts are not rights-filtered: neither a digit nor the count wording reaches a guest's rows.
+        List<String> classLines = output.lines().filter(line -> line.startsWith("  ")).toList();
+        assertEquals(2, classLines.size(), output);
+        for (String line : classLines) {
+            assertFalse(line.matches(".*\\d.*"), line);
+            assertFalse(line.contains("instance"), line);
+        }
+        assertFalse(output.contains("upper bounds"), output);
+    }
+
+    @Test
+    void guestCatalogAtTheFetchCeilingKeepsTheIncompletenessNote()
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
+        for (int i = 0; i < 2000; i++) {
+            this.catalogRows.add(new Object[] {"S.C" + i, 3L});
+        }
+
+        String output = callText(Map.of());
+
+        assertTrue(output.endsWith("Use get_schema class=\"<reference>\" for a class's field definitions.\n"
+            + "The catalog hit the 2000-row fetch ceiling: classes beyond it are not listed."), output);
+        assertFalse(output.contains("upper bounds"), output);
+        assertFalse(output.contains(" - 3 instances"), output);
+    }
+
+    @Test
     void catalogRunsAgainstTheRequestedWiki()
     {
         this.catalogRows.add(new Object[] {BLOG_CLASS, 2L});
@@ -359,6 +408,27 @@ class MCPGetSchemaToolTest extends AbstractMCPToolTest
         // The count query is bound with the wiki-local class name and scoped to the target wiki.
         assertEquals(BLOG_CLASS, this.boundValues.get("className"));
         assertTrue(this.wikisSet.contains(WIKI), this.wikisSet.toString());
+    }
+
+    @Test
+    void guestDetailOmitsTheInstancesLineAndNeverRunsTheCountQuery() throws Exception
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
+        stubClassDocument(BLOG_CLASS, WIKI, blogClass());
+        this.countRows.add(12L);
+
+        String output = callText(Map.of("class", BLOG_CLASS));
+
+        // The header is followed directly by the blank line and the schema block.
+        assertTrue(output.startsWith("CLASS Blog.BlogPostClass\n\nFIELDS (display order)"), output);
+        assertFalse(output.contains("Instances:"), output);
+        assertFalse(output.contains("12"), output);
+        assertFalse(output.contains("upper bound"), output);
+        assertTrue(output.contains("\n  title: String \"Title\"\n"), output);
+        assertTrue(output.contains("\n  category: StaticList(News|Personal) multiselect"), output);
+        // The unfiltered count is not merely hidden: its query is never created, let alone executed.
+        verify(this.queryManager, never()).createQuery(anyString(), anyString());
+        assertTrue(this.boundValues.isEmpty(), this.boundValues.toString());
     }
 
     @Test
@@ -570,6 +640,22 @@ class MCPGetSchemaToolTest extends AbstractMCPToolTest
             "name: Type(detail) \"Pretty Name\" modifiers [validation: regexp \"message\"]"), manPage);
         assertTrue(manPage.contains("DISABLED FIELDS"), manPage);
         assertTrue(manPage.contains("no required-field flag"), manPage);
+    }
+
+    @Test
+    void manPageTellsThatUnauthenticatedCallersGetNoInstanceCounts()
+    {
+        // The sentence sits in the NOTES shared by both man-page variants.
+        for (boolean reach : List.of(true, false)) {
+            when(this.wikiReach.isReachEnabled()).thenReturn(reach);
+
+            String manPage = this.tool.getManPage();
+            assertTrue(manPage.contains("""
+                    Unauthenticated
+                        callers get no instance counts: the catalog lists class names only and the class
+                        view has no Instances line.
+                    """.stripTrailing()), manPage);
+        }
     }
 
     @Test

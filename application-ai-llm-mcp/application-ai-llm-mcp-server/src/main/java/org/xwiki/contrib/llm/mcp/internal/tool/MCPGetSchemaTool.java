@@ -66,6 +66,10 @@ import io.modelcontextprotocol.spec.McpSchema;
  * (space filter plus view right) and denied rows are dropped, and the honesty note tells the agent the
  * remaining counts are upper bounds.</p>
  *
+ * <p>An unauthenticated (guest) caller gets no instance counts at all: an unfiltered count tells an anonymous
+ * party how many objects of a class exist in documents it cannot view. The catalog then lists class names
+ * only and the single-class view carries no {@code Instances:} line (the count query is not even run).</p>
+ *
  * <p>Class names, field names, pretty names, list values and validation texts are wiki-authored and therefore
  * untrusted; every such fragment is stripped of the newline/control family before landing in the
  * line-oriented output, so a crafted name cannot forge extra catalog rows or field lines.</p>
@@ -137,10 +141,21 @@ public class MCPGetSchemaTool implements MCPTool
     private static final String CATALOG_CEILING_NOTE = "The catalog hit the "
         + MCPRowQuery.MAX_FETCH_PER_QUERY + "-row fetch ceiling: classes beyond it are not listed.";
 
+    /**
+     * The catalog footer sentences that hold for every caller. On their own they are the whole footer of the
+     * guest catalog, which carries no counts and therefore no upper-bound caveat.
+     */
+    private static final String CATALOG_USAGE_NOTES =
+        "Only classes with at least one instance are listed." + NEW_LINE
+            + "Use get_schema class=\"<reference>\" for a class's field definitions.";
+
+    /**
+     * The catalog footer of an authenticated caller: the upper-bound caveat of the printed counts, then the
+     * shared sentences.
+     */
     private static final String CATALOG_FOOTER =
         "Counts are upper bounds: they include instances the current user may not view." + NEW_LINE
-            + "Only classes with at least one instance are listed." + NEW_LINE
-            + "Use get_schema class=\"<reference>\" for a class's field definitions.";
+            + CATALOG_USAGE_NOTES;
 
     private static final String DESCRIPTION =
         "Describe an XWiki class: with no arguments, list all classes with instance counts; with "
@@ -155,7 +170,9 @@ public class MCPGetSchemaTool implements MCPTool
             Two modes. With no arguments, get_schema lists this wiki's classes with instance
             counts: only classes with at least one instance appear, and the counts are upper
             bounds (they include instances the current user may not view). With
-            class="<reference>", it shows that class's field definitions.
+            class="<reference>", it shows that class's field definitions. Unauthenticated
+            callers get no instance counts: the catalog lists class names only and the class
+            view has no Instances line.
 
             A class is an XWiki page holding field definitions (an XClass); its instances are
             objects attached to other pages. Class pages are conventionally hidden pages, so
@@ -313,12 +330,14 @@ public class MCPGetSchemaTool implements MCPTool
         try {
             String classReference = PARAMS.parser().string(args, CLASS_PARAM);
             String wikiParam = PARAMS.parser().string(args, WIKI_PARAM);
+            // Resolved once per call: a guest (no current user) gets the count-free variants of both modes.
+            boolean guest = this.documentAccessBridge.getCurrentUserReference() == null;
             try {
                 String targetWiki = this.wikiReach.resolveSingleWiki(wikiParam);
                 if (classReference == null) {
-                    return MCPToolSupport.result(renderCatalog(targetWiki));
+                    return MCPToolSupport.result(renderCatalog(targetWiki, guest));
                 }
-                return describeClass(classReference, targetWiki);
+                return describeClass(classReference, targetWiki, guest);
             } catch (MCPAccessDeniedException e) {
                 return MCPToolSupport.errorResult(e.getMessage());
             }
@@ -339,11 +358,17 @@ public class MCPGetSchemaTool implements MCPTool
      * authorized at its would-be location - rights are evaluated on the reference, not on stored content -
      * so such a row is kept when that location authorizes.
      *
+     * <p>The counts are aggregates taken before any rights check on the counted instances, so printing them
+     * would tell an anonymous caller how many objects of a class exist in documents it cannot view. A guest
+     * caller therefore gets the class names only, and a footer without the upper-bound caveat that has
+     * nothing left to qualify.</p>
+     *
      * @param targetWiki the resolved wiki id the call operates on
+     * @param guest whether the caller is unauthenticated
      * @return the rendered catalog text
      * @throws QueryException if the catalog query fails
      */
-    private String renderCatalog(String targetWiki) throws QueryException
+    private String renderCatalog(String targetWiki, boolean guest) throws QueryException
     {
         List<Object[]> rows =
             this.rowQuery.rows(CATALOG_QUERY, targetWiki, Map.of(), MCPRowQuery.MAX_FETCH_PER_QUERY);
@@ -354,9 +379,8 @@ public class MCPGetSchemaTool implements MCPTool
             if (this.rowQuery.authorizedDocument(className, wikiRef) == null) {
                 continue;
             }
-            long count = ((Number) columns[1]).longValue();
-            lines.add(INDENT + MCPToolSupport.stripLineBreaks(className) + " - " + count
-                + instanceWord(count));
+            lines.add(INDENT + MCPToolSupport.stripLineBreaks(className)
+                + (guest ? "" : countSuffix(((Number) columns[1]).longValue())));
         }
         if (lines.isEmpty()) {
             return "No classes with instances found in wiki " + QUOTE + targetWiki + QUOTE + PERIOD;
@@ -365,16 +389,16 @@ public class MCPGetSchemaTool implements MCPTool
         // budget cut - a truncated catalog needs its "upper bounds"/"may be incomplete" caveats the most.
         StringBuilder catalog = new StringBuilder(MCPSourceText.budgeted("CLASSES with instances in wiki " + QUOTE
             + targetWiki + QUOTE + ":" + DOUBLE_NEW_LINE + String.join(NEW_LINE, lines)));
-        catalog.append(DOUBLE_NEW_LINE).append(CATALOG_FOOTER);
+        catalog.append(DOUBLE_NEW_LINE).append(guest ? CATALOG_USAGE_NOTES : CATALOG_FOOTER);
         if (rows.size() >= MCPRowQuery.MAX_FETCH_PER_QUERY) {
             catalog.append(NEW_LINE).append(CATALOG_CEILING_NOTE);
         }
         return catalog.toString();
     }
 
-    private static String instanceWord(long count)
+    private static String countSuffix(long count)
     {
-        return count == 1 ? " instance" : " instances";
+        return " - " + count + (count == 1 ? " instance" : " instances");
     }
 
     /**
@@ -382,14 +406,19 @@ public class MCPGetSchemaTool implements MCPTool
      * a missing document or one that defines no fields, counts its instances and renders the header plus
      * the {@link MCPSchemaText} block.
      *
+     * <p>The instance count is not rights-filtered, so it would tell an anonymous caller how many objects of
+     * the class exist in documents it cannot view. For a guest caller the count query is not run and the
+     * {@code Instances:} line is omitted.</p>
+     *
      * @param classReference the raw {@code class} argument
      * @param targetWiki the resolved wiki id the call operates on
+     * @param guest whether the caller is unauthenticated
      * @return the tool result
      * @throws MCPAccessDeniedException when the reference fails the reach gate, the rights check or the
      *     space filter, or contradicts the {@code wiki} parameter with an explicit wiki prefix
      * @throws QueryException if the instance-count query fails
      */
-    private McpSchema.CallToolResult describeClass(String classReference, String targetWiki)
+    private McpSchema.CallToolResult describeClass(String classReference, String targetWiki, boolean guest)
         throws MCPAccessDeniedException, QueryException
     {
         DocumentReference ref =
@@ -406,10 +435,13 @@ public class MCPGetSchemaTool implements MCPTool
                 + " exists but defines no class fields. Use get_schema with no arguments to list the "
                 + "classes of this wiki.");
         }
-        long count = countInstances(targetWiki, this.localSerializer.serialize(ref));
-        return MCPToolSupport.result(MCPSourceText.budgeted("CLASS "
-            + MCPToolSupport.stripLineBreaks(this.localSerializer.serialize(ref)) + NEW_LINE
-            + "Instances: " + count + " (upper bound; rights apply when reading them)" + DOUBLE_NEW_LINE
+        String localClassName = this.localSerializer.serialize(ref);
+        String header = "CLASS " + MCPToolSupport.stripLineBreaks(localClassName);
+        if (!guest) {
+            header += NEW_LINE + "Instances: " + countInstances(targetWiki, localClassName)
+                + " (upper bound; rights apply when reading them)";
+        }
+        return MCPToolSupport.result(MCPSourceText.budgeted(header + DOUBLE_NEW_LINE
             + MCPSchemaText.render(xdoc.getXClass(), this.contextProvider.get())));
     }
 

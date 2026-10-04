@@ -129,6 +129,10 @@ class MCPQueryDocumentsToolTest extends AbstractMCPToolTest
         // By default the endpoint has cross-wiki reach, so the advertised schema is the full (cross-wiki)
         // variant; the reach-off test overrides this.
         lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
+        // By default the caller is authenticated, so the count-bearing messages and footer apply; the guest
+        // tests override this with a null user reference.
+        lenient().when(this.documentAccessBridge.getCurrentUserReference())
+            .thenReturn(new DocumentReference(WIKI, "XWiki", "Alice"));
     }
 
     // -------------------------------------------------------------------------
@@ -697,6 +701,100 @@ class MCPQueryDocumentsToolTest extends AbstractMCPToolTest
         assertFalse(text.contains("about"), text);
         assertFalse(text.contains("Continue with offset="), text);
         assertFalse(text.contains("Showing 1 from offset 0"), text);
+    }
+
+    // -------------------------------------------------------------------------
+    // Guest callers: no raw match counts
+    // -------------------------------------------------------------------------
+
+    @Test
+    void guestEmptyPageWithRawMatchesIsIndistinguishableFromNoMatch() throws QueryException
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
+        Map<String, Object> args = Map.of("query", "secret", "offset", 10, "limit", 10, "space", "Help");
+
+        stubQuery(List.of(), null, 0);
+        McpSchema.CallToolResult noMatch = this.tool.execute(request("query_documents", args));
+
+        stubQuery(List.of(), null, 47);
+        McpSchema.CallToolResult filtered = this.tool.execute(request("query_documents", args));
+
+        assertNotEquals(Boolean.TRUE, filtered.isError());
+        assertEquals("No documents found matching \"secret\". Active filters: space=Help.", textOf(filtered));
+        assertEquals(textOf(noMatch), textOf(filtered));
+        assertFalse(textOf(filtered).contains("47"), textOf(filtered));
+        assertFalse(textOf(filtered).contains("Continue with offset="), textOf(filtered));
+    }
+
+    @Test
+    void guestOffsetBeyondLastResultReturnsNotFoundInsteadOfError() throws QueryException
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
+        stubQuery(List.of(), null, 12);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "secret", "offset", 50)));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        assertEquals("No documents found matching \"secret\".", textOf(result));
+    }
+
+    @Test
+    void guestFooterHidesRawTotalAndAlwaysOffersContinuation() throws QueryException
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
+        List<SolrDocument> docs = List.of(
+            buildDoc("id1", "Page One", "xwiki", "Help.PageOne", "content one"),
+            buildDoc("id2", "Page Two", "xwiki", "Help.PageTwo", "content two"));
+        stubQuery(docs, null, 473);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "x", "limit", 5)));
+
+        String text = textOf(result);
+        assertTrue(text.endsWith("\n\nShowing 2 viewable documents from offset 0. "
+            + "Continue with offset=5 to look for more."), text);
+        assertFalse(text.contains("473"), text);
+        assertFalse(text.contains("Found"), text);
+    }
+
+    @Test
+    void guestFooterOffersContinuationEvenOnTheLastRawPage() throws QueryException
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
+        // The only raw match is returned: offset + limit is past the raw total, yet the continue hint stays,
+        // so its presence says nothing about how many raw matches exist.
+        stubQuery(List.of(buildDoc("id1", "Page One", "xwiki", "Help.PageOne", "content one")), null, 1);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "x", "offset", 20, "limit", 10)));
+
+        String text = textOf(result);
+        assertTrue(text.endsWith("\n\nShowing 1 viewable document from offset 20. "
+            + "Continue with offset=30 to look for more."), text);
+    }
+
+    @Test
+    void guestFooterCapNoticeDependsOnlyOnTheRequestedLimit() throws QueryException
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
+        // With a raw total below the maximum an authenticated caller gets no cap notice; a guest gets it
+        // whenever the requested limit was capped, so the notice does not reveal the raw total.
+        stubQuery(List.of(buildDoc("id1", "Page One", "xwiki", "Help.PageOne", "content one")), null, 3);
+
+        McpSchema.CallToolResult result = this.tool.execute(request("query_documents",
+            Map.of("query", "x", "limit", 999)));
+
+        String text = textOf(result);
+        assertTrue(text.endsWith("Showing 1 viewable document from offset 0. Continue with offset=25 to look "
+            + "for more. (The requested limit was capped to the maximum of 25 per page.)"), text);
+    }
+
+    @Test
+    void manPageTellsThatUnauthenticatedCallersGetNoMatchCounts()
+    {
+        assertTrue(this.tool.getManPage().contains("Unauthenticated callers get no\n"
+            + "    match counts"), this.tool.getManPage());
     }
 
     // -------------------------------------------------------------------------

@@ -175,6 +175,13 @@ public class MCPQueryDocumentsTool implements MCPTool
 
     private static final String RESULT_SEPARATOR = NEW_LINE + "---" + NEW_LINE;
 
+    private static final String FROM_OFFSET = " from offset ";
+
+    private static final String CONTINUE_WITH_OFFSET = " Continue with offset=";
+
+    private static final String LIMIT_CAPPED_NOTE =
+        " (The requested limit was capped to the maximum of " + MAX_LIMIT + " per page.)";
+
     private static final String HTML_TAG_REGEX = "<[^>]+>";
 
     private static final String TIME_ALLOWED_KEY = "timeAllowed";
@@ -341,7 +348,8 @@ public class MCPQueryDocumentsTool implements MCPTool
         return """
             NOTES
                 The total is an upper bound: it can include documents you are not allowed to view, so
-                later pages may contain fewer results than expected.
+                later pages may contain fewer results than expected. Unauthenticated callers get no
+                match counts: the footer only reports the viewable documents shown and a continue offset.
 
                 Each result's Language: line names its content language; a "(translation)" suffix marks
                 a translation row - read or edit it with its locale (get_document / edit_document
@@ -529,11 +537,24 @@ public class MCPQueryDocumentsTool implements MCPTool
         }
     }
 
+    /**
+     * Formats the rights-filtered result page followed by its count/paging footer. Whether the caller is a
+     * guest (no current user) is resolved once here: Solr's match count is taken before the rights
+     * post-filter, so reporting it would tell an anonymous caller whether, and how often, a term occurs in
+     * content it cannot view. Guest callers therefore get the count-free variants of the empty-page message
+     * and of the footer.
+     *
+     * @param response the query response, possibly {@code null}
+     * @param request the parsed search request
+     * @return the agent-facing result text
+     * @throws IllegalArgumentException when an authenticated caller's offset is beyond the last result
+     */
     private String formatResults(QueryResponse response, SearchRequest request)
     {
+        boolean guest = this.documentAccessBridge.getCurrentUserReference() == null;
         List<SolrDocument> documents = response != null ? response.getResults() : null;
         if (CollectionUtils.isEmpty(documents)) {
-            return emptyResultsMessage(response, request);
+            return emptyResultsMessage(response, request, guest);
         }
 
         Map<String, Map<String, List<String>>> highlighting = response.getHighlighting();
@@ -547,10 +568,14 @@ public class MCPQueryDocumentsTool implements MCPTool
             }
             appendDocument(sb, documents.get(i), highlighting, showScore);
         }
+        String body = sb.toString().trim() + DOUBLE_NEW_LINE;
+        if (guest) {
+            return body + buildGuestFooter(documents.size(), request);
+        }
         // numFound can never be smaller than the returned page in a real Solr response; the floor only
         // guards against a degenerate executor.
         long total = Math.max(response.getResults().getNumFound(), documents.size());
-        return sb.toString().trim() + DOUBLE_NEW_LINE + buildFooter(total, documents.size(), request);
+        return body + buildFooter(total, documents.size(), request);
     }
 
     /**
@@ -558,23 +583,29 @@ public class MCPQueryDocumentsTool implements MCPTool
      * stepped past the last result, or a continue hint when the rights post-filter emptied a page that
      * is within range (raw matches exist but none on this page are viewable).
      *
+     * <p>A guest caller always gets the plain not-found message. The paging error and the continue hint
+     * both derive from Solr's match count, which is taken before the rights post-filter: either one would
+     * tell an anonymous caller whether, and how often, a term occurs in content it cannot view. For a guest
+     * "nothing matches" and "matches exist but none are viewable" are therefore indistinguishable.</p>
+     *
      * @param response the query response, possibly {@code null}
      * @param request the parsed search request
+     * @param guest whether the caller is unauthenticated
      * @return the agent-facing message
-     * @throws IllegalArgumentException when the offset is beyond the last result
+     * @throws IllegalArgumentException when the offset is beyond the last result and the caller is not a guest
      */
-    private String emptyResultsMessage(QueryResponse response, SearchRequest request)
+    private String emptyResultsMessage(QueryResponse response, SearchRequest request, boolean guest)
     {
         long total = response != null && response.getResults() != null
             ? response.getResults().getNumFound() : 0;
-        if (total > 0) {
+        if (!guest && total > 0) {
             if (request.offset() >= total) {
                 throw new IllegalArgumentException("offset " + request.offset()
                     + " is beyond the last result (" + total + " total matches). Use an offset below "
                     + total + PERIOD);
             }
             return "No viewable documents in this page (" + total + " total matches before access "
-                + "filtering). Continue with offset=" + (request.offset() + request.limit()) + PERIOD;
+                + "filtering)." + CONTINUE_WITH_OFFSET + (request.offset() + request.limit()) + PERIOD;
         }
         String base = request.browse() ? "No documents found."
             : "No documents found matching \"" + MCPTextGuards.fragment(request.queryText()) + "\".";
@@ -598,14 +629,37 @@ public class MCPQueryDocumentsTool implements MCPTool
             // Every raw match was returned and none were filtered out, so the count is exact.
             return "Found " + total + suffix;
         }
-        String footer = "Found about " + total + suffix + " Showing " + shown + " from offset "
+        String footer = "Found about " + total + suffix + " Showing " + shown + FROM_OFFSET
             + request.offset() + PERIOD;
         long nextOffset = (long) request.offset() + request.limit();
         if (nextOffset < total) {
-            footer += " Continue with offset=" + nextOffset + PERIOD;
+            footer += CONTINUE_WITH_OFFSET + nextOffset + PERIOD;
         }
         if (request.limitCapped() && total > MAX_LIMIT) {
-            footer += " (The requested limit was capped to the maximum of " + MAX_LIMIT + " per page.)";
+            footer += LIMIT_CAPPED_NOTE;
+        }
+        return footer;
+    }
+
+    /**
+     * Builds the trailing paging line for a guest (unauthenticated) caller. Solr's match count is taken
+     * before the rights post-filter, so printing it - or letting the presence of the continue hint or of the
+     * limit-capped note depend on it - would tell an anonymous caller whether, and how often, a term occurs
+     * in content it cannot view. This variant only reports the viewable documents of this page and always
+     * offers the next offset, stepping by {@code limit} like {@link #buildFooter(long, int, SearchRequest)}.
+     *
+     * @param shown the number of documents in this page after the rights post-filter
+     * @param request the parsed search request
+     * @return the footer line
+     */
+    private String buildGuestFooter(int shown, SearchRequest request)
+    {
+        long nextOffset = (long) request.offset() + request.limit();
+        String footer = "Showing " + shown + (shown == 1 ? " viewable document" : " viewable documents")
+            + FROM_OFFSET + request.offset() + PERIOD + CONTINUE_WITH_OFFSET + nextOffset
+            + " to look for more.";
+        if (request.limitCapped()) {
+            footer += LIMIT_CAPPED_NOTE;
         }
         return footer;
     }
