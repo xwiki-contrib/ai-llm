@@ -42,6 +42,7 @@ import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.component.phase.Disposable;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.internal.tool.MCPManTool;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 
@@ -56,19 +57,22 @@ import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransp
 import io.modelcontextprotocol.spec.McpSchema;
 
 /**
- * Singleton component that manages the lifecycle of one MCP (Model Context Protocol) server per wiki.
+ * Singleton component that manages the lifecycle of the MCP (Model Context Protocol) servers of each wiki.
  *
  * <p>Each wiki advertises its own server name and instructions, read from that wiki's
- * {@code AI.MCP.Code.MCPServerConfig} document. The first request for a wiki builds that wiki's server
- * lazily: it queries the component manager for all registered {@link MCPTool} implementations, filters by
- * {@link MCPTool#isEnabled()}, and registers the enabled tools with the MCP SDK.</p>
+ * {@code AI.MCP.Code.MCPServerConfig} document. A wiki has up to two server variants: one serving
+ * authenticated callers and one serving unauthenticated (guest) callers. The first request for a variant
+ * builds it lazily: it queries the component manager for all registered {@link MCPTool} implementations,
+ * filters by {@link MCPTool#isEnabled()} and the wiki's configured tool set, and registers the enabled tools
+ * with the MCP SDK. The guest variant additionally leaves out every authoring tool
+ * ({@link MCPTool#isWrite()}), so a guest caller's tool list contains only the tools it can use.</p>
  *
- * <p>Per-wiki servers are cached in a {@link ConcurrentHashMap}. {@code computeIfAbsent} builds a wiki's
- * server once on first request; {@link #invalidate(String)} removes and closes a wiki's server so the next
- * request rebuilds it with fresh configuration. No global lock is required: each request resolves its own
- * {@link ServerHolder} and routes to its transport. Closing a removed server only marks its transport as
- * closing (rejecting new requests); in-flight requests on it complete naturally because the stateless
- * transport releases nothing they depend on.</p>
+ * <p>The servers are cached in a {@link ConcurrentHashMap} keyed by {@link ServerKey} (wiki and variant).
+ * {@code computeIfAbsent} builds a variant once on its first request; {@link #invalidate(String)} removes and
+ * closes both variants of a wiki so the next request rebuilds them with fresh configuration. No global lock is
+ * required: each request resolves its own {@link ServerHolder} and routes to its transport. Closing a removed
+ * server only marks its transport as closing (rejecting new requests); in-flight requests on it complete
+ * naturally because the stateless transport releases nothing they depend on.</p>
  *
  * @version $Id$
  * @since 0.8
@@ -83,12 +87,24 @@ import io.modelcontextprotocol.spec.McpSchema;
 public class XWikiMCPServerManager implements Disposable
 {
     /**
-     * Pairs a built MCP server with the transport that serves it. One holder is cached per wiki; a request
-     * routes to {@link #transport()} and {@link #invalidate(String)} closes {@link #server()}.
+     * Pairs a built MCP server with the transport that serves it. One holder is cached per {@link ServerKey};
+     * a request routes to {@link #transport()} and {@link #invalidate(String)} closes {@link #server()}.
      *
      * @version $Id$
      */
     private record ServerHolder(McpStatelessSyncServer server, HttpServletStatelessServerTransport transport)
+    {
+    }
+
+    /**
+     * Identifies one cached server: the wiki it serves and the variant, either the one for authenticated
+     * callers or the one for unauthenticated (guest) callers, which registers no authoring tool.
+     *
+     * @param wikiId the wiki the server serves
+     * @param guest whether this is the variant serving guest callers
+     * @version $Id$
+     */
+    private record ServerKey(String wikiId, boolean guest)
     {
     }
 
@@ -106,6 +122,12 @@ public class XWikiMCPServerManager implements Disposable
      * Audit outcome for a call that did not produce a usable result (exception or {@code null}).
      */
     private static final String OUTCOME_FAILED = "failed";
+
+    /**
+     * Audit outcome for a call the middleware refused without running the tool: an authoring tool invoked
+     * by a guest caller.
+     */
+    private static final String OUTCOME_REFUSED = "refused";
 
     @Inject
     private Logger logger;
@@ -128,19 +150,24 @@ public class XWikiMCPServerManager implements Disposable
     @Inject
     private EntityReferenceSerializer<String> userSerializer;
 
-    /** One MCP server per wiki, built lazily on first request and invalidated when that wiki's config saves. */
-    private final Map<String, ServerHolder> servers = new ConcurrentHashMap<>();
+    /**
+     * The MCP servers, one per wiki and caller variant, built lazily on first request and invalidated when
+     * that wiki's config saves.
+     */
+    private final Map<ServerKey, ServerHolder> servers = new ConcurrentHashMap<>();
 
     /**
-     * Builds a fresh MCP server and transport for the given wiki from its configured name, description and
-     * the current set of enabled {@link MCPTool} components. Pure builder: it mutates no shared state and
-     * closes nothing, so it is safe to call from {@link Map#computeIfAbsent}.
+     * Builds a fresh MCP server and transport for the given wiki and caller variant from the wiki's configured
+     * name, description and the current set of enabled {@link MCPTool} components; the guest variant leaves
+     * out the authoring tools. Pure builder: it mutates no shared state and closes nothing, so it is safe to
+     * call from {@link Map#computeIfAbsent}.
      *
-     * @param wikiId the wiki whose server to build
+     * @param key the wiki and caller variant whose server to build
      * @return the holder pairing the new server with its transport
      */
-    private ServerHolder buildServer(String wikiId)
+    private ServerHolder buildServer(ServerKey key)
     {
+        String wikiId = key.wikiId();
         JacksonMcpJsonMapper jsonMapper = new JacksonMcpJsonMapper(new ObjectMapper());
 
         HttpServletStatelessServerTransport newTransport = HttpServletStatelessServerTransport.builder()
@@ -184,7 +211,7 @@ public class XWikiMCPServerManager implements Disposable
         Set<String> enabledToolIds = this.mcpConfig.getEnabledToolIds(wikiId);
         List<String> registeredNames = new ArrayList<>();
         for (MCPTool tool : currentTools) {
-            registerTool(builder, tool, registeredNames, enabledToolIds);
+            registerTool(builder, tool, registeredNames, enabledToolIds, key.guest());
         }
 
         // The UI calls this "server description"; the MCP SDK exposes it as initialization instructions.
@@ -195,30 +222,33 @@ public class XWikiMCPServerManager implements Disposable
     }
 
     /**
-     * Invalidates the cached MCP server for the given wiki so its name, description and instructions are
-     * re-read from configuration on the next connection. The removed server is closed: {@code
-     * closeGracefully()} only marks its transport as closing (rejecting new requests); in-flight requests
-     * on the removed holder complete naturally since the stateless transport releases nothing they depend on.
+     * Invalidates the cached MCP servers of the given wiki, both the authenticated and the guest variant, so
+     * its name, description and instructions are re-read from configuration on the next connection. Each
+     * removed server is closed: {@code closeGracefully()} only marks its transport as closing (rejecting new
+     * requests); in-flight requests on a removed holder complete naturally since the stateless transport
+     * releases nothing they depend on.
      *
-     * @param wikiId the wiki whose cached server to drop
+     * @param wikiId the wiki whose cached servers to drop
      */
     public void invalidate(String wikiId)
     {
-        ServerHolder removed = this.servers.remove(wikiId);
-        if (removed != null) {
-            closeQuietly(removed.server());
+        for (boolean guest : new boolean[] {false, true}) {
+            ServerHolder removed = this.servers.remove(new ServerKey(wikiId, guest));
+            if (removed != null) {
+                closeQuietly(removed.server());
+            }
         }
     }
 
     /**
-     * Invalidates every cached wiki server, e.g. after a farm-level configuration change such as a cross-wiki
+     * Invalidates every cached server of every wiki, e.g. after a farm-level configuration change such as a cross-wiki
      * reach grant, which affects the reach-gated tool registration of every wiki's endpoint, not only the wiki
      * whose config document was saved.
      */
     public void invalidateAll()
     {
-        for (String wikiId : new ArrayList<>(this.servers.keySet())) {
-            invalidate(wikiId);
+        for (ServerKey key : new ArrayList<>(this.servers.keySet())) {
+            invalidate(key.wikiId());
         }
     }
 
@@ -243,7 +273,7 @@ public class XWikiMCPServerManager implements Disposable
      * this single seam, so per-call cross-cutting concerns are implemented once here rather than in each
      * tool.
      *
-     * <p>It currently does two things. It normalizes a misbehaving tool — an escaping
+     * <p>It currently does three things. It normalizes a misbehaving tool — an escaping
      * {@link RuntimeException}, a {@link LinkageError} (realistic for a tool whose extension was
      * reloaded), or a {@code null} result — into a regular MCP error result with a generic message;
      * without this, the failure would surface as a transport-level HTTP 500 carrying the raw exception
@@ -251,20 +281,32 @@ public class XWikiMCPServerManager implements Disposable
      * convention agents know how to recover from (other {@link Error}s, e.g. out-of-memory, are
      * deliberately left to propagate). And it emits one INFO audit line per call (tool, acting user,
      * outcome, duration — never the arguments, which may carry document content), giving administrators
-     * a trail of agent actions. The audit's user resolution reads the request thread's XWiki context, so
-     * it relies on tool handlers running inline on that thread ({@code immediateExecution(true)}
-     * below).</p>
+     * a trail of agent actions. And it refuses every authoring tool ({@link MCPTool#isWrite()}) to an
+     * unauthenticated (guest) caller with an error result, without running the tool. That refusal is
+     * defence in depth: the server variant that serves guest callers registers no authoring tool (see
+     * {@link #registerTool}), so a guest call does not normally reach an authoring tool's handler at all.
+     * The check stays here because this seam covers every write tool, including the ones contributed by
+     * other extensions, and answers before the tool parses its parameters or checks rights. Both the
+     * audit's and the guest rule's user resolution read the request thread's XWiki context, so they rely
+     * on tool handlers running inline on that thread ({@code immediateExecution(true)} below).</p>
      *
      * @param toolName the registered tool name, captured at registration time
      * @param tool the tool implementation
      * @param request the tool call request
-     * @return the tool result, or a normalized error result if the tool misbehaved
+     * @return the tool result, a normalized error result if the tool misbehaved, or the refusal error
+     *     result if a guest caller invoked an authoring tool
      */
     private McpSchema.CallToolResult executeWrapped(String toolName, MCPTool tool,
         McpSchema.CallToolRequest request)
     {
         long startNanos = System.nanoTime();
         try {
+            if (tool.isWrite() && isGuestCaller()) {
+                audit(toolName, OUTCOME_REFUSED, startNanos);
+                return MCPToolSupport.errorResult("Authoring tools are not available to unauthenticated "
+                    + "(guest) callers. '" + toolName + "' was not run. Authenticate as a wiki user to change "
+                    + "content; the read tools remain available.");
+            }
             McpSchema.CallToolResult result = tool.execute(request);
             if (result == null) {
                 this.logger.error("MCP tool [{}] returned a null result", toolName);
@@ -280,6 +322,25 @@ public class XWikiMCPServerManager implements Disposable
         }
     }
 
+    /**
+     * Tells whether the current call comes from an unauthenticated (guest) caller. Fails closed: when the
+     * user cannot be resolved at all the caller is treated as guest, so the request is routed to the guest
+     * server variant and an authoring tool is refused rather than run for an unknown user.
+     *
+     * @return {@code true} if the caller is the guest user or cannot be resolved
+     */
+    private boolean isGuestCaller()
+    {
+        try {
+            return this.documentAccessBridge.getCurrentUserReference() == null;
+        } catch (Exception e) {
+            this.logger.warn("Could not resolve the current user; treating the MCP caller as guest: [{}]",
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Could not resolve the current user; treating the MCP caller as guest", e);
+            return true;
+        }
+    }
+
     private McpSchema.CallToolResult internalError(String toolName)
     {
         return McpSchema.CallToolResult.builder()
@@ -291,8 +352,9 @@ public class XWikiMCPServerManager implements Disposable
 
     /**
      * Emits the per-call audit line at INFO: the tool, the acting user, the outcome ({@code ok} for a
-     * normal result, {@code error} for a result the tool itself flagged as an error, {@code failed} for
-     * an unexpected exception) and the call duration.
+     * normal result, {@code error} for a result the tool itself flagged as an error, {@code refused} when
+     * the middleware refused an authoring tool to a guest caller without running it, {@code failed} for
+     * an unexpected exception or a {@code null} result) and the call duration.
      *
      * @param toolName the tool name
      * @param outcome the call outcome
@@ -307,7 +369,7 @@ public class XWikiMCPServerManager implements Disposable
 
     /**
      * Resolves the acting user for the audit line: the serialized user reference, {@code "guest"} for an
-     * unauthenticated caller (reachable when no OIDC provider gates the endpoint), or {@code "unknown"}
+     * unauthenticated caller (reachable when the wiki allows guest access), or {@code "unknown"}
      * when the user cannot be resolved at all.
      *
      * @return the audit representation of the acting user
@@ -326,9 +388,13 @@ public class XWikiMCPServerManager implements Disposable
 
     /**
      * Registers one tool on the server builder, isolating the rest of the rebuild from a misbehaving
-     * tool: if the tool throws from {@code isEnabled()} or {@code getToolDefinition()}, advertises a
-     * malformed schema, or the SDK rejects the registration (e.g. a duplicate tool name from another
-     * contribution), the tool is skipped with a warning instead of failing the whole server build.
+     * tool: if the tool throws from {@code isEnabled()}, {@code isWrite()} or {@code getToolDefinition()},
+     * advertises a malformed schema, or the SDK rejects the registration (e.g. a duplicate tool name from
+     * another contribution), the tool is skipped with a warning instead of failing the whole server build.
+     *
+     * <p>When building the variant that serves unauthenticated (guest) callers, an authoring tool
+     * ({@link MCPTool#isWrite()}) is not registered, so it appears neither in the guest's tool list nor in
+     * the instructions built from the registered names.</p>
      *
      * <p>The schemas are meta-validated here, per tool, with the same validator the SDK uses: the SDK
      * runs that validation for all registered tools at {@code build()}, where one malformed
@@ -339,12 +405,13 @@ public class XWikiMCPServerManager implements Disposable
      * @param tool the tool to register
      * @param registeredNames collector for the names that actually registered, in registration order
      * @param enabledToolIds the tool ids enabled for this wiki; a tool whose name is absent is skipped
+     * @param guestVariant whether the server being built serves guest callers; authoring tools are skipped
      */
     private void registerTool(McpServer.StatelessSyncSpecification builder, MCPTool tool,
-        List<String> registeredNames, Set<String> enabledToolIds)
+        List<String> registeredNames, Set<String> enabledToolIds, boolean guestVariant)
     {
         try {
-            if (!tool.isEnabled()) {
+            if (!tool.isEnabled() || (guestVariant && tool.isWrite())) {
                 return;
             }
             McpSchema.Tool definition = tool.getToolDefinition();
@@ -396,8 +463,9 @@ public class XWikiMCPServerManager implements Disposable
     }
 
     /**
-     * Handle an incoming request by routing it to the given wiki's MCP server, building and caching that
-     * server lazily on the first request for the wiki.
+     * Handle an incoming request by routing it to the given wiki's MCP server variant for the current
+     * caller (authenticated or guest), building and caching that variant lazily on its first request. A
+     * caller whose user cannot be resolved is routed to the guest variant.
      *
      * @param wikiId the wiki whose server should serve the request
      * @param request the incoming request
@@ -408,7 +476,8 @@ public class XWikiMCPServerManager implements Disposable
     public void handleRequest(String wikiId, HttpServletRequest request, HttpServletResponse response)
         throws ServletException, IOException
     {
-        ServerHolder holder = this.servers.computeIfAbsent(wikiId, this::buildServer);
+        ServerHolder holder =
+            this.servers.computeIfAbsent(new ServerKey(wikiId, isGuestCaller()), this::buildServer);
         holder.transport().service(request, response);
     }
 

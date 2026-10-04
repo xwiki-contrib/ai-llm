@@ -476,11 +476,16 @@ public class MCPManTool implements MCPTool
         }
         // Mirror the per-wiki registration filter (XWikiMCPServerManager#registerTool): a tool is catalogued
         // only when it is both globally enabled and in the current wiki's configured tool set, so man never
-        // advertises (or serves a page for) a tool the endpoint did not actually register on this wiki.
-        Set<String> enabledToolIds = this.mcpConfig.getEnabledToolIds(this.contextProvider.get().getWikiId());
+        // advertises (or serves a page for) a tool the endpoint did not actually register on this wiki. The
+        // server variant built for unauthenticated (guest) callers registers no authoring tool, so for a guest
+        // caller the tools whose isWrite() is true are left out here as well.
+        XWikiContext context = this.contextProvider.get();
+        Set<String> enabledToolIds = this.mcpConfig.getEnabledToolIds(context.getWikiId());
+        boolean guest = context.getUserReference() == null;
         return tools.stream()
             .filter(MCPTool::isEnabled)
             .filter(tool -> enabledToolIds.contains(tool.getToolDefinition().name()))
+            .filter(tool -> !(guest && tool.isWrite()))
             .collect(Collectors.toList());
     }
 

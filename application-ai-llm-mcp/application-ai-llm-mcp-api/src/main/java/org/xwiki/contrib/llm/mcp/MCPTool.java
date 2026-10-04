@@ -89,8 +89,10 @@ public interface MCPTool
 
     /**
      * Returns whether this tool can modify wiki content (create, edit or delete documents, objects, etc.).
-     * Write tools are disabled by default per wiki until an admin opts them in. The default is
-     * {@code false}; override to return {@code true} in a tool that performs writes.
+     * A tool that creates, changes or deletes wiki content MUST return {@code true}. The server relies on
+     * this declaration for the default tool policy (authoring tools are disabled per wiki until an admin opts
+     * them in) and to keep authoring tools away from unauthenticated (guest) callers, so a contributed tool
+     * that writes without declaring it would be offered to guests. The default is {@code false}.
      *
      * @return {@code true} if the tool can modify wiki content
      * @since 0.9

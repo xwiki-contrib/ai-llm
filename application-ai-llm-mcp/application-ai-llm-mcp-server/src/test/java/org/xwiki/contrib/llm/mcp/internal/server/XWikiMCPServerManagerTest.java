@@ -34,9 +34,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -72,8 +75,9 @@ import static org.mockito.Mockito.when;
  * Tests for {@link XWikiMCPServerManager}.
  *
  * <p>Tool logic is tested in the tool-specific test classes (e.g. {@code MCPQueryDocumentsToolTest}).
- * These tests focus on the manager's per-wiki lifecycle: lazy build on first request, caching, invalidation
- * and dispose. The MCP SDK is intercepted by mocking the {@link McpServer#sync} static factory and the
+ * These tests focus on the manager's per-wiki lifecycle: lazy build on first request, caching (one server
+ * variant for authenticated callers and one for guest callers), invalidation and dispose. The mocked bridge
+ * carries no user reference, so unless a test stubs one the caller is the guest user. The MCP SDK is intercepted by mocking the {@link McpServer#sync} static factory and the
  * {@link HttpServletStatelessServerTransport#builder()} static factory, so no real server or transport is
  * created.</p>
  *
@@ -86,6 +90,8 @@ class XWikiMCPServerManagerTest
 
     private static final String OTHER_WIKI = "otherwiki";
 
+    private static final DocumentReference ALICE = new DocumentReference("xwiki", "XWiki", "Alice");
+
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.INFO);
 
@@ -94,6 +100,12 @@ class XWikiMCPServerManagerTest
 
     @MockComponent
     private MCPServerConfiguration mcpConfig;
+
+    @MockComponent
+    private DocumentAccessBridge documentAccessBridge;
+
+    @MockComponent
+    private EntityReferenceSerializer<String> userSerializer;
 
     /**
      * The set of tool names every test in this class registers. By default the manager is told all of them
@@ -162,11 +174,28 @@ class XWikiMCPServerManagerTest
      * Reads the manager's per-wiki cache by reflection, to assert build-once / invalidation semantics.
      */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> serversCache() throws Exception
+    private Map<Object, Object> serversCache() throws Exception
     {
         Field serversField = XWikiMCPServerManager.class.getDeclaredField("servers");
         serversField.setAccessible(true);
-        return (Map<String, Object>) serversField.get(this.mcpServerManager);
+        return (Map<Object, Object>) serversField.get(this.mcpServerManager);
+    }
+
+    /**
+     * Makes the current caller an authenticated user, so requests route to the authenticated server variant.
+     */
+    private void authenticatedCaller()
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(ALICE);
+        lenient().when(this.userSerializer.serialize(ALICE)).thenReturn("xwiki:XWiki.Alice");
+    }
+
+    /**
+     * Makes the current caller the guest user, so requests route to the guest server variant.
+     */
+    private void guestCaller()
+    {
+        when(this.documentAccessBridge.getCurrentUserReference()).thenReturn(null);
     }
 
     // -------------------------------------------------------------------------
@@ -481,6 +510,151 @@ class XWikiMCPServerManagerTest
     }
 
     @Test
+    void invalidateClosesBothVariantsOfTheWiki() throws Exception
+    {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            McpStatelessSyncServer guestServer = mock(McpStatelessSyncServer.class);
+            McpStatelessSyncServer userServer = mock(McpStatelessSyncServer.class);
+            McpStatelessSyncServer otherWikiServer = mock(McpStatelessSyncServer.class);
+            when(spec.build()).thenReturn(guestServer).thenReturn(userServer).thenReturn(otherWikiServer);
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            authenticatedCaller();
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            this.mcpServerManager.handleRequest(OTHER_WIKI, request, response);
+            assertEquals(3, serversCache().size());
+
+            this.mcpServerManager.invalidate(WIKI);
+
+            verify(guestServer).closeGracefully();
+            verify(userServer).closeGracefully();
+            // The other wiki's server is left alone.
+            verify(otherWikiServer, never()).closeGracefully();
+            assertEquals(1, serversCache().size());
+        }
+    }
+
+    @Test
+    void guestVariantDoesNotRegisterWriteToolWhileAuthenticatedVariantDoes(
+        MockitoComponentManager componentManager) throws Exception
+    {
+        MCPTool readTool = componentManager.registerMockComponent(MCPTool.class, "kept_tool");
+        McpSchema.Tool readDef = toolDefinition("kept_tool", "A read tool");
+        when(readTool.isEnabled()).thenReturn(true);
+        when(readTool.getToolDefinition()).thenReturn(readDef);
+
+        MCPTool writeTool = componentManager.registerMockComponent(MCPTool.class, "dropped_tool");
+        McpSchema.Tool writeDef = toolDefinition("dropped_tool", "An authoring tool");
+        when(writeTool.isEnabled()).thenReturn(true);
+        when(writeTool.isWrite()).thenReturn(true);
+        when(writeTool.getToolDefinition()).thenReturn(writeDef);
+
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            // Guest request: the guest variant is built without the authoring tool.
+            McpServer.StatelessSyncSpecification guestSpec = stubSpec(mcpServerStatic);
+            when(guestSpec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+
+            verify(guestSpec).toolCall(eq(readDef), any());
+            verify(guestSpec, never()).toolCall(eq(writeDef), any());
+            verify(guestSpec).build();
+
+            // Authenticated request on the same wiki: a second server is built, with both tools.
+            authenticatedCaller();
+            McpServer.StatelessSyncSpecification userSpec = stubSpec(mcpServerStatic);
+            when(userSpec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+
+            verify(userSpec).toolCall(eq(readDef), any());
+            verify(userSpec).toolCall(eq(writeDef), any());
+            verify(userSpec).build();
+            assertEquals(2, serversCache().size());
+
+            // Each variant is cached: further requests of either kind build nothing more.
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            guestCaller();
+            this.mcpServerManager.handleRequest(WIKI, request, response);
+            verify(guestSpec).build();
+            verify(userSpec).build();
+        }
+    }
+
+    @Test
+    void guestVariantSkipsOnlyTheToolThrowingFromIsWrite(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        MCPTool broken = componentManager.registerMockComponent(MCPTool.class, "bad_tool");
+        when(broken.isEnabled()).thenReturn(true);
+        when(broken.isWrite()).thenThrow(new IllegalStateException("isWrite exploded"));
+
+        MCPTool healthy = componentManager.registerMockComponent(MCPTool.class, "healthy_tool");
+        McpSchema.Tool healthyDef = toolDefinition("healthy_tool", "A healthy tool");
+        when(healthy.isEnabled()).thenReturn(true);
+        when(healthy.getToolDefinition()).thenReturn(healthyDef);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
+
+            verify(spec).toolCall(eq(healthyDef), any());
+            verify(spec, times(1)).toolCall(any(), any());
+            verify(spec).build();
+        }
+
+        assertTrue(this.logCapture.getMessage(0).contains("isWrite exploded"), this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void handleRequestRoutesToGuestVariantWhenUserResolutionFails(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        when(this.documentAccessBridge.getCurrentUserReference())
+            .thenThrow(new IllegalStateException("no context"));
+
+        MCPTool writeTool = componentManager.registerMockComponent(MCPTool.class, "dropped_tool");
+        when(writeTool.isEnabled()).thenReturn(true);
+        when(writeTool.isWrite()).thenReturn(true);
+
+        try (MockedStatic<McpServer> mcpServerStatic = mockStatic(McpServer.class);
+            MockedStatic<HttpServletStatelessServerTransport> transportStatic =
+                mockStatic(HttpServletStatelessServerTransport.class)) {
+            McpServer.StatelessSyncSpecification spec = stubSpec(mcpServerStatic);
+            when(spec.build()).thenReturn(mock(McpStatelessSyncServer.class));
+            stubTransport(transportStatic, mock(HttpServletStatelessServerTransport.class));
+
+            this.mcpServerManager.handleRequest(WIKI, mock(HttpServletRequest.class),
+                mock(HttpServletResponse.class));
+
+            // Fail closed: an unresolvable caller gets the guest variant, without the authoring tool.
+            verify(spec, never()).toolCall(any(), any());
+            verify(spec).build();
+        }
+
+        assertEquals("Could not resolve the current user; treating the MCP caller as guest: "
+            + "[IllegalStateException: no context]", this.logCapture.getMessage(0));
+    }
+
+    @Test
     void invalidateAllClosesEveryServerAndNextRequestRebuilds() throws Exception
     {
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -677,6 +851,92 @@ class XWikiMCPServerManagerTest
         assertEquals(Boolean.TRUE, result.isError());
         assertEquals("MCP tool [wrapped_tool] failed with an unexpected error", this.logCapture.getMessage(0));
         assertTrue(this.logCapture.getMessage(1).contains("outcome=[failed]"), this.logCapture.getMessage(1));
+    }
+
+    @Test
+    void wrappedHandlerRefusesWriteToolForGuestCaller(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        // The guest server variant registers no authoring tool, so the handler is captured from the
+        // authenticated variant and then invoked as guest: the middleware guard is the defence in depth.
+        authenticatedCaller();
+        MCPTool[] registered = new MCPTool[1];
+        BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult> handler =
+            registerToolAndCaptureHandler(componentManager, tool -> {
+                when(tool.isWrite()).thenReturn(true);
+                registered[0] = tool;
+            });
+
+        guestCaller();
+        McpSchema.CallToolResult result =
+            handler.apply(null, McpSchema.CallToolRequest.builder("wrapped_tool").arguments(Map.of()).build());
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Authoring tools are not available to unauthenticated (guest) callers. 'wrapped_tool' was "
+            + "not run. Authenticate as a wiki user to change content; the read tools remain available.",
+            ((McpSchema.TextContent) result.content().get(0)).text());
+        verify(registered[0], never()).execute(any());
+        String audit = this.logCapture.getMessage(0);
+        assertTrue(audit.contains("tool=[wrapped_tool]"), audit);
+        assertTrue(audit.contains("outcome=[refused]"), audit);
+        assertTrue(audit.contains("user=[guest]"), audit);
+    }
+
+    @Test
+    void wrappedHandlerRunsWriteToolForAuthenticatedCaller(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        authenticatedCaller();
+
+        MCPTool[] registered = new MCPTool[1];
+        BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult> handler =
+            registerToolAndCaptureHandler(componentManager, tool -> {
+                when(tool.isWrite()).thenReturn(true);
+                when(tool.execute(any()))
+                    .thenReturn(McpSchema.CallToolResult.builder().addTextContent("written").build());
+                registered[0] = tool;
+            });
+
+        McpSchema.CallToolRequest request =
+            McpSchema.CallToolRequest.builder("wrapped_tool").arguments(Map.of()).build();
+        McpSchema.CallToolResult result = handler.apply(null, request);
+
+        verify(registered[0]).execute(request);
+        assertEquals("written", ((McpSchema.TextContent) result.content().get(0)).text());
+        String audit = this.logCapture.getMessage(0);
+        assertTrue(audit.contains("outcome=[ok]"), audit);
+        assertTrue(audit.contains("user=[xwiki:XWiki.Alice]"), audit);
+    }
+
+    @Test
+    void wrappedHandlerRefusesWriteToolWhenUserResolutionFails(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        // The handler is captured from the authenticated variant; the user resolution only fails afterwards.
+        authenticatedCaller();
+        MCPTool[] registered = new MCPTool[1];
+        BiFunction<McpTransportContext, McpSchema.CallToolRequest, McpSchema.CallToolResult> handler =
+            registerToolAndCaptureHandler(componentManager, tool -> {
+                when(tool.isWrite()).thenReturn(true);
+                registered[0] = tool;
+            });
+
+        when(this.documentAccessBridge.getCurrentUserReference())
+            .thenThrow(new IllegalStateException("no context"));
+        McpSchema.CallToolResult result =
+            handler.apply(null, McpSchema.CallToolRequest.builder("wrapped_tool").arguments(Map.of()).build());
+
+        // Fail closed: a caller that cannot be resolved is treated as guest, so the authoring tool is not run.
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(((McpSchema.TextContent) result.content().get(0)).text()
+            .startsWith("Authoring tools are not available to unauthenticated (guest) callers."));
+        verify(registered[0], never()).execute(any());
+        assertEquals("Could not resolve the current user; treating the MCP caller as guest: "
+            + "[IllegalStateException: no context]", this.logCapture.getMessage(0));
+        String audit = this.logCapture.getMessage(1);
+        assertTrue(audit.contains("outcome=[refused]"), audit);
+        // The audit line keeps its own mapping for an unresolvable user.
+        assertTrue(audit.contains("user=[unknown]"), audit);
     }
 
     /**

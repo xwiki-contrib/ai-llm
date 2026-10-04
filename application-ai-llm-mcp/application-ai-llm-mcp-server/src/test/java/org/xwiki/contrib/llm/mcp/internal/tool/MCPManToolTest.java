@@ -34,6 +34,7 @@ import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -79,6 +80,8 @@ class MCPManToolTest extends AbstractMCPToolTest
 
     private static final String WIKI = "testwiki";
 
+    private static final String WRITE_DOCUMENT = "write_document";
+
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
 
@@ -91,12 +94,15 @@ class MCPManToolTest extends AbstractMCPToolTest
     @MockComponent
     private Provider<XWikiContext> contextProvider;
 
+    private XWikiContext xcontext;
+
     @BeforeEach
     void setUp()
     {
-        XWikiContext xcontext = mock(XWikiContext.class);
-        lenient().when(this.contextProvider.get()).thenReturn(xcontext);
-        lenient().when(xcontext.getWikiId()).thenReturn(WIKI);
+        // The mocked context carries no user reference: by default the caller is the guest user.
+        this.xcontext = mock(XWikiContext.class);
+        lenient().when(this.contextProvider.get()).thenReturn(this.xcontext);
+        lenient().when(this.xcontext.getWikiId()).thenReturn(WIKI);
         // Default: the wiki's configured tool set does not restrict anything, so the existing tests exercise
         // man rendering and the isEnabled()-based exclusion unchanged. The per-wiki filtering test overrides
         // this with a concrete set. The man tool only queries the set with contains(), never iterates it.
@@ -229,6 +235,49 @@ class MCPManToolTest extends AbstractMCPToolTest
         McpSchema.CallToolResult page = call(Map.of(TOOL_PARAM, "write_document"));
         assertTrue(page.isError());
         assertTrue(textOf(page).contains("No manual entry for \"write_document\""), textOf(page));
+    }
+
+    @Test
+    void guestCallerSeesNoAuthoringToolInCatalogPagesOrAvailableList(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Search pages and more.",
+            "Search & Navigation", true, Map.of(), List.of(), null);
+        MCPTool writeTool = registerTool(componentManager, WRITE_DOCUMENT, "Write a page.",
+            "Write a page and more.", "Authoring", true, Map.of(), List.of(), null);
+        when(writeTool.isWrite()).thenReturn(true);
+
+        String catalog = callMan(this.manTool, null);
+        assertTrue(catalog.contains(QUERY_DOCUMENTS), catalog);
+        assertFalse(catalog.contains(WRITE_DOCUMENT), catalog);
+
+        // The page of an authoring tool is not served to a guest, and the tool is not listed as available.
+        McpSchema.CallToolResult page = call(Map.of(TOOL_PARAM, WRITE_DOCUMENT));
+        assertTrue(page.isError());
+        String text = textOf(page);
+        assertTrue(text.contains("No manual entry for \"write_document\""), text);
+        assertTrue(text.contains("man, query_documents"), text);
+        assertEquals(text.indexOf(WRITE_DOCUMENT), text.lastIndexOf(WRITE_DOCUMENT), text);
+    }
+
+    @Test
+    void authenticatedCallerSeesAuthoringToolInCatalogAndPage(MockitoComponentManager componentManager)
+        throws Exception
+    {
+        when(this.xcontext.getUserReference()).thenReturn(new DocumentReference("xwiki", "XWiki", "Alice"));
+        registerTool(componentManager, QUERY_DOCUMENTS, "Search pages.", "Search pages and more.",
+            "Search & Navigation", true, Map.of(), List.of(), null);
+        MCPTool writeTool = registerTool(componentManager, WRITE_DOCUMENT, "Write a page.",
+            "Write a page and more.", "Authoring", true, Map.of(), List.of(), null);
+        when(writeTool.isWrite()).thenReturn(true);
+
+        String catalog = callMan(this.manTool, null);
+        assertTrue(catalog.contains(QUERY_DOCUMENTS), catalog);
+        assertTrue(catalog.contains(WRITE_DOCUMENT), catalog);
+
+        McpSchema.CallToolResult page = call(Map.of(TOOL_PARAM, WRITE_DOCUMENT));
+        assertFalse(Boolean.TRUE.equals(page.isError()), textOf(page));
+        assertTrue(textOf(page).contains("Write a page."), textOf(page));
     }
 
     @Test
