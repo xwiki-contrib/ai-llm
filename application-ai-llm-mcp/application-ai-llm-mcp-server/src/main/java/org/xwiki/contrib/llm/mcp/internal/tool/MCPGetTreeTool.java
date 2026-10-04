@@ -22,7 +22,6 @@ package org.xwiki.contrib.llm.mcp.internal.tool;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,8 +71,9 @@ import io.modelcontextprotocol.spec.McpSchema;
  * for {@code depth} levels. Every rendered reference is {@code get_document}-ready, and a trailing {@code ⋯}
  * marks a node whose children were not shown, so the agent can re-call with that reference as the new
  * {@code root}. Every rendered node is authorized individually (space filter plus {@link Right#VIEW}), so a
- * denied page is dropped entirely, and hidden pages are excluded unless {@code showHidden} is set, regardless
- * of the caller's profile preference.</p>
+ * denied page is dropped entirely - in a survey, a space whose home the caller may not view keeps its summary
+ * line and inline pages but loses its home reference - and hidden pages are excluded unless {@code showHidden}
+ * is set, regardless of the caller's profile preference.</p>
  *
  * <p>Page text rendered into the tree (titles, page names and object-class names) is editable wiki content and is
  * therefore untrusted. It is neutralized for the line grammar - control characters and the framing characters
@@ -88,7 +88,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPGetTreeTool.TOOL_ID)
 @Singleton
-// The two navigation modes are modeled with seven small nested records, composed with the shared doors
+// The two navigation modes are modeled with six small nested records, composed with the shared doors
 // (row query, document access, wiki reach) and the MCP tool contract types. After the row-query pipeline
 // was extracted into MCPRowQuery (LLMAI-153), the remaining references are the tool's own record shape
 // plus intrinsic contract types - verified by enumeration, twice; every further reduction traded a
@@ -295,7 +295,8 @@ public class MCPGetTreeTool implements MCPTool
         + "objects / attachment count.";
 
     private static final String SURVEY_LEGEND = "Refs are get_document-ready. One line per top-level space; "
-        + "re-call with root set to a ref to explore it. Small spaces are expanded inline.";
+        + "re-call with root set to a ref to explore it. Small spaces are expanded inline. A space shown "
+        + "without a ref has a home you may not view; the pages listed under it are the way in.";
 
     private static final String TERMINAL_NOTE = "This page is terminal and has no child pages.";
 
@@ -403,7 +404,10 @@ public class MCPGetTreeTool implements MCPTool
             marks a page that can hold children; a node marked with a trailing ellipsis has more
             children than were shown - re-call with that node's reference as the new root to
             keep zooming. Survey lines carry page counts, a hidden-page count and the last
-            content activity; small spaces are expanded inline.
+            content activity; small spaces are expanded inline. Counts and listings cover only
+            the pages you may view. A space line shown without a ref has a home you may not
+            view: it cannot be the root of an explore, and the pages listed under it are the
+            way in.
 
             depth (default 2, max 4) sets how many levels an explore renders; it is ignored in a
             survey. limit (default 50, max 200) caps the children shown under one node and offset
@@ -1242,38 +1246,37 @@ public class MCPGetTreeTool implements MCPTool
         List<Object[]> rows =
             this.rowQuery.rows(SURVEY_QUERY, scope.targetWiki(), null, null, MAX_FETCH_PER_QUERY);
         boolean capped = rows.size() >= MAX_FETCH_PER_QUERY;
-        SurveyData data = aggregateSurvey(rows, scope.targetWiki(), req.showHidden());
-        return renderSurvey(scope, req, data, capped);
+        Map<String, SpaceSummary> spaces = aggregateSurvey(rows, scope.targetWiki(), req.showHidden());
+        return renderSurvey(scope, req, spaces, capped);
     }
 
     /**
      * Aggregates the survey rows per top-level space: resolves each row into the target wiki, drops denied
-     * rows (remembering their space, which then renders summary-only), splits hidden from visible counts,
+     * rows silently (a space is known only through the rows the caller may view, exactly as an explore
+     * presents the authorized children as the caller's view of a node), splits hidden from visible counts,
      * tracks the last activity of the visible rows and retains the rows of small spaces for inline expansion.
      *
      * @param rows the raw survey rows ({@code {fullName, title, date, hidden}})
      * @param targetWiki the surveyed wiki id
      * @param showHidden whether hidden pages count as ordinary pages (one folded count)
-     * @return the aggregated survey data, in the query's space-name order
+     * @return the per-space summaries keyed by top-level space name, in the query's space-name order
      */
-    private SurveyData aggregateSurvey(List<Object[]> rows, String targetWiki, boolean showHidden)
+    private Map<String, SpaceSummary> aggregateSurvey(List<Object[]> rows, String targetWiki,
+        boolean showHidden)
     {
         Map<String, SpaceSummary> spaces = new LinkedHashMap<>();
-        Set<String> deniedSpaces = new HashSet<>();
         WikiReference wikiRef = new WikiReference(targetWiki);
         for (Object[] columns : rows) {
             DocumentReference ref = this.rowQuery.resolveInto((String) columns[0], wikiRef);
-            String topSpace = ref.getSpaceReferences().get(0).getName();
             if (!this.rowQuery.isAuthorized(ref)) {
-                deniedSpaces.add(topSpace);
                 continue;
             }
             boolean hidden = Boolean.TRUE.equals(columns[3]) && !showHidden;
-            SpaceSummary summary = spaces.computeIfAbsent(topSpace,
+            SpaceSummary summary = spaces.computeIfAbsent(ref.getSpaceReferences().get(0).getName(),
                 key -> new SpaceSummary(ref.getSpaceReferences().get(0)));
             accumulateRow(summary, ref, (String) columns[1], (Date) columns[2], hidden);
         }
-        return new SurveyData(spaces, deniedSpaces);
+        return spaces;
     }
 
     /**
@@ -1345,22 +1348,22 @@ public class MCPGetTreeTool implements MCPTool
      *
      * @param scope the resolved root scope
      * @param req the parsed request, whose limit/offset page the space list
-     * @param data the aggregated survey data
+     * @param spaces the per-space summaries, keyed by top-level space name, in render order
      * @param capped whether the survey fetch hit the row ceiling, so counts are sampled
      * @return the rendered survey text
      * @throws QueryException if a marker query fails
      */
-    private String renderSurvey(RootScope scope, TreeRequest req, SurveyData data, boolean capped)
-        throws QueryException
+    private String renderSurvey(RootScope scope, TreeRequest req, Map<String, SpaceSummary> spaces,
+        boolean capped) throws QueryException
     {
-        List<SpaceSummary> all = new ArrayList<>(data.spaces().values());
+        List<SpaceSummary> all = new ArrayList<>(spaces.values());
         int totalPages = all.stream().mapToInt(SpaceSummary::visibleCount).sum();
         int from = Math.min(req.offset(), all.size());
         int to = Math.min(from + req.limit(), all.size());
         List<SpaceSummary> window = all.subList(from, to);
         boolean hasMore = to < all.size();
 
-        Map<String, List<TreeNode>> inlineBySpace = planInline(window, data.deniedSpaces(), capped);
+        Map<String, List<TreeNode>> inlineBySpace = planInline(window, capped);
         List<String> inlinedNames = new ArrayList<>();
         for (List<TreeNode> nodes : inlineBySpace.values()) {
             for (TreeNode node : nodes) {
@@ -1386,17 +1389,17 @@ public class MCPGetTreeTool implements MCPTool
 
     /**
      * Decides which spaces of the paged window are expanded inline: a space whose retained row list survived
-     * the per-space threshold, none of whose rows were denied, and whose lines still fit the global inline
-     * budget. A capped (sampled) survey expands nothing inline - with rows missing, no subtree may be
-     * presented as complete.
+     * the per-space threshold and whose lines still fit the global inline budget. Whether the space also had
+     * denied rows plays no part: the retained rows are the caller's viewable pages, which is what the line's
+     * counts already describe, and listing them is the caller's only way into a space whose home it may not
+     * view. A capped (sampled) survey expands nothing inline - with rows missing, no subtree may be presented
+     * as complete.
      *
      * @param window the paged space summaries
-     * @param deniedSpaces the top-level spaces that had at least one denied row
      * @param capped whether the survey fetch hit the row ceiling
      * @return the inline nodes keyed by top-level space name
      */
-    private Map<String, List<TreeNode>> planInline(List<SpaceSummary> window, Set<String> deniedSpaces,
-        boolean capped)
+    private Map<String, List<TreeNode>> planInline(List<SpaceSummary> window, boolean capped)
     {
         Map<String, List<TreeNode>> inlineBySpace = new HashMap<>();
         if (capped) {
@@ -1405,8 +1408,7 @@ public class MCPGetTreeTool implements MCPTool
         int budget = INLINE_BUDGET;
         for (SpaceSummary summary : window) {
             List<TreeNode> nodes = summary.inlineRows();
-            if (CollectionUtils.isEmpty(nodes) || deniedSpaces.contains(summary.name())
-                || nodes.size() > budget) {
+            if (CollectionUtils.isEmpty(nodes) || nodes.size() > budget) {
                 continue;
             }
             inlineBySpace.put(summary.name(), nodes);
@@ -1477,9 +1479,13 @@ public class MCPGetTreeTool implements MCPTool
     }
 
     /**
-     * Composes one survey summary line: space name, its {@code WebHome} reference (the explore-root argument,
-     * whether or not that document exists), the space title when it adds something, then the counts and the
-     * compact age of the last visible activity.
+     * Composes one survey summary line: space name, its {@code WebHome} reference when the caller is
+     * authorized on it (the explore-root argument, printed whether or not that document exists, since
+     * authorization is evaluated on the reference), the space title when it adds something, then the counts
+     * and the compact age of the last visible activity. A home the caller may not view gets no reference
+     * segment: every printed reference must be {@code get_document}-ready, and the space's inline pages are
+     * then the caller's way in. The check runs once per rendered line, so a page of the survey costs at most
+     * {@code limit} extra authorization checks.
      *
      * @param summary the space summary
      * @param sameWiki whether the target wiki is the endpoint's own wiki
@@ -1490,7 +1496,10 @@ public class MCPGetTreeTool implements MCPTool
     {
         DocumentReference homeRef = new DocumentReference(WEBHOME, summary.topSpace());
         StringBuilder line = new StringBuilder(sanitizeForLine(summary.name()));
-        line.append(SLASH).append(REF_OPEN).append(renderRef(homeRef, sameWiki)).append(REF_CLOSE);
+        line.append(SLASH);
+        if (this.rowQuery.isAuthorized(homeRef)) {
+            line.append(REF_OPEN).append(renderRef(homeRef, sameWiki)).append(REF_CLOSE);
+        }
         line.append(titleSegment(summary.title(), summary.name()));
         line.append(INDENT).append(SURVEY_DASH);
         appendCount(line, summary.visibleCount(), capped);
@@ -1585,19 +1594,6 @@ public class MCPGetTreeTool implements MCPTool
      * @version $Id$
      */
     private record Level0Result(List<TreeNode> roots, boolean rootHasMore, int nextOffset)
-    {
-    }
-
-    /**
-     * The aggregated survey of one wiki: the per-space summaries in render order, and the top-level spaces
-     * that had at least one denied row (never expanded inline, so a partial listing is not presented as
-     * complete).
-     *
-     * @param spaces the per-space summaries, keyed by top-level space name, in render order
-     * @param deniedSpaces the top-level space names that had at least one denied row
-     * @version $Id$
-     */
-    private record SurveyData(Map<String, SpaceSummary> spaces, Set<String> deniedSpaces)
     {
     }
 

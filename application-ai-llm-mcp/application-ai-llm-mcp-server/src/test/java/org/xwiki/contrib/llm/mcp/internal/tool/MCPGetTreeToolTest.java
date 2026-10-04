@@ -69,6 +69,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -741,6 +742,51 @@ class MCPGetTreeToolTest extends AbstractMCPToolTest
     }
 
     @Test
+    void surveyDropsHomeRefWhenHomeIsDeniedAndInlinesViewablePages()
+    {
+        this.surveyRows.add(new Object[] {"Vault.WebHome", "Vault Home", ago(DAY_MILLIS), false});
+        this.surveyRows.add(new Object[] {"Vault.Alpha", "Alpha Page", ago(DAY_MILLIS), false});
+        this.surveyRows.add(new Object[] {"Vault.Beta", "Beta Page", ago(2 * DAY_MILLIS), false});
+        // The caller may view two pages of the space but not its home.
+        when(this.authorization.hasAccess(Right.VIEW, webHomeRef("Vault"))).thenReturn(false);
+
+        String output = callTree(Map.of());
+
+        // The line counts the two viewable pages but prints no home ref (get_document on it would be refused),
+        // and no home title either - the denied home row never contributed one.
+        assertTrue(output.contains("1 spaces, 2 pages"), output);
+        assertTrue(output.contains("\nVault/  — 2 pages, 1d ago\n"), output);
+        assertFalse(output.contains("Vault.WebHome"), output);
+        assertFalse(output.contains("Vault Home"), output);
+        // The viewable pages are the way in: expanded inline with their refs.
+        assertTrue(output.contains("\n  Alpha  [Vault.Alpha]  \"Alpha Page\""), output);
+        assertTrue(output.contains("\n  Beta  [Vault.Beta]  \"Beta Page\""), output);
+        assertTrue(output.contains("A space shown without a ref has a home you may not view"), output);
+    }
+
+    @Test
+    void surveyInlinesTheViewablePagesOfAPartlyDeniedSpace()
+    {
+        this.surveyRows.add(new Object[] {SALES_HOME_FULLNAME, "Sales Home", ago(DAY_MILLIS), false});
+        this.surveyRows.add(new Object[] {CONTACT_FULLNAME, CONTACT_TITLE, ago(DAY_MILLIS), false});
+        this.surveyRows.add(new Object[] {"Sales.Lead", "Lead Page", ago(DAY_MILLIS), false});
+        this.surveyRows.add(new Object[] {"Sales.Secret", "Secret Plan", ago(DAY_MILLIS), false});
+        this.surveyRows.add(new Object[] {"Sales.Terms", "Terms Page", ago(DAY_MILLIS), false});
+        when(this.authorization.hasAccess(Right.VIEW, pageRef(SALES, "Secret"))).thenReturn(false);
+
+        String output = callTree(Map.of());
+
+        // The home is viewable, so the line keeps its ref; the counts are the caller's viewable pages (home
+        // included), the denied one excluded.
+        assertTrue(output.contains("Sales/  [Sales.WebHome]  \"Sales Home\"  — 4 pages, 1d ago"), output);
+        // The viewable pages are inlined like those of any other small space; the denied page is absent.
+        assertTrue(output.contains("\n  Contact  [Sales.Contact]  \"Contact Card\""), output);
+        assertTrue(output.contains("\n  Lead  [Sales.Lead]  \"Lead Page\""), output);
+        assertTrue(output.contains("\n  Terms  [Sales.Terms]  \"Terms Page\""), output);
+        assertFalse(output.contains("Secret"), output);
+    }
+
+    @Test
     void surveyOmitsRecencyWhenOnlyHiddenRows()
     {
         this.surveyRows.add(new Object[] {"Tech.WebHome", "Tech Home", ago(HOUR_MILLIS), true});
@@ -802,8 +848,11 @@ class MCPGetTreeToolTest extends AbstractMCPToolTest
         assertFalse(this.wikisSet.contains(WIKI), this.wikisSet.toString());
         assertTrue(output.contains("root=second (wiki survey)"), output);
         assertTrue(output.contains("[second:Sales.WebHome]"), output);
-        // The regression guard for the cross-wiki bug: authorization sees refs in the target wiki.
-        verify(this.authorization).hasAccess(Right.VIEW, new DocumentReference(SECOND, SALES, "WebHome"));
+        // The regression guard for the cross-wiki bug: authorization sees refs in the target wiki - once for
+        // the row, once more for the survey line's home ref - and never in the endpoint wiki.
+        verify(this.authorization, atLeastOnce())
+            .hasAccess(Right.VIEW, new DocumentReference(SECOND, SALES, "WebHome"));
+        verify(this.authorization, never()).hasAccess(Right.VIEW, webHomeRef(SALES));
     }
 
     @Test
