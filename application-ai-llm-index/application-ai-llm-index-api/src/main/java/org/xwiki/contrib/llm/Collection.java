@@ -287,7 +287,9 @@ public interface Collection
 
     /**
      * @return the authorization manager for this collection that needs to be used to check rights on any retrieved
-     * document
+     * document. It applies the configured rights check method. For a collection that uses the XWiki document store,
+     * the view right of the current user on the page of each document is always checked in addition to the configured
+     * rights check method: a document is viewable only when both allow it
      * @throws IndexException if the authorization manager cannot be built
      */
     AuthorizationManager getAuthorizationManager() throws IndexException;

@@ -161,6 +161,7 @@
       &lt;label#if ($editing) for="AI.Collections.Code.CollectionsClass_0_rightsCheckMethod"#end&gt;
         $escapetool.xml($doc.displayPrettyName('rightsCheckMethod', false, false))
       &lt;/label&gt;
+      &lt;span class="xHint"&gt;$escapetool.xml($services.localization.render('collections.sheet.rightsCheckMethod.hint'))&lt;/span&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display('rightsCheckMethod')&lt;/dd&gt;
     #if ("$!doc.getValue('rightsCheckMethod')" != '')

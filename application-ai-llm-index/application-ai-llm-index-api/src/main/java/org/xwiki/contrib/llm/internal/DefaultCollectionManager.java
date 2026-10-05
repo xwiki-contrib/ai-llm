@@ -235,11 +235,17 @@ public class DefaultCollectionManager implements CollectionManager
             return List.of();
         }
 
+        // The rights check of a collection depends on its document store: only the chunks that have been indexed from
+        // the current document store of each collection are searched.
+        Map<String, String> collectionStoreHintMap = collectionMap.entrySet().stream()
+            .filter(entry -> authorizationManagerMap.containsKey(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getDocumentStoreHint()));
+
         try {
             List<Context> semanticResults = this.solrConnector.similaritySearch(textQuery, collectionEmbeddingModelMap,
-                limitSemanticSimilarity, locale);
+                collectionStoreHintMap, limitSemanticSimilarity, locale);
             List<Context> keywordResults = this.solrConnector.keywordSearch(textQuery,
-                collectionEmbeddingModelMap.keySet(), limitKeywordSearch, locale);
+                collectionStoreHintMap, limitKeywordSearch, locale);
 
             Set<String> uniqueContent = new HashSet<>();
             List<Context> results = Stream.concat(semanticResults.stream(), keywordResults.stream())

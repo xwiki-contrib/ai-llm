@@ -32,6 +32,7 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
@@ -512,7 +513,8 @@ public class SolrConnector
     }
 
     /**
-     * Simple similarity search in the Solr index.
+     * Simple similarity search in the Solr index. The search is not restricted by document store: every chunk of
+     * the given collections can be returned, whatever the document store it has been indexed from.
      * 
      * @param textQuery the query to search for
      * @param collectionEmbeddingModelMap a map of collections and their corresponding embedding models
@@ -528,7 +530,8 @@ public class SolrConnector
 
     /**
      * Simple similarity search in the Solr index, optionally restricted to chunks stored in a given content
-     * language.
+     * language. The search is not restricted by document store: every chunk of the given collections can be
+     * returned, whatever the document store it has been indexed from.
      *
      * @param textQuery the query to search for
      * @param collectionEmbeddingModelMap a map of collections and their corresponding embedding models
@@ -542,6 +545,46 @@ public class SolrConnector
                                                Map<String, String> collectionEmbeddingModelMap,
                                                int limit,
                                                Locale locale) throws SolrServerException
+    {
+        return similaritySearchInternal(textQuery, collectionEmbeddingModelMap, null, limit, locale);
+    }
+
+    /**
+     * Simple similarity search in the Solr index that only returns, for each collection, the chunks that have been
+     * indexed from the given document store of that collection. A collection without a document store hint in
+     * {@code collectionStoreHintMap} (no entry, or a blank hint) is not searched: the absence of a hint never means
+     * "any document store".
+     *
+     * @param textQuery the query to search for
+     * @param collectionEmbeddingModelMap a map of collections and their corresponding embedding models
+     * @param collectionStoreHintMap a map of collections and the hint of the document store their chunks must have
+     *     been indexed from
+     * @param limit the maximum number of results to return
+     * @param locale the content language the returned chunks must be indexed under (exact match on the stored
+     *     language field), or {@code null} to search all languages
+     * @return a list of document details
+     * @since 0.10.1
+     */
+    public List<Context> similaritySearch(String textQuery,
+                                               Map<String, String> collectionEmbeddingModelMap,
+                                               Map<String, String> collectionStoreHintMap,
+                                               int limit,
+                                               Locale locale) throws SolrServerException
+    {
+        Map<String, String> storeHintMap = getNonBlankStoreHints(collectionStoreHintMap);
+        Map<String, String> searchedCollections = collectionEmbeddingModelMap.entrySet().stream()
+            .filter(entry -> storeHintMap.containsKey(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        return similaritySearchInternal(textQuery, searchedCollections, storeHintMap, limit, locale);
+    }
+
+    /**
+     * @param collectionStoreHintMap the document store hint of each collection, {@code null} to not restrict the
+     *     search by document store. When not {@code null}, every collection must have an entry.
+     */
+    private List<Context> similaritySearchInternal(String textQuery, Map<String, String> collectionEmbeddingModelMap,
+        Map<String, String> collectionStoreHintMap, int limit, Locale locale)
     {
         List<Context> resultsList = new ArrayList<>();
 
@@ -566,7 +609,8 @@ public class SolrConnector
                                                                             CurrentUserReference.INSTANCE,
                                                                             EmbeddingModel.EmbeddingPurpose.QUERY);
                 String embeddingsAsString = arrayToString(queryEmbeddings);
-                SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel, limit, locale);
+                SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel,
+                    collectionStoreHintMap, limit, locale);
                 QueryResponse response = client.query(query);
                 SolrDocumentList documents = response.getResults();
                 resultsList.addAll(collectResults(documents, false));
@@ -587,7 +631,9 @@ public class SolrConnector
     }
 
     /**
-     * Perform a keyword search in the content of the chunks in the given collections.
+     * Perform a keyword search in the content of the chunks in the given collections. The search is not restricted
+     * by document store: every chunk of the given collections can be returned, whatever the document store it has
+     * been indexed from.
      *
      * @param textQuery the query to search for
      * @param collections the collections to search in
@@ -601,7 +647,8 @@ public class SolrConnector
 
     /**
      * Perform a keyword search in the content of the chunks in the given collections, optionally restricted to
-     * chunks stored in a given content language.
+     * chunks stored in a given content language. The search is not restricted by document store: every chunk of the
+     * given collections can be returned, whatever the document store it has been indexed from.
      *
      * @param textQuery the query to search for
      * @param collections the collections to search in
@@ -614,9 +661,46 @@ public class SolrConnector
     public List<Context> keywordSearch(String textQuery, java.util.Collection<String> collections, int limit,
         Locale locale)
     {
+        return keywordSearchInternal(textQuery, collections, null, limit, locale);
+    }
+
+    /**
+     * Perform a keyword search in the content of the chunks that only returns, for each collection, the chunks that
+     * have been indexed from the given document store of that collection. The collections that are searched are the
+     * keys of {@code collectionStoreHintMap}. A collection with a blank hint is not searched: the absence of a hint
+     * never means "any document store". Nothing is searched when no collection has a hint.
+     *
+     * @param textQuery the query to search for
+     * @param collectionStoreHintMap a map of the collections to search in and the hint of the document store their
+     *     chunks must have been indexed from
+     * @param limit the maximum number of results to return
+     * @param locale the content language the returned chunks must be indexed under (exact match on the stored
+     *     language field), or {@code null} to search all languages
+     * @return a list of context chunks
+     * @since 0.10.1
+     */
+    public List<Context> keywordSearch(String textQuery, Map<String, String> collectionStoreHintMap, int limit,
+        Locale locale)
+    {
+        Map<String, String> storeHintMap = getNonBlankStoreHints(collectionStoreHintMap);
+
+        return keywordSearchInternal(textQuery, storeHintMap.keySet(), storeHintMap, limit, locale);
+    }
+
+    /**
+     * @param collectionStoreHintMap the document store hint of each collection, {@code null} to not restrict the
+     *     search by document store. When not {@code null}, every collection must have an entry.
+     */
+    private List<Context> keywordSearchInternal(String textQuery, java.util.Collection<String> collections,
+        Map<String, String> collectionStoreHintMap, int limit, Locale locale)
+    {
         List<Context> resultsList = new ArrayList<>();
 
-        if (limit > 0) {
+        // An empty list of collections adds no collection filter. A search that is restricted by document store
+        // must therefore not run without any collection.
+        boolean nothingToSearch = collectionStoreHintMap != null && collections.isEmpty();
+
+        if (limit > 0 && !nothingToSearch) {
             try {
                 SolrClient client =
                     this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient();
@@ -630,7 +714,7 @@ public class SolrConnector
                 // collection-level group gate, which was evaluated against the current wiki's collection only.
                 query.addFilterQuery(buildWikiQuery(this.contextProvider.get().getWikiId()));
                 // Constructing the filter query from the collections list
-                addCollectionsQuery(collections, query);
+                addCollectionsQuery(collections, collectionStoreHintMap, query);
                 addLanguageQuery(locale, query);
                 QueryResponse response = client.query(query);
                 SolrDocumentList documents = response.getResults();
@@ -642,7 +726,15 @@ public class SolrConnector
         return resultsList;
     }
 
-    private SolrQuery prepareQuery(String embeddingsAsString, List<String> collections, int limit, Locale locale)
+    private static Map<String, String> getNonBlankStoreHints(Map<String, String> collectionStoreHintMap)
+    {
+        return collectionStoreHintMap.entrySet().stream()
+            .filter(entry -> StringUtils.isNotBlank(entry.getValue()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private SolrQuery prepareQuery(String embeddingsAsString, List<String> collections,
+        Map<String, String> collectionStoreHintMap, int limit, Locale locale)
     {
         SolrQuery query = new SolrQuery();
         query.addFilterQuery(buildWikiQuery(this.contextProvider.get().getWikiId()));
@@ -651,7 +743,9 @@ public class SolrConnector
         addLanguageQuery(locale, query);
         query.setQuery(String.format("{!knn f=vector topK=%s}%s", limit, embeddingsAsString));
 
-        addCollectionsQuery(collections, query);
+        // Like the language restriction, the collection and document store restrictions are filter queries and thus
+        // pre-filters of the KNN main query.
+        addCollectionsQuery(collections, collectionStoreHintMap, query);
 
         setContextQueryFields(query);
         return query;
@@ -679,18 +773,33 @@ public class SolrConnector
                         FIELD_SCORE);
     }
 
-    private void addCollectionsQuery(java.util.Collection<String> collections, SolrQuery query)
+    /**
+     * @param collectionStoreHintMap the document store hint of each collection, {@code null} to not restrict the
+     *     collections by document store
+     */
+    private void addCollectionsQuery(java.util.Collection<String> collections,
+        Map<String, String> collectionStoreHintMap, SolrQuery query)
     {
         // Constructing the filter query from the collections list
         if (collections != null && !collections.isEmpty()) {
             String filterQuery = collections.stream()
-                                    .map(collection -> AiLLMSolrCoreInitializer.FIELD_COLLECTION
-                                                    + SOLR_SEPARATOR
-                                                    + solrUtils.toCompleteFilterQueryString(collection)
-                                        )
-                                    .collect(Collectors.joining(OR_DELIMITER));
+                .map(collection -> buildCollectionQuery(collection, collectionStoreHintMap))
+                .collect(Collectors.joining(OR_DELIMITER));
             query.addFilterQuery(filterQuery);
         }
+    }
+
+    private String buildCollectionQuery(String collection, Map<String, String> collectionStoreHintMap)
+    {
+        String collectionQuery = AiLLMSolrCoreInitializer.FIELD_COLLECTION + SOLR_SEPARATOR
+            + this.solrUtils.toCompleteFilterQueryString(collection);
+        if (collectionStoreHintMap == null) {
+            return collectionQuery;
+        }
+
+        // Each collection is restricted to its own document store.
+        return PARENTHESIS_OPEN + collectionQuery + AND + buildStoreQuery(collectionStoreHintMap.get(collection))
+            + PARENTHESIS_CLOSE;
     }
 
     private List<Context> collectResults(SolrDocumentList documents, boolean includeVector)

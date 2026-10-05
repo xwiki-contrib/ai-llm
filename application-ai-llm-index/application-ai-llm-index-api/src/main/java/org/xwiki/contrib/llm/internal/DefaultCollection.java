@@ -21,6 +21,10 @@ package org.xwiki.contrib.llm.internal;
 
 import java.lang.reflect.Type;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -37,6 +41,8 @@ import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.user.UserReference;
 
@@ -286,25 +292,72 @@ public class DefaultCollection implements Collection
     @Override
     public AuthorizationManager getAuthorizationManager() throws IndexException
     {
-        AuthorizationManagerBuilder authorizationManagerBuilder = getAuthorizationManagerBuilder();
+        AuthorizationManager configuredManager = buildAuthorizationManager(getAuthorizationManagerBuilder());
+
+        if (!XWikiDocumentStore.NAME.equals(getDocumentStoreHint())
+            || XWikiAuthorizationManagerBuilder.NAME.equals(getRightsCheckMethod())) {
+            return configuredManager;
+        }
+
+        // The documents of the XWiki document store are wiki pages: the view right on the page is always checked,
+        // whatever the configured rights check method is.
+        AuthorizationManager pageManager =
+            buildAuthorizationManager(getAuthorizationManagerBuilder(XWikiAuthorizationManagerBuilder.NAME));
+
+        return composeAuthorizationManagers(pageManager, configuredManager);
+    }
+
+    private AuthorizationManager buildAuthorizationManager(AuthorizationManagerBuilder authorizationManagerBuilder)
+        throws IndexException
+    {
         BaseObject configurationObject = this.xWikiDocumentWrapper.getXWikiDocument()
-                .getXObject(authorizationManagerBuilder.getConfigurationClassReference());
+            .getXObject(authorizationManagerBuilder.getConfigurationClassReference());
         return authorizationManagerBuilder.build(configurationObject);
+    }
+
+    /**
+     * @param pageManager the manager that is asked first, about all document ids
+     * @param configuredManager the manager that is only asked about the document ids that the first manager allowed
+     * @return a manager for which a document is viewable only when both managers allow it
+     */
+    private static AuthorizationManager composeAuthorizationManagers(AuthorizationManager pageManager,
+        AuthorizationManager configuredManager)
+    {
+        return documentIds -> {
+            Map<String, Boolean> pageResult = pageManager.canView(documentIds);
+            Set<String> allowedIds = documentIds.stream()
+                .filter(id -> isAllowed(pageResult, id))
+                .collect(Collectors.toSet());
+            Map<String, Boolean> configuredResult =
+                allowedIds.isEmpty() ? Map.of() : configuredManager.canView(allowedIds);
+
+            return documentIds.stream().collect(Collectors.toMap(Function.identity(),
+                id -> allowedIds.contains(id) && isAllowed(configuredResult, id)));
+        };
+    }
+
+    /**
+     * @return {@code true} only when the result explicitly allows the document id: a missing result or a missing
+     *     entry denies it
+     */
+    private static boolean isAllowed(Map<String, Boolean> result, String documentId)
+    {
+        return result != null && Boolean.TRUE.equals(result.get(documentId));
     }
 
     private AuthorizationManagerBuilder getAuthorizationManagerBuilder()
         throws IndexException
     {
-        AuthorizationManagerBuilder authorizationManagerBuilder;
+        return getAuthorizationManagerBuilder(this.getRightsCheckMethod());
+    }
+
+    private AuthorizationManagerBuilder getAuthorizationManagerBuilder(String hint) throws IndexException
+    {
         try {
-            authorizationManagerBuilder =
-                this.componentManagerProvider.get().getInstance(AuthorizationManagerBuilder.class,
-                    this.getRightsCheckMethod());
+            return this.componentManagerProvider.get().getInstance(AuthorizationManagerBuilder.class, hint);
         } catch (ComponentLookupException e) {
-            throw new IndexException(
-                "Failed to get authorization manager builder [%s]".formatted(this.getRightsCheckMethod()), e);
+            throw new IndexException("Failed to get authorization manager builder [%s]".formatted(hint), e);
         }
-        return authorizationManagerBuilder;
     }
 
     @Override

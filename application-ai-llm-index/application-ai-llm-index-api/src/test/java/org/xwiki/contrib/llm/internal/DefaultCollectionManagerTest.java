@@ -19,16 +19,19 @@
  */
 package org.xwiki.contrib.llm.internal;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.inject.Named;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.xwiki.component.manager.ComponentLookupException;
@@ -37,11 +40,17 @@ import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.internal.authorization.PublicAuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
+import org.xwiki.security.authorization.Right;
+import org.xwiki.test.LogLevel;
 import org.xwiki.test.annotation.ComponentList;
+import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.user.group.GroupManager;
@@ -60,10 +69,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -72,7 +85,11 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  */
 @OldcoreTest
-@ComponentList({ DefaultCollection.class })
+@ComponentList({
+    DefaultCollection.class,
+    XWikiAuthorizationManagerBuilder.class,
+    PublicAuthorizationManagerBuilder.class
+})
 @ReferenceComponentList
 class DefaultCollectionManagerTest
 {
@@ -82,6 +99,30 @@ class DefaultCollectionManagerTest
 
     public static final DocumentReference COLLECTION_REFERENCE =
         new DocumentReference(WIKI_NAME, List.of("AI", "Collections", COLLECTION_ID), "WebHome");
+
+    private static final String QUERY = "query";
+
+    private static final String CUSTOM_RIGHTS = "customRights";
+
+    private static final String EMBEDDING_MODEL = "testEmbeddingModel";
+
+    private static final DocumentReference USER_REFERENCE = new DocumentReference(WIKI_NAME, "XWiki", "Alice");
+
+    private static final String VIEWABLE_ID = "testwiki:Space.Viewable;";
+
+    private static final DocumentReference VIEWABLE_REFERENCE = new DocumentReference(WIKI_NAME, "Space", "Viewable");
+
+    private static final String OTHER_VIEWABLE_ID = "testwiki:Space.OtherViewable;";
+
+    private static final DocumentReference OTHER_VIEWABLE_REFERENCE =
+        new DocumentReference(WIKI_NAME, "Space", "OtherViewable");
+
+    private static final String DENIED_TRANSLATION_ID = "testwiki:Space.Denied;fr";
+
+    private static final DocumentReference DENIED_REFERENCE = new DocumentReference(WIKI_NAME, "Space", "Denied");
+
+    @RegisterExtension
+    private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
 
     @InjectMockitoOldcore
     private MockitoOldcore oldcore;
@@ -220,8 +261,8 @@ class DefaultCollectionManagerTest
         when(authorization2.canView(Set.of("forbidden2", "allowed4")))
             .thenReturn(Map.of("forbidden2", false, "allowed4", true));
 
-        when(this.solrConnector.similaritySearch(any(), any(), anyInt(), any())).thenReturn(contextList.subList(0, 3));
-        when(this.solrConnector.keywordSearch(any(), any(), anyInt(), any())).thenReturn(contextList.subList(1, 4));
+        when(this.solrConnector.similaritySearch(any(), any(), anyMap(), anyInt(), any())).thenReturn(contextList.subList(0, 3));
+        when(this.solrConnector.keywordSearch(any(), anyMap(), anyInt(), any())).thenReturn(contextList.subList(1, 4));
 
         // The locale-free entry point must forward a null locale; the locale-aware one must forward its locale
         // into both search paths.
@@ -232,8 +273,200 @@ class DefaultCollectionManagerTest
         List<Context> expected = List.of(contextList.get(0), contextList.get(1), contextList.get(3));
         assertEquals(expected, result);
 
-        verify(this.solrConnector).similaritySearch("query", embeddingModelMap, 4, locale);
-        verify(this.solrConnector).keywordSearch("query", embeddingModelMap.keySet(), 3, locale);
+        // The collections have no stored document store: each one is searched in the internal store only.
+        Map<String, String> storeHintMap =
+            Map.of(COLLECTION_ID, InternalDocumentStore.NAME, collectionId2, InternalDocumentStore.NAME);
+        verify(this.solrConnector).similaritySearch("query", embeddingModelMap, storeHintMap, 4, locale);
+        verify(this.solrConnector).keywordSearch("query", storeHintMap, 3, locale);
+    }
+
+    @Test
+    void hybridSearchWithXWikiStoreAndPublicMethodChecksViewRightOnPages() throws Exception
+    {
+        createAndSaveXWikiStoreCollection("public");
+        mockSearchResults(VIEWABLE_ID, DENIED_TRANSLATION_ID);
+        mockViewRight(VIEWABLE_REFERENCE, true);
+        mockViewRight(DENIED_REFERENCE, false);
+
+        List<Context> result = this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID), 4, 3);
+
+        assertEquals(List.of(VIEWABLE_ID), result.stream().map(Context::documentId).toList());
+        // The right is checked on the page: the locale of the document id is not part of the reference.
+        verify(this.oldcore.getMockAuthorizationManager()).hasAccess(Right.VIEW, USER_REFERENCE, DENIED_REFERENCE);
+    }
+
+    @Test
+    void hybridSearchWithXWikiStoreAndCustomMethodRequiresBothChecks() throws Exception
+    {
+        createAndSaveXWikiStoreCollection(CUSTOM_RIGHTS);
+        mockSearchResults(VIEWABLE_ID, OTHER_VIEWABLE_ID, DENIED_TRANSLATION_ID);
+        mockViewRight(VIEWABLE_REFERENCE, true);
+        mockViewRight(OTHER_VIEWABLE_REFERENCE, true);
+        mockViewRight(DENIED_REFERENCE, false);
+
+        when(this.customRightsAuthorizationManagerBuilder.getConfigurationClassReference())
+            .thenReturn(Collection.XCLASS_REFERENCE);
+        AuthorizationManager customManager = mock();
+        when(this.customRightsAuthorizationManagerBuilder.build(any())).thenReturn(customManager);
+        // The custom method refuses a page that the user can view, and would allow the page the user cannot view.
+        when(customManager.canView(any())).thenReturn(
+            Map.of(VIEWABLE_ID, true, OTHER_VIEWABLE_ID, false, DENIED_TRANSLATION_ID, true));
+
+        List<Context> result = this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID), 4, 3);
+
+        assertEquals(List.of(VIEWABLE_ID), result.stream().map(Context::documentId).toList());
+        // The custom method is only asked about the documents whose page the user can view.
+        verify(customManager).canView(Set.of(VIEWABLE_ID, OTHER_VIEWABLE_ID));
+        verifyNoMoreInteractions(customManager);
+    }
+
+    @Test
+    void xwikiStoreWithCustomMethodDeniesIdsMissingFromTheCustomResult() throws Exception
+    {
+        createAndSaveXWikiStoreCollection(CUSTOM_RIGHTS);
+        mockViewRight(VIEWABLE_REFERENCE, true);
+        mockViewRight(OTHER_VIEWABLE_REFERENCE, true);
+        mockViewRight(DENIED_REFERENCE, false);
+
+        when(this.customRightsAuthorizationManagerBuilder.getConfigurationClassReference())
+            .thenReturn(Collection.XCLASS_REFERENCE);
+        AuthorizationManager customManager = mock();
+        when(this.customRightsAuthorizationManagerBuilder.build(any())).thenReturn(customManager);
+        when(customManager.canView(Set.of(VIEWABLE_ID, OTHER_VIEWABLE_ID))).thenReturn(Map.of(VIEWABLE_ID, true));
+
+        AuthorizationManager manager = this.collectionManager.getCollection(COLLECTION_ID).getAuthorizationManager();
+
+        // Every requested id is part of the result.
+        assertEquals(Map.of(VIEWABLE_ID, true, OTHER_VIEWABLE_ID, false, DENIED_TRANSLATION_ID, false),
+            manager.canView(Set.of(VIEWABLE_ID, OTHER_VIEWABLE_ID, DENIED_TRANSLATION_ID)));
+    }
+
+    @Test
+    void xwikiStoreWithCustomMethodDeniesEverythingWhenTheCustomResultIsNull() throws Exception
+    {
+        createAndSaveXWikiStoreCollection(CUSTOM_RIGHTS);
+        mockViewRight(VIEWABLE_REFERENCE, true);
+        mockViewRight(DENIED_REFERENCE, false);
+
+        when(this.customRightsAuthorizationManagerBuilder.getConfigurationClassReference())
+            .thenReturn(Collection.XCLASS_REFERENCE);
+        AuthorizationManager customManager = mock();
+        when(this.customRightsAuthorizationManagerBuilder.build(any())).thenReturn(customManager);
+        when(customManager.canView(any())).thenReturn(null);
+
+        AuthorizationManager manager = this.collectionManager.getCollection(COLLECTION_ID).getAuthorizationManager();
+
+        assertEquals(Map.of(VIEWABLE_ID, false, DENIED_TRANSLATION_ID, false),
+            manager.canView(Set.of(VIEWABLE_ID, DENIED_TRANSLATION_ID)));
+        verify(customManager).canView(Set.of(VIEWABLE_ID));
+    }
+
+    @Test
+    void xwikiStoreWithCustomMethodDoesNotAskTheCustomMethodWhenNoPageIsViewable() throws Exception
+    {
+        createAndSaveXWikiStoreCollection(CUSTOM_RIGHTS);
+        mockViewRight(DENIED_REFERENCE, false);
+
+        when(this.customRightsAuthorizationManagerBuilder.getConfigurationClassReference())
+            .thenReturn(Collection.XCLASS_REFERENCE);
+        AuthorizationManager customManager = mock();
+        when(this.customRightsAuthorizationManagerBuilder.build(any())).thenReturn(customManager);
+
+        AuthorizationManager manager = this.collectionManager.getCollection(COLLECTION_ID).getAuthorizationManager();
+
+        assertEquals(Map.of(DENIED_TRANSLATION_ID, false), manager.canView(Set.of(DENIED_TRANSLATION_ID)));
+        verify(customManager, never()).canView(any());
+    }
+
+    @Test
+    void hybridSearchWithXWikiStoreAndXWikiMethodChecksViewRightOnce() throws Exception
+    {
+        createAndSaveXWikiStoreCollection(XWikiAuthorizationManagerBuilder.NAME);
+        mockSearchResults(VIEWABLE_ID, DENIED_TRANSLATION_ID);
+        mockViewRight(VIEWABLE_REFERENCE, true);
+        mockViewRight(DENIED_REFERENCE, false);
+
+        List<Context> result = this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID), 4, 3);
+
+        assertEquals(List.of(VIEWABLE_ID), result.stream().map(Context::documentId).toList());
+        verify(this.oldcore.getMockAuthorizationManager()).hasAccess(Right.VIEW, USER_REFERENCE, VIEWABLE_REFERENCE);
+        verify(this.oldcore.getMockAuthorizationManager()).hasAccess(Right.VIEW, USER_REFERENCE, DENIED_REFERENCE);
+        // Only the chunks indexed from the XWiki document store are searched.
+        Map<String, String> storeHintMap = Map.of(COLLECTION_ID, XWikiDocumentStore.NAME);
+        verify(this.solrConnector)
+            .similaritySearch(QUERY, Map.of(COLLECTION_ID, EMBEDDING_MODEL), storeHintMap, 4, null);
+        verify(this.solrConnector).keywordSearch(QUERY, storeHintMap, 3, null);
+    }
+
+    @Test
+    void hybridSearchWithXWikiStoreAndUnknownMethodExcludesTheCollection() throws Exception
+    {
+        createAndSaveXWikiStoreCollection("unknownMethod");
+        mockSearchResults(VIEWABLE_ID);
+
+        assertEquals(List.of(), this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID), 4, 3));
+
+        verify(this.solrConnector, never()).similaritySearch(any(), any(), anyMap(), anyInt(), any());
+        verify(this.solrConnector, never()).keywordSearch(any(), anyMap(), anyInt(), any());
+        assertEquals(1, this.logCapture.size());
+        assertTrue(this.logCapture.getMessage(0).startsWith("Failed to get authorization manager for collection "
+            + "[testcollection], excluding it from the similarity search: "));
+    }
+
+    @Test
+    void hybridSearchWithInternalStoreAndPublicMethodDoesNotCheckPages() throws Exception
+    {
+        XWikiContext context = this.oldcore.getXWikiContext();
+        context.setWikiId(WIKI_NAME);
+        mockCollectionsQuery(List.of());
+        DefaultCollection collection = this.collectionManager.createCollection(COLLECTION_ID);
+        collection.setRightsCheckMethod("public");
+        collection.setEmbeddingModel(EMBEDDING_MODEL);
+        collection.setAllowGuests(true);
+        collection.save();
+        mockSearchResults("document1", "document2");
+
+        List<Context> result = this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID), 4, 3);
+
+        assertEquals(Set.of("document1", "document2"),
+            result.stream().map(Context::documentId).collect(Collectors.toSet()));
+        verifyNoInteractions(this.oldcore.getMockAuthorizationManager());
+    }
+
+    private void createAndSaveXWikiStoreCollection(String rightsCheckMethod) throws Exception
+    {
+        XWikiContext context = this.oldcore.getXWikiContext();
+        context.setWikiId(WIKI_NAME);
+        context.setUserReference(USER_REFERENCE);
+        mockCollectionsQuery(List.of());
+
+        DefaultCollection collection = this.collectionManager.createCollection(COLLECTION_ID);
+        collection.setRightsCheckMethod(rightsCheckMethod);
+        collection.setEmbeddingModel(EMBEDDING_MODEL);
+        collection.setAllowGuests(true);
+        collection.save();
+
+        XWikiDocument document = this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).clone();
+        document.getXObject(Collection.XCLASS_REFERENCE)
+            .setStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME, XWikiDocumentStore.NAME);
+        this.oldcore.getSpyXWiki().saveDocument(document, context);
+    }
+
+    private void mockSearchResults(String... documentIds) throws SolrServerException
+    {
+        List<Context> contexts = new ArrayList<>();
+        for (int i = 0; i < documentIds.length; i++) {
+            contexts.add(new Context(COLLECTION_ID, documentIds[i], null, "url" + i, "content" + i,
+                1.0 - i * 0.1, List.of(0.1f)));
+        }
+        when(this.solrConnector.similaritySearch(any(), any(), anyMap(), anyInt(), any())).thenReturn(contexts);
+        when(this.solrConnector.keywordSearch(any(), anyMap(), anyInt(), any())).thenReturn(List.of());
+    }
+
+    private void mockViewRight(DocumentReference pageReference, boolean allowed)
+    {
+        when(this.oldcore.getMockAuthorizationManager().hasAccess(Right.VIEW, USER_REFERENCE, pageReference))
+            .thenReturn(allowed);
     }
 
     private static Stream<Locale> hybridSearchLocales()

@@ -20,6 +20,8 @@
 package org.xwiki.contrib.llm;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,6 +72,24 @@ class SolrConnectorTest
     private static final String DOC_URL = "https://wiki.example.com/MyDocument";
 
     private static final String CONTENT = "Contenu";
+
+    private static final String QUERY = "query";
+
+    private static final String MODEL = "model1";
+
+    private static final String INTERNAL_COLLECTION = "internalCol";
+
+    private static final String XWIKI_COLLECTION = "xwikiCol";
+
+    private static final String INTERNAL_STORE = "internal";
+
+    private static final String XWIKI_STORE = "xwiki";
+
+    private static final String STORE_HINT_FIELD = "storeHint";
+
+    private static final String MIXED_STORE_FILTER_QUERY =
+        "(collection:escaped(internalCol) AND (storeHint:escaped(internal) OR (*:* AND -storeHint:[* TO *])))"
+            + " OR (collection:escaped(xwikiCol) AND storeHint:escaped(xwiki))";
 
     @InjectMockComponents
     private SolrConnector solrConnector;
@@ -226,6 +247,125 @@ class SolrConnectorTest
         SolrQuery query = capturedQuery();
         assertTrue(Arrays.stream(query.getFilterQueries()).anyMatch(fq -> fq.contains("wiki:escaped(mywiki)")),
             Arrays.toString(query.getFilterQueries()));
+    }
+
+    @Test
+    void keywordSearchWithStoreHintsRestrictsEachCollectionToItsStore() throws Exception
+    {
+        mockEscaping(INTERNAL_COLLECTION, XWIKI_COLLECTION, INTERNAL_STORE, XWIKI_STORE);
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.keywordSearch(QUERY, mixedStoreHints(), 5, null);
+
+        SolrQuery query = capturedQuery();
+        assertTrue(Arrays.asList(query.getFilterQueries()).contains(MIXED_STORE_FILTER_QUERY),
+            Arrays.toString(query.getFilterQueries()));
+        assertFalse(query.getQuery().contains(STORE_HINT_FIELD), query.getQuery());
+    }
+
+    @Test
+    void similaritySearchWithStoreHintsRestrictsEachCollectionToItsStoreAsFilterQuery() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenReturn(new double[] { 0.1, 0.2 });
+        mockEscaping(INTERNAL_COLLECTION, XWIKI_COLLECTION, INTERNAL_STORE, XWIKI_STORE);
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+        Map<String, String> embeddingModels = new LinkedHashMap<>();
+        embeddingModels.put(INTERNAL_COLLECTION, MODEL);
+        embeddingModels.put(XWIKI_COLLECTION, MODEL);
+
+        this.solrConnector.similaritySearch(QUERY, embeddingModels, mixedStoreHints(), 5, null);
+
+        SolrQuery query = capturedQuery();
+        // The store restriction must be a filter query (a KNN pre-filter), never part of the knn main query.
+        assertTrue(Arrays.asList(query.getFilterQueries()).contains(MIXED_STORE_FILTER_QUERY),
+            Arrays.toString(query.getFilterQueries()));
+        assertTrue(query.getQuery().startsWith("{!knn"), query.getQuery());
+        assertFalse(query.getQuery().contains(STORE_HINT_FIELD), query.getQuery());
+    }
+
+    @Test
+    void similaritySearchWithStoreHintsSkipsCollectionsWithoutHint() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenReturn(new double[] { 0.1, 0.2 });
+        mockEscaping(XWIKI_COLLECTION, XWIKI_STORE);
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+        Map<String, String> storeHints = new HashMap<>();
+        storeHints.put(XWIKI_COLLECTION, XWIKI_STORE);
+        storeHints.put("blankHintCol", " ");
+        storeHints.put("nullHintCol", null);
+
+        this.solrConnector.similaritySearch(QUERY,
+            Map.of(XWIKI_COLLECTION, MODEL, "blankHintCol", MODEL, "nullHintCol", MODEL, "noHintCol", MODEL),
+            storeHints, 5, null);
+
+        SolrQuery query = capturedQuery();
+        assertTrue(Arrays.asList(query.getFilterQueries())
+                .contains("(collection:escaped(xwikiCol) AND storeHint:escaped(xwiki))"),
+            Arrays.toString(query.getFilterQueries()));
+        assertTrue(Arrays.stream(query.getFilterQueries()).noneMatch(fq -> fq.contains("HintCol")),
+            Arrays.toString(query.getFilterQueries()));
+    }
+
+    @Test
+    void similaritySearchWithStoreHintsSearchesNothingWhenNoCollectionHasAHint() throws Exception
+    {
+        assertEquals(List.of(),
+            this.solrConnector.similaritySearch(QUERY, Map.of("col1", MODEL), Map.of(), 5, null));
+
+        verify(this.client, never()).query(any());
+        verify(this.embeddingsUtils, never()).computeEmbeddings(anyString(), any(), any(), any());
+    }
+
+    @Test
+    void keywordSearchWithStoreHintsSearchesNothingWhenNoCollectionHasAHint() throws Exception
+    {
+        Map<String, String> storeHints = new HashMap<>();
+        storeHints.put("blankHintCol", "");
+        storeHints.put("nullHintCol", null);
+
+        // Without any collection there would be no collection filter at all: the search must not run.
+        assertEquals(List.of(), this.solrConnector.keywordSearch(QUERY, storeHints, 5, null));
+        assertEquals(List.of(), this.solrConnector.keywordSearch(QUERY, Map.of(), 5, null));
+
+        verify(this.client, never()).query(any());
+    }
+
+    @Test
+    void searchesWithoutStoreHintsAddNoStoreRestriction() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenReturn(new double[] { 0.1, 0.2 });
+        mockEscaping("col1");
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.keywordSearch(QUERY, List.of("col1"), 5, null);
+        this.solrConnector.similaritySearch(QUERY, Map.of("col1", MODEL), 5, null);
+
+        ArgumentCaptor<SolrQuery> captor = ArgumentCaptor.forClass(SolrQuery.class);
+        verify(this.client, times(2)).query(captor.capture());
+        for (SolrQuery query : captor.getAllValues()) {
+            assertTrue(Arrays.asList(query.getFilterQueries()).contains("collection:escaped(col1)"),
+                Arrays.toString(query.getFilterQueries()));
+            assertTrue(Arrays.stream(query.getFilterQueries()).noneMatch(fq -> fq.contains(STORE_HINT_FIELD)),
+                Arrays.toString(query.getFilterQueries()));
+        }
+    }
+
+    private static Map<String, String> mixedStoreHints()
+    {
+        Map<String, String> storeHints = new LinkedHashMap<>();
+        storeHints.put(INTERNAL_COLLECTION, INTERNAL_STORE);
+        storeHints.put(XWIKI_COLLECTION, XWIKI_STORE);
+        return storeHints;
+    }
+
+    private void mockEscaping(String... values)
+    {
+        for (String value : values) {
+            when(this.solrUtils.toCompleteFilterQueryString(value)).thenReturn("escaped(" + value + ")");
+        }
     }
 
     private SolrQuery capturedQuery() throws Exception

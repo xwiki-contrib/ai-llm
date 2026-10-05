@@ -64,6 +64,7 @@ collections.sheet.documents=Documents
 collections.sheet.chunks=Indexed Chunks
 collections.sheet.addDocumentLabel=Add new document
 collections.sheet.addDocumentButton=Add Document
+collections.sheet.rightsCheckMethod.hint=Collections using the XWiki document store always check the user's view right on each page, in addition to the selected method. With the internal document store, only the selected method decides which documents a user gets results from.
 collections.sheet.reindex.heading=Re-index this Collection
 collections.sheet.reindex.intro=To avoid potentially slow and expensive indexing operations, the entire collection is re-indexed only when the document store is changed. When changing the embedding model to a different model (not just a different provider), please manually clean and re-index the collection using the button below. To apply updated chunking settings, re-indexing without cleaning is sufficient; chunks will be re-indexed if they are different from those already indexed. For the XWiki store, documents are automatically added to and removed from the index when you update the indexed spaces configuration. Any document that is updated will also be automatically re-indexed.
 collections.sheet.reindex.clean=Cleaning

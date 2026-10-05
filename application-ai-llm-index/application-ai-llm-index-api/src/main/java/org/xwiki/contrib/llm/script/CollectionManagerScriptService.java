@@ -44,6 +44,9 @@ import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
 import org.xwiki.script.service.ScriptService;
+import org.xwiki.security.authorization.AccessDeniedException;
+import org.xwiki.security.authorization.ContextualAuthorizationManager;
+import org.xwiki.security.authorization.Right;
 import org.xwiki.stability.Unstable;
 
 import static java.util.Map.Entry;
@@ -73,6 +76,9 @@ public class CollectionManagerScriptService implements ScriptService
 
     @Inject
     private TaskManager taskManager;
+
+    @Inject
+    private ContextualAuthorizationManager authorizationManager;
 
     /**
      * Creates a new collection.
@@ -135,13 +141,21 @@ public class CollectionManagerScriptService implements ScriptService
     }
 
     /**
+     * Search the chunk index with a raw Solr query. This requires programming right because the query is not
+     * restricted to the collections and documents that the current user may access.
+     *
      * @param solrQuery the solr query to use for the search
      * @param limit the maximum number of results to return
      * @param includeVector if true, includes the vector field in the results
      * @return the results of the search within the aillm core
+     * @throws IndexException if the search fails
+     * @throws AccessDeniedException if the current context doesn't have programming right
      */
-    public List<Context> search(String solrQuery, int limit, boolean includeVector) throws IndexException
+    public List<Context> search(String solrQuery, int limit, boolean includeVector)
+        throws IndexException, AccessDeniedException
     {
+        this.authorizationManager.checkAccess(Right.PROGRAM);
+
         return this.collectionManager.search(solrQuery, limit, includeVector);
     }
 
