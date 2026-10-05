@@ -48,12 +48,15 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -69,6 +72,9 @@ class ExternalAuthorizationManagerBuilderTest
     private static final String URL_FIELD = "url";
 
     private static final String APPLICATION_JSON = "application/json";
+
+    private static final String MISSING_CONFIGURATION_MESSAGE =
+        "The external rights checking method requires a configuration with the URL of the authorization API.";
 
     @InjectMockComponents
     private ExternalAuthorizationManagerBuilder builder;
@@ -129,6 +135,31 @@ class ExternalAuthorizationManagerBuilderTest
         );
         assertThat(StandardCharsets.UTF_8.decode(buffer).toString(), either(equalTo(expectedResponseJSON.get(0)))
                 .or(equalTo(expectedResponseJSON.get(1))));
+    }
+
+    @Test
+    void buildWithoutConfigurationObjectFails()
+    {
+        IndexException exception = assertThrows(IndexException.class, () -> this.builder.build(null));
+        assertEquals(MISSING_CONFIGURATION_MESSAGE, exception.getMessage());
+        verifyNoInteractions(this.httpClientFactory);
+    }
+
+    @Test
+    void buildWithBlankUrlFails()
+    {
+        BaseObject baseObject = mock();
+        when(baseObject.getStringValue(URL_FIELD)).thenReturn(" ");
+
+        IndexException exception = assertThrows(IndexException.class, () -> this.builder.build(baseObject));
+        assertEquals(MISSING_CONFIGURATION_MESSAGE, exception.getMessage());
+        verifyNoInteractions(this.httpClientFactory);
+    }
+
+    @Test
+    void getConfigurationWithoutConfigurationObjectIsNull()
+    {
+        assertNull(this.builder.getConfiguration(null));
     }
 
     @Test

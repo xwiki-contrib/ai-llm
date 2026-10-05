@@ -31,6 +31,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
@@ -81,7 +82,13 @@ public class ExternalAuthorizationManagerBuilder implements AuthorizationManager
     @Override
     public AuthorizationManager build(BaseObject configurationObject) throws IndexException
     {
-        return buildInternal(getExternalAuthorizationConfiguration(configurationObject));
+        ExternalAuthorizationConfiguration configuration = getExternalAuthorizationConfiguration(configurationObject);
+        if (configuration == null || StringUtils.isBlank(configuration.url())) {
+            throw new IndexException(
+                "The external rights checking method requires a configuration with the URL of the authorization API.");
+        }
+
+        return buildInternal(configuration);
     }
 
     private AuthorizationManager buildInternal(ExternalAuthorizationConfiguration configuration)
@@ -149,6 +156,10 @@ public class ExternalAuthorizationManagerBuilder implements AuthorizationManager
 
     private static ExternalAuthorizationConfiguration getExternalAuthorizationConfiguration(BaseObject object)
     {
+        if (object == null) {
+            return null;
+        }
+
         return new ExternalAuthorizationConfiguration(object.getStringValue(URL_FIELD));
     }
 
