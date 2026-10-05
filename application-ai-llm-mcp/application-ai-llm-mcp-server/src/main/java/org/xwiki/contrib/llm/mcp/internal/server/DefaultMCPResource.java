@@ -54,9 +54,9 @@ import com.xpn.xwiki.XWikiContext;
  *   <li>Advertising the XWiki OIDC Provider as the required authorization server via the RFC&nbsp;9728
  *       {@code /.well-known/oauth-protected-resource} endpoint and via a {@code WWW-Authenticate}
  *       header on {@code 401} responses if the OIDC Provider is available.</li>
- *   <li>Checking that the current user is authenticated (not the guest user) if the OIDC Provider is available.
- *       Bearer-token validation itself is performed upstream by XWiki's authentication filter;
- *       this resource only needs to inspect the result.</li>
+ *   <li>Checking that the current user is authenticated (not the guest user) if the OIDC Provider is available
+ *       and the wiki has not enabled guest access. Bearer-token validation itself is performed upstream by
+ *       XWiki's authentication filter; this resource only needs to inspect the result.</li>
  *   <li>Setting the current wiki in the {@link XWikiContext} so that the
  *       {@link org.xwiki.contrib.llm.CollectionManager} resolves collections from the right wiki.</li>
  *   <li>Delegating to {@link io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport}
@@ -65,6 +65,9 @@ import com.xpn.xwiki.XWikiContext;
  * </ol>
  *
  * <h2>Authentication flow with OIDC Provider</h2>
+ * <p>The flow below applies when the wiki's {@code allowGuest} configuration flag is off, which is the
+ * default. With it on, step 3 is skipped: a guest request is forwarded to the transport like any other
+ * and the space filter and XWiki's view rights decide what the caller may read.</p>
  * <ol>
  *   <li>An unauthenticated client POSTs to {@code /rest/wikis/{wiki}/aiLLM/mcp}.</li>
  *   <li>XWiki's authentication filter runs {@code OIDCBridgeAuth.checkAuth()}, which reads the
@@ -161,6 +164,11 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
      * {@code WWW-Authenticate} header that points to the RFC&nbsp;9728 protected-resource
      * metadata document.</p>
      *
+     * <p>That challenge is skipped when the wiki enables guest access
+     * ({@link MCPServerConfiguration#isGuestAccessAllowed(String)}): the guest request is then
+     * forwarded to the transport, and the space filter together with XWiki's view rights limit
+     * the result to what a guest may see anyway.</p>
+     *
      * @param wikiName the wiki to activate for the duration of this request
      * @throws XWikiRestException wrapping any {@link jakarta.servlet.ServletException} or
      *     {@link java.io.IOException} raised by the transport
@@ -181,8 +189,12 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
             HttpServletResponse jakartaResponse = servletResponse.getResponse();
 
             // XWiki's auth filter has already run. If the user is still guest, the token was
-            // absent or invalid - advertise the OIDC Provider via WWW-Authenticate if it exists.
-            if (xcontext.getUserReference() == null && hasOIDCProvider()) {
+            // absent or invalid - advertise the OIDC Provider via WWW-Authenticate if it exists,
+            // unless the wiki opted into serving guests, in which case the request goes through
+            // and the space filter and view rights decide what the guest actually gets.
+            if (xcontext.getUserReference() == null && hasOIDCProvider()
+                && !this.mcpConfig.isGuestAccessAllowed(wikiName))
+            {
                 throw unauthorizedException();
             }
 

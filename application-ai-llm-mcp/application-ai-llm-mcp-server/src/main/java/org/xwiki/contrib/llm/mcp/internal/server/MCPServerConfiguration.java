@@ -97,6 +97,8 @@ public class MCPServerConfiguration
 
     static final String FIELD_ALLOW_RENDERED_CONTENT = "allowRenderedContent";
 
+    static final String FIELD_ALLOW_GUEST = "allowGuest";
+
     static final String FIELD_REACH_ENABLED_WIKIS = "reachEnabledWikis";
 
     static final String FIELD_REACH_INITIALIZED = "reachInitialized";
@@ -226,6 +228,43 @@ public class MCPServerConfiguration
                 + "rendered content: [{}]", wikiId, ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP allow-rendered-content flag read failure for wiki [{}]", wikiId, e);
             return true;
+        }
+    }
+
+    /**
+     * Returns whether unauthenticated (guest) callers may reach the MCP endpoint of the given wiki while an
+     * OIDC Provider is installed. Without a provider the endpoint never challenges a caller, so this toggle
+     * only matters once one is present: with it off the endpoint answers guests with {@code 401} and the
+     * {@code WWW-Authenticate} challenge required by the MCP authorization specification, and with it on the
+     * request is forwarded to the transport and the caller is treated as guest by the rest of the stack.
+     * <p>
+     * Allowing guests does not widen what the endpoint returns. Every tool resolves its content through the
+     * space filter and XWiki's own view rights, so a guest sees exactly the pages a guest sees in the browser
+     * - typically nothing at all on a private wiki. It does, however, expose the tool list and the wiki's
+     * search surface to anyone who can reach the URL, which is why it defaults to off: an unset field, a
+     * missing config object and a failed read all resolve to {@code false}, leaving the challenge in place.
+     *
+     * @param wikiId the wiki to check
+     * @return whether guest callers may use the MCP endpoint of the given wiki
+     * @since 0.10.1
+     */
+    public boolean isGuestAccessAllowed(String wikiId)
+    {
+        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
+        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
+        try {
+            XWikiContext context = this.contextProvider.get();
+            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
+            BaseObject configObject = configDoc.getXObject(classRef);
+            if (configObject == null || configObject.getField(FIELD_ALLOW_GUEST) == null) {
+                return false;
+            }
+            return configObject.getIntValue(FIELD_ALLOW_GUEST) == 1;
+        } catch (Exception e) {
+            this.logger.warn("Could not read the MCP allow-guest flag for wiki [{}]; keeping the "
+                + "authentication challenge: [{}]", wikiId, ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP allow-guest flag read failure for wiki [{}]", wikiId, e);
+            return false;
         }
     }
 

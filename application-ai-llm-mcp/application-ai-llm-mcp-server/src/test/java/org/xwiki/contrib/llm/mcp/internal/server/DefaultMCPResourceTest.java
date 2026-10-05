@@ -229,6 +229,35 @@ class DefaultMCPResourceTest
     }
 
     @Test
+    void delegateToMcpServesGuestWhenGuestAccessAllowed() throws Exception
+    {
+        // The OIDC Provider stays registered: with guest access enabled the endpoint must forward the
+        // request anyway instead of answering with the WWW-Authenticate challenge.
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
+        this.oldcore.getXWikiContext().setUserReference(null);
+
+        this.mcpResource.delegateToMcp(WIKI_NAME);
+
+        verify(this.mcpServerManager).handleRequest(WIKI_NAME, this.mockRequest, this.mockResponse);
+    }
+
+    @Test
+    void delegateToMcpReturns404WhenGuestAccessAllowedButWikiDisabled() throws Exception
+    {
+        // Guest access must not reopen a wiki whose endpoint is switched off: the disabled check runs first
+        // and a disabled wiki keeps looking absent.
+        when(this.mcpConfig.isEnabled(WIKI_NAME)).thenReturn(false);
+        when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
+        this.oldcore.getXWikiContext().setUserReference(null);
+
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+            () -> this.mcpResource.delegateToMcp(WIKI_NAME));
+
+        assertEquals(HttpServletResponse.SC_NOT_FOUND, ex.getResponse().getStatus());
+        verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
+    }
+
+    @Test
     void delegateToMcpReturns404WhenWikiDisabled() throws Exception
     {
         when(this.mcpConfig.isEnabled(WIKI_NAME)).thenReturn(false);
