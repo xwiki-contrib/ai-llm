@@ -37,6 +37,8 @@ import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.IndexTaskConsumer;
 import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.internal.CollectionIndexingTaskConsumer;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentCollectionIndexingTaskConsumer;
 import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocumentIndexingTaskConsumer;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.index.TaskManager;
@@ -222,13 +224,17 @@ public class CollectionManagerScriptService implements ScriptService
     }
 
     /**
-     * @return the size of the document indexing queue
+     * @return the number of pending indexing tasks: the document tasks of both document stores plus the
+     *     collection-level tasks that queue the documents of a collection, so that a pending re-index of a whole
+     *     collection is visible before its first document task is queued
      * @since 0.4
      */
     @Unstable
     public long getDocumentIndexingQueueSize()
     {
         return this.taskManager.getQueueSize(IndexTaskConsumer.NAME)
-            + this.taskManager.getQueueSize(XWikiDocumentDocumentIndexingTaskConsumer.NAME);
+            + this.taskManager.getQueueSize(XWikiDocumentDocumentIndexingTaskConsumer.NAME)
+            + this.taskManager.getQueueSize(CollectionIndexingTaskConsumer.NAME)
+            + this.taskManager.getQueueSize(XWikiDocumentCollectionIndexingTaskConsumer.NAME);
     }
 }

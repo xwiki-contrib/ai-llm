@@ -19,7 +19,9 @@
  */
 package org.xwiki.contrib.llm.internal.xwikistore;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import javax.inject.Inject;
@@ -27,7 +29,9 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.internal.DocumentIndexer;
 import org.xwiki.index.IndexException;
 import org.xwiki.index.TaskConsumer;
@@ -36,9 +40,16 @@ import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.WikiReference;
 
 import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
+import com.xpn.xwiki.doc.XWikiDocument;
 
 /**
  * A {@link TaskConsumer} that indexes documents that are regular XWiki documents.
+ *
+ * <p>Hidden documents are never part of a collection, matching the bulk listing of
+ * {@link XWikiDocumentStoreHelper}: a task for a hidden document that belongs to a collection removes the chunks
+ * the document may have from an earlier indexing and indexes nothing. A document that belongs to no collection is
+ * neither loaded nor touched in the index.</p>
  *
  * @version $Id$
  * @since 0.5
@@ -60,37 +71,87 @@ public class XWikiDocumentDocumentIndexingTaskConsumer implements TaskConsumer
     private DocumentIndexer documentIndexer;
 
     @Inject
+    private SolrConnector solrConnector;
+
+    @Inject
     @Named("withparameters")
     private EntityReferenceSerializer<String> entityReferenceSerializer;
 
     @Inject
     private Provider<XWikiContext> contextProvider;
 
+    @Inject
+    private Logger logger;
+
     @Override
     public void consume(DocumentReference documentReference, String version) throws IndexException
     {
         String serializedDocumentName = this.entityReferenceSerializer.serialize(documentReference);
-        String documentWiki = documentReference.getWikiReference().getName();
+        XWikiContext context = this.contextProvider.get();
+
+        Map<String, List<String>> collectionsPerWiki = getCollectionsPerWiki(documentReference, context);
+        if (collectionsPerWiki.isEmpty()) {
+            return;
+        }
+
+        if (isHidden(documentReference, context)) {
+            // The chunk ids are the "withparameters" serialization of the reference with locale, the same id
+            // XWikiDocumentDocument#getID() writes.
+            this.logger.debug("Removing the chunks of the hidden document [{}] instead of indexing it.",
+                serializedDocumentName);
+            this.solrConnector.deleteChunksByStoreHintAndDocId(XWikiDocumentStore.NAME, serializedDocumentName);
+            return;
+        }
 
         try {
-            List<String> collections =
-                this.xWikiDocumentStoreHelper.getCollections(documentReference, documentReference.getWikiReference());
-            for (String collection : collections) {
-                this.documentIndexer.indexDocument(documentWiki, collection, serializedDocumentName);
-            }
-
-
-            String mainXWiki = this.contextProvider.get().getMainXWiki();
-            // If the document isn't from the main wiki, also find collections in the main wiki.
-            if (!Objects.equals(mainXWiki, documentWiki)) {
-                List<String> mainCollections = this.xWikiDocumentStoreHelper.getCollections(documentReference,
-                    new WikiReference(mainXWiki));
-                for (String collection : mainCollections) {
-                    this.documentIndexer.indexDocument(mainXWiki, collection, serializedDocumentName);
+            for (Map.Entry<String, List<String>> entry : collectionsPerWiki.entrySet()) {
+                for (String collection : entry.getValue()) {
+                    this.documentIndexer.indexDocument(entry.getKey(), collection, serializedDocumentName);
                 }
             }
         } catch (org.xwiki.contrib.llm.IndexException e) {
             throw new IndexException("Failed to index document [" + serializedDocumentName + "]", e);
+        }
+    }
+
+    /**
+     * @return the collections the document belongs to, per wiki: the document's own wiki and, for a document of a
+     *     subwiki, the main wiki whose collections may span wikis; wikis without a matching collection are absent
+     */
+    private Map<String, List<String>> getCollectionsPerWiki(DocumentReference documentReference,
+        XWikiContext context) throws IndexException
+    {
+        String documentWiki = documentReference.getWikiReference().getName();
+        String mainXWiki = context.getMainXWiki();
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        try {
+            addCollections(result, documentReference, documentWiki);
+            if (!Objects.equals(mainXWiki, documentWiki)) {
+                addCollections(result, documentReference, mainXWiki);
+            }
+        } catch (org.xwiki.contrib.llm.IndexException e) {
+            throw new IndexException("Failed to find the collections of document [" + documentReference + "]", e);
+        }
+        return result;
+    }
+
+    private void addCollections(Map<String, List<String>> result, DocumentReference documentReference, String wiki)
+        throws org.xwiki.contrib.llm.IndexException
+    {
+        List<String> collections =
+            this.xWikiDocumentStoreHelper.getCollections(documentReference, new WikiReference(wiki));
+        if (!collections.isEmpty()) {
+            result.put(wiki, collections);
+        }
+    }
+
+    private boolean isHidden(DocumentReference documentReference, XWikiContext context) throws IndexException
+    {
+        try {
+            XWikiDocument document = context.getWiki().getDocument(documentReference, context);
+            return Boolean.TRUE.equals(document.isHidden());
+        } catch (XWikiException e) {
+            throw new IndexException("Failed to load document [" + documentReference + "]", e);
         }
     }
 }

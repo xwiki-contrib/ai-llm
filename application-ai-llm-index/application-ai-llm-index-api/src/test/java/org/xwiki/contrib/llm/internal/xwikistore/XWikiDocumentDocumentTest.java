@@ -35,9 +35,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.localization.ContextualLocalizationManager;
+import org.xwiki.mail.GeneralMailConfiguration;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.test.junit5.mockito.ComponentTest;
@@ -49,10 +51,13 @@ import com.xpn.xwiki.doc.XWikiAttachment;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.classes.BaseClass;
+import com.xpn.xwiki.objects.classes.EmailClass;
+import com.xpn.xwiki.objects.classes.PasswordClass;
 import com.xpn.xwiki.objects.classes.PropertyClass;
 import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -81,6 +86,9 @@ class XWikiDocumentDocumentTest
     @MockComponent
     private ContextualLocalizationManager localizationManager;
 
+    @MockComponent
+    private GeneralMailConfiguration generalMailConfiguration;
+
     @Mock
     private XWikiDocument xWikiDocument;
 
@@ -95,6 +103,74 @@ class XWikiDocumentDocumentTest
                 String parameter = invocation.getArgument(1);
                 return "Metadata of Type %s".formatted(parameter);
             });
+    }
+
+    /**
+     * Stub the title, content and syntax of the document so that the object part of the content is the only
+     * variable part.
+     *
+     * @return the expected prefix of the content
+     */
+    private String setUpContentWithObjects()
+    {
+        when(this.xWikiDocument.getContent()).thenReturn("XObjects content");
+        when(this.xWikiDocument.getSyntax()).thenReturn(Syntax.XWIKI_2_1);
+        when(this.xWikiDocument.getRenderedTitle(eq(Syntax.XWIKI_2_1), any())).thenReturn("XObjects Title");
+        return """
+            = XObjects Title =
+
+            XObjects content""";
+    }
+
+    private BaseObject mockObject(String className, BaseClass baseClass)
+    {
+        BaseObject xObject = mock();
+        when(xObject.getDocumentReference()).thenReturn(new DocumentReference("mywiki", "AI", "Doc"));
+        when(xObject.getXClassReference()).thenReturn(new DocumentReference("mywiki", "XWiki", className));
+        when(xObject.getXClass(any())).thenReturn(baseClass);
+        return xObject;
+    }
+
+    private BaseObject mockObject(BaseClass baseClass)
+    {
+        BaseObject xObject = mock();
+        when(xObject.getDocumentReference()).thenReturn(new DocumentReference("mywiki", "AI", "Doc"));
+        when(xObject.getXClassReference()).thenReturn(new DocumentReference("mywiki", "AI", "XClass"));
+        when(xObject.getXClass(any())).thenReturn(baseClass);
+        return xObject;
+    }
+
+    private static BaseClass mockClass(List<PropertyClass> properties)
+    {
+        BaseClass baseClass = mock();
+        when(baseClass.getFieldList()).thenReturn(properties);
+        return baseClass;
+    }
+
+    private static PropertyClass mockProperty(BaseObject xObject, String propertyName, PropertyClass propertyClass)
+    {
+        when(propertyClass.getTranslatedPrettyName(any())).thenReturn("Property " + propertyName);
+        when(propertyClass.getName()).thenReturn(propertyName);
+        when(xObject.getStringValue(propertyName)).thenReturn(propertyName + "Value");
+        when(xObject.safeget(propertyName)).thenReturn(mock());
+        return propertyClass;
+    }
+
+    private static PropertyClass mockProperty(BaseObject xObject, String propertyName)
+    {
+        return mockProperty(xObject, propertyName, mock(PropertyClass.class));
+    }
+
+    private static PropertyClass mockProperty(BaseObject xObject, String propertyName, String classType)
+    {
+        PropertyClass propertyClass = mockProperty(xObject, propertyName);
+        when(propertyClass.getClassType()).thenReturn(classType);
+        return propertyClass;
+    }
+
+    private void setObjects(BaseObject... xObjects)
+    {
+        when(this.xWikiDocument.getXObjects()).thenReturn(Map.of(mock(), Arrays.asList(xObjects)));
     }
 
     @Test
@@ -221,45 +297,163 @@ class XWikiDocumentDocumentTest
     @Test
     void getContentXObjects()
     {
-        String content = "XObjects content";
-        when(this.xWikiDocument.getContent()).thenReturn(content);
-        when(this.xWikiDocument.getSyntax()).thenReturn(Syntax.XWIKI_2_1);
-        String title = "XObjects Title";
-        when(this.xWikiDocument.getRenderedTitle(eq(Syntax.XWIKI_2_1), any())).thenReturn(title);
+        String prefix = setUpContentWithObjects();
 
-        BaseClass baseClass = mock();
         List<PropertyClass> properties = new ArrayList<>();
-        when(baseClass.getFieldList()).thenReturn(properties);
-
-        BaseObject xObject = mock();
-        when(xObject.getDocumentReference()).thenReturn(new DocumentReference("mywiki", "AI", "Doc"));
-        when(xObject.getXClassReference()).thenReturn(new DocumentReference("mywiki", "AI", "XClass"));
-        when(xObject.getXClass(any())).thenReturn(baseClass);
-
+        BaseObject xObject = mockObject(mockClass(properties));
         for (String propertyName : List.of("property1", "property2")) {
-            PropertyClass propertyClass = mock();
-            when(propertyClass.getTranslatedPrettyName(any())).thenReturn("Property " + propertyName);
-            when(propertyClass.getName()).thenReturn(propertyName);
-            when(xObject.getStringValue(propertyName)).thenReturn(propertyName + "Value");
-            when(xObject.safeget(propertyName)).thenReturn(mock());
-            properties.add(propertyClass);
+            properties.add(mockProperty(xObject, propertyName));
         }
-        when(this.xWikiDocument.getXObjects()).thenReturn(Map.of(mock(), Arrays.asList(null, xObject)));
+        setObjects(null, xObject);
 
-        assertEquals("""
-            = XObjects Title =
-            
-            XObjects content
-            
+        assertEquals(prefix + """
+
+
             = Metadata of Type AI.XClass =
-            
+
             == Property property1 ==
-            
+
             property1Value
-            
+
             == Property property2 ==
-            
+
             property2Value""", this.xWikiDocumentDocument.getContent());
+    }
+
+    @Test
+    void getContentXObjectsSkipsPasswordFields()
+    {
+        String prefix = setUpContentWithObjects();
+
+        List<PropertyClass> properties = new ArrayList<>();
+        BaseObject xObject = mockObject(mockClass(properties));
+        properties.add(mockProperty(xObject, "secret", mock(PasswordClass.class)));
+        properties.add(mockProperty(xObject, "name"));
+        properties.add(mockProperty(xObject, "token", "Password"));
+        setObjects(xObject);
+
+        String content = this.xWikiDocumentDocument.getContent();
+
+        assertEquals(prefix + """
+
+
+            = Metadata of Type AI.XClass =
+
+            == Property name ==
+
+            nameValue""", content);
+        assertFalse(content.contains("secretValue"));
+        assertFalse(content.contains("tokenValue"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void getContentXObjectsEmailFieldsFollowObfuscation(boolean obfuscate)
+    {
+        String prefix = setUpContentWithObjects();
+        when(this.generalMailConfiguration.shouldObfuscate()).thenReturn(obfuscate);
+
+        List<PropertyClass> properties = new ArrayList<>();
+        BaseObject xObject = mockObject(mockClass(properties));
+        properties.add(mockProperty(xObject, "email", mock(EmailClass.class)));
+        properties.add(mockProperty(xObject, "contact", "Email"));
+        properties.add(mockProperty(xObject, "name"));
+        setObjects(xObject);
+
+        String content = this.xWikiDocumentDocument.getContent();
+
+        String emails = """
+
+
+            == Property email ==
+
+            emailValue
+
+            == Property contact ==
+
+            contactValue""";
+        assertEquals(prefix + """
+
+
+            = Metadata of Type AI.XClass =""" + (obfuscate ? "" : emails) + """
+
+
+            == Property name ==
+
+            nameValue""", content);
+        verify(this.generalMailConfiguration).shouldObfuscate();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "XWikiRights", "XWikiGlobalRights", "XWikiPreferences" })
+    void getContentXObjectsSkipsExcludedClasses(String className)
+    {
+        String prefix = setUpContentWithObjects();
+
+        List<PropertyClass> properties = new ArrayList<>();
+        BaseClass baseClass = mockClass(properties);
+        BaseObject xObject = mockObject(className, baseClass);
+        properties.add(mockProperty(xObject, "users"));
+        setObjects(xObject);
+
+        assertEquals(prefix, this.xWikiDocumentDocument.getContent());
+        verify(xObject, never()).getXClass(any());
+        verify(xObject, never()).getStringValue(any());
+    }
+
+    @Test
+    void getContentXObjectsSkipsObjectWithoutClass()
+    {
+        String prefix = setUpContentWithObjects();
+
+        BaseObject xObject = mockObject(null);
+        when(xObject.getPropertyNames()).thenReturn(new String[] { "secret" });
+        when(xObject.getStringValue("secret")).thenReturn("secretValue");
+        setObjects(xObject);
+
+        assertEquals(prefix, this.xWikiDocumentDocument.getContent());
+        verify(xObject, never()).getStringValue(any());
+    }
+
+    @Test
+    void getContentXObjectsEmitsNoHeadingWhenOnlyPasswordFields()
+    {
+        String prefix = setUpContentWithObjects();
+
+        List<PropertyClass> properties = new ArrayList<>();
+        BaseObject xObject = mockObject(mockClass(properties));
+        properties.add(mockProperty(xObject, "secret", mock(PasswordClass.class)));
+        setObjects(xObject);
+
+        assertEquals(prefix, this.xWikiDocumentDocument.getContent());
+        verify(this.localizationManager, never()).getTranslationPlain(any(), any());
+    }
+
+    @Test
+    void getContentXObjectsSkipsPropertiesNotDefinedInClass()
+    {
+        String prefix = setUpContentWithObjects();
+
+        List<PropertyClass> properties = new ArrayList<>();
+        BaseObject xObject = mockObject(mockClass(properties));
+        properties.add(mockProperty(xObject, "name"));
+        // A value stored on the object without a matching class property.
+        when(xObject.getPropertyNames()).thenReturn(new String[] { "name", "stray" });
+        when(xObject.getStringValue("stray")).thenReturn("strayValue");
+        when(xObject.safeget("stray")).thenReturn(mock());
+        setObjects(xObject);
+
+        String content = this.xWikiDocumentDocument.getContent();
+
+        assertEquals(prefix + """
+
+
+            = Metadata of Type AI.XClass =
+
+            == Property name ==
+
+            nameValue""", content);
+        assertFalse(content.contains("strayValue"));
     }
 
     @Test

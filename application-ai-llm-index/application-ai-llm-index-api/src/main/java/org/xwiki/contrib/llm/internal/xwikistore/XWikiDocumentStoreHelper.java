@@ -61,6 +61,14 @@ import com.xpn.xwiki.XWikiContext;
 @Singleton
 public class XWikiDocumentStoreHelper
 {
+    /**
+     * The condition excluding hidden documents, in the form the platform's {@code hidden/document} query filter
+     * inserts: the column is not nullable, the null check is belt and braces.
+     */
+    static final String HIDDEN_CONDITION = "(doc.hidden <> true OR doc.hidden IS NULL)";
+
+    private static final String CLOSING_PARENTHESIS = ")";
+
     @Inject
     private DocumentReferenceResolver<String> documentReferenceResolver;
 
@@ -73,10 +81,6 @@ public class XWikiDocumentStoreHelper
 
     @Inject
     private QueryManager queryManager;
-
-    @Inject
-    @Named("hidden/document")
-    private QueryFilter hiddenDocumentFilter;
 
     @Inject
     @Named("language")
@@ -209,7 +213,7 @@ public class XWikiDocumentStoreHelper
                 ", BaseObject as obj, DBStringListProperty as prop join prop.list item "
                     + "where obj.className='" + Collection.XCLASS_FULLNAME + "' and obj.name=doc.fullName "
                     + "and obj.id=prop.id.id and prop.id.name='" + DefaultCollection.DOCUMENT_SPACE_FIELDNAME + "' "
-                    + "and (" + spaceQuery + ")",
+                    + "and (" + spaceQuery + CLOSING_PARENTHESIS,
                 Query.HQL);
             for (int i = 0; i < spaces.size(); ++i) {
                 query.bindValue("space" + i, spaces.get(i));
@@ -292,16 +296,25 @@ public class XWikiDocumentStoreHelper
     }
 
 
+    /**
+     * Build the query listing the documents of the given spaces. The query is the same for listing and counting:
+     * {@link #countDocumentsFromWiki(WikiReference, List)} only adds the {@code count} filter, which rewrites the
+     * select clause and keeps the where clause.
+     *
+     * <p>Hidden documents are excluded by an explicit condition in the statement rather than by the
+     * {@code hidden/document} query filter: that filter reads the "display hidden documents" preference of the user
+     * who is current when the filter is instantiated, so injected into a singleton it would follow whichever user
+     * first triggered the lookup instead of excluding hidden documents unconditionally.</p>
+     */
     private Query buildQuery(WikiReference wiki, List<SpaceReference> wikiSpaces) throws IndexException
     {
         List<String> spacePrefixes = wikiSpaces.stream()
             .map(space -> this.localEntityReferenceSerializer.serialize(space))
             .toList();
 
-        String conditions = IntStream.range(0, spacePrefixes.size())
+        String queryString = IntStream.range(0, spacePrefixes.size())
             .mapToObj("(doc.fullName LIKE :space%d)"::formatted)
-            .collect(Collectors.joining(" OR "));
-        String queryString = "WHERE " + conditions;
+            .collect(Collectors.joining(" OR ", "WHERE " + HIDDEN_CONDITION + " AND (", CLOSING_PARENTHESIS));
 
         try {
             Query query = this.queryManager.createQuery(queryString, Query.XWQL);
@@ -309,7 +322,6 @@ public class XWikiDocumentStoreHelper
                 query.bindValue("space%d".formatted(i)).literal(spacePrefixes.get(i)).literal(".").anyChars();
             }
             query.setWiki(wiki.getName());
-            query.addFilter(this.hiddenDocumentFilter);
             query.addFilter(this.languageFilter);
             return query;
         } catch (Exception e) {

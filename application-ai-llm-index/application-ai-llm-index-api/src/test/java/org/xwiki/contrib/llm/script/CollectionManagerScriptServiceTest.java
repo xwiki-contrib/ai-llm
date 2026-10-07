@@ -25,7 +25,12 @@ import javax.inject.Named;
 
 import org.junit.jupiter.api.Test;
 import org.xwiki.contrib.llm.CollectionManager;
+import org.xwiki.contrib.llm.IndexTaskConsumer;
+import org.xwiki.contrib.llm.internal.CollectionIndexingTaskConsumer;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentCollectionIndexingTaskConsumer;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocumentIndexingTaskConsumer;
 import org.xwiki.contrib.llm.openai.Context;
+import org.xwiki.index.TaskManager;
 import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
@@ -33,6 +38,7 @@ import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -63,6 +69,20 @@ class CollectionManagerScriptServiceTest
 
     @MockComponent
     private ContextualAuthorizationManager authorizationManager;
+
+    @MockComponent
+    private TaskManager taskManager;
+
+    @Test
+    void documentIndexingQueueSizeSumsDocumentAndCollectionTasks()
+    {
+        when(this.taskManager.getQueueSize(IndexTaskConsumer.NAME)).thenReturn(1L);
+        when(this.taskManager.getQueueSize(XWikiDocumentDocumentIndexingTaskConsumer.NAME)).thenReturn(10L);
+        when(this.taskManager.getQueueSize(CollectionIndexingTaskConsumer.NAME)).thenReturn(100L);
+        when(this.taskManager.getQueueSize(XWikiDocumentCollectionIndexingTaskConsumer.NAME)).thenReturn(1000L);
+
+        assertEquals(1111L, this.scriptService.getDocumentIndexingQueueSize());
+    }
 
     @Test
     void searchWithoutProgrammingRightIsRefused() throws Exception

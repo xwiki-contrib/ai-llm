@@ -107,6 +107,13 @@
             <artifactId>xwiki-platform-user-api</artifactId>
             <version>${platform.version}</version>
         </dependency>
+        <!-- GeneralMailConfiguration: the wiki's email obfuscation setting decides whether email properties are
+             indexed. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-mail-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.xwiki.contrib.llm</groupId>
             <artifactId>application-ai-llm-models-api</artifactId>

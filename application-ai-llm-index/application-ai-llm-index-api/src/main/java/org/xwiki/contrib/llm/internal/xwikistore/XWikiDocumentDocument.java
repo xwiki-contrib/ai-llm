@@ -21,11 +21,11 @@ package org.xwiki.contrib.llm.internal.xwikistore;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,17 +44,38 @@ import org.xwiki.contrib.llm.Chunk;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.localization.ContextualLocalizationManager;
+import org.xwiki.mail.GeneralMailConfiguration;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.rendering.syntax.SyntaxType;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.classes.BaseClass;
+import com.xpn.xwiki.objects.classes.EmailClass;
+import com.xpn.xwiki.objects.classes.PasswordClass;
 import com.xpn.xwiki.objects.classes.PropertyClass;
 
 /**
  * A {@link Document} that exposes an arbitrary {@link XWikiDocument} for indexing in the LLM application.
+ *
+ * <p>The indexed text is the rendered title, the content, the objects and the attachments of the page. For the
+ * objects, only what is both content and safe to disclose to every reader of the page is indexed:</p>
+ * <ul>
+ * <li>objects of the classes {@code XWiki.XWikiRights}, {@code XWiki.XWikiGlobalRights} and
+ * {@code XWiki.XWikiPreferences} are never indexed, they hold rights and configuration, not content;</li>
+ * <li>an object whose class cannot be loaded is never indexed, as its property types are unknown;</li>
+ * <li>only properties that the class defines are indexed, a value stored on the object without a matching class
+ * property is skipped;</li>
+ * <li>password properties ({@link PasswordClass} or the {@code Password} class type) are never indexed;</li>
+ * <li>email properties ({@link EmailClass} or the {@code Email} class type) are not indexed when the wiki obfuscates
+ * email addresses ({@link GeneralMailConfiguration#shouldObfuscate()});</li>
+ * <li>an object heading is only emitted when at least one of its properties is indexed, so an object that
+ * contributes no text leaves no trace in the index.</li>
+ * </ul>
+ * <p>The password and email rules are the ones the platform's Solr metadata extractor applies to object properties.
+ * The other rules are stricter: anything whose type is unknown is left out.</p>
  *
  * @version $Id$
  * @since 0.4
@@ -63,6 +84,17 @@ import com.xpn.xwiki.objects.classes.PropertyClass;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class XWikiDocumentDocument implements Document
 {
+    /**
+     * The classes whose objects are never indexed, as local (wiki-less) references: they hold rights and
+     * configuration, not content.
+     */
+    private static final Set<String> EXCLUDED_CLASSES =
+        Set.of("XWiki.XWikiRights", "XWiki.XWikiGlobalRights", "XWiki.XWikiPreferences");
+
+    private static final String PASSWORD_CLASS_TYPE = "Password";
+
+    private static final String EMAIL_CLASS_TYPE = "Email";
+
     private static final String CHANGING_DOCUMENTS_MESSAGE =
         "This XWiki document store doesn't support changing documents.";
 
@@ -83,6 +115,13 @@ public class XWikiDocumentDocument implements Document
     @Inject
     @Named("compactwiki")
     private EntityReferenceSerializer<String> compactEntityReferenceSerializer;
+
+    @Inject
+    @Named("local")
+    private EntityReferenceSerializer<String> localEntityReferenceSerializer;
+
+    @Inject
+    private GeneralMailConfiguration generalMailConfiguration;
 
     @Inject
     private Logger logger;
@@ -201,39 +240,82 @@ public class XWikiDocumentDocument implements Document
     private String getFormattedXObjects()
     {
         XWikiContext context = this.xWikiContextProvider.get();
+        // The platform's mail obfuscation setting is read once per document, not once per property.
+        boolean obfuscateEmails = this.generalMailConfiguration.shouldObfuscate();
         return this.xWikiDocument.getXObjects().values().stream().flatMap(List::stream)
             .filter(Objects::nonNull)
-            .map(xObject -> {
-                BaseClass xClass = xObject.getXClass(context);
-                String objectProperties;
-                if (xClass != null) {
-                    Collection<?> fieldList = xClass.getFieldList();
-                    objectProperties = fieldList.stream()
-                        .filter(PropertyClass.class::isInstance)
-                        .map(PropertyClass.class::cast)
-                        .filter(xProperty -> xObject.safeget(xProperty.getName()) != null)
-                        .flatMap(xProperty -> {
-                            String value = xObject.getStringValue(xProperty.getName());
-                            if (StringUtils.isNotBlank(value)) {
-                                return Stream.of(formatHeading(2, xProperty.getTranslatedPrettyName(context))
-                                    + value);
-                            } else {
-                                return Stream.empty();
-                            }
-                        })
-                        .collect(Collectors.joining(DELIMITER));
-                } else {
-                    objectProperties = Arrays.stream(xObject.getPropertyNames())
-                        .filter(fieldName -> StringUtils.isNotBlank(xObject.getStringValue(fieldName)))
-                        .map(fieldName -> formatHeading(2, fieldName) + xObject.getStringValue(fieldName))
-                        .collect(Collectors.joining(DELIMITER));
-                }
-                String heading = this.localizationManager.getTranslationPlain("aiLLM.index.objectHeading",
-                    this.compactEntityReferenceSerializer.serialize(xObject.getXClassReference(),
-                        xObject.getDocumentReference()));
-                return formatHeading(1, heading) + objectProperties;
-            })
+            .filter(xObject -> !isExcludedClass(xObject))
+            .flatMap(xObject -> formatXObject(xObject, context, obfuscateEmails))
             .collect(Collectors.joining(DELIMITER));
+    }
+
+    /**
+     * @param xObject the object to check
+     * @return {@code true} when the object belongs to one of {@link #EXCLUDED_CLASSES} or has no class reference at
+     *     all, {@code false} when its properties may be indexed
+     */
+    private boolean isExcludedClass(BaseObject xObject)
+    {
+        String className = this.localEntityReferenceSerializer.serialize(xObject.getXClassReference());
+        return className == null || EXCLUDED_CLASSES.contains(className);
+    }
+
+    /**
+     * Format a single object. Only properties defined by the object's class are considered, and only those whose
+     * type may be indexed.
+     *
+     * @return the formatted object as a single-element stream, or an empty stream when nothing of the object is
+     *     indexed
+     */
+    private Stream<String> formatXObject(BaseObject xObject, XWikiContext context, boolean obfuscateEmails)
+    {
+        BaseClass xClass = xObject.getXClass(context);
+        if (xClass == null) {
+            this.logger.debug("Skipping an object of class [{}] in document [{}] as its class cannot be loaded.",
+                xObject.getXClassReference(), this.xWikiDocument.getDocumentReference());
+            return Stream.empty();
+        }
+
+        Collection<?> fieldList = xClass.getFieldList();
+        String objectProperties = fieldList.stream()
+            .filter(PropertyClass.class::isInstance)
+            .map(PropertyClass.class::cast)
+            .filter(xProperty -> isIndexableProperty(xProperty, obfuscateEmails))
+            .filter(xProperty -> xObject.safeget(xProperty.getName()) != null)
+            .flatMap(xProperty -> formatProperty(xObject, xProperty, context))
+            .collect(Collectors.joining(DELIMITER));
+
+        if (StringUtils.isBlank(objectProperties)) {
+            return Stream.empty();
+        }
+
+        String heading = this.localizationManager.getTranslationPlain("aiLLM.index.objectHeading",
+            this.compactEntityReferenceSerializer.serialize(xObject.getXClassReference(),
+                xObject.getDocumentReference()));
+        return Stream.of(formatHeading(1, heading) + objectProperties);
+    }
+
+    /**
+     * @param propertyClass the class of the property
+     * @param obfuscateEmails whether the wiki obfuscates email addresses
+     * @return {@code false} for password properties and, when email addresses are obfuscated, for email properties;
+     *     {@code true} otherwise
+     */
+    private static boolean isIndexableProperty(PropertyClass propertyClass, boolean obfuscateEmails)
+    {
+        String classType = propertyClass.getClassType();
+        boolean isPassword = propertyClass instanceof PasswordClass || PASSWORD_CLASS_TYPE.equals(classType);
+        boolean isEmail = propertyClass instanceof EmailClass || EMAIL_CLASS_TYPE.equals(classType);
+        return !isPassword && !(isEmail && obfuscateEmails);
+    }
+
+    private Stream<String> formatProperty(BaseObject xObject, PropertyClass xProperty, XWikiContext context)
+    {
+        String value = xObject.getStringValue(xProperty.getName());
+        if (StringUtils.isNotBlank(value)) {
+            return Stream.of(formatHeading(2, xProperty.getTranslatedPrettyName(context)) + value);
+        }
+        return Stream.empty();
     }
 
     private String formatHeading(int level, String content)

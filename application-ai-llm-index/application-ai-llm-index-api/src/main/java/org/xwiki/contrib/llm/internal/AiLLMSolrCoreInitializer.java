@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal;
 
 import java.io.IOException;
 
+import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
@@ -31,6 +32,8 @@ import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreReindexMarker;
 import org.xwiki.search.solr.AbstractSolrCoreInitializer;
 import org.xwiki.search.solr.SolrException;
 
@@ -132,7 +135,13 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
 
     private static final long STORE_HINT_VERSION = 121000005;
 
-    private static final long CURRENT_VERSION = 121000006;
+    // The version that introduces the content_index field
+    private static final long CONTENT_INDEX_VERSION = 121000006;
+
+    // The version that drops the chunks of wiki pages, see #cleanXWikiStoreChunks()
+    private static final long XWIKI_STORE_CLEANUP_VERSION = 121000007;
+
+    private static final long CURRENT_VERSION = XWIKI_STORE_CLEANUP_VERSION;
 
     private static final String SOLR_DENSE_VECTOR_FIELD = "solr.DenseVectorField";
 
@@ -141,6 +150,9 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
     private static final String SIMILARITY_FUNCTION = "similarityFunction";
 
     private static final String COSINE = "cosine";
+
+    @Inject
+    private XWikiDocumentStoreReindexMarker reindexMarker;
 
     @Override
     protected void createSchema() throws SolrException
@@ -185,24 +197,73 @@ public class AiLLMSolrCoreInitializer extends AbstractSolrCoreInitializer
         }
 
         if (cversion < WIKI_FIELD_VERSION) {
-            this.addStringField(FIELD_WIKI, false, false);
+            this.setStringField(FIELD_WIKI, false, false);
         }
 
         if (cversion < ERROR_MESSAGE_FILED_VERSION) {
-            this.addStringField(FIELD_ERROR_MESSAGE, false, false);
+            this.setStringField(FIELD_ERROR_MESSAGE, false, false);
         }
 
         if (cversion < STORE_HINT_VERSION) {
-            this.addStringField(FIELD_STORE_HINT, false, false);
+            this.setStringField(FIELD_STORE_HINT, false, false);
         }
 
-        if (cversion < CURRENT_VERSION) {
+        if (cversion < CONTENT_INDEX_VERSION) {
             // Add another version of the text field, but indexed as regular text.
             this.setTextGeneralField(FIELD_CONTENT_INDEX, false, false);
+        }
 
-            if (!create) {
-                indexOldContent();
-            }
+        if (!create) {
+            migrateExistingData(cversion);
+        }
+    }
+
+    /**
+     * The migration steps that touch the data of an existing core, as opposed to its schema. The schema steps use
+     * the add-or-replace field setters, so that a failed data step can be retried at the next start without a
+     * "field already exists" error.
+     *
+     * @param cversion the version of the schema currently stored
+     * @throws SolrException when a step fails
+     */
+    private void migrateExistingData(long cversion) throws SolrException
+    {
+        // Drop the chunks of wiki pages first so that the keyword index step below does not rewrite chunks that are
+        // deleted right after.
+        if (cversion < XWIKI_STORE_CLEANUP_VERSION) {
+            cleanXWikiStoreChunks();
+        }
+
+        if (cversion < CONTENT_INDEX_VERSION) {
+            indexOldContent();
+        }
+    }
+
+    /**
+     * Drop the chunks of wiki pages and mark the collections using the XWiki document store for re-indexing.
+     *
+     * <p>Earlier versions indexed every property of every object of a wiki page, including password-type properties,
+     * so the existing chunks of that store may carry values that must not be searchable. The chunks are deleted here;
+     * the collections are re-queued at startup by the {@code XWikiDocumentStoreReindexListener} of the same package
+     * as the marker, which reads the marker set here. The platform commits the core at the end of
+     * {@link #initialize(org.xwiki.search.solr.XWikiSolrCore)}, so no explicit commit is needed. A failure to write
+     * the marker is rethrown so that the stored core version is not bumped and both the (idempotent) deletion and the
+     * marker write are retried at the next start.</p>
+     *
+     * @throws SolrException when the deletion or the marker write fails
+     */
+    private void cleanXWikiStoreChunks() throws SolrException
+    {
+        String query = FIELD_STORE_HINT + ":" + this.solrUtils.toCompleteFilterQueryString(XWikiDocumentStore.NAME);
+        try {
+            this.core.getClient().deleteByQuery(query);
+        } catch (SolrServerException | IOException e) {
+            throw new SolrException("Failed to delete the chunks of the XWiki document store.", e);
+        }
+        try {
+            this.reindexMarker.set();
+        } catch (IOException e) {
+            throw new SolrException("Failed to mark the collections of the XWiki document store for re-indexing.", e);
         }
     }
 

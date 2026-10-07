@@ -20,6 +20,9 @@ org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocumentIndexingTaskConsu
 org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore
 org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreHelper
 org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreEventListener
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreReindexMarker
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreReindexer
+org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreReindexListener
 org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationManagerBuilder
 org.xwiki.contrib.llm.internal.authorization.ExternalAuthorizationRequestBuilder
 org.xwiki.contrib.llm.internal.authorization.PublicAuthorizationManagerBuilder
