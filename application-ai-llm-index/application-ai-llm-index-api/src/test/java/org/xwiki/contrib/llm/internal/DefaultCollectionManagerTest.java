@@ -36,6 +36,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.contrib.llm.Collection;
+import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
@@ -140,6 +142,10 @@ class DefaultCollectionManagerTest
     @MockComponent
     private SolrConnector solrConnector;
 
+    @MockComponent
+    @Named(InternalDocumentStore.NAME)
+    private DocumentStore internalDocumentStore;
+
     @Test
     void createCollection() throws Exception
     {
@@ -209,6 +215,31 @@ class DefaultCollectionManagerTest
 
         // Check that the collection has been deleted
         assertTrue(this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).isNew());
+    }
+
+    @Test
+    void deleteCollectionWithDocumentsSkipsMissingDocument() throws Exception
+    {
+        XWikiContext context = this.oldcore.getXWikiContext();
+        context.setWikiId(WIKI_NAME);
+        mockCollectionsQuery(List.of());
+        this.collectionManager.createCollection(COLLECTION_ID).save();
+
+        String missingDocumentId = "missing";
+        String existingDocumentId = "existing";
+        when(this.internalDocumentStore.getDocumentNames(0, -1))
+            .thenReturn(List.of(missingDocumentId, existingDocumentId));
+        when(this.internalDocumentStore.getDocument(missingDocumentId)).thenReturn(null);
+        Document existingDocument = mock(Document.class);
+        when(this.internalDocumentStore.getDocument(existingDocumentId)).thenReturn(existingDocument);
+
+        this.collectionManager.deleteCollection(COLLECTION_ID, true);
+
+        verify(this.internalDocumentStore).deleteDocument(existingDocument);
+        verify(this.internalDocumentStore, never()).deleteDocument(null);
+        assertTrue(this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).isNew());
+        assertEquals("Skipping the deletion of document [missing] of collection [testcollection] as its page does "
+            + "not exist", this.logCapture.getMessage(0));
     }
 
     @Test

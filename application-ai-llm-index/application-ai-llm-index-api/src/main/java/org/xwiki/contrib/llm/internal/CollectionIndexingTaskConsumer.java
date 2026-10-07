@@ -93,8 +93,20 @@ public class CollectionIndexingTaskConsumer implements TaskConsumer
             }
 
             String collectionId = collectionObject.getStringValue(DefaultCollection.ID_FIELDNAME);
+            // The queued reference carries the locale of the task, the page of the collection has none.
+            if (!DefaultCollection.getDocumentReference(documentReference.getWikiReference().getName(), collectionId)
+                .equals(documentReference.withoutLocale())) {
+                this.logger.warn("Document [{}] that is queued for indexing as collection is not the page of "
+                    + "collection [{}]", documentReference, collectionId);
+                return;
+            }
 
             Collection collection = this.collectionManager.getCollection(collectionId);
+            if (collection == null) {
+                this.logger.warn("Collection [{}] of document [{}] that is queued for indexing does not exist",
+                    collectionId, documentReference);
+                return;
+            }
             DocumentStore documentStore = collection.getDocumentStore();
 
             Optional<String> taskConsumerHint = documentStore.getTaskConsumerHint();

@@ -25,6 +25,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentDeletedEvent;
@@ -43,8 +44,10 @@ import com.xpn.xwiki.objects.BaseObject;
 
 /**
  * This class is responsible for listening to updates of collections and internal documents. It will add appropriate
- * indexing tasks to the queue.
- * 
+ * indexing tasks to the queue. It reacts to a documents object only on the page of the internal store for the
+ * document that the object names, see {@link InternalDocumentStore#getDocumentReference(String, String, String)};
+ * objects on other pages are ignored.
+ *
  * @version $Id$
  */
 @Component
@@ -78,60 +81,129 @@ public class IndexWorker extends AbstractLocalEventListener
     public void processLocalEvent(Event event, Object source, Object data)
     {
         XWikiDocument xdocument = (XWikiDocument) source;
-        BaseObject documentObject = xdocument.getXObject(Document.XCLASS_REFERENCE);
+        XWikiDocument originalDocument = xdocument.getOriginalDocument();
 
-        if (documentObject != null && !xdocument.getDocumentReference().getName().equals("DocumentsTemplate")) {
+        if (isDocumentPage(xdocument)) {
             addTaskForDocument(xdocument);
-        } else {
-            // Check if the document was an internal document before the change like a deletion - delete it
-            // from Solr. We do this directly as TaskManager doesn't support tasks for deleted documents.
-            BaseObject xObject = xdocument.getOriginalDocument().getXObject(Document.XCLASS_REFERENCE);
-            if (xObject != null) {
-                String id = xObject.getStringValue(DefaultDocument.ID_KEY);
-                String collection = xObject.getStringValue(DefaultDocument.PARENT_COLLECTION);
-                String wiki = xdocument.getDocumentReference().getWikiReference().getName();
-                // Ensure that if the current store is not the internal store, we don't accidentally delete the document
-                // of a different store that happens to have the same id.
-                this.solrConnector.deleteChunksByDocIdAndStore(wiki, collection, id, InternalDocumentStore.NAME);
-            }
+        } else if (originalDocument != null && isDocumentPage(originalDocument)) {
+            // The document was an internal document before the change like a deletion - delete it from Solr. We do
+            // this directly as TaskManager doesn't support tasks for deleted documents.
+            BaseObject xObject = originalDocument.getXObject(Document.XCLASS_REFERENCE);
+            String id = xObject.getStringValue(DefaultDocument.ID_KEY);
+            String collection = xObject.getStringValue(DefaultDocument.PARENT_COLLECTION);
+            String wiki = originalDocument.getDocumentReference().getWikiReference().getName();
+            // Ensure that if the current store is not the internal store, we don't accidentally delete the document
+            // of a different store that happens to have the same id.
+            this.solrConnector.deleteChunksByDocIdAndStore(wiki, collection, id, InternalDocumentStore.NAME);
         }
 
-        if (!"CollectionsTemplate".equals(xdocument.getDocumentReference().getName())) {
-            updateCollectionIndex(xdocument);
-        }
+        updateCollectionIndex(xdocument, originalDocument);
     }
 
-    private void updateCollectionIndex(XWikiDocument document)
+    /**
+     * Check whether the given document is the page that stores a document of a collection in the internal store: it
+     * carries a documents object and its reference is the one the internal store derives from the object's collection
+     * and document ids. A documents object on any other page is ignored so that editing an unrelated page can neither
+     * queue the indexing of that page nor delete the chunks of the document the object names.
+     *
+     * @param document the document to check
+     * @return {@code true} when the document is the page of the internal store for the document its object names
+     */
+    private boolean isDocumentPage(XWikiDocument document)
+    {
+        BaseObject documentObject = document.getXObject(Document.XCLASS_REFERENCE);
+        if (documentObject == null) {
+            return false;
+        }
+
+        String id = documentObject.getStringValue(DefaultDocument.ID_KEY);
+        String collection = documentObject.getStringValue(DefaultDocument.PARENT_COLLECTION);
+        boolean canonical = StringUtils.isNotBlank(id) && StringUtils.isNotBlank(collection)
+            && InternalDocumentStore.getDocumentReference(document.getDocumentReference().getWikiReference().getName(),
+                collection, id).equals(document.getDocumentReference().withoutLocale());
+        if (!canonical) {
+            this.logger.debug("Ignoring the documents object on [{}] as the page is not the document [{}] of the "
+                + "collection [{}] in the internal store", document.getDocumentReference(), id, collection);
+        }
+
+        return canonical;
+    }
+
+    /**
+     * Check whether the given document is the page of the collection its collections object names, see
+     * {@link DefaultCollection#getDocumentReference(String, String)}. A collections object on any other page, for
+     * instance on a copy of a collection page, is ignored so that saving or deleting that page can neither clear the
+     * chunks of the collection nor queue its re-indexing.
+     *
+     * @param document the document to check
+     * @return {@code true} when the document is the page of the collection its object names
+     */
+    private boolean isCollectionPage(XWikiDocument document)
+    {
+        BaseObject collectionObject = document.getXObject(Collection.XCLASS_REFERENCE);
+        if (collectionObject == null) {
+            return false;
+        }
+
+        String id = collectionObject.getStringValue(DefaultCollection.ID_FIELDNAME);
+        boolean canonical = StringUtils.isNotBlank(id) && DefaultCollection.getDocumentReference(
+            document.getDocumentReference().getWikiReference().getName(), id)
+            .equals(document.getDocumentReference().withoutLocale());
+        if (!canonical) {
+            this.logger.debug("Ignoring the collections object on [{}] as the page is not the page of the "
+                + "collection [{}]", document.getDocumentReference(), id);
+        }
+
+        return canonical;
+    }
+
+    private void updateCollectionIndex(XWikiDocument document, XWikiDocument originalDocument)
     {
         BaseObject collectionObject = document.getXObject(Collection.XCLASS_REFERENCE);
         BaseObject collectionObjectOriginal =
-            document.getOriginalDocument().getXObject(Collection.XCLASS_REFERENCE);
+            originalDocument == null ? null : originalDocument.getXObject(Collection.XCLASS_REFERENCE);
+        String wiki = document.getDocumentReference().getWikiReference().getName();
 
         if (collectionObject != null && collectionObjectOriginal != null) {
-            String collectionId = collectionObject.getStringValue(DefaultCollection.ID_FIELDNAME);
-            String wiki = document.getDocumentReference().getWikiReference().getName();
-
-            String oldStoreHint =
-                collectionObjectOriginal.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
-            String newStoreHint = collectionObject.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
-
-            String oldCollectionId = collectionObjectOriginal.getStringValue(DefaultCollection.ID_FIELDNAME);
-
-            // If the store or the collection id was changed, clear the index and re-index all documents.
-            if (!Objects.equals(oldStoreHint, newStoreHint) || !Objects.equals(oldCollectionId, collectionId)) {
-                this.solrConnector.deleteChunksByCollection(wiki, oldCollectionId);
-
-                this.taskManager.addTask(wiki, document.getId(), CollectionIndexingTaskConsumer.NAME);
-            }
-        } else if (collectionObject != null) {
+            updateChangedCollectionIndex(document, originalDocument, collectionObject, collectionObjectOriginal);
+        } else if (collectionObject != null && isCollectionPage(document)) {
             // New collection - queue it for indexing.
-            String wiki = document.getDocumentReference().getWikiReference().getName();
             this.taskManager.addTask(wiki, document.getId(), CollectionIndexingTaskConsumer.NAME);
-        } else if (collectionObjectOriginal != null) {
+        } else if (collectionObjectOriginal != null && isCollectionPage(originalDocument)) {
             // Collection was deleted - delete it from Solr.
             String collectionId = collectionObjectOriginal.getStringValue(DefaultCollection.ID_FIELDNAME);
-            String wiki = document.getDocumentReference().getWikiReference().getName();
             this.solrConnector.deleteChunksByCollection(wiki, collectionId);
+        }
+    }
+
+    /**
+     * Handle a page that carried a collections object both before and after the change. When the store or the id
+     * changed, the chunks of the old id are dropped only if the page was the page of that old id, and the page is
+     * queued for re-indexing only if it is the page of the new id. The two gates are independent: a renamed
+     * collection page whose object is realigned to the new space name by the migrator is queued without dropping
+     * anything (the deletion event of the old page already dropped the old chunks), while a copy of a collection
+     * page whose id is edited never touches the chunks of the collection it was copied from.
+     */
+    private void updateChangedCollectionIndex(XWikiDocument document, XWikiDocument originalDocument,
+        BaseObject collectionObject, BaseObject collectionObjectOriginal)
+    {
+        String collectionId = collectionObject.getStringValue(DefaultCollection.ID_FIELDNAME);
+        String oldCollectionId = collectionObjectOriginal.getStringValue(DefaultCollection.ID_FIELDNAME);
+        String oldStoreHint = collectionObjectOriginal.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
+        String newStoreHint = collectionObject.getStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME);
+
+        boolean changed =
+            !Objects.equals(oldStoreHint, newStoreHint) || !Objects.equals(oldCollectionId, collectionId);
+        if (!changed) {
+            return;
+        }
+
+        String wiki = document.getDocumentReference().getWikiReference().getName();
+        if (isCollectionPage(originalDocument)) {
+            this.solrConnector.deleteChunksByCollection(wiki, oldCollectionId);
+        }
+        if (isCollectionPage(document)) {
+            this.taskManager.addTask(wiki, document.getId(), CollectionIndexingTaskConsumer.NAME);
         }
     }
 

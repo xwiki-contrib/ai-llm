@@ -48,7 +48,6 @@ import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
-import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
@@ -163,7 +162,13 @@ public class DefaultCollectionManager implements CollectionManager
             if (deleteDocuments) {
                 var documentStore = collection.getDocumentStore();
                 for (String docID : documentStore.getDocumentNames(0, -1)) {
-                    documentStore.deleteDocument(documentStore.getDocument(docID));
+                    var document = documentStore.getDocument(docID);
+                    if (document != null) {
+                        documentStore.deleteDocument(document);
+                    } else {
+                        this.logger.warn("Skipping the deletion of document [{}] of collection [{}] as its page "
+                            + "does not exist", docID, id);
+                    }
                 }
             }
             XWikiContext context = contextProvider.get();
@@ -178,9 +183,7 @@ public class DefaultCollectionManager implements CollectionManager
     @Override
     public DocumentReference getDocumentReference(String id)
     {
-        String wikiId = this.contextProvider.get().getWikiId();
-        return new DocumentReference("WebHome",
-            new SpaceReference(id, new SpaceReference(wikiId, Collection.DEFAULT_COLLECTION_SPACE)));
+        return DefaultCollection.getDocumentReference(this.contextProvider.get().getWikiId(), id);
     }
 
     @Override

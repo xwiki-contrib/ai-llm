@@ -44,6 +44,7 @@ import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.user.UserReference;
 
 import com.xpn.xwiki.XWikiContext;
@@ -83,6 +84,7 @@ public class DefaultCollection implements Collection
     private static final String QUERY_GROUPS_FIELDNAME = "queryGroups";
     private static final String RIGHTS_CHECK_METHOD_FIELDNAME = "rightsCheckMethod";
 
+    private static final String COLLECTION_PAGE_NAME = "WebHome";
 
     @Inject
     protected Provider<XWikiContext> contextProvider;
@@ -94,8 +96,24 @@ public class DefaultCollection implements Collection
     private Provider<ComponentManager> componentManagerProvider;
 
     /**
+     * Build the reference of the page of a collection. The collection with the id {@code collectionId} is the page
+     * {@code <wikiId>:AI.Collections.<collectionId>.WebHome}. Only that page is the collection; a collections object
+     * on any other page, for instance on a copy of the collection page, is not a collection.
+     *
+     * @param wikiId the id of the wiki of the collection
+     * @param collectionId the id of the collection
+     * @return the reference of the page of the collection
+     * @since 0.10.1
+     */
+    public static DocumentReference getDocumentReference(String wikiId, String collectionId)
+    {
+        return new DocumentReference(COLLECTION_PAGE_NAME,
+            new SpaceReference(collectionId, new SpaceReference(wikiId, DEFAULT_COLLECTION_SPACE)));
+    }
+
+    /**
      * Initialize the collection.
-     *  
+     *
      * @param xwikidocument the XWiki document
      */
     public void initialize(XWikiDocument xwikidocument)

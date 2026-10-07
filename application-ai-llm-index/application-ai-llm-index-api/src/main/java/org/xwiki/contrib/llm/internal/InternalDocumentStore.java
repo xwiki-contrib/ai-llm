@@ -37,6 +37,7 @@ import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.IndexTaskConsumer;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
@@ -69,10 +70,14 @@ public class InternalDocumentStore implements DocumentStore
 
     private static final String DOCUMENT_CLASS = Document.XCLASS_SPACE_STRING + "." + Document.XCLASS_NAME;
 
-    private static final String TEMPLATE_DOC = Document.XCLASS_SPACE_STRING + ".DocumentsTemplate";
+    private static final String DOCUMENTS_SPACE_NAME = "Documents";
 
     @Inject
     private QueryManager queryManager;
+
+    @Inject
+    @Named("local")
+    private EntityReferenceSerializer<String> localEntityReferenceSerializer;
 
     @Inject
     private Provider<XWikiContext> contextProvider;
@@ -108,18 +113,22 @@ public class InternalDocumentStore implements DocumentStore
     public List<String> getDocumentNames(int offset, int limit) throws IndexException
     {
         try {
+            // Only the pages of the Documents space of the collection are its documents: the space binding keeps a
+            // documents object placed on any other page, of this or another collection, out of the listing.
             String hql =
                 """
                     select prop.value from XWikiDocument doc, BaseObject obj, StringProperty prop,
                     StringProperty collectionProp where doc.fullName=obj.name and obj.className='%s'
-                    and doc.fullName <> '%s' and obj.id = prop.id.id and prop.id.name = 'id'
+                    and doc.space = :space and obj.id = prop.id.id and prop.id.name = 'id'
                     and obj.id = collectionProp.id.id and collectionProp.id.name = 'collection'
                     and collectionProp.value = :collection
                     """
-                    .formatted(DOCUMENT_CLASS, TEMPLATE_DOC);
+                    .formatted(DOCUMENT_CLASS);
 
             Query query = this.queryManager.createQuery(hql, Query.HQL);
             query.setWiki(this.collection.getDocumentReference().getWikiReference().getName());
+            query.bindValue("space", this.localEntityReferenceSerializer.serialize(
+                getDocumentsSpaceReference(this.collection.getDocumentReference().getLastSpaceReference())));
             query.bindValue("collection", this.collection.getID());
             if (limit > -1) {
                 query.setLimit(limit);
@@ -247,11 +256,38 @@ public class InternalDocumentStore implements DocumentStore
         }
     }
 
-    private DocumentReference getDocumentReference(String id)
+    /**
+     * Build the reference of the page that stores a document of a collection in this store. A document with the id
+     * {@code documentId} of the collection {@code collectionId} is stored in the page
+     * {@code <wikiId>:AI.Collections.<collectionId>.Documents.<sha256Hex(documentId)>}. Only that page is the
+     * document of the collection; a documents object on any other page does not belong to this store.
+     *
+     * @param wikiId the id of the wiki of the collection
+     * @param collectionId the id of the collection
+     * @param documentId the id of the document
+     * @return the reference of the page that stores the document
+     * @since 0.10.1
+     */
+    public static DocumentReference getDocumentReference(String wikiId, String collectionId, String documentId)
     {
-        SpaceReference lastSpaceReference = this.collection.getDocumentReference().getLastSpaceReference();
-        SpaceReference documentsSpaceReference = new SpaceReference("Documents", lastSpaceReference);
-        return new DocumentReference(DigestUtils.sha256Hex(id), documentsSpaceReference);
+        SpaceReference collectionSpaceReference =
+            new SpaceReference(collectionId, new SpaceReference(wikiId, Collection.DEFAULT_COLLECTION_SPACE));
+        return getDocumentReference(collectionSpaceReference, documentId);
     }
 
+    private static DocumentReference getDocumentReference(SpaceReference collectionSpaceReference, String documentId)
+    {
+        return new DocumentReference(DigestUtils.sha256Hex(documentId),
+            getDocumentsSpaceReference(collectionSpaceReference));
+    }
+
+    private static SpaceReference getDocumentsSpaceReference(SpaceReference collectionSpaceReference)
+    {
+        return new SpaceReference(DOCUMENTS_SPACE_NAME, collectionSpaceReference);
+    }
+
+    private DocumentReference getDocumentReference(String id)
+    {
+        return getDocumentReference(this.collection.getDocumentReference().getLastSpaceReference(), id);
+    }
 }
