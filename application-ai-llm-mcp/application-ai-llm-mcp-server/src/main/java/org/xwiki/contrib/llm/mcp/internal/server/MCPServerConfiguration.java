@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm.mcp.internal.server;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +33,6 @@ import javax.inject.Singleton;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
-import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
@@ -48,11 +48,21 @@ import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.BaseProperty;
+import com.xpn.xwiki.objects.PropertyInterface;
 
 /**
  * Provides MCP server configuration values by reading the admin XObject stored at
  * {@code AI.MCP.Code.MCPServerConfig} on the wiki being queried. Falls back to sensible defaults
  * if the config document or XObject is absent (e.g. before the mcp-ui module is installed).
+ * <p>
+ * Every read goes through one door, {@link #loadConfiguration(String)}, which trusts a configuration page only
+ * when the user who last saved it has admin right on that wiki. An untrusted page turns the wiki's endpoint off
+ * and nothing else is read from it, so its values never reach a reader. Every write goes through
+ * {@link #prepareForWrite(String, XWikiContext)}, which replaces an untrusted page with the page as the extension
+ * ships it before the acting administrator's value is written, and through {@link #save}, which stamps the
+ * acting user as author and creator of the saved page: a write never re-trusts anything an administrator has
+ * not seen, and the page it produces is trusted.
  *
  * @version $Id$
  * @since 0.9
@@ -118,19 +128,36 @@ public class MCPServerConfiguration
     static final Set<String> REACH_GATED_TOOL_IDS = Set.of(MCPListWikisTool.TOOL_ID);
 
     @Inject
-    private DocumentAccessBridge documentAccessBridge;
-
-    @Inject
     private ComponentManager componentManager;
 
     @Inject
     private WikiDescriptorManager wikiDescriptorManager;
 
     @Inject
+    private MCPConfigPageAuthorship authorship;
+
+    @Inject
+    private MCPConfigPageTemplate template;
+
+    @Inject
     private Provider<XWikiContext> contextProvider;
 
     @Inject
     private Logger logger;
+
+    /**
+     * The configuration page of a wiki as the readers see it: its object when the page is trusted, and the
+     * author the trust decision was made on.
+     *
+     * @param trusted whether the readers may use the page: it does not exist, or its author has admin right on
+     *     the wiki
+     * @param object the configuration XObject when the page is trusted and carries one, {@code null} otherwise
+     * @param author the user who last saved the page, or {@code null} when the page does not exist or records
+     *     no author
+     */
+    private record Configuration(boolean trusted, BaseObject object, DocumentReference author)
+    {
+    }
 
     // Server identity (name/description) is read per wiki from that wiki's own config document, so each
     // wiki advertises its own MCP server name and instructions.
@@ -202,22 +229,24 @@ public class MCPServerConfiguration
      * @param wikiId the wiki to check
      * @return whether the MCP endpoint is enabled for the given wiki. MCP is enabled by default on every
      *     wiki so an endpoint is available with no admin action: an unset flag and a missing config object
-     *     both resolve to true. Only an explicit {@code enabled=0} turns the endpoint off. A failed read
-     *     still fails closed (returns false), so a config-read error 404s the endpoint rather than exposing it.
+     *     both resolve to true. Only an explicit {@code enabled=0} turns the endpoint off. A configuration
+     *     page that is not trusted (see {@link #isConfigurationTrusted(String)}) turns the endpoint off as
+     *     well, until an administrator resets it. A failed read still fails closed (returns false), so a
+     *     config-read error 404s the endpoint rather than exposing it.
      * @since 0.9
      */
     public boolean isEnabled(String wikiId)
     {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
-            XWikiContext context = this.contextProvider.get();
             // This read must stay uncached: the farm dashboard writes the flag and re-renders the wiki's
             // row in the same request, relying on this returning the just-saved value.
-            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
-            BaseObject configObject = configDoc.getXObject(classRef);
+            Configuration configuration = loadConfiguration(wikiId);
+            if (!configuration.trusted()) {
+                return false;
+            }
+            BaseObject configObject = configuration.object();
             // Enabled by default: a missing object or unset flag resolves to true. Only an explicit 0 is off.
-            if (configObject == null || configObject.getField(FIELD_ENABLED) == null) {
+            if (configObject == null || isUnset(configObject, FIELD_ENABLED)) {
                 return true;
             }
             return configObject.getIntValue(FIELD_ENABLED) == 1;
@@ -225,6 +254,74 @@ public class MCPServerConfiguration
             this.logger.warn("Could not read the MCP enabled flag for wiki [{}]; disabling the endpoint: [{}]",
                 wikiId, ExceptionUtils.getRootCauseMessage(e));
             this.logger.debug("MCP enabled flag read failure for wiki [{}]", wikiId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Tells whether the configuration page of the given wiki is trusted, i.e. whether its values are applied:
+     * a page that does not exist is trusted (the defaults apply), and an existing page is trusted only when the
+     * user who last saved it has admin right on that wiki. The values of an untrusted page are never read; the
+     * wiki's endpoint is off until an administrator resets the page (see {@link #resetConfiguration(String)}).
+     *
+     * @param wikiId the wiki whose configuration page to check
+     * @return {@code true} when the page does not exist or was last saved by a user with admin right on the
+     *     wiki; {@code false} otherwise, and when the page cannot be read
+     * @since 0.10.1
+     */
+    public boolean isConfigurationTrusted(String wikiId)
+    {
+        try {
+            return loadConfiguration(wikiId).trusted();
+        } catch (Exception e) {
+            this.logger.warn("Could not read the MCP configuration page of wiki [{}]; treating it as not "
+                + "trusted: [{}]", wikiId, ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP configuration page read failure for wiki [{}]", wikiId, e);
+            return false;
+        }
+    }
+
+    /**
+     * @param wikiId the wiki whose configuration page to inspect
+     * @return the user who last saved the wiki's configuration page, or {@code null} when the page does not
+     *     exist, records no author, or cannot be read
+     * @since 0.10.1
+     */
+    public DocumentReference getConfigurationAuthor(String wikiId)
+    {
+        try {
+            return loadConfiguration(wikiId).author();
+        } catch (Exception e) {
+            this.logger.debug("MCP configuration author read failure for wiki [{}]", wikiId, e);
+            return null;
+        }
+    }
+
+    /**
+     * Removes every stored MCP setting of the given wiki, so the defaults apply, and records the acting user
+     * as author and creator of the configuration page. This is the way an administrator takes ownership of a
+     * configuration page that is not trusted: the untrusted page is replaced by the page the extension ships
+     * rather than re-trusted, and the page can then be configured again through the admin form.
+     *
+     * @param wikiId the wiki whose configuration to reset
+     * @return {@code true} if the page was reset, {@code false} if the write failed
+     * @since 0.10.1
+     */
+    public boolean resetConfiguration(String wikiId)
+    {
+        try {
+            XWikiContext context = this.contextProvider.get();
+            XWikiDocument doc = prepareForWrite(wikiId, context);
+            doc.removeXObjects(classReference(wikiId));
+            // The reset page carries a fresh, empty configuration object, so the admin form finds one on its next
+            // visit and does not save the page a second time to create it.
+            doc.getXObject(classReference(wikiId), true, context);
+            save(doc, "Reset MCP configuration", context);
+            return true;
+        } catch (Exception e) {
+            this.logger.warn("Failed to reset the MCP configuration of wiki [{}]: [{}]", wikiId,
+                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("Failed to reset the MCP configuration of wiki [{}]", wikiId, e);
             return false;
         }
     }
@@ -242,13 +339,9 @@ public class MCPServerConfiguration
      */
     public boolean isRenderedContentAllowed(String wikiId)
     {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
-            XWikiContext context = this.contextProvider.get();
-            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
-            BaseObject configObject = configDoc.getXObject(classRef);
-            if (configObject == null || configObject.getField(FIELD_ALLOW_RENDERED_CONTENT) == null) {
+            BaseObject configObject = loadConfiguration(wikiId).object();
+            if (configObject == null || isUnset(configObject, FIELD_ALLOW_RENDERED_CONTENT)) {
                 return true;
             }
             return configObject.getIntValue(FIELD_ALLOW_RENDERED_CONTENT) == 1;
@@ -281,13 +374,9 @@ public class MCPServerConfiguration
      */
     public boolean isGuestAccessAllowed(String wikiId)
     {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
-            XWikiContext context = this.contextProvider.get();
-            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
-            BaseObject configObject = configDoc.getXObject(classRef);
-            if (configObject == null || configObject.getField(FIELD_ALLOW_GUEST) == null) {
+            BaseObject configObject = loadConfiguration(wikiId).object();
+            if (configObject == null || isUnset(configObject, FIELD_ALLOW_GUEST)) {
                 return false;
             }
             return configObject.getIntValue(FIELD_ALLOW_GUEST) == 1;
@@ -310,10 +399,12 @@ public class MCPServerConfiguration
      */
     public boolean setEnabled(String wikiId, boolean enabled)
     {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
-            this.documentAccessBridge.setProperty(configRef, classRef, FIELD_ENABLED, enabled ? 1 : 0);
+            XWikiContext context = this.contextProvider.get();
+            XWikiDocument doc = prepareForWrite(wikiId, context);
+            BaseObject obj = doc.getXObject(classReference(wikiId), true, context);
+            obj.set(FIELD_ENABLED, enabled ? 1 : 0, context);
+            save(doc, "Updated MCP enabled flag", context);
             return true;
         } catch (Exception e) {
             this.logger.warn("Failed to set the MCP enabled flag for wiki [{}]: [{}]", wikiId,
@@ -334,10 +425,12 @@ public class MCPServerConfiguration
      */
     public boolean setGuestAccessAllowed(String wikiId, boolean allowed)
     {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
-            this.documentAccessBridge.setProperty(configRef, classRef, FIELD_ALLOW_GUEST, allowed ? 1 : 0);
+            XWikiContext context = this.contextProvider.get();
+            XWikiDocument doc = prepareForWrite(wikiId, context);
+            BaseObject obj = doc.getXObject(classReference(wikiId), true, context);
+            obj.set(FIELD_ALLOW_GUEST, allowed ? 1 : 0, context);
+            save(doc, "Updated MCP guest access flag", context);
             return true;
         } catch (Exception e) {
             this.logger.warn("Failed to set the MCP allow-guest flag for wiki [{}]: [{}]", wikiId,
@@ -354,20 +447,23 @@ public class MCPServerConfiguration
      *     cannot self-grant reach by editing their own wiki's config. Until a farm admin first saves the reach
      *     dashboard (which sets {@code reachInitialized}), only the MAIN wiki reaches across the farm by default
      *     and every other wiki fails closed; from that first save on, the list is authoritative and may include
-     *     or exclude any wiki, the main wiki included. A failed read fails closed (false) for every wiki.
+     *     or exclude any wiki, the main wiki included. A main wiki configuration page that is not trusted and a
+     *     failed read both fail closed (false) for every wiki.
      * @since 0.9
      */
     public boolean isCrossWikiReachAllowed(String wikiId)
     {
         String mainWiki = this.wikiDescriptorManager.getMainWikiId();
-        DocumentReference configRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
-            XWikiContext context = this.contextProvider.get();
             // The reach grant is a FARM-level decision: it is read only from the MAIN wiki's config list. A subwiki
             // admin can edit their own wiki's config document but not the main wiki's, so reach cannot be self-granted.
-            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
-            BaseObject configObject = configDoc.getXObject(classRef);
+            Configuration configuration = loadConfiguration(mainWiki);
+            // A grant from an untrusted list is not honoured for any wiki, the main wiki included: the "main wiki
+            // only" default below would otherwise keep serving reach from a page nobody with admin right saved.
+            if (!configuration.trusted()) {
+                return false;
+            }
+            BaseObject configObject = configuration.object();
             // Default posture until the reach dashboard is first saved: only the MAIN wiki reaches across the
             // farm. The reachInitialized flag is read via getIntValue (0 for both an absent and an unset field),
             // so the default cannot be defeated by a materialised-but-empty list. Once set, the list is
@@ -401,12 +497,10 @@ public class MCPServerConfiguration
     public boolean setCrossWikiReach(String wikiId, boolean allowed)
     {
         String mainWiki = this.wikiDescriptorManager.getMainWikiId();
-        DocumentReference configRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
             XWikiContext context = this.contextProvider.get();
-            XWikiDocument doc = context.getWiki().getDocument(configRef, context);
-            BaseObject obj = doc.getXObject(classRef, true, context);
+            XWikiDocument doc = prepareForWrite(mainWiki, context);
+            BaseObject obj = doc.getXObject(classReference(mainWiki), true, context);
             @SuppressWarnings("unchecked")
             List<String> current = new ArrayList<>(obj.getListValue(FIELD_REACH_ENABLED_WIKIS));
             boolean changed;
@@ -420,7 +514,7 @@ public class MCPServerConfiguration
             }
             if (changed) {
                 obj.set(FIELD_REACH_ENABLED_WIKIS, current, context);
-                context.getWiki().saveDocument(doc, "Updated MCP cross-wiki reach", true, context);
+                save(doc, "Updated MCP cross-wiki reach", context);
             }
             return true;
         } catch (Exception e) {
@@ -446,18 +540,16 @@ public class MCPServerConfiguration
     public boolean initializeReachDefaults()
     {
         String mainWiki = this.wikiDescriptorManager.getMainWikiId();
-        DocumentReference configRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(mainWiki, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
             XWikiContext context = this.contextProvider.get();
-            XWikiDocument doc = context.getWiki().getDocument(configRef, context);
-            BaseObject obj = doc.getXObject(classRef, true, context);
+            XWikiDocument doc = prepareForWrite(mainWiki, context);
+            BaseObject obj = doc.getXObject(classReference(mainWiki), true, context);
             if (obj.getIntValue(FIELD_REACH_INITIALIZED) == 1) {
                 return true;
             }
             obj.set(FIELD_REACH_ENABLED_WIKIS, List.of(mainWiki), context);
             obj.set(FIELD_REACH_INITIALIZED, 1, context);
-            context.getWiki().saveDocument(doc, "Initialized MCP cross-wiki reach defaults", true, context);
+            save(doc, "Initialized MCP cross-wiki reach defaults", context);
             return true;
         } catch (Exception e) {
             this.logger.warn("Failed to initialize the MCP cross-wiki reach defaults: [{}]",
@@ -484,13 +576,9 @@ public class MCPServerConfiguration
      */
     public Set<String> getEnabledToolIds(String wikiId)
     {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
-            XWikiContext context = this.contextProvider.get();
             // This read must stay uncached so a just-saved tool set is reflected on the next request.
-            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
-            BaseObject configObject = configDoc.getXObject(classRef);
+            BaseObject configObject = loadConfiguration(wikiId).object();
             // getListValue returns an empty List when the field is absent, never null.
             @SuppressWarnings("unchecked")
             List<String> stored = configObject == null ? List.of() : configObject.getListValue(FIELD_ENABLED_TOOLS);
@@ -587,61 +675,29 @@ public class MCPServerConfiguration
     }
 
     /**
-     * Returns the raw stored tool id list for the given wiki, or {@code null} when the wiki has never had a
-     * tool set configured (so callers can distinguish "using defaults" from an explicit, possibly empty set).
-     *
-     * @param wikiId the wiki whose stored tool ids to read
-     * @return the stored tool id list, or {@code null} if never configured
-     * @since 0.9
-     */
-    public List<String> getConfiguredToolIds(String wikiId)
-    {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
-        try {
-            XWikiContext context = this.contextProvider.get();
-            XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
-            BaseObject configObject = configDoc.getXObject(classRef);
-            if (configObject == null || configObject.getField(FIELD_ENABLED_TOOLS) == null) {
-                return null;
-            }
-            // getListValue returns a raw List; the stored values are tool id strings.
-            @SuppressWarnings("unchecked")
-            List<String> storedIds = configObject.getListValue(FIELD_ENABLED_TOOLS);
-            return new ArrayList<>(storedIds);
-        } catch (Exception e) {
-            this.logger.warn("Could not read the configured MCP tool ids for wiki [{}]: [{}]", wikiId,
-                ExceptionUtils.getRootCauseMessage(e));
-            this.logger.debug("MCP configured tool ids read failure for wiki [{}]", wikiId, e);
-            return null;
-        }
-    }
-
-    /**
      * Stores the explicit set of enabled tool ids on the given wiki's configuration document, creating the
-     * config XObject if necessary. A {@code null} list is stored as the empty list (an explicit "no tools").
+     * config XObject if necessary. A {@code null} list is stored as the empty list, which the readers resolve to
+     * the default policy (see {@link #getEnabledToolIds(String)}).
      *
      * @param wikiId the wiki whose tool set to write
-     * @param toolIds the tool ids to enable, or {@code null} to store an empty set
+     * @param toolIds the tool ids to enable, or {@code null} to store the empty list
      * @return {@code true} if the set was written, {@code false} if the write failed (including when the
      *     deployed configuration class lacks the tool-list field, in which case nothing is saved)
      * @since 0.9
      */
     public boolean setEnabledToolIds(String wikiId, List<String> toolIds)
     {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
         try {
             XWikiContext context = this.contextProvider.get();
-            XWikiDocument doc = context.getWiki().getDocument(configRef, context);
-            BaseObject obj = doc.getXObject(classRef, true, context);
+            XWikiDocument doc = prepareForWrite(wikiId, context);
+            BaseObject obj = doc.getXObject(classReference(wikiId), true, context);
             obj.set(FIELD_ENABLED_TOOLS, toolIds == null ? List.of() : toolIds, context);
             if (obj.getField(FIELD_ENABLED_TOOLS) == null) {
                 this.logger.warn("Could not store the MCP tool list for wiki [{}]: the [{}] field is absent "
                     + "from the deployed config class", wikiId, FIELD_ENABLED_TOOLS);
                 return false;
             }
-            context.getWiki().saveDocument(doc, "Updated MCP tool configuration", true, context);
+            save(doc, "Updated MCP tool configuration", context);
             return true;
         } catch (Exception e) {
             this.logger.warn("Failed to set the MCP enabled tools for wiki [{}]: [{}]", wikiId,
@@ -727,7 +783,7 @@ public class MCPServerConfiguration
     private BaseObject loadSpaceFilterObject(String wikiId)
     {
         try {
-            return loadConfigObject(wikiId);
+            return loadConfiguration(wikiId).object();
         } catch (XWikiException e) {
             throw new IllegalStateException(
                 "Could not read the MCP space filter configuration for wiki [" + wikiId + "]", e);
@@ -735,35 +791,200 @@ public class MCPServerConfiguration
     }
 
     /**
-     * Loads the MCP configuration XObject for the given wiki, reading the config document uncached so a
-     * just-saved value is reflected on the next request.
+     * Loads the configuration page of a wiki. A page that does not exist is trusted and has no object (the
+     * defaults apply). An existing page is trusted only when the user who last saved it (its effective metadata
+     * author) has admin right on that wiki; otherwise the readers treat the wiki as unconfigured except that
+     * its endpoint is off.
      *
-     * @param wikiId the wiki whose configuration object to load
-     * @return the configuration XObject, or {@code null} when the document has no such object
+     * @param wikiId the wiki whose configuration page to load
+     * @return the page as the readers see it
      * @throws XWikiException if the configuration document cannot be read
      */
-    private BaseObject loadConfigObject(String wikiId) throws XWikiException
+    private Configuration loadConfiguration(String wikiId) throws XWikiException
     {
-        DocumentReference configRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-        DocumentReference classRef = new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
         XWikiContext context = this.contextProvider.get();
-        XWikiDocument configDoc = context.getWiki().getDocument(configRef, context);
-        return configDoc.getXObject(classRef);
+        XWikiDocument configDoc = context.getWiki().getDocument(configReference(wikiId), context);
+        if (configDoc.isNew()) {
+            return new Configuration(true, null, null);
+        }
+        DocumentReference author = this.authorship.authorOf(configDoc);
+        boolean trusted = this.authorship.isTrusted(author, wikiId);
+        return new Configuration(trusted, trusted ? configDoc.getXObject(classReference(wikiId)) : null, author);
+    }
+
+    /**
+     * Loads the document a write modifies and saves. For a page that does not exist or is trusted this is a
+     * private copy of the stored page: the cached page is never modified in place. An untrusted page is not
+     * copied at all: the write starts from the page as the extension ships it (see
+     * {@link MCPConfigPageTemplate#shippedPage(String, XWikiContext)}), or from an empty hidden page when the
+     * extension package cannot be read, and the acting administrator takes ownership of it. The untrusted page is
+     * deleted first, with its translations (to the recycle bin when the recycle bin is enabled), so that the save
+     * of the fresh document creates the page and the platform's own deletion listeners take care of its
+     * attachments, links and index entries. Saving the fresh document over the stored page instead would make the
+     * platform delete the stored page itself and then fire a document-updated event whose original document
+     * still lists the removed attachments, which its attachment event generator fails to read. Nothing of the
+     * untrusted page is kept, not even its title or content, because the platform runs UI extensions and the
+     * administration section's code under the page's metadata author and skin-extension Velocity under its
+     * content author: after the save both are the administrator, so anything left on the page would run with
+     * their rights.
+     *
+     * @param wikiId the wiki whose configuration page to prepare
+     * @param context the current context
+     * @return the document to modify and save
+     * @throws XWikiException if the configuration document cannot be read, or an untrusted page cannot be deleted
+     */
+    private XWikiDocument prepareForWrite(String wikiId, XWikiContext context) throws XWikiException
+    {
+        XWikiDocument stored = context.getWiki().getDocument(configReference(wikiId), context);
+        if (stored.isNew() || this.authorship.isTrusted(this.authorship.authorOf(stored), wikiId)) {
+            return stored.clone();
+        }
+        context.getWiki().deleteAllDocuments(stored, context);
+        XWikiDocument fresh = this.template.shippedPage(wikiId, context);
+        if (fresh == null) {
+            this.logger.warn("The MCP configuration page of wiki [{}] could not be restored from the extension "
+                + "package; it is replaced by an empty page", wikiId);
+            fresh = new XWikiDocument(configReference(wikiId));
+            fresh.setHidden(true);
+        }
+        this.authorship.takeOwnership(fresh, context);
+        return fresh;
+    }
+
+    /**
+     * Saves a configuration page prepared by {@link #prepareForWrite(String, XWikiContext)}, stamping the acting
+     * user as its author and creator first so that the saved page is trusted. A save that creates or replaces the
+     * page is verified afterwards (see {@link #verifyReplacement(XWikiDocument, XWikiContext)}).
+     *
+     * @param doc the document to save
+     * @param comment the version comment
+     * @param context the current context, carrying the acting user
+     * @throws XWikiException if the save fails, or the saved page is found to carry content that was not saved
+     */
+    private void save(XWikiDocument doc, String comment, XWikiContext context) throws XWikiException
+    {
+        this.authorship.stamp(doc, context);
+        boolean created = doc.isNew();
+        context.getWiki().saveDocument(doc, comment, true, context);
+        if (created) {
+            verifyReplacement(doc, context);
+        }
+    }
+
+    /**
+     * Checks that the page just created or replaced carries nothing but what was saved. A save by the untrusted
+     * author landing between the deletion of their page and the replacement save re-creates the page, and the
+     * platform's save of a new document over an existing one removes only the objects and attachments of the
+     * original it read earlier: rows of that save can stay attached to the page name, now under the
+     * administrator's authorship. The page is therefore read
+     * back from the store (the save invalidated the cache) and compared with the saved instance: more objects of
+     * any class than the saved instance carries (a second configuration object would carry the other author's
+     * values under the administrator's trust), an attachment or a translation means the page was changed
+     * concurrently. The page is then deleted (to the recycle bin), which leaves the wiki on the defaults, the
+     * documented state for a missing page, with nothing of the other author live under the administrator, and
+     * the write is reported as failed.
+     *
+     * @param saved the instance that was just saved
+     * @param context the current context
+     * @throws XWikiException if the page cannot be read back or deleted, or carries content that was not saved
+     */
+    private void verifyReplacement(XWikiDocument saved, XWikiContext context) throws XWikiException
+    {
+        XWikiDocument reloaded = context.getWiki().getDocument(saved.getDocumentReference(), context);
+        Set<DocumentReference> excessClasses = excessObjectClasses(saved, reloaded);
+        int attachments = reloaded.getAttachmentList().size();
+        int translations = reloaded.getTranslationLocales(context).size();
+        if (excessClasses.isEmpty() && attachments == 0 && translations == 0) {
+            return;
+        }
+        String wikiId = saved.getDocumentReference().getWikiReference().getName();
+        this.logger.warn("The MCP configuration page of wiki [{}] was changed concurrently with its replacement and "
+            + "carries content that was not saved (more objects of classes {} than saved, [{}] attachment(s), [{}] "
+            + "translation(s)); the page is deleted and the wiki uses the default MCP configuration", wikiId,
+            excessClasses, attachments, translations);
+        context.getWiki().deleteAllDocuments(reloaded, context);
+        throw new XWikiException(XWikiException.MODULE_XWIKI_DOC, XWikiException.ERROR_XWIKI_UNKNOWN,
+            "The MCP configuration page of wiki [" + wikiId + "] was changed concurrently with its replacement");
+    }
+
+    /**
+     * @param saved the instance that was saved
+     * @param reloaded the page as read back from the store
+     * @return the classes the reloaded page carries more objects of than the saved instance, including the
+     *     classes the saved instance carries no object of
+     */
+    private static Set<DocumentReference> excessObjectClasses(XWikiDocument saved, XWikiDocument reloaded)
+    {
+        Map<DocumentReference, Integer> savedCounts = objectCounts(saved);
+        Set<DocumentReference> excess = new HashSet<>();
+        for (Map.Entry<DocumentReference, Integer> entry : objectCounts(reloaded).entrySet()) {
+            if (entry.getValue() > savedCounts.getOrDefault(entry.getKey(), 0)) {
+                excess.add(entry.getKey());
+            }
+        }
+        return excess;
+    }
+
+    /**
+     * @param doc a document
+     * @return the classes the document carries at least one object of (a removed object leaves a {@code null}
+     *     slot behind, which does not count)
+     */
+    static Set<DocumentReference> objectClasses(XWikiDocument doc)
+    {
+        return new HashSet<>(objectCounts(doc).keySet());
+    }
+
+    /**
+     * @param doc a document
+     * @return the number of objects the document carries per class, for the classes it carries at least one
+     *     object of (a removed object leaves a {@code null} slot behind, which does not count)
+     */
+    private static Map<DocumentReference, Integer> objectCounts(XWikiDocument doc)
+    {
+        Map<DocumentReference, Integer> counts = new HashMap<>();
+        for (Map.Entry<DocumentReference, List<BaseObject>> entry : doc.getXObjects().entrySet()) {
+            int count = (int) entry.getValue().stream().filter(object -> object != null).count();
+            if (count > 0) {
+                counts.put(entry.getKey(), count);
+            }
+        }
+        return counts;
+    }
+
+    /**
+     * Tells whether a field of the configuration object carries no value. A property that the store added with
+     * no value when the object was saved (the Hibernate store materializes every class property missing from a
+     * saved object) is as unset as a missing one: both must resolve to the reader's default.
+     *
+     * @param object the configuration object
+     * @param fieldName the field to check
+     * @return {@code true} when the field is absent or present without a value
+     */
+    private static boolean isUnset(BaseObject object, String fieldName)
+    {
+        PropertyInterface property = object.getField(fieldName);
+        return property == null
+            || (property instanceof BaseProperty<?> baseProperty && baseProperty.getValue() == null);
+    }
+
+    private static DocumentReference configReference(String wikiId)
+    {
+        return new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
+    }
+
+    private static DocumentReference classReference(String wikiId)
+    {
+        return new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
     }
 
     private String getStringProperty(String wikiId, String fieldName, String defaultValue)
     {
         try {
-            DocumentReference configRef =
-                new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_DOC_NAME);
-            DocumentReference classRef =
-                new DocumentReference(wikiId, CONFIG_SPACES, CONFIG_CLASS_NAME);
-            Object value = this.documentAccessBridge.getProperty(configRef, classRef, fieldName);
-            if (value instanceof String) {
-                String trimmedValue = ((String) value).trim();
-                if (!trimmedValue.isEmpty()) {
-                    return trimmedValue;
-                }
+            BaseObject configObject = loadConfiguration(wikiId).object();
+            String value = configObject == null ? null : configObject.getStringValue(fieldName);
+            if (StringUtils.isNotBlank(value)) {
+                return value.trim();
             }
         } catch (Exception e) {
             this.logger.warn("Failed to read MCP server config field [{}], using default value: [{}]",

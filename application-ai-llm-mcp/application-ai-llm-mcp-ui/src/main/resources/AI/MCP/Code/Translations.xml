@@ -40,6 +40,17 @@
 AI.MCP.Code.security.notice=For the strongest access control, run the agent as a dedicated XWiki user whose rights are scoped to what it should access. The tool and space settings here narrow what the agent sees on top of that user's rights - they do not replace them.
 AI.MCP.Code.security.notice.reach=Disabling a wiki's MCP endpoint does not hide that wiki from other endpoints: any endpoint with cross-wiki reach can still read and search it. Use the space and document filters (and rights) to control what is visible.
 AI.MCP.Code.security.notice.filters=Filters are scoping, not secrecy: a request for a filtered document is refused with a distinct message, so the filter's entries are observable by the agent.
+# Configuration trust
+AI.MCP.Code.trust.notice=This configuration is not applied: the configuration page was last saved by {0}, who has no administration right on this wiki, and the MCP endpoint of this wiki is disabled. The stored settings are not shown. Reset the configuration to take ownership of the page: the endpoint then uses the default settings and you can configure it again.
+AI.MCP.Code.trust.notice.noAuthor=This configuration is not applied: the configuration page was saved without a recorded author, and the MCP endpoint of this wiki is disabled. The stored settings are not shown. Reset the configuration to take ownership of the page: the endpoint then uses the default settings and you can configure it again.
+AI.MCP.Code.trust.reset.button=Reset the configuration and take ownership
+AI.MCP.Code.trust.reset.done=The MCP configuration was reset; the default settings apply and you can configure the server below.
+AI.MCP.Code.trust.reset.failed=The MCP configuration could not be reset; see the server log.
+AI.MCP.Code.dashboard.untrusted=configuration not trusted
+AI.MCP.Code.dashboard.untrusted.hint=The configuration page of this wiki was last saved by a user without administration right on it; its endpoint is disabled and its settings cannot be changed from here. Reset it to take ownership with the default settings.
+AI.MCP.Code.dashboard.reset.button=Reset
+AI.MCP.Code.dashboard.reset.done=The MCP configuration of wiki {0} was reset; it now uses the default settings.
+AI.MCP.Code.dashboard.reset.failed=The MCP configuration of wiki {0} could not be reset; see the server log.
 # Class fields
 AI.MCP.Code.MCPServerConfigClass_serverName=Server Name
 AI.MCP.Code.MCPServerConfigClass_serverDescription=Server Description
@@ -66,7 +77,7 @@ AI.MCP.Code.dashboard.configure.link=Configure
 AI.MCP.Code.dashboard.button.apply=Save
 AI.MCP.Code.dashboard.error.csrf=The form token is invalid. No change was applied. Please try again.
 AI.MCP.Code.dashboard.status.applied={0} change(s) applied.
-AI.MCP.Code.dashboard.status.applied.skipped={0} change(s) applied, {1} skipped (insufficient rights).
+AI.MCP.Code.dashboard.status.applied.skipped={0} change(s) applied, {1} skipped (insufficient rights, untrusted configuration or failed write).
 # Tools
 AI.MCP.Code.tools.heading=Tools
 AI.MCP.Code.tools.intro=Choose which tools this wiki's MCP endpoint exposes. Authoring (write) tools are off by default.

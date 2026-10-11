@@ -46,6 +46,7 @@ import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.script.service.ScriptService;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
@@ -56,8 +57,10 @@ import org.xwiki.wiki.descriptor.WikiDescriptorManager;
 import com.xpn.xwiki.XWikiContext;
 
 /**
- * Provides the farm-level MCP administration Script APIs used by the main wiki's MCP admin dashboard:
- * reading each wiki's MCP enabled state and toggling it with a per-wiki admin rights check.
+ * Provides the MCP administration Script APIs used by the per-wiki admin section and the main wiki's farm
+ * dashboard: each wiki's enabled state, guest access, cross-wiki reach, tool states and endpoint URL, and the
+ * trust state of its configuration page with the reset that takes ownership of it, every write guarded by a
+ * per-wiki admin rights check.
  *
  * @version $Id$
  * @since 0.9
@@ -96,6 +99,60 @@ public class MCPFarmScriptService implements ScriptService
     public boolean isEnabled(String wikiId)
     {
         return this.mcpConfig.isEnabled(wikiId);
+    }
+
+    /**
+     * Tells whether the configuration page of the given wiki is trusted, i.e. whether its values are applied: a
+     * page that does not exist is trusted (the defaults apply), and an existing page is trusted only when the
+     * user who last saved it has admin right on that wiki. An untrusted page turns the wiki's endpoint off
+     * until an administrator resets it (see {@link #resetConfiguration(String)}). Read-only status information;
+     * no rights gate, consistent with {@link #isEnabled(String)}.
+     *
+     * @param wikiId the wiki whose configuration page to check
+     * @return whether the wiki's configuration page is trusted
+     * @since 0.10.1
+     */
+    public boolean isConfigurationTrusted(String wikiId)
+    {
+        return this.mcpConfig.isConfigurationTrusted(wikiId);
+    }
+
+    /**
+     * Names the user who last saved the configuration page of the given wiki. The author is shown only to
+     * administrators of the wiki (see {@link #canAdmin(String)}): they are the ones who can act on it.
+     *
+     * @param wikiId the wiki whose configuration page to inspect
+     * @return the user who last saved the wiki's configuration page, or {@code null} when the current user
+     *     cannot administer the wiki, the page does not exist or its author could not be read
+     * @since 0.10.1
+     */
+    public DocumentReference getConfigurationAuthor(String wikiId)
+    {
+        if (!canAdmin(wikiId)) {
+            return null;
+        }
+        return this.mcpConfig.getConfigurationAuthor(wikiId);
+    }
+
+    /**
+     * Resets the MCP configuration of the given wiki, gated by the current user's admin rights on that wiki:
+     * every stored setting is removed so the defaults apply, and the current user becomes the author and
+     * creator of the configuration page. This is how an administrator takes ownership of a configuration page
+     * that is not trusted (see {@link #isConfigurationTrusted(String)}): the stored values of the untrusted
+     * page are dropped, never re-trusted, and the endpoint can be configured again from the admin form.
+     *
+     * @param wikiId the wiki whose configuration to reset
+     * @return {@code true} if the configuration was reset, {@code false} when the user lacks admin rights on
+     *     the wiki or the write failed
+     * @since 0.10.1
+     */
+    public boolean resetConfiguration(String wikiId)
+    {
+        if (!canAdmin(wikiId)) {
+            this.logger.debug("Refused MCP configuration reset for wiki [{}]: missing admin rights", wikiId);
+            return false;
+        }
+        return this.mcpConfig.resetConfiguration(wikiId);
     }
 
     /**
@@ -306,9 +363,10 @@ public class MCPFarmScriptService implements ScriptService
 
     /**
      * Reconciles one per-wiki boolean flag across a set of managed wikis: each managed wiki ends up with the
-     * flag on if and only if it appears in {@code onWikiIds}. A wiki the current user cannot administer is
-     * skipped without being read; a wiki already in the desired state is left untouched; a failed write counts
-     * as skipped.
+     * flag on if and only if it appears in {@code onWikiIds}. A wiki the current user cannot administer, and a
+     * wiki whose configuration page is not trusted (its stored settings are not shown on the dashboard, so a
+     * write from there would act on values the administrator has not seen), is skipped without being read; a
+     * wiki already in the desired state is left untouched; a failed write counts as skipped.
      *
      * @param managedWikiIds the wikis whose state should be reconciled (may be {@code null} or empty)
      * @param onWikiIds the subset of those wikis that should end up with the flag on (may be {@code null} or
@@ -326,7 +384,7 @@ public class MCPFarmScriptService implements ScriptService
         if (managedWikiIds != null) {
             for (String wiki : managedWikiIds) {
                 boolean desired = onSet.contains(wiki);
-                if (!canAdmin(wiki)) {
+                if (!canAdmin(wiki) || !this.mcpConfig.isConfigurationTrusted(wiki)) {
                     skipped++;
                     continue;
                 }
@@ -381,23 +439,50 @@ public class MCPFarmScriptService implements ScriptService
      *
      * @param managedWikiIds the wikis whose state should be reconciled (may be {@code null} or empty)
      * @param reachWikiIds the subset of those wikis that should end up with reach (may be {@code null} or empty)
-     * @return the outcome counts of the apply; when the reach defaults cannot be initialized nothing is written
-     *     and every managed wiki is counted as skipped
+     * @return the outcome counts of the apply; when the MAIN wiki's configuration page is not trusted (its
+     *     stored reach list is not shown, so nothing may be written to it from here) or the reach defaults
+     *     cannot be initialized, nothing is written and every managed wiki is counted as skipped
      * @since 0.9
      */
     public BulkResult applyReach(String[] managedWikiIds, String[] reachWikiIds)
     {
         if (!canFarmAdmin()) {
             this.logger.debug("Refused MCP cross-wiki reach apply: missing farm admin rights");
-            return new BulkResult(0, managedWikiIds == null ? 0 : managedWikiIds.length);
+            return allSkipped(managedWikiIds);
+        }
+        if (!this.mcpConfig.isConfigurationTrusted(this.wikiDescriptorManager.getMainWikiId())) {
+            this.logger.debug("Refused MCP cross-wiki reach apply: the main wiki's configuration is not trusted");
+            return allSkipped(managedWikiIds);
         }
         // First save promotes the reach list from the "main wiki only" default to an authoritative list, so the
         // reconciliation below can then turn the main wiki's own reach off if the admin unchecked it. Until that
         // promotion succeeds the list is not consulted, so writing it would report success without effect.
         if (!this.mcpConfig.initializeReachDefaults()) {
             this.logger.debug("Refused MCP cross-wiki reach apply: the reach defaults could not be initialized");
-            return new BulkResult(0, managedWikiIds == null ? 0 : managedWikiIds.length);
+            return allSkipped(managedWikiIds);
         }
+        return reconcileReach(managedWikiIds, reachWikiIds);
+    }
+
+    /**
+     * @param managedWikiIds the wikis of a refused apply (may be {@code null})
+     * @return the outcome of an apply that wrote nothing: every managed wiki counted as skipped
+     */
+    private static BulkResult allSkipped(String[] managedWikiIds)
+    {
+        return new BulkResult(0, managedWikiIds == null ? 0 : managedWikiIds.length);
+    }
+
+    /**
+     * Reconciles the cross-wiki reach grant of each managed wiki with the desired set, once the apply has been
+     * authorized and the reach list promoted to authoritative.
+     *
+     * @param managedWikiIds the wikis whose state should be reconciled (may be {@code null} or empty)
+     * @param reachWikiIds the subset of those wikis that should end up with reach (may be {@code null} or empty)
+     * @return the outcome counts of the apply
+     */
+    private BulkResult reconcileReach(String[] managedWikiIds, String[] reachWikiIds)
+    {
         Set<String> reachSet =
             new HashSet<>(reachWikiIds == null ? List.of() : Arrays.asList(reachWikiIds));
         int changed = 0;

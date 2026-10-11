@@ -33,6 +33,7 @@ import org.mockito.Mock;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
@@ -109,8 +110,10 @@ class MCPFarmScriptServiceTest
     @BeforeEach
     void setUp()
     {
-        // Every wiki id used by these tests is canonical unless a test says otherwise.
+        // Every wiki id used by these tests is canonical and has a trusted configuration page unless a test says
+        // otherwise.
         lenient().when(this.mcpConfig.isCanonicalWikiId(anyString())).thenReturn(true);
+        lenient().when(this.mcpConfig.isConfigurationTrusted(anyString())).thenReturn(true);
     }
 
     private void farmAdmin(boolean allowed)
@@ -127,6 +130,113 @@ class MCPFarmScriptServiceTest
 
         when(this.mcpConfig.isEnabled(WIKI)).thenReturn(false);
         assertFalse(this.service.isEnabled(WIKI));
+    }
+
+    @Test
+    void isConfigurationTrustedDelegatesToConfig()
+    {
+        when(this.mcpConfig.isConfigurationTrusted(WIKI)).thenReturn(true);
+        assertTrue(this.service.isConfigurationTrusted(WIKI));
+
+        when(this.mcpConfig.isConfigurationTrusted(WIKI)).thenReturn(false);
+        assertFalse(this.service.isConfigurationTrusted(WIKI));
+    }
+
+    @Test
+    void getConfigurationAuthorDelegatesToConfigForAnAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        DocumentReference author = new DocumentReference(MAIN_WIKI, "XWiki", "Admin");
+        when(this.mcpConfig.getConfigurationAuthor(WIKI)).thenReturn(author);
+        assertEquals(author, this.service.getConfigurationAuthor(WIKI));
+
+        when(this.mcpConfig.getConfigurationAuthor(WIKI)).thenReturn(null);
+        assertNull(this.service.getConfigurationAuthor(WIKI));
+    }
+
+    @Test
+    void getConfigurationAuthorIsNullForANonAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(false);
+        lenient().when(this.mcpConfig.getConfigurationAuthor(WIKI))
+            .thenReturn(new DocumentReference(MAIN_WIKI, "XWiki", "Admin"));
+
+        // The author is shown only to administrators of the wiki.
+        assertNull(this.service.getConfigurationAuthor(WIKI));
+        verify(this.mcpConfig, never()).getConfigurationAuthor(anyString());
+    }
+
+    @Test
+    void resetConfigurationDelegatesWhenAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.resetConfiguration(WIKI)).thenReturn(true);
+
+        assertTrue(this.service.resetConfiguration(WIKI));
+        verify(this.mcpConfig).resetConfiguration(WIKI);
+    }
+
+    @Test
+    void resetConfigurationRefusesAndDoesNotWriteWhenNotAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(false);
+
+        assertFalse(this.service.resetConfiguration(WIKI));
+        verify(this.mcpConfig, never()).resetConfiguration(anyString());
+    }
+
+    @Test
+    void resetConfigurationRefusesANonCanonicalWikiId()
+    {
+        when(this.mcpConfig.isCanonicalWikiId("XWIKI")).thenReturn(false);
+        lenient().when(this.authorization.hasAccess(Right.ADMIN, new WikiReference("XWIKI"))).thenReturn(true);
+
+        assertFalse(this.service.resetConfiguration("XWIKI"));
+        verify(this.mcpConfig, never()).resetConfiguration(anyString());
+    }
+
+    @Test
+    void applyEnabledSkipsAWikiWhoseConfigurationIsNotTrustedWithoutReadingOrWriting()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.isConfigurationTrusted(WIKI)).thenReturn(false);
+
+        BulkResult result = this.service.applyEnabled(new String[] {WIKI}, new String[] {WIKI});
+
+        // The dashboard never shows the stored values of an untrusted page, so it never writes to it either.
+        verify(this.mcpConfig, never()).isEnabled(anyString());
+        verify(this.mcpConfig, never()).setEnabled(anyString(), anyBoolean());
+        assertEquals(0, result.getChanged());
+        assertEquals(1, result.getSkipped());
+    }
+
+    @Test
+    void applyGuestAccessSkipsAWikiWhoseConfigurationIsNotTrustedWithoutReadingOrWriting()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+        when(this.mcpConfig.isConfigurationTrusted(WIKI)).thenReturn(false);
+
+        BulkResult result = this.service.applyGuestAccess(new String[] {WIKI}, new String[] {WIKI});
+
+        verify(this.mcpConfig, never()).isGuestAccessAllowed(anyString());
+        verify(this.mcpConfig, never()).setGuestAccessAllowed(anyString(), anyBoolean());
+        assertEquals(0, result.getChanged());
+        assertEquals(1, result.getSkipped());
+    }
+
+    @Test
+    void applyReachSkipsEveryWikiWhenTheMainConfigurationIsNotTrusted()
+    {
+        farmAdmin(true);
+        when(this.mcpConfig.isConfigurationTrusted(MAIN_WIKI)).thenReturn(false);
+
+        BulkResult result = this.service.applyReach(new String[] {WIKI, SECOND_WIKI}, new String[] {WIKI});
+
+        // Nothing is written to the untrusted main page, not even the reach defaults.
+        verify(this.mcpConfig, never()).initializeReachDefaults();
+        verify(this.mcpConfig, never()).setCrossWikiReach(anyString(), anyBoolean());
+        assertEquals(0, result.getChanged());
+        assertEquals(2, result.getSkipped());
     }
 
     private void serverUrlContext(String webAppPath)

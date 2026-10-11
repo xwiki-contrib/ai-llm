@@ -1,6 +1,8 @@
 org.xwiki.contrib.llm.mcp.internal.server.XWikiMCPServerManager
 org.xwiki.contrib.llm.mcp.internal.server.DefaultMCPResource
 org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration
+org.xwiki.contrib.llm.mcp.internal.server.MCPConfigPageAuthorship
+org.xwiki.contrib.llm.mcp.internal.server.MCPConfigPageTemplate
 org.xwiki.contrib.llm.mcp.internal.server.MCPConfigChangeEventListener
 org.xwiki.contrib.llm.mcp.internal.access.DefaultMCPSpaceFilter
 org.xwiki.contrib.llm.mcp.internal.access.DefaultMCPDocumentAccess

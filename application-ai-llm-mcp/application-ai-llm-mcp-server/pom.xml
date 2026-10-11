@@ -153,6 +153,22 @@
             <artifactId>xwiki-platform-wiki-api</artifactId>
             <version>${platform.version}</version>
         </dependency>
+        <!-- InstalledExtensionRepository + InstalledExtension: MCPConfigPageTemplate locates the installed
+             mcp-ui XAR to read the shipped configuration page. Arrives transitively via oldcore; declared
+             explicitly since we import it directly. -->
+        <dependency>
+            <groupId>org.xwiki.commons</groupId>
+            <artifactId>xwiki-commons-extension-api</artifactId>
+            <version>${commons.version}</version>
+        </dependency>
+        <!-- XarPackage + XarEntry: MCPConfigPageTemplate reads the package index of the mcp-ui XAR to find
+             the zip entry of the configuration page. Arrives transitively via oldcore; declared explicitly
+             since we import it directly. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-xar-model</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
         <!-- HTML5 renderer since the rendered html mode outputs html/5.0. -->
         <dependency>
             <groupId>org.xwiki.rendering</groupId>

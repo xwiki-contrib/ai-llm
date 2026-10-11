@@ -43,11 +43,27 @@
 #set ($redirect = $xwiki.relativeRequestURL)
 #set ($configDocRef = 'AI.MCP.Code.MCPServerConfig')
 #set ($configClassName = 'AI.MCP.Code.MCPServerConfigClass')
+#set ($isMainWiki = $services.wiki.currentWikiId == $services.wiki.mainWikiId)
+## Trust gate. The stored settings of a configuration page last saved by a user without admin right on this wiki
+## are neither applied nor shown: the admin takes ownership by resetting the page to the defaults. The reset POST
+## is handled here, before the page is read, so the form below reflects the reset page. Like the dashboard apply
+## it requires POST, so the state change is never reachable via a GET.
+#set ($trusted = $services.mcp.isConfigurationTrusted($services.wiki.currentWikiId))
+#if ($request.method == 'POST' &amp;&amp; $request.get('do') == 'mcpReset')
+  #if (!$services.csrf.isTokenValid($request.get('form_token')))
+    {{error}}$services.localization.render('AI.MCP.Code.dashboard.error.csrf'){{/error}}
+  #elseif ($services.mcp.resetConfiguration($services.wiki.currentWikiId))
+    #set ($trusted = $services.mcp.isConfigurationTrusted($services.wiki.currentWikiId))
+    {{success}}$services.localization.render('AI.MCP.Code.trust.reset.done'){{/success}}
+  #else
+    {{error}}$services.localization.render('AI.MCP.Code.trust.reset.failed'){{/error}}
+  #end
+#end
 #set ($configDoc = $xwiki.getDocument($configDocRef))
 #set ($configObject = $configDoc.getObject($configClassName))
-#set ($isMainWiki = $services.wiki.currentWikiId == $services.wiki.mainWikiId)
-## Auto-create the XObject on first access (e.g. after installing the extension without defaults)
-#if ($xcontext.action == 'admin' &amp;&amp; "$!configObject" == '')
+## Auto-create the XObject on first access (e.g. after installing the extension without defaults). Never on an
+## untrusted page: saving it under the admin's name would re-trust it.
+#if ($trusted &amp;&amp; $xcontext.action == 'admin' &amp;&amp; "$!configObject" == '')
   #set ($configObject = $configDoc.newObject($configClassName))
   #set ($discard = $configDoc.save('Created MCP server configuration', true))
 #end
@@ -73,6 +89,31 @@ $services.localization.render('AI.MCP.Code.security.notice.reach')
 $services.localization.render('AI.MCP.Code.security.notice.filters')
 {{/info}}
 
+#if (!$trusted)
+  #set ($mcpConfigAuthor = $services.mcp.getConfigurationAuthor($services.wiki.currentWikiId))
+  #if ("$!mcpConfigAuthor" == '')
+  {{warning}}
+  $services.localization.render('AI.MCP.Code.trust.notice.noAuthor')
+  {{/warning}}
+  #else
+  ## The author's display name is interpolated into wiki syntax, so it is escaped for the sheet's syntax.
+  #set ($mcpConfigAuthorName = $services.rendering.escape($xwiki.getPlainUserName($mcpConfigAuthor), 'xwiki/2.1'))
+  {{warning}}
+  $services.localization.render('AI.MCP.Code.trust.notice', [$mcpConfigAuthorName])
+  {{/warning}}
+  #end
+
+{{html clean="false"}}
+  &lt;form id="mcp-config-reset" method="post" action="$escapetool.xml($xwiki.relativeRequestURL)"&gt;
+    &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
+    &lt;input type="hidden" name="do" value="mcpReset" /&gt;
+    &lt;span class="buttonwrapper"&gt;&lt;button type="submit" name="mcpReset" id="mcpReset" class="button"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.trust.reset.button'))&lt;/button&gt;&lt;/span&gt;
+  &lt;/form&gt;
+{{/html}}
+#end
+## The configuration form, tool tree and filters are shown only for a trusted page: the stored values of an
+## untrusted page are never displayed, and the form's save would re-trust them.
+#if ($trusted)
 {{html clean="false"}}
   &lt;form id="mcp-server-config" method="post"
         action="$configDoc.getURL('save', "xredirect=$escapetool.url(${redirect})")"
@@ -225,6 +266,7 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
     &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" /&gt;
   &lt;/form&gt;
 {{/html}}
+#end
 ## Farm dashboard: shown only on the main wiki. Lists every wiki with checkboxes reflecting its real MCP
 ## enabled and guest access states and applies the chosen states in one action. The cross-wiki write is gated
 ## per wiki in $services.mcp.
@@ -236,11 +278,25 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
   ## Cross-wiki reach is a farm-level grant: only a main-wiki admin may toggle it. Subwiki admins see the
   ## read-only status in the reach column.
   #set ($canFarmAdmin = $services.mcp.canFarmAdmin())
+  ## The reach list lives on the main wiki's configuration page: when that page is not trusted its stored list
+  ## is neither shown nor writable, so the reach column is read-only for every row.
+  #set ($mainTrusted = $services.mcp.isConfigurationTrusted($services.wiki.mainWikiId))
   ## Handle the apply POST in place. Require POST so this state change is never reachable via a GET (which
   ## would leak the CSRF token through the URL in logs/Referer and run on link prefetch).
   #if ($request.method == 'POST' &amp;&amp; $request.get('do') == 'mcpApply')
     #if (!$services.csrf.isTokenValid($request.get('form_token')))
       {{error}}$services.localization.render('AI.MCP.Code.dashboard.error.csrf'){{/error}}
+    #elseif ("$!request.get('mcpResetWiki')" != '')
+      ## A row's Reset button submits the dashboard form with the wiki to reset: that request resets this one
+      ## wiki (the admin takes ownership with the default settings) and does not run the apply reconciliation.
+      ## The platform's Administration app refuses to display the wiki's own section once the page was last
+      ## saved by a user without edit right on it, so this is the reset path that stays reachable.
+      #set ($resetWikiId = $request.get('mcpResetWiki'))
+      #if ($services.mcp.resetConfiguration($resetWikiId))
+        {{success}}$services.localization.render('AI.MCP.Code.dashboard.reset.done', [$services.rendering.escape($resetWikiId, 'xwiki/2.1')]){{/success}}
+      #else
+        {{error}}$services.localization.render('AI.MCP.Code.dashboard.reset.failed', [$services.rendering.escape($resetWikiId, 'xwiki/2.1')]){{/error}}
+      #end
     #else
       #set ($result = $services.mcp.applyEnabled($request.getParameterValues('mcpManaged'), $request.getParameterValues('mcpEnabled')))
       #set ($reachResult = $services.mcp.applyReach($request.getParameterValues('mcpReachManaged'), $request.getParameterValues('mcpReach')))
@@ -259,7 +315,7 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
   $services.localization.render('AI.MCP.Code.dashboard.intro')
 
 {{html clean="false"}}
-  &lt;form id="mcp-farm-dashboard" method="post" action="$xwiki.relativeRequestURL"&gt;
+  &lt;form id="mcp-farm-dashboard" method="post" action="$escapetool.xml($xwiki.relativeRequestURL)"&gt;
     &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
     &lt;input type="hidden" name="do" value="mcpApply" /&gt;
     &lt;table class="xwiki-table"&gt;
@@ -281,13 +337,16 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
           #end
           #set ($canAdmin = $services.mcp.canAdmin($w.id))
           #set ($enabled = $services.mcp.isEnabled($w.id))
+          ## A row whose configuration page is not trusted is read-only: its stored values are not shown, so
+          ## nothing may be written to it from here. Its Configure link leads to the section with the reset.
+          #set ($rowTrusted = $services.mcp.isConfigurationTrusted($w.id))
           #set ($guestAllowed = $services.mcp.isGuestAccessAllowed($w.id))
           &lt;tr&gt;
-            &lt;td&gt;#if ($canAdmin)&lt;input type="hidden" name="mcpManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpEnabled" value="$escapetool.xml($w.id)"#if ($enabled) checked="checked"#end /&gt;#else#if ($enabled)$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.enabled'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.disabled'))#end#end&lt;/td&gt;
-            &lt;td&gt;#if ($canAdmin)&lt;input type="hidden" name="mcpGuestManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpGuest" value="$escapetool.xml($w.id)"#if ($guestAllowed) checked="checked"#end /&gt;#else#if ($guestAllowed)$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.guest.allowed'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.guest.refused'))#end#end&lt;/td&gt;
-            &lt;td&gt;#if ($canFarmAdmin)&lt;input type="hidden" name="mcpReachManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpReach" value="$escapetool.xml($w.id)"#if ($services.mcp.isCrossWikiReach($w.id)) checked="checked"#end /&gt;#else#if ($services.mcp.isCrossWikiReach($w.id))$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.enabled'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.disabled'))#end#end&lt;/td&gt;
+            &lt;td&gt;#if ($canAdmin &amp;&amp; $rowTrusted)&lt;input type="hidden" name="mcpManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpEnabled" value="$escapetool.xml($w.id)"#if ($enabled) checked="checked"#end /&gt;#else#if ($enabled)$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.enabled'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.disabled'))#end#end#if (!$rowTrusted) &lt;span class="text-warning" title="$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.untrusted.hint'))"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.untrusted'))&lt;/span&gt;#end&lt;/td&gt;
+            &lt;td&gt;#if ($canAdmin &amp;&amp; $rowTrusted)&lt;input type="hidden" name="mcpGuestManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpGuest" value="$escapetool.xml($w.id)"#if ($guestAllowed) checked="checked"#end /&gt;#else#if ($guestAllowed)$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.guest.allowed'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.guest.refused'))#end#end&lt;/td&gt;
+            &lt;td&gt;#if ($canFarmAdmin &amp;&amp; $mainTrusted)&lt;input type="hidden" name="mcpReachManaged" value="$escapetool.xml($w.id)" /&gt;&lt;input type="checkbox" name="mcpReach" value="$escapetool.xml($w.id)"#if ($services.mcp.isCrossWikiReach($w.id)) checked="checked"#end /&gt;#else#if ($services.mcp.isCrossWikiReach($w.id))$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.enabled'))#else$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.status.disabled'))#end#end&lt;/td&gt;
             &lt;td&gt;$escapetool.xml($wikiName)&lt;/td&gt;
-            &lt;td&gt;#if ($canAdmin)#set ($configRef = $services.model.createDocumentReference($w.id, 'XWiki', 'XWikiPreferences'))&lt;a href="$escapetool.xml($xwiki.getURL($configRef, 'admin', "section=$escapetool.url($mcpSectionId)"))"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.configure.link'))&lt;/a&gt;#end&lt;/td&gt;
+            &lt;td&gt;#if ($canAdmin)#set ($configRef = $services.model.createDocumentReference($w.id, 'XWiki', 'XWikiPreferences'))&lt;a href="$escapetool.xml($xwiki.getURL($configRef, 'admin', "section=$escapetool.url($mcpSectionId)"))"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.configure.link'))&lt;/a&gt;#if (!$rowTrusted) &lt;button type="submit" name="mcpResetWiki" value="$escapetool.xml($w.id)" class="btn btn-default btn-xs" title="$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.untrusted.hint'))"&gt;$escapetool.xml($services.localization.render('AI.MCP.Code.dashboard.reset.button'))&lt;/button&gt;#end#end&lt;/td&gt;
             &lt;td&gt;#set ($mcpRowUrl = $services.mcp.getServerUrl($w.id))#if ("$!mcpRowUrl" != '')&lt;button type="button" class="btn btn-default mcp-copy-url" data-mcp-url="$escapetool.xml($mcpRowUrl)" data-mcp-copied="$escapetool.xml($mcpCopiedLabel)" data-mcp-copyfailed="$escapetool.xml($mcpCopyFailedLabel)" title="$escapetool.xml($mcpCopyLabel)"&gt;$services.icon.renderHTML('copy')&lt;/button&gt;#end&lt;/td&gt;
           &lt;/tr&gt;
         #end
