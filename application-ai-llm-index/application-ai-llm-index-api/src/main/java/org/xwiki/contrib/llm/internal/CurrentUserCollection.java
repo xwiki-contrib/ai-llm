@@ -68,9 +68,11 @@ public class CurrentUserCollection extends DefaultCollection
             this.writeAttribution.prepareSave(collectionDocument, actor, effectiveAuthor);
             context.getWiki().checkSavingDocument(effectiveAuthor, collectionDocument, context);
             context.getWiki().saveDocument(collectionDocument, context);
-        } catch (XWikiException | AuthorizationException e) {
+        } catch (AuthorizationException e) {
             throw new IndexException(
                 String.format("Access denied for saving collection [%s]", super.getID()), e);
+        } catch (XWikiException e) {
+            throw new IndexException(String.format("Failed to save collection [%s]", super.getID()), e);
         }
     }
 }

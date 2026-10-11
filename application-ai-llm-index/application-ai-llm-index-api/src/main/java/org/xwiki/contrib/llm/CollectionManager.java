@@ -44,9 +44,10 @@ public interface CollectionManager
     Collection createCollection(String id) throws IndexException;
     
     /**
-     * Lists all collections.
+     * Lists all collections of the current wiki. A collection is the page the extension creates for it; a collections
+     * object on any other page is not a collection.
      *
-     * @return a list of all collections
+     * @return the ids of all collections
      */
     List<String> getCollections() throws IndexException;
     

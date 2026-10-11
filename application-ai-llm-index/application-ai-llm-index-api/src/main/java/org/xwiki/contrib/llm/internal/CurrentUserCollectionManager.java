@@ -34,6 +34,7 @@ import org.xwiki.security.authorization.AuthorizationException;
 import org.xwiki.security.authorization.AuthorizationManager;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.user.CurrentUserReference;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -58,6 +59,9 @@ public class CurrentUserCollectionManager extends DefaultCollectionManager
 
     @Inject
     private Provider<CurrentUserCollection> currentUserCollectionProvider;
+
+    @Inject
+    private WriteAttribution writeAttribution;
 
     @Override
     public DefaultCollection createCollection(String fullName) throws IndexException
@@ -100,6 +104,13 @@ public class CurrentUserCollectionManager extends DefaultCollectionManager
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The current user must be allowed to delete the page of the collection; when the deletion is made from a
+     * script without programming right, the script's author must be allowed too and is the user the deletion is
+     * checked for, like the platform's document API.</p>
+     */
     @Override
     public void deleteCollection(String name, boolean deleteDocuments) throws IndexException
     {
@@ -107,14 +118,17 @@ public class CurrentUserCollectionManager extends DefaultCollectionManager
         XWikiContext context = this.contextProvider.get();
 
         try {
-            this.contextualAuthorizationManager.checkAccess(Right.DELETE, documentReference);
+            DocumentReference effectiveAuthor = this.writeAttribution.checkAccess(Right.DELETE, documentReference,
+                CurrentUserReference.INSTANCE, context.getUserReference());
             XWikiDocument document = context.getWiki().getDocument(documentReference, context);
             if (!document.isNew()) {
-                context.getWiki().checkDeletingDocument(context.getUserReference(), document, context);
+                context.getWiki().checkDeletingDocument(effectiveAuthor, document, context);
                 super.deleteCollection(name, deleteDocuments);
             }
-        } catch (XWikiException | AuthorizationException e) {
+        } catch (AuthorizationException e) {
             throw new IndexException("You do not have the right to delete this collection", e);
+        } catch (XWikiException e) {
+            throw new IndexException(String.format("Failed to delete collection [%s]", name), e);
         }
     }
 

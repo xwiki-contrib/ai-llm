@@ -147,6 +147,7 @@ public class XWikiDocumentStoreHelper
      *
      * @param documentId the document id
      * @return the page reference, with its locale, or {@code null} when the id is not the exact id of a page
+     * @since 0.10.1
      */
     public DocumentReference resolveDocumentId(String documentId)
     {
@@ -301,11 +302,15 @@ public class XWikiDocumentStoreHelper
             List<String> queryResult = query.execute();
 
             // Get the collection name out of the returned document references. The collection name is the name of the
-            // space reference.
+            // space reference. Only the page of a collection is a collection: a collections object on any other page,
+            // for instance on a copy of the collection page, is ignored. A page is returned once per matching space.
             return queryResult.stream()
                 .map(reference -> this.documentReferenceResolver.resolve(reference, wiki))
+                .filter(reference -> reference.equals(DefaultCollection.getDocumentReference(wiki.getName(),
+                    reference.getLastSpaceReference().getName())))
                 .map(DocumentReference::getLastSpaceReference)
                 .map(SpaceReference::getName)
+                .distinct()
                 .toList();
         } catch (QueryException e) {
             throw new IndexException("Failed to get collections for document [%s]".formatted(documentReference), e);

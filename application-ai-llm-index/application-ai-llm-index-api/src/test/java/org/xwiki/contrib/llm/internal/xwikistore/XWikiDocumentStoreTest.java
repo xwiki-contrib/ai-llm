@@ -195,24 +195,22 @@ class XWikiDocumentStoreTest
     }
 
     @Test
-    void getDocumentWithAnIdThatIsNotTheIdOfAPage() throws IndexException
+    void getDocumentWithAnIdThatIsNotTheIdOfAPage() throws IndexException, AccessDeniedException
     {
         this.xWikiDocumentStore.initialize(this.collection, null);
 
         String documentName = "subwiki:subwikispace.WebHome";
         when(this.xWikiDocumentStoreHelper.resolveDocumentId(documentName)).thenReturn(null);
 
-        IndexException indexException =
-            assertThrows(IndexException.class, () -> this.xWikiDocumentStore.getDocument(documentName));
-        assertEquals("The document [%s] isn't part of the collection [%s]".formatted(documentName, COLLECTION_NAME),
-            indexException.getMessage());
+        // An id that is not an id of this store is not a document of the store.
+        assertNull(this.xWikiDocumentStore.getDocument(documentName));
 
         verifyNoInteractions(this.xWiki);
         verifyNoInteractions(this.xWikiDocumentDocumentProvider);
     }
 
     @Test
-    void getDocumentOutsideSpace() throws IndexException
+    void getDocumentOutsideSpace() throws IndexException, AccessDeniedException
     {
         this.xWikiDocumentStore.initialize(this.collection, null);
 
@@ -220,13 +218,26 @@ class XWikiDocumentStoreTest
         when(this.xWikiDocumentStoreHelper.resolveDocumentId(documentName))
             .thenReturn(new DocumentReference("xwiki", SUBWIKI_SPACE, "WebHome", Locale.FRENCH));
 
-        IndexException indexException =
-            assertThrows(IndexException.class, () -> this.xWikiDocumentStore.getDocument(documentName));
-        assertEquals("The document [%s] isn't part of the collection [%s]".formatted(documentName, COLLECTION_NAME),
-            indexException.getMessage());
+        // A page outside the spaces of the collection is not a document of the store, and its page is not loaded.
+        assertNull(this.xWikiDocumentStore.getDocument(documentName));
 
         verifyNoInteractions(this.xWiki);
         verifyNoInteractions(this.xWikiDocumentDocumentProvider);
+    }
+
+    @Test
+    void getDocumentLoadFailureIsReportedAsIndexException() throws Exception
+    {
+        this.xWikiDocumentStore.initialize(this.collection, null);
+        when(this.xWikiDocumentStoreHelper.resolveDocumentId(DOCUMENT_ID)).thenReturn(DOCUMENT_REFERENCE);
+        XWikiException cause = mock();
+        when(this.xWiki.getDocument(DOCUMENT_REFERENCE, this.context)).thenThrow(cause);
+
+        IndexException exception =
+            assertThrows(IndexException.class, () -> this.xWikiDocumentStore.getDocument(DOCUMENT_ID));
+
+        assertEquals("Error loading the document [%s]".formatted(DOCUMENT_ID), exception.getMessage());
+        assertSame(cause, exception.getCause());
     }
 
     @Test

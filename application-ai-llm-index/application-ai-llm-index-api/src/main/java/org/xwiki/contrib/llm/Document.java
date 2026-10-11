@@ -55,6 +55,7 @@ public interface Document
      *
      * @return the XWiki document behind this document, or {@code null} when the caller has no programming right
      * @throws IndexException if the XWiki document cannot be provided
+     * @throws UnsupportedOperationException when the document store does not expose a wiki page
      */
     XWikiDocument getXWikiDocument() throws IndexException;
 

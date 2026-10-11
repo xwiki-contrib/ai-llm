@@ -23,6 +23,7 @@ import java.util.List;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Provider;
 import javax.ws.rs.WebApplicationException;
 
 import org.apache.commons.codec.digest.DigestUtils;
@@ -42,8 +43,14 @@ import org.xwiki.contrib.llm.internal.DefaultCollectionManager;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
 import org.xwiki.contrib.llm.internal.InternalDocumentStore;
 import org.xwiki.contrib.llm.internal.WriteAttribution;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentDocument;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreHelper;
 import org.xwiki.contrib.llm.rest.JSONDocument;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.SpaceReference;
+import org.xwiki.model.reference.SpaceReferenceResolver;
+import org.xwiki.query.QueryFilter;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.security.authorization.Right;
@@ -86,7 +93,9 @@ import static org.mockito.Mockito.when;
     CurrentUserCollection.class,
     DefaultDocument.class,
     InternalDocumentStore.class,
-    WriteAttribution.class
+    WriteAttribution.class,
+    XWikiDocumentStore.class,
+    XWikiDocumentStoreHelper.class
 })
 @ReferenceComponentList
 class DefaultDocumentResourceTest
@@ -118,6 +127,13 @@ class DefaultDocumentResourceTest
     private static final DocumentReference READ_ONLY_COLLECTION_REFERENCE = new DocumentReference(WIKI_NAME,
         List.of("AI", "Collections", READ_ONLY_COLLECTION_NAME), "WebHome");
 
+    private static final String XWIKI_STORE_COLLECTION_NAME = "xwikistorecollection";
+
+    private static final DocumentReference XWIKI_STORE_COLLECTION_REFERENCE =
+        DefaultCollection.getDocumentReference(WIKI_NAME, XWIKI_STORE_COLLECTION_NAME);
+
+    private static final String XWIKI_STORE_SPACE = "Docs";
+
     @InjectMockitoOldcore
     private MockitoOldcore oldcore;
 
@@ -148,6 +164,20 @@ class DefaultDocumentResourceTest
     @MockComponent
     @Named(READ_ONLY_STORE)
     private DocumentStore readOnlyDocumentStore;
+
+    @MockComponent
+    @Named("language")
+    private QueryFilter languageFilter;
+
+    @MockComponent
+    @Named("count")
+    private QueryFilter countFilter;
+
+    @MockComponent
+    private SpaceReferenceResolver<String> spaceReferenceResolver;
+
+    @MockComponent
+    private Provider<XWikiDocumentDocument> xWikiDocumentDocumentProvider;
 
     @BeforeEach
     void setUp() throws Exception
@@ -279,6 +309,41 @@ class DefaultDocumentResourceTest
         when(this.readOnlyDocumentStore.getDocument(DOCUMENT_ID)).thenReturn(existingDocument);
         doThrow(new UnsupportedOperationException()).when(this.readOnlyDocumentStore).saveDocument(any());
         doThrow(new UnsupportedOperationException()).when(this.readOnlyDocumentStore).deleteDocument(any());
+    }
+
+    @Test
+    void getDocumentThatIsNotADocumentOfAnXWikiStoreCollectionIsNotFound() throws Exception
+    {
+        createXWikiStoreCollection();
+
+        // An id that is not the id of a page, the id of a page outside the spaces of the collection and the id of a
+        // page of those spaces that does not exist are not documents of the collection.
+        for (String documentId : List.of("nonsense", "testwiki:Other.Page;", "testwiki:Docs.Missing;")) {
+            WebApplicationException exception = assertThrows(WebApplicationException.class,
+                () -> this.documentResource.getDocument(WIKI_NAME, XWIKI_STORE_COLLECTION_NAME, documentId));
+            assertEquals(404, exception.getResponse().getStatus(), documentId);
+        }
+    }
+
+    /**
+     * Create a collection whose documents are the pages of the {@code Docs} space of the wiki of the collection.
+     */
+    private void createXWikiStoreCollection() throws Exception
+    {
+        this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
+        DefaultCollection collection =
+            (DefaultCollection) this.collectionManager.createCollection(XWIKI_STORE_COLLECTION_NAME);
+        collection.setDocumentSpaces(List.of(XWIKI_STORE_SPACE));
+        collection.save();
+        XWikiDocument collectionDocument = this.oldcore.getSpyXWiki()
+            .getDocument(XWIKI_STORE_COLLECTION_REFERENCE, this.oldcore.getXWikiContext()).clone();
+        collectionDocument.getXObject(Collection.XCLASS_REFERENCE)
+            .setStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME, XWikiDocumentStore.NAME);
+        this.oldcore.getSpyXWiki().saveDocument(collectionDocument, this.oldcore.getXWikiContext());
+        this.oldcore.getXWikiContext().setWikiId(MAIN_WIKI);
+
+        when(this.spaceReferenceResolver.resolve(XWIKI_STORE_SPACE, XWIKI_STORE_COLLECTION_REFERENCE))
+            .thenReturn(new SpaceReference(WIKI_NAME, XWIKI_STORE_SPACE));
     }
 
     @Test

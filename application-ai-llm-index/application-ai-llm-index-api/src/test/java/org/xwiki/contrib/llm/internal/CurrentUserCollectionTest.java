@@ -33,6 +33,7 @@ import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.user.CurrentUserReference;
 
 import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.InjectMockitoOldcore;
@@ -89,6 +90,7 @@ class CurrentUserCollectionTest
 
         XWikiDocument collectionDocument = this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, this.context);
         this.collection.initialize(collectionDocument);
+        this.collection.setID("testCollection");
     }
 
     private void assertSavedAs(DocumentReference effectiveAuthor) throws Exception
@@ -131,8 +133,24 @@ class CurrentUserCollectionTest
 
         IndexException thrown = assertThrows(IndexException.class, () -> this.collection.save());
 
+        assertEquals("Access denied for saving collection [testCollection]", thrown.getMessage());
         assertSame(exception, thrown.getCause());
         verify(this.writeAttribution, never()).prepareSave(any(), any(), any());
         verify(this.oldcore.getSpyXWiki(), never()).saveDocument(any(XWikiDocument.class), any(XWikiContext.class));
+    }
+
+    @Test
+    void saveReportsAFailedSaveAsAFailureAndNotAsADeniedAccess() throws Exception
+    {
+        when(this.writeAttribution.checkAccess(Right.EDIT, COLLECTION_REFERENCE, CurrentUserReference.INSTANCE,
+            USER_REFERENCE)).thenReturn(USER_REFERENCE);
+        XWikiException cause = new XWikiException();
+        doThrow(cause).when(this.oldcore.getSpyXWiki())
+            .saveDocument(any(XWikiDocument.class), any(XWikiContext.class));
+
+        IndexException thrown = assertThrows(IndexException.class, () -> this.collection.save());
+
+        assertEquals("Failed to save collection [testCollection]", thrown.getMessage());
+        assertSame(cause, thrown.getCause());
     }
 }

@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -48,6 +49,7 @@ import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.WikiReference;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
@@ -68,6 +70,13 @@ import com.xpn.xwiki.doc.XWikiDocument;
 @Singleton
 public class DefaultCollectionManager implements CollectionManager
 {
+    /**
+     * The pages of the context wiki carrying a collections object. Only the page of a collection is a collection,
+     * see {@link #getCollectionId(String, WikiReference)}.
+     */
+    private static final String COLLECTIONS_QUERY = "select distinct doc.fullName from XWikiDocument doc, "
+        + "BaseObject obj where doc.fullName = obj.name and obj.className = :className";
+
     @Inject
     protected Provider<XWikiContext> contextProvider;
 
@@ -117,22 +126,37 @@ public class DefaultCollectionManager implements CollectionManager
     @Override
     public List<String> getCollections() throws IndexException
     {
-        List<String> collections = null;
-        String templateDoc = Collection.XCLASS_SPACE_STRING + ".CollectionsTemplate";
-        String hql = "select stringprop.value "
-                    +    "from XWikiDocument doc, BaseObject obj, StringProperty stringprop "
-                    +    "where doc.fullName=obj.name "
-                    +    "and obj.className='" + Collection.XCLASS_FULLNAME + "' "
-                    +    "and obj.id=stringprop.id.id "
-                    +    "and stringprop.id.name='id' "
-                    +    "and doc.fullName <> '" + templateDoc + "'";
+        WikiReference wikiReference = this.contextProvider.get().getWikiReference();
         try {
-            Query query = queryManager.createQuery(hql, Query.HQL);
-            collections = query.execute();
-            return collections;
+            Query query = this.queryManager.createQuery(COLLECTIONS_QUERY, Query.HQL);
+            query.bindValue("className", Collection.XCLASS_FULLNAME);
+            List<String> pages = query.execute();
+            return pages.stream()
+                .map(fullName -> getCollectionId(fullName, wikiReference))
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
         } catch (QueryException e) {
             throw new IndexException("Failed retrieving collection list:", e);
         }
+    }
+
+    /**
+     * @param fullName the full name of a page carrying a collections object, relative to the queried wiki
+     * @param wikiReference the queried wiki
+     * @return the id of the collection the page is the page of, which is the name of its space, see
+     *     {@link DefaultCollection#getDocumentReference(String, String)}, or {@code null} when the page is not the
+     *     page of a collection: a collections object on any other page, for instance on a copy of the collection
+     *     page or on the template page, is not a collection
+     */
+    private String getCollectionId(String fullName, WikiReference wikiReference)
+    {
+        DocumentReference reference = this.documentReferenceResolver.resolve(fullName, wikiReference);
+        String collectionId = reference.getLastSpaceReference().getName();
+        if (reference.equals(DefaultCollection.getDocumentReference(wikiReference.getName(), collectionId))) {
+            return collectionId;
+        }
+        return null;
     }
     
     @Override
@@ -280,14 +304,16 @@ public class DefaultCollectionManager implements CollectionManager
 
     private Map<String, DefaultCollection> getAccessibleCollections(List<String> collections)
     {
+        // The caller may name a collection several times: each collection is looked up and searched once.
         return collections.stream()
+            .distinct()
             .flatMap(name -> {
                 try {
                     // Return both name and collection object
                     return Stream.of(new AbstractMap.SimpleEntry<>(name, getCollection(name)));
                 } catch (IndexException e) {
                     this.logger.warn("Failed to get collection [{}], excluding it from the similarity search: [{}]",
-                        name, ExceptionUtils.getRootCauseMessage(e));
+                        forLog(name), ExceptionUtils.getRootCauseMessage(e));
                     return Stream.empty();
                 }
             })
@@ -323,6 +349,15 @@ public class DefaultCollectionManager implements CollectionManager
             // Sort the results by similarity score in descending order again as the sorting was lost during grouping.
             .sorted(Comparator.comparingDouble(Context::similarityScore).reversed())
             .toList();
+    }
+
+    /**
+     * @param requestedName a collection name taken from a request
+     * @return the name without line breaks, so that it cannot forge a log line
+     */
+    private static String forLog(String requestedName)
+    {
+        return StringUtils.replaceChars(requestedName, "\r\n", "  ");
     }
 
     @Override
@@ -374,7 +409,7 @@ public class DefaultCollectionManager implements CollectionManager
                     collectionsUserHasAccessTo.add(collection);
                 }
             } catch (IndexException e) {
-                this.logger.warn("Failed to check access to collection [{}], excluding it: [{}]", collection,
+                this.logger.warn("Failed to check access to collection [{}], excluding it: [{}]", forLog(collection),
                     ExceptionUtils.getRootCauseMessage(e));
             }
         }

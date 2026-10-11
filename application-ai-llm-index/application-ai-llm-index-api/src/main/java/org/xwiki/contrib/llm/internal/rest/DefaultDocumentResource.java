@@ -82,14 +82,15 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
     {
         try {
             Collection collection = getInternalCollection(wikiName, collectionName);
-            Document existingDocument = collection.getDocumentStore().getDocument(documentID);
+            DocumentStore documentStore = collection.getDocumentStore();
+            Document existingDocument = documentStore.getDocument(documentID);
             if (existingDocument == null) {
-                existingDocument = collection.getDocumentStore().createDocument(documentID);
+                existingDocument = documentStore.createDocument(documentID);
             }
 
             // Assign the new document to the existing one
             document.applyTo(existingDocument);
-            collection.getDocumentStore().saveDocument(existingDocument);
+            documentStore.saveDocument(existingDocument);
             return new JSONDocument(existingDocument);
         } catch (IndexException | AccessDeniedException e) {
             throw convertDocumentException(collectionName, documentID, "updating", e);

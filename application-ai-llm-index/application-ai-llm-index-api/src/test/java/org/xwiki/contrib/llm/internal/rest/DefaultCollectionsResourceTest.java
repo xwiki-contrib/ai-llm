@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.internal.CurrentUserCollectionManager;
+import org.xwiki.contrib.llm.internal.WriteAttribution;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.query.Query;
 import org.xwiki.security.authorization.Right;
@@ -76,13 +77,17 @@ class DefaultCollectionsResourceTest
     @MockComponent
     private GroupManager groupManager;
 
+    @MockComponent
+    private WriteAttribution writeAttribution;
+
     @Test
     void getCollections() throws Exception
     {
         Query mockQuery = mock(Query.class);
         when(this.oldcore.getQueryManager().createQuery(anyString(), eq(Query.HQL)))
             .thenReturn(mockQuery);
-        List<Object> collections = List.of(COLLECTION_1, "collection2");
+        List<Object> collections =
+            List.of("AI.Collections.collection1.WebHome", "AI.Collections.collection2.WebHome");
         when(mockQuery.execute()).thenReturn(collections);
 
         when(this.oldcore.getMockContextualAuthorizationManager().hasAccess(Right.VIEW, COLLECTION_1_REFERENCE))

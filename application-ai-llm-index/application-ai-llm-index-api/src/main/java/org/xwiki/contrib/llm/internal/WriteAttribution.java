@@ -19,8 +19,6 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import java.util.Objects;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
@@ -118,14 +116,16 @@ public class WriteAttribution
      * Prepare a page for saving. The original metadata author is the acting user; the effective metadata author, the
      * content author and, for a new page, the creator are the effective author. The content author is set on every
      * save: the saved page is the whole document the acting user submits, and the document's dirty flags are not
-     * relied on. When the effective author is the script's author, the page is capped to the required rights the
-     * script's author holds on the running script, like the platform's document API.
+     * relied on. When the save is made from a script, the page is capped to the required rights the effective author
+     * holds on the running script, like the platform's document API; this also holds when the effective author is
+     * the acting user, who may hold programming right globally while being the author of a script whose required
+     * rights are enforced below it.
      *
      * @param document the page that is saved
      * @param actor the user the write is made for
      * @param effectiveAuthor the user the page is attributed to, as returned by
      *     {@link #checkAccess(Right, DocumentReference, UserReference, DocumentReference)}
-     * @throws AuthorizationException when the required rights cannot be loaded or the script's author lacks a right
+     * @throws AuthorizationException when the required rights cannot be loaded or the effective author lacks a right
      *     the page requires
      */
     public void prepareSave(XWikiDocument document, DocumentReference actor, DocumentReference effectiveAuthor)
@@ -140,15 +140,13 @@ public class WriteAttribution
             authors.setCreator(effective);
         }
 
-        if (!Objects.equals(actor, effectiveAuthor)) {
-            checkRequiredRights(document, effectiveAuthor);
-        }
+        checkRequiredRights(document, effectiveAuthor);
     }
 
     /**
-     * Cap the page to the required rights the author holds on the running script: when the script enforces required
-     * rights and its author has no programming right on it, the page enforces required rights too and may require
-     * only rights the author holds on the script.
+     * Cap the page to the required rights the author holds on the running script: when a script is running, enforces
+     * required rights and the author has no programming right on it, the page enforces required rights too and may
+     * require only rights the author holds on the script. Nothing is checked outside a script.
      */
     private void checkRequiredRights(XWikiDocument document, DocumentReference author) throws AuthorizationException
     {

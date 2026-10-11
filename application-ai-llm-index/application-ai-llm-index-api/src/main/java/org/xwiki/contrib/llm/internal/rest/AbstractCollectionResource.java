@@ -25,6 +25,7 @@ import javax.inject.Provider;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.contrib.llm.Collection;
@@ -80,7 +81,7 @@ public abstract class AbstractCollectionResource extends XWikiResource
         if (rootCause instanceof AccessDeniedException) {
             return new WebApplicationException(Response.Status.UNAUTHORIZED);
         } else {
-            this.logger.error("Error {} collection [{}].", verb, collectionName, e);
+            this.logger.error("Error {} collection [{}].", verb, forLog(collectionName), e);
             return new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         }
     }
@@ -92,8 +93,18 @@ public abstract class AbstractCollectionResource extends XWikiResource
         if (rootCause instanceof AccessDeniedException) {
             return new WebApplicationException(Response.Status.UNAUTHORIZED);
         } else {
-            this.logger.error("Error {} document [{}] in collection [{}].", verb, documentID, collectionName, e);
+            this.logger.error("Error {} document [{}] in collection [{}].", verb, forLog(documentID),
+                forLog(collectionName), e);
             return new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    /**
+     * @param pathParameter a value taken from the request path
+     * @return the value without line breaks, so that it cannot forge a log line
+     */
+    private static String forLog(String pathParameter)
+    {
+        return StringUtils.replaceChars(pathParameter, "\r\n", "  ");
     }
 }

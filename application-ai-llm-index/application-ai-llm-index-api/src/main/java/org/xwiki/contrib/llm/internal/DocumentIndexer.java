@@ -95,6 +95,9 @@ public class DocumentIndexer
             // collection of the given wiki.
             context.setWikiId(wiki);
             Collection collectionObj = this.collectionManager.getCollection(collection);
+            if (collectionObj == null) {
+                throw new IndexException("Collection [%s] does not exist in wiki [%s]".formatted(collection, wiki));
+            }
             Document documentObj = collectionObj.getDocumentStore().getDocument(document);
 
             if (documentObj == null) {

@@ -229,12 +229,13 @@ class XWikiAuthorizationManagerBuilderTest
     }
 
     @Test
-    void canViewIsFalseForAnIdThatCannotBeResolved() throws IndexException
+    void canViewIsFalseForAnIdWithAnInvalidLocale() throws IndexException
     {
         String unresolvableId = "xwiki:Space.Page;not_a_valid_locale_at_all";
         when(this.authorizationManager.hasAccess(Right.VIEW, USER_REFERENCE, PAGE_REFERENCE)).thenReturn(true);
 
-        // One unresolvable id is denied without affecting the other ids of the same call.
+        // The helper reports the id as not being the id of a page; it is denied without affecting the other ids of
+        // the same call.
         assertEquals(Map.of(unresolvableId, false, "xwiki:Space.Page;", true),
             buildManager().canView(Set.of(unresolvableId, "xwiki:Space.Page;")));
 

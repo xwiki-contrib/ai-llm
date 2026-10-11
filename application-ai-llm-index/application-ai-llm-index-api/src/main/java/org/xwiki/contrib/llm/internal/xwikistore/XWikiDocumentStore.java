@@ -148,6 +148,12 @@ public class XWikiDocumentStore implements DocumentStore
         return Optional.of(XWikiDocumentDocumentIndexingTaskConsumer.NAME);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>An id that is not the id of a page, or whose page lies outside the spaces of the collection, is not a
+     * document of this store.</p>
+     */
     @Override
     public Document getDocument(String name) throws IndexException, AccessDeniedException
     {
@@ -155,8 +161,7 @@ public class XWikiDocumentStore implements DocumentStore
 
         if (documentReference == null || this.spaces.stream()
             .noneMatch(space -> documentReference.getReversedReferenceChain().contains(space))) {
-            throw new IndexException("The document [%s] isn't part of the collection [%s]".formatted(name,
-                this.collectionName));
+            return null;
         }
 
         if (isUserPresent()) {

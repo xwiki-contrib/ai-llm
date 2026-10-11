@@ -147,6 +147,21 @@ class DocumentIndexerTest
     }
 
     @Test
+    void indexDocumentFailsForAMissingCollectionAndRestoresTheContextWiki() throws Exception
+    {
+        // A collections object on a copied page is queued for indexing but the page of the collection does not
+        // exist.
+        when(this.collectionManager.getCollection(COLLECTION)).thenReturn(null);
+
+        IndexException exception = assertThrows(IndexException.class,
+            () -> this.documentIndexer.indexDocument(WIKI, COLLECTION, DOCUMENT));
+
+        assertEquals("Collection [collection] does not exist in wiki [subwiki]", exception.getMessage());
+        verify(this.context).setWikiId(PREVIOUS_WIKI);
+        verifyNoInteractions(this.solrConnector, this.documentStore, this.chunkingUtils);
+    }
+
+    @Test
     void indexDocumentFailsForAMissingDocumentAndRestoresTheContextWiki() throws Exception
     {
         when(this.documentStore.getDocument(DOCUMENT)).thenReturn(null);

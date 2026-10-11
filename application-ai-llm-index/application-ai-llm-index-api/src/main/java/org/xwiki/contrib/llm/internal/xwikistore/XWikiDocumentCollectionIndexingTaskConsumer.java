@@ -111,10 +111,13 @@ public class XWikiDocumentCollectionIndexingTaskConsumer implements TaskConsumer
             // Get the spaces to index.
             List<SpaceReference> spaceReferences =
                 this.helper.resolveSpaceReferences(collection.getDocumentSpaces(), collection.getDocumentReference());
+            // The chunks of a collection are stored in the wiki of the collection, also when the collection of the
+            // main wiki indexes a space of another wiki.
+            String collectionWiki = documentReference.getWikiReference().getName();
             // Clear any documents not part of the spaces to index.
-            cleanOtherDocuments(documentReference.getWikiReference().getName(), collectionId, spaceReferences);
+            cleanOtherDocuments(collectionWiki, collectionId, spaceReferences);
             // Index all remaining documents.
-            indexDocuments(collectionId, spaceReferences);
+            indexDocuments(collectionWiki, collectionId, spaceReferences);
         } else if (collection != null) {
             if (documentReference.equals(collection.getDocumentReference())) {
                 this.logger.warn("Ignoring indexing request for [{}] as the collection doesn't use the XWiki document "
@@ -149,7 +152,8 @@ public class XWikiDocumentCollectionIndexingTaskConsumer implements TaskConsumer
         }
     }
 
-    private void indexDocuments(String collectionId, List<SpaceReference> spaceReferences) throws IndexException
+    private void indexDocuments(String collectionWiki, String collectionId, List<SpaceReference> spaceReferences)
+        throws IndexException
     {
         for (SpaceReference spaceReference : spaceReferences) {
             WikiReference wikiReference = spaceReference.getWikiReference();
@@ -162,13 +166,14 @@ public class XWikiDocumentCollectionIndexingTaskConsumer implements TaskConsumer
                     throw new IndexException("Error loading documents", e);
                 }
 
-                // Check which documents of this batch have already been indexed.
+                // Check which documents of this batch have already been indexed. The document ids name the wiki of
+                // the page; the chunks are those of the wiki of the collection.
                 List<String> documentIds = documents.stream()
                     .map(this.withParametersEntityReferenceSerializer::serialize)
                     .toList();
 
                 Set<String> indexedDocuments =
-                    new HashSet<>(this.solrConnector.filterExistingDocuments(wikiReference.getName(), collectionId,
+                    new HashSet<>(this.solrConnector.filterExistingDocuments(collectionWiki, collectionId,
                         documentIds));
 
                 documents.stream()

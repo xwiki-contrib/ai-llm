@@ -268,7 +268,27 @@ class WriteAttributionTest
         assertSame(this.actorUser, authors.getContentAuthor());
         assertSame(this.actorUser, authors.getCreator());
         assertFalse(document.isEnforceRequiredRights());
-        verifyNoInteractions(this.documentRequiredRightsManager, this.documentAuthorizationManager, this.context);
+        // The running script is looked for also when the actor is the effective author.
+        verify(this.context).getSecureDocument();
+        verifyNoInteractions(this.documentRequiredRightsManager, this.documentAuthorizationManager);
+    }
+
+    @Test
+    void prepareSaveForTheActorFromAnEnforcingScriptCapsThePage() throws Exception
+    {
+        // The actor is the author of the running script, for instance a user with programming right whose script
+        // page enforces required rights below it after an administrator edited it.
+        setUpEnforcingScript();
+        when(this.documentAuthorizationManager.hasAccess(Right.PROGRAM, null, ACTOR, SECURE_PAGE)).thenReturn(false);
+        when(this.documentRequiredRightsManager.getRequiredRights(PAGE)).thenReturn(Optional.of(
+            new DocumentRequiredRights(true, Set.of(new DocumentRequiredRight(Right.ADMIN, EntityType.WIKI)))));
+        XWikiDocument document = new XWikiDocument(PAGE);
+
+        this.writeAttribution.prepareSave(document, ACTOR, ACTOR);
+
+        assertTrue(document.isEnforceRequiredRights());
+        verify(this.documentAuthorizationManager).hasAccess(Right.PROGRAM, null, ACTOR, SECURE_PAGE);
+        verify(this.documentAuthorizationManager).checkAccess(Right.ADMIN, EntityType.WIKI, ACTOR, SECURE_PAGE);
     }
 
     @Test

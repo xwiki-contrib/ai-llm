@@ -207,6 +207,23 @@ class XWikiDocumentStoreHelperTest
     }
 
     @Test
+    void getCollectionsKeepsTheCollectionPagesOnly() throws Exception
+    {
+        DocumentReference documentReference = new DocumentReference("mywiki", List.of("Space", "Sub"), "Page");
+        // The query returns every page carrying a collections object that lists one of the spaces of the document,
+        // once per listed space: the page of a collection twice, a copy of a collection page in another space and a
+        // page of the collections space that is not the page of a collection.
+        when(this.query.execute()).thenReturn(List.of("AI.Collections.mine.WebHome", "Copies.mine.WebHome",
+            "AI.Collections.other.Copy", "AI.Collections.mine.WebHome"));
+
+        assertEquals(List.of("mine"), this.helper.getCollections(documentReference, WIKI));
+
+        verify(this.query).bindValue("space0", "Space.Sub");
+        verify(this.query).bindValue("space1", "Space");
+        verify(this.query).setWiki("mywiki");
+    }
+
+    @Test
     void getDocumentsFromWikiWrapsQueryFailures() throws Exception
     {
         when(this.query.execute()).thenThrow(new RuntimeException("boom"));

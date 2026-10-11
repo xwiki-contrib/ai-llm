@@ -27,7 +27,6 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.Collection;
@@ -94,15 +93,7 @@ public class XWikiAuthorizationManagerBuilder implements AuthorizationManagerBui
 
     private boolean canView(DocumentReference userReference, String documentId)
     {
-        DocumentReference pageReference;
-        try {
-            pageReference = getPageReference(documentId);
-        } catch (RuntimeException e) {
-            this.logger.debug("Denying access to the document id [{}] that cannot be resolved to a page: [{}]",
-                documentId, ExceptionUtils.getRootCauseMessage(e));
-            return false;
-        }
-
+        DocumentReference pageReference = getPageReference(documentId);
         if (pageReference == null) {
             this.logger.debug("Denying access to the document id [{}] that is not the exact id of a page.",
                 documentId);

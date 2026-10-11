@@ -61,6 +61,7 @@ import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.user.group.GroupManager;
 
 import com.xpn.xwiki.XWikiContext;
+import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.test.MockitoOldcore;
@@ -71,6 +72,7 @@ import com.xpn.xwiki.test.reference.ReferenceComponentList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -187,20 +189,41 @@ class DefaultCollectionManagerTest
     }
 
     @Test
-    void getCollections() throws Exception
+    void getCollectionsReturnsTheIdsOfTheCollectionPagesOnly() throws Exception
     {
-        List<Object> collections = List.of("collection1", "collection2");
-        mockCollectionsQuery(collections);
+        this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
+        // The query returns the page of a collection, a copy of a collection page in another space, the page of a
+        // collection whose id contains a dot (escaped in the full name of the page), the template page, whose
+        // collections object carries an empty id, and the first page again.
+        Query query = mockCollectionsQuery(List.of("AI.Collections.collection1.WebHome", "Copies.collection2.WebHome",
+            "AI.Collections.my\\.dotted.WebHome", "AI.Collections.Code.CollectionsTemplate",
+            "AI.Collections.collection1.WebHome"));
 
-        assertEquals(collections, this.collectionManager.getCollections());
+        assertEquals(List.of("collection1", "my.dotted"), this.collectionManager.getCollections());
+
+        verify(this.oldcore.getQueryManager()).createQuery("select distinct doc.fullName from XWikiDocument doc, "
+            + "BaseObject obj where doc.fullName = obj.name and obj.className = :className", Query.HQL);
+        verify(query).bindValue("className", "AI.Collections.Code.CollectionsClass");
     }
 
-    private void mockCollectionsQuery(List<Object> collections) throws QueryException, ComponentLookupException
+    @Test
+    void getCollectionsWrapsQueryFailures() throws Exception
+    {
+        QueryException cause = new QueryException("boom", null, null);
+        when(this.oldcore.getQueryManager().createQuery(anyString(), eq(Query.HQL))).thenThrow(cause);
+
+        IndexException exception = assertThrows(IndexException.class, () -> this.collectionManager.getCollections());
+
+        assertSame(cause, exception.getCause());
+    }
+
+    private Query mockCollectionsQuery(List<Object> collections) throws QueryException, ComponentLookupException
     {
         Query mockQuery = mock(Query.class);
         when(this.oldcore.getQueryManager().createQuery(anyString(), eq(Query.HQL)))
             .thenReturn(mockQuery);
         when(mockQuery.execute()).thenReturn(collections);
+        return mockQuery;
     }
 
     @Test
@@ -543,6 +566,46 @@ class DefaultCollectionManagerTest
         assertEquals(Set.of("document1", "document2"),
             result.stream().map(Context::documentId).collect(Collectors.toSet()));
         verifyNoInteractions(this.oldcore.getMockAuthorizationManager());
+    }
+
+    @Test
+    void filterCollectionBasedOnUserAccessLogsARequestedNameWithoutLineBreaks() throws Exception
+    {
+        XWikiContext context = this.oldcore.getXWikiContext();
+        context.setWikiId(WIKI_NAME);
+        String requestedName = "bad\r\nname";
+        doThrow(new XWikiException()).when(this.oldcore.getSpyXWiki())
+            .getDocument(DefaultCollection.getDocumentReference(WIKI_NAME, requestedName), context);
+
+        assertEquals(List.of(), this.collectionManager.filterCollectionbasedOnUserAccess(List.of(requestedName)));
+
+        assertEquals(1, this.logCapture.size());
+        assertTrue(this.logCapture.getMessage(0)
+            .startsWith("Failed to check access to collection [bad  name], excluding it: [XWikiException: "));
+    }
+
+    @Test
+    void hybridSearchWithADuplicatedCollectionIdSearchesTheCollectionOnce() throws Exception
+    {
+        XWikiContext context = this.oldcore.getXWikiContext();
+        context.setWikiId(WIKI_NAME);
+        mockCollectionsQuery(List.of());
+        DefaultCollection collection = this.collectionManager.createCollection(COLLECTION_ID);
+        collection.setRightsCheckMethod("public");
+        collection.setEmbeddingModel(EMBEDDING_MODEL);
+        collection.setAllowGuests(true);
+        collection.save();
+        mockSearchResults("document1");
+
+        // A REST or MCP caller may name the same collection twice.
+        List<Context> result =
+            this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID, COLLECTION_ID), 4, 3);
+
+        assertEquals(List.of("document1"), result.stream().map(Context::documentId).toList());
+        Map<String, String> storeHintMap = Map.of(COLLECTION_ID, InternalDocumentStore.NAME);
+        verify(this.solrConnector)
+            .similaritySearch(QUERY, Map.of(COLLECTION_ID, EMBEDDING_MODEL), storeHintMap, 4, null);
+        verify(this.solrConnector).keywordSearch(QUERY, storeHintMap, 3, null);
     }
 
     private void createAndSaveXWikiStoreCollection(String rightsCheckMethod) throws Exception

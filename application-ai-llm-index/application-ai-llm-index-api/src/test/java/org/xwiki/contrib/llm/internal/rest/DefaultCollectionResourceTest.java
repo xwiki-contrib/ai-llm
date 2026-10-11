@@ -191,10 +191,9 @@ class DefaultCollectionResourceTest
         this.oldcore.getXWikiContext().setWikiId(MAIN_WIKI);
 
         // Mock the query to return the collection.
-        when(this.oldcore.getQueryManager()
-            .createQuery(contains("AI.Collections.Code.CollectionsClass"), eq(Query.HQL)))
+        when(this.oldcore.getQueryManager().createQuery(contains("select distinct doc.fullName"), eq(Query.HQL)))
             .thenReturn(this.collectionsQuery);
-        when(this.collectionsQuery.execute()).thenReturn(List.of(COLLECTION_1));
+        when(this.collectionsQuery.execute()).thenReturn(List.of("AI.Collections.collection1.WebHome"));
 
         // Set up the document query mock.
         when(this.oldcore.getQueryManager().createQuery(contains("AI.Documents.Code.DocumentsClass"), eq(Query.HQL)))
@@ -240,6 +239,21 @@ class DefaultCollectionResourceTest
             () -> this.collectionResource.getCollection(WIKI_NAME, COLLECTION_1));
 
         assertEquals(401, exception.getResponse().getStatus());
+    }
+
+    @Test
+    void getCollectionFailureLogsTheRequestedNameWithoutLineBreaks() throws Exception
+    {
+        String requestedName = "bad\r\nname";
+        doThrow(new XWikiException()).when(this.oldcore.getSpyXWiki()).getDocument(
+            DefaultCollection.getDocumentReference(WIKI_NAME, requestedName), this.oldcore.getXWikiContext());
+
+        WebApplicationException exception = assertThrows(WebApplicationException.class,
+            () -> this.collectionResource.getCollection(WIKI_NAME, requestedName));
+
+        assertEquals(500, exception.getResponse().getStatus());
+        assertEquals(1, this.logCapture.size());
+        assertEquals("Error retrieving collection [bad  name].", this.logCapture.getMessage(0));
     }
 
     @Test
@@ -439,9 +453,10 @@ class DefaultCollectionResourceTest
     @Test
     void deleteCollectionDenied() throws AccessDeniedException, IndexException
     {
+        // The deletion is checked like a save: for the acting user through the authorization manager.
         doThrow(new AccessDeniedException(Right.DELETE, USER_REFERENCE, COLLECTION_1_REFERENCE))
-            .when(this.oldcore.getMockContextualAuthorizationManager())
-            .checkAccess(Right.DELETE, COLLECTION_1_REFERENCE);
+            .when(this.oldcore.getMockAuthorizationManager())
+            .checkAccess(Right.DELETE, USER_REFERENCE, COLLECTION_1_REFERENCE);
 
         WebApplicationException exception = assertThrows(WebApplicationException.class,
             () -> this.collectionResource.deleteCollection(WIKI_NAME, COLLECTION_1));
