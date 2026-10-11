@@ -174,6 +174,13 @@ class XWikiDocumentDocumentTest
     }
 
     @Test
+    void initializeTwiceFails()
+    {
+        assertThrows(IllegalStateException.class,
+            () -> this.xWikiDocumentDocument.initialize(COLLECTION, this.xWikiDocument));
+    }
+
+    @Test
     void getID()
     {
         assertEquals("mywiki:AI.Documents.MyDocument;fr", this.xWikiDocumentDocument.getID());

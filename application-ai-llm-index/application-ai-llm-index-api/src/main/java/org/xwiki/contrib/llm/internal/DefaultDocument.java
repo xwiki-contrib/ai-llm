@@ -34,6 +34,8 @@ import org.xwiki.contrib.llm.Chunk;
 import org.xwiki.contrib.llm.ChunkingUtils;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.security.authorization.ContextualAuthorizationManager;
+import org.xwiki.security.authorization.Right;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
@@ -86,17 +88,38 @@ public class DefaultDocument implements Document
     @Inject
     private ChunkingUtils chunkingUtils;
 
+    @Inject
+    private ContextualAuthorizationManager contextualAuthorizationManager;
+
     /**
-     * Initializes the Document with empty fields.
-     * @param xwikidocument the id of the document.
+     * Initialize the document with the page that stores it. This method may be called once.
+     *
+     * @param xwikidocument the page that stores the document
+     * @throws IllegalStateException if the document is already initialized
      */
     public void initialize(XWikiDocument xwikidocument)
     {
+        if (this.xwikiDocumentWrapper != null) {
+            throw new IllegalStateException("This document is already initialized.");
+        }
+
         this.xwikiDocumentWrapper = new XWikiDocumentWrapper(xwikidocument, XCLASS_REFERENCE, this.contextProvider);
     }
 
     @Override
     public XWikiDocument getXWikiDocument() throws IndexException
+    {
+        if (!this.contextualAuthorizationManager.hasAccess(Right.PROGRAM)) {
+            return null;
+        }
+        return getClonedXWikiDocument();
+    }
+
+    /**
+     * @return the clone of the page that stores this document, which the store saves and deletes
+     * @throws IndexException if the page cannot be cloned
+     */
+    XWikiDocument getClonedXWikiDocument() throws IndexException
     {
         return this.xwikiDocumentWrapper.getClonedXWikiDocument();
     }

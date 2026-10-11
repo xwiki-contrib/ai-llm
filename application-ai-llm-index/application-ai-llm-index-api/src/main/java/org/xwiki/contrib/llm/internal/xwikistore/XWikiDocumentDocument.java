@@ -132,13 +132,18 @@ public class XWikiDocumentDocument implements Document
     private final Tika tika = new Tika();
 
     /**
-     * Initialize this document.
+     * Initialize this document. This method may be called once.
      *
      * @param collection the collection to which the document belongs
      * @param document the document that shall be wrapped
+     * @throws IllegalStateException if the document is already initialized
      */
     public void initialize(String collection, XWikiDocument document)
     {
+        if (this.xWikiDocument != null) {
+            throw new IllegalStateException("This document is already initialized.");
+        }
+
         this.collection = collection;
         this.xWikiDocument = document;
     }

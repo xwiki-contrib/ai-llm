@@ -117,6 +117,14 @@ class XWikiDocumentStoreTest
     }
 
     @Test
+    void initializeTwiceFails() throws IndexException
+    {
+        this.xWikiDocumentStore.initialize(this.collection, null);
+
+        assertThrows(IllegalStateException.class, () -> this.xWikiDocumentStore.initialize(this.collection, null));
+    }
+
+    @Test
     void getDocumentNames() throws IndexException
     {
         this.xWikiDocumentStore.initialize(this.collection, null);

@@ -51,9 +51,10 @@ public interface Document
         XCLASS_NAME);
 
     /**
-     * The get the XWikiDocument that represents the document.
-     * 
-     * @return the document's XWikiDocument
+     * Get the XWikiDocument that represents the document.
+     *
+     * @return the XWiki document behind this document, or {@code null} when the caller has no programming right
+     * @throws IndexException if the XWiki document cannot be provided
      */
     XWikiDocument getXWikiDocument() throws IndexException;
 

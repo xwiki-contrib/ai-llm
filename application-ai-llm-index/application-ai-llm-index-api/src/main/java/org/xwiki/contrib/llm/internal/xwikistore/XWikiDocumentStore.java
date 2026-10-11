@@ -74,6 +74,8 @@ public class XWikiDocumentStore implements DocumentStore
 
     private DocumentReference userDocumentReference;
 
+    private boolean initialized;
+
     @Inject
     @Named("document")
     private UserReferenceSerializer<DocumentReference> userReferenceSerializer;
@@ -98,9 +100,18 @@ public class XWikiDocumentStore implements DocumentStore
     @Inject
     private XWikiDocumentStoreHelper helper;
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This method may be called once.</p>
+     */
     @Override
     public void initialize(Collection collection, UserReference userReference) throws IndexException
     {
+        if (this.initialized) {
+            throw new IllegalStateException("This document store is already initialized.");
+        }
+
         this.spaces = this.helper.resolveSpaceReferences(collection.getDocumentSpaces(),
             collection.getDocumentReference());
         this.collectionName = collection.getID();
@@ -108,6 +119,7 @@ public class XWikiDocumentStore implements DocumentStore
             this.userReference = userReference;
             this.userDocumentReference = this.userReferenceSerializer.serialize(userReference);
         }
+        this.initialized = true;
     }
 
     private boolean isUserPresent()

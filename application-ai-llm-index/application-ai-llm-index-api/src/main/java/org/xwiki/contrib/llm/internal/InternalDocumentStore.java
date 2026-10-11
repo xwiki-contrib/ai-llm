@@ -43,6 +43,7 @@ import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.query.QueryManager;
 import org.xwiki.security.authorization.AccessDeniedException;
+import org.xwiki.security.authorization.AuthorizationException;
 import org.xwiki.security.authorization.AuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.user.UserReference;
@@ -92,21 +93,36 @@ public class InternalDocumentStore implements DocumentStore
     @Inject
     private AuthorizationManager authorizationManager;
 
+    @Inject
+    private WriteAttribution writeAttribution;
+
     private Collection collection;
 
     private DocumentReference documentUserReference;
 
     private UserReference userReference;
 
+    private boolean initialized;
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This method may be called once.</p>
+     */
     @Override
     public void initialize(Collection collection, UserReference userReference) throws IndexException
     {
+        if (this.initialized) {
+            throw new IllegalStateException("This document store is already initialized.");
+        }
+
         this.collection = collection;
         this.userReference = userReference;
 
         if (userReference != null) {
             this.documentUserReference = this.userReferenceSerializer.serialize(userReference);
         }
+        this.initialized = true;
     }
 
     @Override
@@ -201,7 +217,8 @@ public class InternalDocumentStore implements DocumentStore
         XWikiContext context = this.contextProvider.get();
         DocumentReference documentReference = getDocumentReference(name);
         if (isUserSet()) {
-            this.authorizationManager.checkAccess(Right.EDIT, this.documentUserReference, documentReference);
+            this.writeAttribution.checkAccess(Right.EDIT, documentReference, this.userReference,
+                this.documentUserReference);
         }
         try {
             XWikiDocument xwikiDoc = context.getWiki().getDocument(documentReference, context);
@@ -219,40 +236,84 @@ public class InternalDocumentStore implements DocumentStore
     @Override
     public void saveDocument(Document document) throws IndexException, AccessDeniedException
     {
+        XWikiContext context = this.contextProvider.get();
+        XWikiDocument xWikiDocument = getPage(document);
         try {
-            XWikiContext context = this.contextProvider.get();
-            XWikiDocument xWikiDocument = document.getXWikiDocument();
-
+            DocumentReference actor = getActor(context);
+            DocumentReference effectiveAuthor = actor;
             if (isUserSet()) {
-                this.authorizationManager.checkAccess(Right.EDIT, this.documentUserReference,
-                    xWikiDocument.getDocumentReference());
+                effectiveAuthor = this.writeAttribution.checkAccess(Right.EDIT, xWikiDocument.getDocumentReference(),
+                    this.userReference, this.documentUserReference);
+            }
+            // A save with neither a user nor a context user, which only background code makes, keeps the authors of
+            // the page.
+            if (isUserSet() || actor != null) {
+                this.writeAttribution.prepareSave(xWikiDocument, actor, effectiveAuthor);
+            }
+            if (isUserSet()) {
                 // Check saving. This could modify the document.
-                context.getWiki().checkSavingDocument(context.getUserReference(), xWikiDocument, context);
+                context.getWiki().checkSavingDocument(effectiveAuthor, xWikiDocument, context);
             }
 
             context.getWiki().saveDocument(xWikiDocument, context);
-        } catch (XWikiException e) {
+        } catch (AccessDeniedException e) {
+            throw e;
+        } catch (XWikiException | AuthorizationException e) {
             throw new IndexException(String.format("Failed to save document with id [%s]: ", document.getID()), e);
         }
-
     }
 
     @Override
     public void deleteDocument(Document document) throws IndexException, AccessDeniedException
     {
+        XWikiContext context = this.contextProvider.get();
+        XWikiDocument xWikiDocument = getPage(document);
         try {
-            XWikiContext context = this.contextProvider.get();
-            XWikiDocument xWikiDocument = document.getXWikiDocument();
             if (isUserSet()) {
-                this.authorizationManager.checkAccess(Right.DELETE, this.documentUserReference,
-                    xWikiDocument.getDocumentReference());
-
-                context.getWiki().checkDeletingDocument(context.getUserReference(), xWikiDocument, context);
+                DocumentReference effectiveAuthor = this.writeAttribution.checkAccess(Right.DELETE,
+                    xWikiDocument.getDocumentReference(), this.userReference, this.documentUserReference);
+                context.getWiki().checkDeletingDocument(effectiveAuthor, xWikiDocument, context);
             }
 
             context.getWiki().deleteDocument(xWikiDocument, context);
         } catch (XWikiException e) {
             throw new IndexException(String.format("Failed to delete document with id [%s]: ", document.getID()), e);
+        }
+    }
+
+    /**
+     * @return the user the store acts for: the user it was initialized with, otherwise the context user
+     */
+    private DocumentReference getActor(XWikiContext context)
+    {
+        return isUserSet() ? this.documentUserReference : context.getUserReference();
+    }
+
+    /**
+     * @return the page of the document, which the store writes
+     * @throws IndexException if the document is not one of this store or the page is not the page of the document
+     */
+    private XWikiDocument getPage(Document document) throws IndexException
+    {
+        if (!(document instanceof DefaultDocument defaultDocument)) {
+            throw new IndexException(
+                String.format("The document [%s] is not managed by this document store", document.getID()));
+        }
+        XWikiDocument xWikiDocument = defaultDocument.getClonedXWikiDocument();
+        checkDocumentReference(document, xWikiDocument);
+        return xWikiDocument;
+    }
+
+    /**
+     * Check that the page is the page of the document in this store, so that the store only ever saves or deletes
+     * the documents of its collection.
+     */
+    private void checkDocumentReference(Document document, XWikiDocument xWikiDocument) throws IndexException
+    {
+        DocumentReference expected = getDocumentReference(document.getID());
+        if (!expected.equals(xWikiDocument.getDocumentReference())) {
+            throw new IndexException(String.format("The page [%s] is not the document [%s] of collection [%s]",
+                xWikiDocument.getDocumentReference(), document.getID(), this.collection.getID()));
         }
     }
 

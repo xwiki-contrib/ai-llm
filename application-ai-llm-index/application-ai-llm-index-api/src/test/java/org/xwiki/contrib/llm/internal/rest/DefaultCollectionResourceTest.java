@@ -45,6 +45,7 @@ import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.DefaultCollectionManager;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
 import org.xwiki.contrib.llm.internal.InternalDocumentStore;
+import org.xwiki.contrib.llm.internal.WriteAttribution;
 import org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.rest.JSONCollection;
 import org.xwiki.model.reference.DocumentReference;
@@ -54,6 +55,7 @@ import org.xwiki.query.QueryException;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.security.authorization.requiredrights.DocumentRequiredRightsManager;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.LogCaptureExtension;
@@ -111,6 +113,7 @@ import static org.mockito.Mockito.when;
     CurrentUserCollection.class,
     DefaultDocument.class,
     XWikiAuthorizationManagerBuilder.class,
+    WriteAttribution.class
 })
 
 @ReferenceComponentList
@@ -160,11 +163,11 @@ class DefaultCollectionResourceTest
     private GroupManager groupManager;
 
     @MockComponent
-    private UserReferenceResolver<CurrentUserReference> currentUserReferenceUserReferenceResolver;
-
-    @MockComponent
     @Named("customRights")
     private AuthorizationManagerBuilder customRightsAuthorizationManagerBuilder;
+
+    @MockComponent
+    private DocumentRequiredRightsManager documentRequiredRightsManager;
 
     @Mock
     private Query collectionsQuery;
@@ -212,8 +215,10 @@ class DefaultCollectionResourceTest
             this.oldcore.getMocker().getInstance(UserReferenceSerializer.TYPE_DOCUMENT_REFERENCE, "document");
         when(userReferenceSerializer.serialize(CurrentUserReference.INSTANCE)).thenReturn(USER_REFERENCE);
 
-        when(this.currentUserReferenceUserReferenceResolver.resolve(CurrentUserReference.INSTANCE))
-            .thenReturn(CURRENT_USER_REFERENCE);
+        // The saved collection is attributed to the current user through the "document" resolver.
+        UserReferenceResolver<DocumentReference> userReferenceResolver =
+            this.oldcore.getMocker().getInstance(UserReferenceResolver.TYPE_DOCUMENT_REFERENCE, "document");
+        when(userReferenceResolver.resolve(USER_REFERENCE)).thenReturn(CURRENT_USER_REFERENCE);
     }
 
     @Test
@@ -407,8 +412,8 @@ class DefaultCollectionResourceTest
     void putCollectionDenied() throws AccessDeniedException, IndexException
     {
         doThrow(new AccessDeniedException(Right.EDIT, USER_REFERENCE, COLLECTION_1_REFERENCE))
-            .when(this.oldcore.getMockContextualAuthorizationManager())
-            .checkAccess(Right.EDIT, COLLECTION_1_REFERENCE);
+            .when(this.oldcore.getMockAuthorizationManager())
+            .checkAccess(Right.EDIT, USER_REFERENCE, COLLECTION_1_REFERENCE);
 
         JSONCollection collection = new JSONCollection();
         collection.setEmbeddingModel("embeddingModel");

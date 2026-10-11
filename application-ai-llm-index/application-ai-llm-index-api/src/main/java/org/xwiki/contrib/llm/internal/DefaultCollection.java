@@ -45,6 +45,7 @@ import org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBui
 import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.SpaceReference;
+import org.xwiki.security.authorization.AuthorizationException;
 import org.xwiki.user.UserReference;
 
 import com.xpn.xwiki.XWikiContext;
@@ -89,6 +90,9 @@ public class DefaultCollection implements Collection
     @Inject
     protected Provider<XWikiContext> contextProvider;
 
+    @Inject
+    protected WriteAttribution writeAttribution;
+
     protected XWikiDocumentWrapper xWikiDocumentWrapper;
 
     @Inject
@@ -112,12 +116,17 @@ public class DefaultCollection implements Collection
     }
 
     /**
-     * Initialize the collection.
+     * Initialize the collection. This method may be called once.
      *
      * @param xwikidocument the XWiki document
+     * @throws IllegalStateException if the collection is already initialized
      */
     public void initialize(XWikiDocument xwikidocument)
     {
+        if (this.xWikiDocumentWrapper != null) {
+            throw new IllegalStateException("This collection is already initialized.");
+        }
+
         this.xWikiDocumentWrapper = new XWikiDocumentWrapper(xwikidocument, XCLASS_REFERENCE, this.contextProvider);
     }
 
@@ -301,8 +310,14 @@ public class DefaultCollection implements Collection
     {
         try {
             XWikiContext context = this.contextProvider.get();
-            context.getWiki().saveDocument(this.xWikiDocumentWrapper.getClonedXWikiDocument(), context);
-        } catch (XWikiException e) {
+            XWikiDocument collectionDocument = this.xWikiDocumentWrapper.getClonedXWikiDocument();
+            DocumentReference actor = context.getUserReference();
+            // A save without a context user, which only background code makes, keeps the authors of the page.
+            if (actor != null) {
+                this.writeAttribution.prepareSave(collectionDocument, actor, actor);
+            }
+            context.getWiki().saveDocument(collectionDocument, context);
+        } catch (XWikiException | AuthorizationException e) {
             throw new IndexException(String.format("Error saving collection [%s].", this.getID()), e);
         }
     }

@@ -19,19 +19,15 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import javax.inject.Inject;
-
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
 import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
+import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.security.authorization.AuthorizationException;
-import org.xwiki.security.authorization.ContextualAuthorizationManager;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.user.CurrentUserReference;
-import org.xwiki.user.UserReference;
-import org.xwiki.user.UserReferenceResolver;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -47,33 +43,30 @@ import com.xpn.xwiki.doc.XWikiDocument;
 @InstantiationStrategy(ComponentInstantiationStrategy.PER_LOOKUP)
 public class CurrentUserCollection extends DefaultCollection
 {
-    @Inject
-    private ContextualAuthorizationManager contextualAuthorizationManager;
-
-    @Inject
-    private UserReferenceResolver<CurrentUserReference> currentUserReferenceUserReferenceResolver;
-
     @Override
     public DocumentStore getDocumentStore() throws IndexException
     {
         return getDocumentStoreInternal(CurrentUserReference.INSTANCE);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The saved page is attributed to the current user; when the save is made from a script without programming
+     * right, the script's author must also be allowed to edit the page and becomes the effective author, like the
+     * platform's document API.</p>
+     */
     @Override
     public void save() throws IndexException
     {
         XWikiContext context = this.contextProvider.get();
         try {
             XWikiDocument collectionDocument = this.xWikiDocumentWrapper.getClonedXWikiDocument();
-            this.contextualAuthorizationManager.checkAccess(Right.EDIT, collectionDocument.getDocumentReference());
-            UserReference userReference =
-                this.currentUserReferenceUserReferenceResolver.resolve(CurrentUserReference.INSTANCE);
-            collectionDocument.getAuthors().setOriginalMetadataAuthor(userReference);
-            collectionDocument.getAuthors().setEffectiveMetadataAuthor(userReference);
-            if (collectionDocument.isNew()) {
-                collectionDocument.getAuthors().setCreator(userReference);
-            }
-            context.getWiki().checkSavingDocument(context.getUserReference(), collectionDocument, context);
+            DocumentReference actor = context.getUserReference();
+            DocumentReference effectiveAuthor = this.writeAttribution.checkAccess(Right.EDIT,
+                collectionDocument.getDocumentReference(), CurrentUserReference.INSTANCE, actor);
+            this.writeAttribution.prepareSave(collectionDocument, actor, effectiveAuthor);
+            context.getWiki().checkSavingDocument(effectiveAuthor, collectionDocument, context);
             context.getWiki().saveDocument(collectionDocument, context);
         } catch (XWikiException | AuthorizationException e) {
             throw new IndexException(

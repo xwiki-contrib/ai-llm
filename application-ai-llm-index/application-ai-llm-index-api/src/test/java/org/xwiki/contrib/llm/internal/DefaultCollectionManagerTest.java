@@ -133,6 +133,9 @@ class DefaultCollectionManagerTest
     private DefaultCollectionManager collectionManager;
 
     @MockComponent
+    private WriteAttribution writeAttribution;
+
+    @MockComponent
     private GroupManager groupManager;
 
     @MockComponent

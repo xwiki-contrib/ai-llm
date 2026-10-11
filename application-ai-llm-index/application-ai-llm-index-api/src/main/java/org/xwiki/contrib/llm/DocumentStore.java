@@ -39,11 +39,13 @@ import org.xwiki.user.UserReference;
 public interface DocumentStore
 {
     /**
-     * Initialize the document store to retrieve documents for the given collection.
+     * Initialize the document store to retrieve documents for the given collection. A document store can be
+     * initialized only once.
      *
      * @param collection the collection to initialize the document store for
      * @param userReference the user for which rights should be checked
      * @throws IndexException if initializing the document store failed
+     * @throws IllegalStateException if the document store is already initialized
      */
     void initialize(Collection collection, UserReference userReference) throws IndexException;
 
@@ -102,7 +104,10 @@ public interface DocumentStore
     Document createDocument(String name) throws IndexException, AccessDeniedException;
 
     /**
-     * Save a document.
+     * Save a document. The document must be a document of the collection the store was initialized for. The saved
+     * page is attributed to the user the store acts for; when the save is made from a script without programming
+     * right, the script's author must also be allowed to edit the page and becomes the effective author, like the
+     * platform's document API.
      *
      * @param document the document to save
      * @throws IndexException if saving the document failed or the document isn't managed by this document store
@@ -110,10 +115,12 @@ public interface DocumentStore
     void saveDocument(Document document) throws IndexException, AccessDeniedException;
 
     /**
-     * Delete a document.
+     * Delete a document. The document must be a document of the collection the store was initialized for. Unlike
+     * the platform's document API, deleting also requires the delete right of the script's author when the store
+     * acts for the current user from a script without programming right.
      *
      * @param document the document to delete
-     * @throws IndexException if deleting the document failed
+     * @throws IndexException if deleting the document failed or the document isn't managed by this document store
      */
     void deleteDocument(Document document) throws IndexException, AccessDeniedException;
 }

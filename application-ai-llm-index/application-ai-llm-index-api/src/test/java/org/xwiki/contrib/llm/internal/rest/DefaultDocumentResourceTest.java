@@ -39,11 +39,13 @@ import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.DefaultCollectionManager;
 import org.xwiki.contrib.llm.internal.DefaultDocument;
 import org.xwiki.contrib.llm.internal.InternalDocumentStore;
+import org.xwiki.contrib.llm.internal.WriteAttribution;
 import org.xwiki.contrib.llm.rest.JSONDocument;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.security.authorization.AccessDeniedException;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.security.authorization.requiredrights.DocumentRequiredRightsManager;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
@@ -79,7 +81,8 @@ import static org.mockito.Mockito.when;
     DefaultCollection.class,
     CurrentUserCollection.class,
     DefaultDocument.class,
-    InternalDocumentStore.class
+    InternalDocumentStore.class,
+    WriteAttribution.class
 })
 @ReferenceComponentList
 class DefaultDocumentResourceTest
@@ -127,6 +130,9 @@ class DefaultDocumentResourceTest
 
     @MockComponent
     private UserReferenceResolver<CurrentUserReference> currentUserReferenceUserReferenceResolver;
+
+    @MockComponent
+    private DocumentRequiredRightsManager documentRequiredRightsManager;
 
     @BeforeEach
     void setUp() throws Exception

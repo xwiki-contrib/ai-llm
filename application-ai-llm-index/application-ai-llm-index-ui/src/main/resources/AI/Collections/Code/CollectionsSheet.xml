@@ -238,7 +238,6 @@
       #set($crtCollectionId = $doc.getObject("AI.Collections.Code.CollectionsClass").getProperty('id').value)
       #set($collection =  $cm.getCollection($crtCollectionId))
       #set($documentStore = $collection.getDocumentStore())
-      #set($ok = $documentStore.initilize($collection, $xcontext.getUserReference()))
       #set($newDoc = $documentStore.createDocument($request.documentId))
       #set($ok = $documentStore.saveDocument($newDoc))
     #end
