@@ -70,6 +70,9 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
             documentStore.deleteDocument(document);
         } catch (IndexException | AccessDeniedException e) {
             throw convertDocumentException(collectionName, documentID, "deleting", e);
+        } catch (UnsupportedOperationException e) {
+            // The document store of the collection is read-only.
+            throw new WebApplicationException(Response.Status.METHOD_NOT_ALLOWED);
         }
     }
 
@@ -90,6 +93,9 @@ public class DefaultDocumentResource extends AbstractCollectionResource implemen
             return new JSONDocument(existingDocument);
         } catch (IndexException | AccessDeniedException e) {
             throw convertDocumentException(collectionName, documentID, "updating", e);
+        } catch (UnsupportedOperationException e) {
+            // The document store of the collection is read-only.
+            throw new WebApplicationException(Response.Status.METHOD_NOT_ALLOWED);
         }
     }
 }

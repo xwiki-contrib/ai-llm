@@ -45,10 +45,13 @@ import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.internal.authorization.PublicAuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreHelper;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.SpaceReferenceResolver;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
+import org.xwiki.query.QueryFilter;
 import org.xwiki.security.authorization.Right;
 import org.xwiki.test.LogLevel;
 import org.xwiki.test.annotation.ComponentList;
@@ -68,12 +71,14 @@ import com.xpn.xwiki.test.reference.ReferenceComponentList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -90,6 +95,7 @@ import static org.mockito.Mockito.when;
 @ComponentList({
     DefaultCollection.class,
     XWikiAuthorizationManagerBuilder.class,
+    XWikiDocumentStoreHelper.class,
     PublicAuthorizationManagerBuilder.class
 })
 @ReferenceComponentList
@@ -148,6 +154,17 @@ class DefaultCollectionManagerTest
     @MockComponent
     @Named(InternalDocumentStore.NAME)
     private DocumentStore internalDocumentStore;
+
+    @MockComponent
+    @Named("language")
+    private QueryFilter languageFilter;
+
+    @MockComponent
+    @Named("count")
+    private QueryFilter countFilter;
+
+    @MockComponent
+    private SpaceReferenceResolver<String> spaceReferenceResolver;
 
     @Test
     void createCollection() throws Exception
@@ -246,6 +263,30 @@ class DefaultCollectionManagerTest
     }
 
     @Test
+    void clearIndexCoreClearsTheContextWiki() throws Exception
+    {
+        this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
+
+        this.collectionManager.clearIndexCore();
+
+        verify(this.solrConnector).clearIndexCore(WIKI_NAME);
+    }
+
+    @Test
+    void clearIndexCoreWrapsSolrFailures() throws Exception
+    {
+        this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
+        SolrServerException cause = new SolrServerException("down");
+        doThrow(cause).when(this.solrConnector).clearIndexCore(WIKI_NAME);
+
+        IndexException exception =
+            assertThrows(IndexException.class, () -> this.collectionManager.clearIndexCore());
+
+        assertEquals("Failed to clear the index of wiki [testwiki]", exception.getMessage());
+        assertEquals(cause, exception.getCause());
+    }
+
+    @Test
     void getDocumentReference()
     {
         this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
@@ -312,6 +353,43 @@ class DefaultCollectionManagerTest
             Map.of(COLLECTION_ID, InternalDocumentStore.NAME, collectionId2, InternalDocumentStore.NAME);
         verify(this.solrConnector).similaritySearch("query", embeddingModelMap, storeHintMap, 4, locale);
         verify(this.solrConnector).keywordSearch("query", storeHintMap, 3, locale);
+    }
+
+    @Test
+    void hybridSearchExcludesACollectionWhoseRightsMethodThrowsUnchecked() throws Exception
+    {
+        XWikiContext context = this.oldcore.getXWikiContext();
+        context.setWikiId(WIKI_NAME);
+        mockCollectionsQuery(List.of());
+        String brokenCollectionId = "brokencollection";
+        createAndSaveCollection(COLLECTION_ID, EMBEDDING_MODEL);
+        createAndSaveCollection(brokenCollectionId, EMBEDDING_MODEL);
+
+        when(this.customRightsAuthorizationManagerBuilder.getConfigurationClassReference())
+            .thenReturn(Collection.XCLASS_REFERENCE);
+        AuthorizationManager workingManager = mock();
+        when(workingManager.canView(Set.of("document0"))).thenReturn(Map.of("document0", true));
+        when(this.customRightsAuthorizationManagerBuilder.build(any())).thenAnswer(invocation -> {
+            BaseObject configurationObject = invocation.getArgument(0);
+            if (brokenCollectionId.equals(configurationObject.getStringValue("id"))) {
+                throw new IllegalStateException("broken rights method");
+            }
+            return workingManager;
+        });
+        mockSearchResults("document0");
+
+        List<Context> result =
+            this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID, brokenCollectionId), 4, 3);
+
+        assertEquals(List.of("document0"), result.stream().map(Context::documentId).toList());
+        // Only the collection with a working rights method is searched.
+        Map<String, String> storeHintMap = Map.of(COLLECTION_ID, InternalDocumentStore.NAME);
+        verify(this.solrConnector)
+            .similaritySearch(QUERY, Map.of(COLLECTION_ID, EMBEDDING_MODEL), storeHintMap, 4, null);
+        verify(this.solrConnector).keywordSearch(QUERY, storeHintMap, 3, null);
+        assertEquals(1, this.logCapture.size());
+        assertEquals("Failed to get authorization manager for collection [brokencollection], excluding it from the"
+            + " similarity search: [IllegalStateException: broken rights method]", this.logCapture.getMessage(0));
     }
 
     @Test

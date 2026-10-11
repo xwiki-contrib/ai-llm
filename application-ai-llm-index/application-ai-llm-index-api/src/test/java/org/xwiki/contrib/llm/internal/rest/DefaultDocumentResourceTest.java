@@ -22,6 +22,7 @@ package org.xwiki.contrib.llm.internal.rest;
 import java.util.List;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.ws.rs.WebApplicationException;
 
 import org.apache.commons.codec.digest.DigestUtils;
@@ -31,6 +32,7 @@ import org.xwiki.contrib.llm.ChunkingUtils;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.internal.CurrentUserCollection;
@@ -54,6 +56,7 @@ import org.xwiki.user.UserReferenceResolver;
 import org.xwiki.user.UserReferenceSerializer;
 import org.xwiki.user.group.GroupManager;
 
+import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.InjectMockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.OldcoreTest;
@@ -66,6 +69,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -107,6 +111,13 @@ class DefaultDocumentResourceTest
 
     private static final DocumentReference USER_REFERENCE = new DocumentReference(MAIN_WIKI, "XWiki", "User");
 
+    private static final String READ_ONLY_COLLECTION_NAME = "readonlycollection";
+
+    private static final String READ_ONLY_STORE = "readonly";
+
+    private static final DocumentReference READ_ONLY_COLLECTION_REFERENCE = new DocumentReference(WIKI_NAME,
+        List.of("AI", "Collections", READ_ONLY_COLLECTION_NAME), "WebHome");
+
     @InjectMockitoOldcore
     private MockitoOldcore oldcore;
 
@@ -133,6 +144,10 @@ class DefaultDocumentResourceTest
 
     @MockComponent
     private DocumentRequiredRightsManager documentRequiredRightsManager;
+
+    @MockComponent
+    @Named(READ_ONLY_STORE)
+    private DocumentStore readOnlyDocumentStore;
 
     @BeforeEach
     void setUp() throws Exception
@@ -222,6 +237,48 @@ class DefaultDocumentResourceTest
         assertEquals(DOCUMENT_ID,
             this.documentResource.getDocument(WIKI_NAME, COLLECTION_NAME, DOCUMENT_ID).getTitle());
         verifyNoInteractions(this.solrConnector);
+    }
+
+    @Test
+    void putDocumentOnAReadOnlyStoreIsNotAllowed() throws Exception
+    {
+        createReadOnlyCollection();
+        JSONDocument document = new JSONDocument();
+        document.setContent(CONTENT);
+
+        WebApplicationException exception = assertThrows(WebApplicationException.class, () ->
+            this.documentResource.putDocument(WIKI_NAME, READ_ONLY_COLLECTION_NAME, DOCUMENT_ID, document));
+        assertEquals(405, exception.getResponse().getStatus());
+    }
+
+    @Test
+    void deleteDocumentOnAReadOnlyStoreIsNotAllowed() throws Exception
+    {
+        createReadOnlyCollection();
+
+        WebApplicationException exception = assertThrows(WebApplicationException.class, () ->
+            this.documentResource.deleteDocument(WIKI_NAME, READ_ONLY_COLLECTION_NAME, DOCUMENT_ID));
+        assertEquals(405, exception.getResponse().getStatus());
+    }
+
+    /**
+     * Create a collection whose document store, like the XWiki document store, refuses every modification.
+     */
+    private void createReadOnlyCollection() throws Exception
+    {
+        this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
+        this.collectionManager.createCollection(READ_ONLY_COLLECTION_NAME).save();
+        XWikiDocument collectionDocument = this.oldcore.getSpyXWiki()
+            .getDocument(READ_ONLY_COLLECTION_REFERENCE, this.oldcore.getXWikiContext()).clone();
+        collectionDocument.getXObject(Collection.XCLASS_REFERENCE)
+            .setStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME, READ_ONLY_STORE);
+        this.oldcore.getSpyXWiki().saveDocument(collectionDocument, this.oldcore.getXWikiContext());
+        this.oldcore.getXWikiContext().setWikiId(MAIN_WIKI);
+
+        Document existingDocument = mock();
+        when(this.readOnlyDocumentStore.getDocument(DOCUMENT_ID)).thenReturn(existingDocument);
+        doThrow(new UnsupportedOperationException()).when(this.readOnlyDocumentStore).saveDocument(any());
+        doThrow(new UnsupportedOperationException()).when(this.readOnlyDocumentStore).deleteDocument(any());
     }
 
     @Test

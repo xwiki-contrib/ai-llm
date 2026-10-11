@@ -20,35 +20,35 @@
 package org.xwiki.contrib.llm;
 
 import java.util.List;
-import java.util.Arrays;
 
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
+import org.slf4j.Logger;
+import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.internal.DefaultCollection;
+import org.xwiki.contrib.llm.internal.InternalDocumentStore;
+import org.xwiki.model.reference.DocumentReference;
+import org.xwiki.model.reference.DocumentReferenceResolver;
+import org.xwiki.model.reference.EntityReferenceSerializer;
+import org.xwiki.model.reference.WikiReference;
 import org.xwiki.observation.event.AbstractLocalEventListener;
 import org.xwiki.observation.event.Event;
-import org.xwiki.query.QueryManager;
 import org.xwiki.query.Query;
+import org.xwiki.query.QueryManager;
 import org.xwiki.refactoring.event.DocumentRenamedEvent;
-import org.xwiki.model.EntityType;
-import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.EntityReference;
-import org.xwiki.model.reference.SpaceReference;
-import org.xwiki.model.reference.SpaceReferenceResolver;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 
-import org.slf4j.Logger;
-import org.xwiki.component.annotation.Component;
-
 /**
- * This class is responsible for handling renaming of a collection.
- * 
+ * Updates the id of a collection and the collection field of its documents when the page of the collection is
+ * renamed.
+ *
  * @version $Id$
  */
 @Component
@@ -62,12 +62,31 @@ public class Migrator extends AbstractLocalEventListener
     public static final String NAME = "org.xwiki.contrib.llm.Migrator";
 
     private static final String ID_FIELDNAME = "id";
+
     private static final String COLLECTION_FIELDNAME = "collection";
+
     private static final String COMMENT_STRING = "Migrating collection ID";
+
+    private static final String DOCUMENT_CLASS =
+        Document.XCLASS_SPACE_STRING + Collection.SPACE_DELIMITER + Document.XCLASS_NAME;
+
+    /**
+     * The documents of the renamed collection: the pages of its documents space that carry a documents object
+     * still referring to the old collection id. The query is bound to the Documents space of the new collection
+     * page: the refactoring job renames the children of a space before its WebHome
+     * ({@code AbstractEntityJob.visitDocumentAncestor} walks {@code EntityReferenceTreeNode.getChildren()}, a
+     * TreeMap in name order, so {@code Documents} is visited before {@code WebHome}), so the documents already sit
+     * under the new space when the event of the collection page arrives. A non-deep rename that leaves the
+     * children behind is deliberately not followed.
+     */
+    private static final String DOCUMENTS_QUERY = "select doc.fullName from XWikiDocument doc, BaseObject obj, "
+        + "StringProperty prop where doc.fullName = obj.name and obj.className = :documentClass "
+        + "and doc.space = :space and obj.id = prop.id.id and prop.id.name = '" + COLLECTION_FIELDNAME + "' "
+        + "and prop.value = :oldId";
 
     @Inject
     protected Provider<XWikiContext> contextProvider;
- 
+
     @Inject
     private Logger logger;
 
@@ -76,8 +95,12 @@ public class Migrator extends AbstractLocalEventListener
 
     @Inject
     @Named("current")
-    private SpaceReferenceResolver<String> explicitStringSpaceRefResolver;
-    
+    private DocumentReferenceResolver<String> documentReferenceResolver;
+
+    @Inject
+    @Named("local")
+    private EntityReferenceSerializer<String> localEntityReferenceSerializer;
+
     /**
      * Default constructor.
      */
@@ -85,87 +108,60 @@ public class Migrator extends AbstractLocalEventListener
     {
         super(NAME, new DocumentRenamedEvent());
     }
-    
-    @Override public void processLocalEvent(Event event, Object source, Object data)
+
+    @Override
+    public void processLocalEvent(Event event, Object source, Object data)
     {
+        DocumentReference targetRef = ((DocumentRenamedEvent) event).getTargetReference();
+        WikiReference wikiReference = targetRef.getWikiReference();
+        String newID = targetRef.getLastSpaceReference().getName();
+
+        // Only the page of a collection is a collection: a collections object on any other page is ignored.
+        if (!targetRef.equals(DefaultCollection.getDocumentReference(wikiReference.getName(), newID))) {
+            return;
+        }
+
         try {
-            DocumentRenamedEvent documentRenamedEvent = (DocumentRenamedEvent) event;
-            DocumentReference targetRef = documentRenamedEvent.getTargetReference();
             XWikiContext context = this.contextProvider.get();
-            XWikiDocument xdocument =  this.contextProvider.get().getWiki().getDocument(targetRef, context);
-            EntityReference documentClassReference = getCollectionObjectReference();
-            BaseObject collectionObject = xdocument.getXObject(documentClassReference);
-            if (collectionObject != null) {
-                String oldID = collectionObject.getStringValue(ID_FIELDNAME);
-                String newIDRef = xdocument.getDocumentReference().getLastSpaceReference().toString();
-                String newID = newIDRef.substring(newIDRef.lastIndexOf(Collection.SPACE_DELIMITER) + 1);
-                collectionObject.setStringValue(ID_FIELDNAME, newID);
-                context.getWiki().saveDocument(xdocument, COMMENT_STRING, true, context);
-                String documentClass = Document.XCLASS_SPACE_STRING + Collection.SPACE_DELIMITER + Document.XCLASS_NAME;
-                String templateDoc = Document.XCLASS_SPACE_STRING + ".DocumentsTemplate";
-                List<String> documents = null;
-                String hql = "select doc.fullName from XWikiDocument doc, BaseObject obj,"
-                            + "StringProperty prop where doc.fullName = obj.name "
-                            + "and obj.className='" + documentClass
-                            + "' and doc.fullName <> '" + templateDoc
-                            + "' and obj.id = prop.id.id "
-                            + "and prop.id.name = '" + COLLECTION_FIELDNAME
-                            + "' and prop.value = '" + oldID + "'";
-                Query query = queryManager.createQuery(hql, Query.HQL);
-                documents = query.execute();
-                updateDocuments(documents, newID);
+            // Never modify the cached instance of a document.
+            XWikiDocument xdocument = context.getWiki().getDocument(targetRef, context).clone();
+            BaseObject collectionObject = xdocument.getXObject(Collection.XCLASS_REFERENCE);
+            if (collectionObject == null) {
+                return;
             }
+
+            String oldID = collectionObject.getStringValue(ID_FIELDNAME);
+            collectionObject.setStringValue(ID_FIELDNAME, newID);
+            context.getWiki().saveDocument(xdocument, COMMENT_STRING, true, context);
+
+            Query query = this.queryManager.createQuery(DOCUMENTS_QUERY, Query.HQL);
+            query.bindValue("documentClass", DOCUMENT_CLASS);
+            query.bindValue("space", this.localEntityReferenceSerializer.serialize(
+                InternalDocumentStore.getDocumentsSpaceReference(wikiReference.getName(), newID)));
+            query.bindValue("oldId", oldID);
+            query.setWiki(wikiReference.getName());
+            updateDocuments(query.execute(), wikiReference, newID);
         } catch (Exception e) {
-            this.logger.error("Failure in migratior listener: [{}]", e.getMessage());
+            this.logger.error("Failure in migrator listener for [{}]", targetRef, e);
         }
     }
 
-    private void updateDocuments(List<String> documents, String newID)
+    private void updateDocuments(List<String> documents, WikiReference wikiReference, String newID)
     {
         XWikiContext context = this.contextProvider.get();
 
         for (String documentName : documents) {
             try {
-                DocumentReference docRef = getDocumentReference(documentName);
-                XWikiDocument xdocument = context.getWiki().getDocument(docRef, context);
-                BaseObject documentObject = xdocument.getXObject(getDocumentObjectReference());
-                documentObject.setStringValue(COLLECTION_FIELDNAME, newID);
-                context.getWiki().saveDocument(xdocument, COMMENT_STRING, true, context);
+                DocumentReference docRef = this.documentReferenceResolver.resolve(documentName, wikiReference);
+                XWikiDocument xdocument = context.getWiki().getDocument(docRef, context).clone();
+                BaseObject documentObject = xdocument.getXObject(Document.XCLASS_REFERENCE);
+                if (documentObject != null) {
+                    documentObject.setStringValue(COLLECTION_FIELDNAME, newID);
+                    context.getWiki().saveDocument(xdocument, COMMENT_STRING, true, context);
+                }
             } catch (XWikiException e) {
-                this.logger.error("Failure to update document [{}] in migratior listener: [{}]",
-                                 documentName, e.getMessage());
+                this.logger.error("Failed to update document [{}] in migrator listener", documentName, e);
             }
         }
-    }
-
-    private DocumentReference getDocumentReference(String fullName)
-    {
-        XWikiContext context = this.contextProvider.get();
-        String[] parts = fullName.split("\\.");
-        String pageName = parts[parts.length - 1];
-        List<String> spaceNames = Arrays.asList(parts).subList(0, parts.length - 1);
-        return new DocumentReference(context.getWikiId(), spaceNames, pageName);
-    }
-
-    private EntityReference getCollectionObjectReference()
-    {
-        SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(Collection.XCLASS_SPACE_STRING);
-
-        EntityReference collectionClassRef = new EntityReference(Collection.XCLASS_NAME,
-                                    EntityType.DOCUMENT,
-                                    spaceRef
-                                );
-        return new EntityReference(Collection.XCLASS_NAME, EntityType.OBJECT, collectionClassRef);
-    }
-
-    private EntityReference getDocumentObjectReference()
-    {
-        SpaceReference spaceRef = explicitStringSpaceRefResolver.resolve(Document.XCLASS_SPACE_STRING);
-
-        EntityReference documentClassRef = new EntityReference(Document.XCLASS_NAME,
-                                    EntityType.DOCUMENT,
-                                    spaceRef
-                                );
-        return new EntityReference(Document.XCLASS_NAME, EntityType.OBJECT, documentClassRef);
     }
 }

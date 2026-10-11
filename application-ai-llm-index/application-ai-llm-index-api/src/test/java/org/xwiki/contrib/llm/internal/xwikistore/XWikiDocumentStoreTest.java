@@ -49,10 +49,13 @@ import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -79,6 +82,11 @@ class XWikiDocumentStoreTest
 
     private static final List<SpaceReference> SPACES =
         List.of(new SpaceReference(COLLECTION_WIKI, SUBWIKI_SPACE), new SpaceReference("xwiki", "mainwikispace"));
+
+    private static final String DOCUMENT_ID = COLLECTION_WIKI + ":" + SUBWIKI_SPACE + ".WebHome;fr";
+
+    private static final DocumentReference DOCUMENT_REFERENCE =
+        new DocumentReference(COLLECTION_WIKI, SUBWIKI_SPACE, "WebHome", Locale.FRENCH);
 
     @InjectMockComponents
     private XWikiDocumentStore xWikiDocumentStore;
@@ -142,20 +150,65 @@ class XWikiDocumentStoreTest
     {
         this.xWikiDocumentStore.initialize(this.collection, null);
 
-        DocumentReference documentReference =
-            new DocumentReference(COLLECTION_WIKI, SUBWIKI_SPACE, "WebHome", Locale.FRENCH);
-
-        XWikiDocument document = mock();
-
-        when(this.xWiki.getDocument(documentReference, this.context)).thenReturn(document);
+        XWikiDocument document = mockPage(DOCUMENT_ID, DOCUMENT_REFERENCE);
 
         XWikiDocumentDocument xWikiDocumentDocument = mock();
         when(this.xWikiDocumentDocumentProvider.get()).thenReturn(xWikiDocumentDocument);
 
-        assertEquals(xWikiDocumentDocument,
-            this.xWikiDocumentStore.getDocument(COLLECTION_WIKI + ":" + SUBWIKI_SPACE + ".WebHome;fr"));
+        assertEquals(xWikiDocumentDocument, this.xWikiDocumentStore.getDocument(DOCUMENT_ID));
 
+        // The page is loaded with the reference, including the locale, that the helper resolved from the id.
+        verify(this.xWiki).getDocument(DOCUMENT_REFERENCE, this.context);
         verify(xWikiDocumentDocument).initialize(COLLECTION_NAME, document);
+    }
+
+    @Test
+    void getDocumentMissingPage() throws XWikiException, AccessDeniedException, IndexException
+    {
+        this.xWikiDocumentStore.initialize(this.collection, null);
+
+        XWikiDocument document = mockPage(DOCUMENT_ID, DOCUMENT_REFERENCE);
+        when(document.isNew()).thenReturn(true);
+
+        XWikiDocumentDocument xWikiDocumentDocument = mock();
+        when(this.xWikiDocumentDocumentProvider.get()).thenReturn(xWikiDocumentDocument);
+
+        assertNull(this.xWikiDocumentStore.getDocument(DOCUMENT_ID));
+
+        verify(xWikiDocumentDocument, never()).initialize(any(), any());
+    }
+
+    @Test
+    void getDocumentHiddenPage() throws XWikiException, AccessDeniedException, IndexException
+    {
+        this.xWikiDocumentStore.initialize(this.collection, null);
+
+        XWikiDocument document = mockPage(DOCUMENT_ID, DOCUMENT_REFERENCE);
+        when(document.isHidden()).thenReturn(true);
+
+        XWikiDocumentDocument xWikiDocumentDocument = mock();
+        when(this.xWikiDocumentDocumentProvider.get()).thenReturn(xWikiDocumentDocument);
+
+        assertNull(this.xWikiDocumentStore.getDocument(DOCUMENT_ID));
+
+        verify(xWikiDocumentDocument, never()).initialize(any(), any());
+    }
+
+    @Test
+    void getDocumentWithAnIdThatIsNotTheIdOfAPage() throws IndexException
+    {
+        this.xWikiDocumentStore.initialize(this.collection, null);
+
+        String documentName = "subwiki:subwikispace.WebHome";
+        when(this.xWikiDocumentStoreHelper.resolveDocumentId(documentName)).thenReturn(null);
+
+        IndexException indexException =
+            assertThrows(IndexException.class, () -> this.xWikiDocumentStore.getDocument(documentName));
+        assertEquals("The document [%s] isn't part of the collection [%s]".formatted(documentName, COLLECTION_NAME),
+            indexException.getMessage());
+
+        verifyNoInteractions(this.xWiki);
+        verifyNoInteractions(this.xWikiDocumentDocumentProvider);
     }
 
     @Test
@@ -164,6 +217,8 @@ class XWikiDocumentStoreTest
         this.xWikiDocumentStore.initialize(this.collection, null);
 
         String documentName = "xwiki:subwikispace.WebHome;fr";
+        when(this.xWikiDocumentStoreHelper.resolveDocumentId(documentName))
+            .thenReturn(new DocumentReference("xwiki", SUBWIKI_SPACE, "WebHome", Locale.FRENCH));
 
         IndexException indexException =
             assertThrows(IndexException.class, () -> this.xWikiDocumentStore.getDocument(documentName));
@@ -183,20 +238,30 @@ class XWikiDocumentStoreTest
         when(this.userReferenceSerializer.serialize(userReference)).thenReturn(userDocumentReference);
         this.xWikiDocumentStore.initialize(this.collection, userReference);
 
+        String documentName = COLLECTION_WIKI + ":" + SUBWIKI_SPACE + ".WebHome;";
         DocumentReference documentReference =
             new DocumentReference(COLLECTION_WIKI, SUBWIKI_SPACE, "WebHome", Locale.ROOT);
+        when(this.xWikiDocumentStoreHelper.resolveDocumentId(documentName)).thenReturn(documentReference);
 
         AccessDeniedException exception = mock();
         doThrow(exception).when(this.authorizationManager)
             .checkAccess(Right.VIEW, userDocumentReference, documentReference);
 
         AccessDeniedException thrownException = assertThrows(AccessDeniedException.class, () ->
-            this.xWikiDocumentStore.getDocument(COLLECTION_WIKI + ":" + SUBWIKI_SPACE + ".WebHome;"));
+            this.xWikiDocumentStore.getDocument(documentName));
 
         assertSame(exception, thrownException);
 
         verifyNoInteractions(this.xWiki);
         verifyNoInteractions(this.xWikiDocumentDocumentProvider);
+    }
+
+    private XWikiDocument mockPage(String documentId, DocumentReference documentReference) throws XWikiException
+    {
+        when(this.xWikiDocumentStoreHelper.resolveDocumentId(documentId)).thenReturn(documentReference);
+        XWikiDocument document = mock();
+        when(this.xWiki.getDocument(documentReference, this.context)).thenReturn(document);
+        return document;
     }
 
     @Test

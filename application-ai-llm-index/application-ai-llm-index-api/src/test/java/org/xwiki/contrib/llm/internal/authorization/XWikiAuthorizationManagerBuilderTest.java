@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import javax.inject.Named;
 import javax.inject.Provider;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -35,9 +36,14 @@ import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreHelper;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
+import org.xwiki.model.reference.SpaceReferenceResolver;
+import org.xwiki.query.QueryFilter;
+import org.xwiki.query.QueryManager;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectComponentManager;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
@@ -59,12 +65,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Component test for {@link XWikiAuthorizationManagerBuilder}.
+ * Component test for {@link XWikiAuthorizationManagerBuilder}. The document ids are parsed by the real
+ * {@link XWikiDocumentStoreHelper}.
  *
  * @version $Id$
  */
 @ComponentTest
 @ReferenceComponentList
+@ComponentList(XWikiDocumentStoreHelper.class)
 class XWikiAuthorizationManagerBuilderTest
 {
     private static final DocumentReference USER_REFERENCE = new DocumentReference("xwiki", "XWiki", "Alice");
@@ -79,6 +87,20 @@ class XWikiAuthorizationManagerBuilderTest
 
     @MockComponent
     private Provider<XWikiContext> contextProvider;
+
+    @MockComponent
+    private QueryManager queryManager;
+
+    @MockComponent
+    @Named("language")
+    private QueryFilter languageFilter;
+
+    @MockComponent
+    @Named("count")
+    private QueryFilter countFilter;
+
+    @MockComponent
+    private SpaceReferenceResolver<String> spaceReferenceResolver;
 
     @InjectComponentManager
     private MockitoComponentManager componentManager;
@@ -151,6 +173,19 @@ class XWikiAuthorizationManagerBuilderTest
     {
         String documentId = "sub:A.B.C\\.D;";
         DocumentReference expectedReference = new DocumentReference("sub", List.of("A", "B"), "C.D");
+        when(this.authorizationManager.hasAccess(Right.VIEW, USER_REFERENCE, expectedReference)).thenReturn(true);
+
+        assertEquals(Map.of(documentId, true), buildManager().canView(Set.of(documentId)));
+
+        verify(this.authorizationManager).hasAccess(Right.VIEW, USER_REFERENCE, expectedReference);
+        verifyNoMoreInteractions(this.authorizationManager);
+    }
+
+    @Test
+    void canViewResolvesAPageNameEndingWithABackslash() throws IndexException
+    {
+        String documentId = "xwiki:Space.Trail\\\\;fr";
+        DocumentReference expectedReference = new DocumentReference("xwiki", "Space", "Trail\\");
         when(this.authorizationManager.hasAccess(Right.VIEW, USER_REFERENCE, expectedReference)).thenReturn(true);
 
         assertEquals(Map.of(documentId, true), buildManager().canView(Set.of(documentId)));

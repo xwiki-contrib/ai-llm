@@ -342,6 +342,22 @@ public class InternalDocumentStore implements DocumentStore
             getDocumentsSpaceReference(collectionSpaceReference));
     }
 
+    /**
+     * Build the reference of the space that stores the documents of a collection in this store: the
+     * {@code Documents} space below the page of the collection, see
+     * {@link #getDocumentReference(String, String, String)}.
+     *
+     * @param wikiId the id of the wiki of the collection
+     * @param collectionId the id of the collection
+     * @return the reference of the space that stores the documents of the collection
+     * @since 0.10.1
+     */
+    public static SpaceReference getDocumentsSpaceReference(String wikiId, String collectionId)
+    {
+        return getDocumentsSpaceReference(
+            new SpaceReference(collectionId, new SpaceReference(wikiId, Collection.DEFAULT_COLLECTION_SPACE)));
+    }
+
     private static SpaceReference getDocumentsSpaceReference(SpaceReference collectionSpaceReference)
     {
         return new SpaceReference(DOCUMENTS_SPACE_NAME, collectionSpaceReference);

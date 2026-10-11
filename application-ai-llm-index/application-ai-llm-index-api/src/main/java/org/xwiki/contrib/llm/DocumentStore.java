@@ -89,7 +89,8 @@ public interface DocumentStore
      * Get a document.
      *
      * @param name the name of the document to get
-     * @return the document
+     * @return the document, or {@code null} when the store has no document with that name; for the XWiki document
+     *     store a hidden page counts as missing
      * @throws IndexException if loading the document failed or the document isn't managed by this document store
      */
     Document getDocument(String name) throws IndexException, AccessDeniedException;

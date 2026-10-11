@@ -19,7 +19,6 @@
  */
 package org.xwiki.contrib.llm.internal.authorization;
 
-import java.util.Locale;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -37,11 +36,9 @@ import org.xwiki.contrib.llm.authorization.AuthorizationManager;
 import org.xwiki.contrib.llm.authorization.AuthorizationManagerBuilder;
 import org.xwiki.contrib.llm.internal.DefaultCollection;
 import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
-import org.xwiki.model.EntityType;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreHelper;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.EntityReference;
-import org.xwiki.model.reference.EntityReferenceResolver;
-import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.security.authorization.Right;
 
 import com.xpn.xwiki.XWikiContext;
@@ -68,15 +65,8 @@ public class XWikiAuthorizationManagerBuilder implements AuthorizationManagerBui
      */
     public static final String NAME = "xwiki";
 
-    private static final String WITH_PARAMETERS = "withparameters";
-
     @Inject
-    @Named(WITH_PARAMETERS)
-    private EntityReferenceResolver<String> documentReferenceResolver;
-
-    @Inject
-    @Named(WITH_PARAMETERS)
-    private EntityReferenceSerializer<String> documentReferenceSerializer;
+    private XWikiDocumentStoreHelper helper;
 
     @Inject
     private org.xwiki.security.authorization.AuthorizationManager authorizationManager;
@@ -129,25 +119,10 @@ public class XWikiAuthorizationManagerBuilder implements AuthorizationManagerBui
      */
     private DocumentReference getPageReference(String documentId)
     {
-        DocumentReference resolvedReference =
-            new DocumentReference(this.documentReferenceResolver.resolve(documentId, EntityType.DOCUMENT));
-
-        // The resolver never rejects an id: it fills missing parts with default values and keeps parameters other
-        // than the locale on the references. The page reference is thus rebuilt from the resolved names only, and
-        // the id is accepted only when it is exactly the id of that page in the resolved locale. Document ids of the
-        // XWiki document store always end with the locale of the document as a parameter.
-        DocumentReference pageReference = new DocumentReference(resolvedReference.getWikiReference().getName(),
-            resolvedReference.getSpaceReferences().stream().map(EntityReference::getName).toList(),
-            resolvedReference.getName());
-        Locale locale = resolvedReference.getLocale();
-        if (locale == null) {
-            return null;
-        }
-
-        String canonicalId = this.documentReferenceSerializer.serialize(new DocumentReference(pageReference, locale));
+        DocumentReference documentReference = this.helper.resolveDocumentId(documentId);
 
         // Rights are set on the page: the returned reference has no locale.
-        return canonicalId.equals(documentId) ? pageReference : null;
+        return documentReference == null ? null : documentReference.withoutLocale();
     }
 
     @Override

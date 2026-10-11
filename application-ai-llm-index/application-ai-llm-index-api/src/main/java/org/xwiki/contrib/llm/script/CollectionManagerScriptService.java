@@ -134,8 +134,10 @@ public class CollectionManagerScriptService implements ScriptService
     }
 
     /**
-     * Clears the solr core of all data.
-     * 
+     * Remove every chunk indexed for the current wiki. The chunks of the other wikis are kept. Requires admin right
+     * on the current wiki.
+     *
+     * @throws IndexException when the chunks could not be removed or the current user lacks the right
      */
     public void clearIndexCore() throws IndexException
     {

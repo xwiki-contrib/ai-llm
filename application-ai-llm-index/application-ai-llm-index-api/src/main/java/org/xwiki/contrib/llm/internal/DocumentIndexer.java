@@ -91,6 +91,9 @@ public class DocumentIndexer
         String previousWiki = context.getWikiId();
 
         try {
+            // The collection page is resolved in the context wiki: a page of another wiki may be indexed for a
+            // collection of the given wiki.
+            context.setWikiId(wiki);
             Collection collectionObj = this.collectionManager.getCollection(collection);
             Document documentObj = collectionObj.getDocumentStore().getDocument(document);
 

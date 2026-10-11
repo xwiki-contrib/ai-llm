@@ -26,6 +26,8 @@ import javax.inject.Named;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.model.reference.DocumentReference;
@@ -43,6 +45,7 @@ import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -123,14 +126,84 @@ class XWikiDocumentStoreHelperTest
     @Test
     void countDocumentsFromWikiExcludesHiddenDocumentsInTheStatement() throws Exception
     {
-        when(this.query.execute()).thenReturn(List.of(5));
+        // The count filter returns a Long.
+        when(this.query.execute()).thenReturn(List.of(3L));
 
-        assertEquals(5, this.helper.countDocumentsFromWiki(WIKI, SPACES));
+        assertEquals(3, this.helper.countDocumentsFromWiki(WIKI, SPACES));
 
         verify(this.queryManager).createQuery(EXPECTED_STATEMENT, Query.XWQL);
         verify(this.query).addFilter(this.countFilter);
         verify(this.query).addFilter(this.languageFilter);
         verify(this.query, never()).addFilter(this.hiddenDocumentFilter);
+    }
+
+    @Test
+    void resolveDocumentIdWithRootLocale()
+    {
+        assertEquals(new DocumentReference("xwiki", "Space", "Page", Locale.ROOT),
+            this.helper.resolveDocumentId("xwiki:Space.Page;"));
+    }
+
+    @Test
+    void resolveDocumentIdWithLocale()
+    {
+        assertEquals(new DocumentReference("xwiki", "Space", "Page", Locale.FRENCH),
+            this.helper.resolveDocumentId("xwiki:Space.Page;fr"));
+        assertEquals(new DocumentReference("xwiki", List.of("A", "B"), "C.D", new Locale("pt", "BR")),
+            this.helper.resolveDocumentId("xwiki:A.B.C\\.D;pt_BR"));
+    }
+
+    @Test
+    void resolveDocumentIdOfAPageNameEndingWithABackslash()
+    {
+        // The platform resolver reads the escaped backslash as an escape of the locale separator and would return
+        // a single page named "Trail\\;" without locale.
+        assertEquals(new DocumentReference("xwiki", "Space", "Trail\\", Locale.ROOT),
+            this.helper.resolveDocumentId("xwiki:Space.Trail\\\\;"));
+    }
+
+    @Test
+    void resolveDocumentIdOfAPageNameContainingTheLocaleSeparator()
+    {
+        assertEquals(new DocumentReference("xwiki", "Space", "Semi;colon", Locale.FRENCH),
+            this.helper.resolveDocumentId("xwiki:Space.Semi\\;colon;fr"));
+    }
+
+    @Test
+    void resolveDocumentIdOfASpaceNameContainingTheLocaleSeparator()
+    {
+        assertEquals(new DocumentReference("xwiki", "Sp;ace", "Page", Locale.ROOT),
+            this.helper.resolveDocumentId("xwiki:Sp\\;ace.Page;"));
+    }
+
+    @Test
+    void resolveDocumentIdOfAPageNameWithABackslashBeforeADot()
+    {
+        // The id of the page "Trail\.x": the backslash and the dot of the name are both escaped.
+        assertEquals(new DocumentReference("xwiki", "Space", "Trail\\.x", Locale.FRENCH),
+            this.helper.resolveDocumentId("xwiki:Space.Trail\\\\\\.x;fr"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "xwiki:Space.Page;;fr",
+        "Space.Page;fr",
+        "Page;",
+        "xwiki:Space.Page",
+        "xwiki:Space.Page;fr;de",
+        "xwiki:Space.Page;locale=fr",
+        "xwiki:Space.Page;not a locale!",
+        ""
+    })
+    void resolveDocumentIdThatIsNotTheExactIdOfAPage(String documentId)
+    {
+        assertNull(this.helper.resolveDocumentId(documentId));
+    }
+
+    @Test
+    void resolveDocumentIdOfNull()
+    {
+        assertNull(this.helper.resolveDocumentId(null));
     }
 
     @Test

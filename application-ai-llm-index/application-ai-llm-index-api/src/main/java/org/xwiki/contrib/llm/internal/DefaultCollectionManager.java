@@ -189,11 +189,12 @@ public class DefaultCollectionManager implements CollectionManager
     @Override
     public void clearIndexCore() throws IndexException
     {
+        String wiki = this.contextProvider.get().getWikiId();
         try {
-            solrConnector.clearIndexCore();
+            this.solrConnector.clearIndexCore(wiki);
         } catch (SolrServerException e) {
-            throw new IndexException("Failed to clear the index core", e);
-        } 
+            throw new IndexException(String.format("Failed to clear the index of wiki [%s]", wiki), e);
+        }
     }
 
     @Override
@@ -268,7 +269,7 @@ public class DefaultCollectionManager implements CollectionManager
                 try {
                     return Stream.of(new AbstractMap.SimpleEntry<>(entry.getKey(),
                         entry.getValue().getAuthorizationManager()));
-                } catch (IndexException e) {
+                } catch (IndexException | RuntimeException e) {
                     this.logger.warn("Failed to get authorization manager for collection [{}], excluding it from the"
                         + " similarity search: [{}]", entry.getKey(), ExceptionUtils.getRootCauseMessage(e));
                     return Stream.empty();
@@ -349,7 +350,8 @@ public class DefaultCollectionManager implements CollectionManager
         try {
             userGroups = groupManager.getGroups(documentUserReference, WikiTarget.ENTITY_AND_CURRENT, true);
         } catch (GroupException e) {
-            logger.warn("Failed to get groups for user [{}]", documentUserReference, e);
+            this.logger.warn("Failed to get groups for user [{}]: [{}]", documentUserReference,
+                ExceptionUtils.getRootCauseMessage(e));
         }
         return userGroups;
     }
@@ -372,7 +374,8 @@ public class DefaultCollectionManager implements CollectionManager
                     collectionsUserHasAccessTo.add(collection);
                 }
             } catch (IndexException e) {
-                logger.error("Failed to check access to collection [{}]: [{}]", collection, e.getMessage());
+                this.logger.warn("Failed to check access to collection [{}], excluding it: [{}]", collection,
+                    ExceptionUtils.getRootCauseMessage(e));
             }
         }
         return collectionsUserHasAccessTo;

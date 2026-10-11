@@ -41,6 +41,7 @@ import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
 import org.xwiki.model.reference.EntityReference;
+import org.xwiki.model.reference.EntityReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.model.reference.SpaceReferenceResolver;
@@ -69,8 +70,25 @@ public class XWikiDocumentStoreHelper
 
     private static final String CLOSING_PARENTHESIS = ")";
 
+    /**
+     * The separator in front of the locale in a document id, as the "withparameters" symbol scheme writes it.
+     */
+    private static final char PARAMETER_SEPARATOR = ';';
+
+    /**
+     * The escape symbol of the reference syntax.
+     */
+    private static final char ESCAPE = '\\';
+
     @Inject
     private DocumentReferenceResolver<String> documentReferenceResolver;
+
+    @Inject
+    private EntityReferenceResolver<String> entityReferenceResolver;
+
+    @Inject
+    @Named("withparameters")
+    private EntityReferenceSerializer<String> withParametersEntityReferenceSerializer;
 
     @Inject
     @Named("local")
@@ -119,6 +137,66 @@ public class XWikiDocumentStoreHelper
                 collectionWiki.equals(spaceReference.getWikiReference()));
         }
         return spaceReferenceStream.toList();
+    }
+
+    /**
+     * Resolve a document id of this store back to the page reference it was serialized from. The id is the
+     * "withparameters" serialization of a page reference with its locale; the locale part is split off here because
+     * the platform resolver misreads a name whose last character is an escaped backslash in front of the parameter
+     * separator. An id without the locale part is not an id of this store.
+     *
+     * @param documentId the document id
+     * @return the page reference, with its locale, or {@code null} when the id is not the exact id of a page
+     */
+    public DocumentReference resolveDocumentId(String documentId)
+    {
+        int separatorIndex = findLocaleSeparator(documentId);
+        if (separatorIndex < 0) {
+            return null;
+        }
+
+        try {
+            EntityReference pageReference = this.entityReferenceResolver.resolve(
+                documentId.substring(0, separatorIndex), EntityType.DOCUMENT);
+            Locale locale = LocaleUtils.toLocale(documentId.substring(separatorIndex + 1));
+            DocumentReference documentReference = new DocumentReference(pageReference, locale);
+
+            // The resolver fills missing parts with default values and the id may contain parameters other than
+            // the locale: the id is accepted only when it is exactly the id of the resolved page in that locale.
+            if (documentId.equals(this.withParametersEntityReferenceSerializer.serialize(documentReference))) {
+                return documentReference;
+            }
+        } catch (IllegalArgumentException e) {
+            // The locale part is not a locale or the reference cannot be parsed: the id is not an id of this store.
+        }
+        return null;
+    }
+
+    /**
+     * @param documentId the document id, may be {@code null}
+     * @return the index of the last parameter separator that is not escaped, i.e. preceded by an even number of
+     *     escape symbols, or {@code -1} when the id has no such separator
+     */
+    private static int findLocaleSeparator(String documentId)
+    {
+        if (documentId == null) {
+            return -1;
+        }
+        for (int i = documentId.length() - 1; i >= 0; --i) {
+            if (documentId.charAt(i) == PARAMETER_SEPARATOR && countEscapesBefore(documentId, i) % 2 == 0) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int countEscapesBefore(String documentId, int index)
+    {
+        int count = 0;
+        for (int i = index - 1; i >= 0 && documentId.charAt(i) == ESCAPE; --i) {
+            ++count;
+        }
+        return count;
     }
 
     /**
@@ -248,7 +326,8 @@ public class XWikiDocumentStoreHelper
         query.addFilter(this.countFilter);
 
         try {
-            return (int) query.execute().get(0);
+            // The count filter returns the count as a Long.
+            return ((Number) query.execute().get(0)).intValue();
         } catch (Exception e) {
             throw new IndexException("Failed to count documents with query [%s]".formatted(query.getStatement()), e);
         }

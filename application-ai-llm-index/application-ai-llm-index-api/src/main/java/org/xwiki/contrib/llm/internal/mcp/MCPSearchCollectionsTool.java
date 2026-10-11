@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -37,12 +38,11 @@ import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStoreHelper;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.openai.Context;
-import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.EntityReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.security.SecurityConfiguration;
 
@@ -87,6 +87,17 @@ public class MCPSearchCollectionsTool implements MCPTool
     private static final String INVALID_LIMITS_MESSAGE = LIMITS_PREFIX + "greater than or equal to 0.";
 
     /**
+     * The closing tag of the content element, in any of the forms a lenient reader accepts.
+     */
+    private static final Pattern CONTENT_CLOSING_TAG = Pattern.compile("</\\s*content\\s*>", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * The regex replacement of a content closing tag: the literal {@code <\/content>}, which cannot close the
+     * element and is visibly the original tag with an escaped slash.
+     */
+    private static final String CONTENT_CLOSING_TAG_REPLACEMENT = "<\\\\/content>";
+
+    /**
      * The declared parameter set: it generates the advertised input schema and coerces the arguments,
      * so both cannot disagree.
      */
@@ -114,12 +125,7 @@ public class MCPSearchCollectionsTool implements MCPTool
     private SecurityConfiguration securityConfiguration;
 
     @Inject
-    @Named("withparameters")
-    private EntityReferenceResolver<String> withParametersReferenceResolver;
-
-    @Inject
-    @Named("withparameters")
-    private EntityReferenceSerializer<String> withParametersReferenceSerializer;
+    private XWikiDocumentStoreHelper xWikiDocumentStoreHelper;
 
     @Inject
     private EntityReferenceSerializer<String> defaultReferenceSerializer;
@@ -220,7 +226,7 @@ public class MCPSearchCollectionsTool implements MCPTool
                 sb.append("<url>").append(url).append("</url>\n");
             }
             if (ctx.documentId() != null) {
-                sb.append("<documentId>").append(ctx.documentId()).append("</documentId>\n");
+                sb.append("<documentId>").append(sanitizeElementText(ctx.documentId())).append("</documentId>\n");
                 if (wikiStoreCache.computeIfAbsent(ctx.collectionId(), this::isWikiStoreCollection)) {
                     appendReference(sb, ctx.documentId());
                 }
@@ -230,7 +236,7 @@ public class MCPSearchCollectionsTool implements MCPTool
                 sb.append("<language>").append(language).append("</language>\n");
             }
             if (ctx.content() != null) {
-                sb.append("<content>\n").append(ctx.content()).append("\n</content>\n");
+                sb.append("<content>\n").append(sanitizeContent(ctx.content())).append("\n</content>\n");
             }
             sb.append("</result>\n");
         }
@@ -262,10 +268,11 @@ public class MCPSearchCollectionsTool implements MCPTool
     }
 
     /**
-     * Strips line breaks and angle brackets from a value emitted as element text. Both callers (the language and
-     * the url emission) handle uploader-controlled metadata: internal-store documents carry free-text language and
-     * url values, which must neither break the line grammar of the results nor forge elements such as the
-     * store-provenance-guarded {@code <reference>}.
+     * Strips line breaks and angle brackets from a value emitted as element text. Every emitted value (the url,
+     * the document id, the reference and the language) goes through it: internal-store documents carry free-text
+     * ids, language and url values chosen by their uploader, and a wiki page name may contain any character; none
+     * of them may break the line grammar of the results nor forge elements such as the store-provenance-guarded
+     * {@code <reference>}.
      *
      * @param value the raw value, may be {@code null}
      * @return the sanitized value, {@code null} when the input is {@code null}
@@ -276,26 +283,38 @@ public class MCPSearchCollectionsTool implements MCPTool
     }
 
     /**
+     * Rewrites every content closing tag of a chunk's text so that the text cannot close the {@code <content>}
+     * element and forge the elements that follow it, such as {@code <reference>}. Only this sequence is rewritten:
+     * the content is the one element emitted verbatim because it carries wiki syntax and code, which escaping every
+     * {@code <} would mangle.
+     *
+     * @param content the raw chunk text
+     * @return the text with every content closing tag replaced by {@code <\/content>}
+     */
+    private static String sanitizeContent(String content)
+    {
+        return CONTENT_CLOSING_TAG.matcher(content).replaceAll(CONTENT_CLOSING_TAG_REPLACEMENT);
+    }
+
+    /**
      * Appends a locale-free {@code <reference>} element derived from the given document id, but only when the
-     * document id round-trips as a well-formed XWiki document reference. The caller only invokes this for results
-     * whose collection uses the XWiki document store, so the id is known to come from the wiki index rather than
-     * from an uploader.
+     * document id is the exact id of a page of the XWiki document store. The caller only invokes this for results
+     * whose collection uses that store, so the id is known to come from the wiki index rather than from an uploader.
+     * A reference that the element text sanitization would alter is not emitted at all: the altered text would
+     * name a different page.
      *
      * @param sb the output being built
      * @param documentId the index-internal document id
      */
     private void appendReference(StringBuilder sb, String documentId)
     {
-        try {
-            DocumentReference documentReference = new DocumentReference(
-                this.withParametersReferenceResolver.resolve(documentId, EntityType.DOCUMENT));
-            if (documentId.equals(this.withParametersReferenceSerializer.serialize(documentReference))) {
-                sb.append("<reference>").append(this.defaultReferenceSerializer.serialize(documentReference))
-                    .append("</reference>\n");
-            }
-        } catch (IllegalArgumentException e) {
-            // The document id does not parse as an XWiki reference (e.g. its locale part is not a valid
-            // locale), so the result keeps only its index-internal <documentId>.
+        DocumentReference documentReference = this.xWikiDocumentStoreHelper.resolveDocumentId(documentId);
+        if (documentReference == null) {
+            return;
+        }
+        String reference = this.defaultReferenceSerializer.serialize(documentReference);
+        if (reference.equals(sanitizeElementText(reference))) {
+            sb.append("<reference>").append(reference).append("</reference>\n");
         }
     }
 }

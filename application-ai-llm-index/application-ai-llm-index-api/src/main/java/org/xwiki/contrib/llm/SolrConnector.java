@@ -463,14 +463,18 @@ public class SolrConnector
     }
 
     /**
-     * Connects to the Solr server and deletes all documents.
+     * Connects to the Solr server and deletes every chunk indexed for the given wiki, including chunks stored before
+     * version 0.4 that have no wiki field.
+     *
+     * @param wiki the wiki whose chunks are removed
+     * @since 0.10.1
      */
-    public void clearIndexCore() throws SolrServerException
+    public void clearIndexCore(String wiki) throws SolrServerException
     {
         try {
-            deleteChunksByQuery("*:*");
+            deleteChunksByQuery(buildWikiQuery(wiki));
         } catch (Exception e) {
-            throw new SolrServerException("Failed to clear index core", e);
+            throw new SolrServerException(String.format("Failed to clear the index of wiki [%s]", wiki), e);
         }
     }
 

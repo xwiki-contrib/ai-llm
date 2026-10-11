@@ -361,6 +361,19 @@ class SolrConnectorTest
         return storeHints;
     }
 
+    @Test
+    void clearIndexCoreDeletesOnlyTheChunksOfTheGivenWiki() throws Exception
+    {
+        mockEscaping("otherwiki");
+
+        this.solrConnector.clearIndexCore("otherwiki");
+
+        // Chunks stored before version 0.4 have no wiki field and are removed as well.
+        verify(this.client).deleteByQuery("((" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":escaped(otherwiki)) OR (*:*"
+            + " AND -" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":[* TO *]))", 10000);
+        verify(this.client).commit(null, false, true, true);
+    }
+
     private void mockEscaping(String... values)
     {
         for (String value : values) {

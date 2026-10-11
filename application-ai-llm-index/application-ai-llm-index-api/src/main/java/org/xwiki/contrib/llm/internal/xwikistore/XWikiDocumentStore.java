@@ -33,9 +33,7 @@ import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
 import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
-import org.xwiki.model.EntityType;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.model.reference.EntityReferenceResolver;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.SpaceReference;
 import org.xwiki.security.authorization.AccessDeniedException;
@@ -83,10 +81,6 @@ public class XWikiDocumentStore implements DocumentStore
     @Inject
     @Named("withparameters")
     private EntityReferenceSerializer<String> entityReferenceSerializer;
-
-    @Inject
-    @Named("withparameters")
-    private EntityReferenceResolver<String> documentReferenceResolver;
 
     @Inject
     private Provider<XWikiContext> contextProvider;
@@ -157,10 +151,9 @@ public class XWikiDocumentStore implements DocumentStore
     @Override
     public Document getDocument(String name) throws IndexException, AccessDeniedException
     {
-        DocumentReference documentReference =
-            new DocumentReference(this.documentReferenceResolver.resolve(name, EntityType.DOCUMENT));
+        DocumentReference documentReference = this.helper.resolveDocumentId(name);
 
-        if (this.spaces.stream()
+        if (documentReference == null || this.spaces.stream()
             .noneMatch(space -> documentReference.getReversedReferenceChain().contains(space))) {
             throw new IndexException("The document [%s] isn't part of the collection [%s]".formatted(name,
                 this.collectionName));
@@ -175,12 +168,13 @@ public class XWikiDocumentStore implements DocumentStore
 
         try {
             XWikiDocument xWikiDocument = context.getWiki().getDocument(documentReference, context);
-            if (xWikiDocument.isNew()) {
-                throw new IndexException("The document [%s] doesn't exist".formatted(name));
+            // Hidden pages are not documents of this store, like in its listing.
+            if (xWikiDocument.isNew() || Boolean.TRUE.equals(xWikiDocument.isHidden())) {
+                return null;
             }
             result.initialize(this.collectionName, xWikiDocument);
         } catch (XWikiException e) {
-            throw new IndexException("Error loading the document [%s]".formatted(name));
+            throw new IndexException("Error loading the document [%s]".formatted(name), e);
         }
         return result;
     }

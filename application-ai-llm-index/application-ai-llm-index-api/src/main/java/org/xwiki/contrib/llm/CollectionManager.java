@@ -78,8 +78,9 @@ public interface CollectionManager
     boolean hasAccess(Collection collection);
 
     /**
-     * Clears the solr core of all data.
-     * 
+     * Remove every chunk indexed for the current wiki. The chunks of the other wikis are kept.
+     *
+     * @throws IndexException when the chunks could not be removed
      */
     void clearIndexCore() throws IndexException;
 
