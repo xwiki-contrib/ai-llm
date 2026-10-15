@@ -155,6 +155,19 @@ class MCPWikiReachTest
     }
 
     @Test
+    void unverifiableWikiIsLoggedWithoutItsLineBreak() throws Exception
+    {
+        reachEnabled(true);
+        String forged = OTHER + "\nforged line";
+        when(this.wikiDescriptorManager.getById(forged)).thenThrow(new WikiManagerException("boom"));
+
+        assertThrows(MCPAccessDeniedException.class, () -> this.wikiReach.resolveSearchWikis(forged));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("Could not verify wiki [otherforged line]"), warn);
+        assertFalse(warn.contains("\n"), warn);
+    }
+
+    @Test
     void reachEnabledWithUnverifiableWikiThrows() throws Exception
     {
         reachEnabled(true);

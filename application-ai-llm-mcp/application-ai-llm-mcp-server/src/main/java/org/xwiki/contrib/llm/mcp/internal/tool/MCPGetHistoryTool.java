@@ -28,7 +28,6 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
@@ -610,7 +609,7 @@ public class MCPGetHistoryTool implements MCPTool
                 MCPSourceText.normalizeLineEndings(toDoc.getContent()));
         } catch (Exception e) {
             this.logger.warn("MCP get_history tool failed to diff [{}]: [{}]", canonical(ref),
-                ExceptionUtils.getRootCauseMessage(e));
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_history tool diff failure details", e);
             return MCPToolSupport.errorResult(DIFF_FAILED_ERROR);
         }
@@ -810,8 +809,9 @@ public class MCPGetHistoryTool implements MCPTool
      */
     private McpSchema.CallToolResult historyReadFailure(DocumentReference ref, XWikiException e)
     {
-        this.logger.warn("MCP get_history tool failed to read the history of [{}]: [{}]", ref,
-            ExceptionUtils.getRootCauseMessage(e));
+        this.logger.warn("MCP get_history tool failed to read the history of [{}]: [{}]",
+            MCPTextGuards.fragment(ref),
+            MCPTextGuards.rootCause(e));
         this.logger.debug("MCP get_history tool history read failure details", e);
         return MCPToolSupport.errorResult(HISTORY_READ_ERROR);
     }
@@ -821,8 +821,9 @@ public class MCPGetHistoryTool implements MCPTool
         try {
             return this.documentAccessBridge.exists(ref);
         } catch (Exception e) {
-            this.logger.warn("MCP get_history tool failed to check existence of [{}]: [{}]", reference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_history tool failed to check existence of [{}]: [{}]",
+                MCPTextGuards.fragment(reference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_history tool existence-check failure details", e);
             throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
                 + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);
@@ -843,8 +844,8 @@ public class MCPGetHistoryTool implements MCPTool
         try {
             doc = this.documentAccessBridge.getDocumentInstance(ref);
         } catch (Exception e) {
-            this.logger.warn("MCP get_history tool failed to load [{}]: [{}]", reference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_history tool failed to load [{}]: [{}]", MCPTextGuards.fragment(reference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_history tool load failure details", e);
         }
         if (doc instanceof XWikiDocument xdoc) {

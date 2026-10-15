@@ -28,7 +28,6 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.attachment.validation.AttachmentValidator;
 import org.xwiki.bridge.DocumentAccessBridge;
@@ -293,7 +292,7 @@ public class MCPWriteAttachmentTool implements MCPTool
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (XWikiException e) {
-            this.logger.warn("MCP write_attachment tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP write_attachment tool failed: [{}]", MCPTextGuards.rootCause(e));
             this.logger.debug("MCP write_attachment tool failure details", e);
             return MCPToolSupport.errorResult(MCPWriteSupport.SAVE_FAILED_MESSAGE);
         }

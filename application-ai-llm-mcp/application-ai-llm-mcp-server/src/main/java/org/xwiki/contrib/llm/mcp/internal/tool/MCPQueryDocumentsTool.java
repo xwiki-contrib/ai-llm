@@ -31,7 +31,6 @@ import javax.inject.Singleton;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.slf4j.Logger;
@@ -391,7 +390,7 @@ public class MCPQueryDocumentsTool implements MCPTool
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (QueryException e) {
-            this.logger.warn("MCP query_documents tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP query_documents tool failed: [{}]", MCPTextGuards.rootCause(e));
             this.logger.debug("MCP query_documents tool failure details", e);
             return MCPToolSupport.errorResult("Could not run the search. If you used query operators, check "
                 + "that quotes and parentheses are balanced, or simplify the query. Run `man query_documents` "

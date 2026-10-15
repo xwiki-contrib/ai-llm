@@ -29,7 +29,6 @@ import javax.inject.Singleton;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
@@ -374,7 +373,7 @@ public class MCPQueryObjectsTool implements MCPTool
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (QueryException e) {
-            this.logger.warn("MCP query_objects tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP query_objects tool failed: [{}]", MCPTextGuards.rootCause(e));
             this.logger.debug("MCP query_objects tool failure details", e);
             // Return a fixed message: the root cause (schema/driver detail) stays in the logs, off the wire.
             return MCPToolSupport.errorResult(QUERY_FAILED);
@@ -743,8 +742,9 @@ public class MCPQueryObjectsTool implements MCPTool
                 return xdoc;
             }
         } catch (Exception e) {
-            this.logger.warn("MCP query_objects tool failed to load [{}]: [{}]", classReference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP query_objects tool failed to load [{}]: [{}]",
+                MCPTextGuards.fragment(classReference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP query_objects tool load failure details", e);
         }
         throw new IllegalArgumentException("Could not read document " + QUOTE

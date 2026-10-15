@@ -31,7 +31,6 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.bridge.DocumentModelBridge;
@@ -646,8 +645,9 @@ public class MCPGetDocumentTool implements MCPTool
         try {
             return this.documentAccessBridge.exists(ref);
         } catch (Exception e) {
-            this.logger.warn("MCP get_document tool failed to check existence of [{}]: [{}]", reference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_document tool failed to check existence of [{}]: [{}]",
+                MCPTextGuards.fragment(reference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_document tool existence-check failure details", e);
             throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
                 + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);
@@ -710,8 +710,8 @@ public class MCPGetDocumentTool implements MCPTool
         try {
             return this.documentAccessBridge.getDocumentInstance(ref);
         } catch (Exception e) {
-            this.logger.warn("MCP get_document tool failed to load [{}]: [{}]", reference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_document tool failed to load [{}]: [{}]", MCPTextGuards.fragment(reference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_document tool load failure details", e);
             throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
                 + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);
@@ -831,8 +831,8 @@ public class MCPGetDocumentTool implements MCPTool
             String renderedContent = xdoc.displayDocument(targetSyntax, xcontext);
             return new RenderedDocument(renderedTitle, renderedContent);
         } catch (Exception e) {
-            this.logger.warn("MCP get_document tool failed to render [{}]: [{}]", reference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_document tool failed to render [{}]: [{}]", MCPTextGuards.fragment(reference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_document tool render failure details", e);
             throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
                 + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);

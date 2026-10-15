@@ -35,7 +35,6 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
@@ -182,8 +181,9 @@ public class MCPLinksSupport
         try {
             return this.documentAccessBridge.exists(reference);
         } catch (Exception e) {
-            this.logger.warn("MCP get_links tool failed to check existence of [{}]: [{}]", rawReference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_links tool failed to check existence of [{}]: [{}]",
+                MCPTextGuards.fragment(rawReference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_links tool existence-check failure details", e);
             throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
                 + MCPTextGuards.fragment(rawReference) + QUOTE + PERIOD);
@@ -464,8 +464,8 @@ public class MCPLinksSupport
         try {
             document = this.documentAccessBridge.getDocumentInstance(reference);
         } catch (Exception e) {
-            this.logger.warn("MCP get_links tool failed to load [{}]: [{}]", rawReference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_links tool failed to load [{}]: [{}]", MCPTextGuards.fragment(rawReference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_links tool load failure details", e);
         }
         if (document instanceof XWikiDocument xdoc) {

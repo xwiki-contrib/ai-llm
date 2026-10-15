@@ -845,17 +845,38 @@ class MCPGetLinksToolTest extends AbstractMCPToolTest
     }
 
     @Test
+    void existenceCheckFailureLogsTheReferenceWithoutItsLineBreak() throws Exception
+    {
+        when(this.documentAccessBridge.exists(any(DocumentReference.class)))
+            .thenThrow(new RuntimeException("boom"));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF + "\nforged line"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("Could not read the document"), textOf(result));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("MCP get_links tool failed to check existence"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+    }
+
+    @Test
     void linkIndexFailureSurfacesAsAFixedErrorWithTheCauseInTheLogs() throws Exception
     {
-        when(this.linkStore.resolveBackLinkedEntities(DOC_REF))
+        DocumentReference forgedRef = new DocumentReference(WIKI, "Sandbox", "WebHome\nforged line");
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW), any(WikiReference.class)))
+            .thenReturn(forgedRef);
+        when(this.linkStore.resolveBackLinkedEntities(forgedRef))
             .thenThrow(new LinkException("solr core unavailable"));
 
         McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
 
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).startsWith("Could not read the link index."), textOf(result));
-        assertTrue(this.logCapture.getMessage(0)
-            .startsWith("MCP get_links tool failed to read the backlinks of"), this.logCapture.getMessage(0));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.startsWith("MCP get_links tool failed to read the backlinks of"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+        assertFalse(warn.contains("\n"), warn);
     }
 
     @Test

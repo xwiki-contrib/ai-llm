@@ -26,7 +26,6 @@ import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.bridge.DocumentModelBridge;
@@ -241,8 +240,9 @@ public class MCPTranslationSupport
         try {
             return this.documentAccessBridge.exists(reference);
         } catch (Exception e) {
-            this.logger.warn("MCP translation existence probe failed for [{}]: [{}]", rawReference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP translation existence probe failed for [{}]: [{}]",
+                MCPTextGuards.fragment(rawReference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP translation existence probe failure details", e);
             throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
                 + MCPTextGuards.fragment(rawReference) + QUOTE + PERIOD);
@@ -263,8 +263,8 @@ public class MCPTranslationSupport
         try {
             document = this.documentAccessBridge.getDocumentInstance(reference);
         } catch (Exception e) {
-            this.logger.warn("MCP translation load failed for [{}]: [{}]", rawReference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP translation load failed for [{}]: [{}]", MCPTextGuards.fragment(rawReference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP translation load failure details", e);
         }
         if (document instanceof XWikiDocument xdoc) {

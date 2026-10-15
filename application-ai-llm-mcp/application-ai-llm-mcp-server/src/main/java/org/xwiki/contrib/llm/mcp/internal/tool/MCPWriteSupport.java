@@ -878,13 +878,13 @@ final class MCPWriteSupport
         }
         if (creating && existsFresh(ref, locale, xcontext, logger)) {
             logger.warn("MCP write tool lost a create race on [{}], rerouting to the read-first result: [{}]",
-                ref, ExceptionUtils.getRootCauseMessage(e));
+                MCPTextGuards.fragment(ref), MCPTextGuards.rootCause(e));
             logger.debug("MCP write tool create-race details", e);
             return MCPToolSupport.errorResult(existsMessage);
         }
         if (isConcurrencyCollision(e)) {
             logger.warn("MCP write tool save collided with a concurrent write on [{}]: [{}]",
-                ref, ExceptionUtils.getRootCauseMessage(e));
+                MCPTextGuards.fragment(ref), MCPTextGuards.rootCause(e));
             logger.debug("MCP write tool save-collision details", e);
             return MCPToolSupport.errorResult(CONCURRENT_SAVE_MESSAGE);
         }

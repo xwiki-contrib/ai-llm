@@ -799,6 +799,18 @@ class MCPServerConfigurationTest
     }
 
     @Test
+    void isCanonicalWikiIdLogsTheWikiIdWithoutItsLineBreak() throws Exception
+    {
+        String forged = SUB_WIKI + "\nforged line";
+        when(this.wikiDescriptorManager.getById(forged)).thenThrow(new WikiManagerException("Descriptors down"));
+
+        assertFalse(this.mcpServerConfiguration.isCanonicalWikiId(forged));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("Could not verify the wiki id [subwikiforged line]"), warn);
+        assertFalse(warn.contains("\n"), warn);
+    }
+
+    @Test
     void isCrossWikiReachAllowedIsTrueWhenInitializedMainListContainsWiki() throws Exception
     {
         when(this.wikiDescriptorManager.getMainWikiId()).thenReturn(MAIN_WIKI);

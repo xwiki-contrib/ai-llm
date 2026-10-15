@@ -27,7 +27,6 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
@@ -277,7 +276,7 @@ public class MCPWriteDocumentTool implements MCPTool
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (XWikiException e) {
-            this.logger.warn("MCP write_document tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP write_document tool failed: [{}]", MCPTextGuards.rootCause(e));
             this.logger.debug("MCP write_document tool failure details", e);
             return MCPToolSupport.errorResult(MCPWriteSupport.SAVE_FAILED_MESSAGE);
         }

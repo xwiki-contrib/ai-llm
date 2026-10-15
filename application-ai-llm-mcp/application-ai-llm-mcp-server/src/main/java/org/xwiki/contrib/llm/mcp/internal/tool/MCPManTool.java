@@ -35,7 +35,6 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
@@ -470,7 +469,7 @@ public class MCPManTool implements MCPTool
             tools = this.componentManager.getInstanceList(MCPTool.class);
         } catch (ComponentLookupException e) {
             this.logger.warn("Failed to look up MCPTool components for the man tool: [{}]",
-                ExceptionUtils.getRootCauseMessage(e));
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP man tool failed to enumerate MCPTool components", e);
             return List.of();
         }

@@ -495,6 +495,24 @@ class MCPGetSchemaToolTest extends AbstractMCPToolTest
     }
 
     @Test
+    void documentLoadFailureLogsTheClassReferenceWithoutItsLineBreak() throws Exception
+    {
+        String forged = BLOG_CLASS + "\nforged line";
+        DocumentReference ref = parseRef(forged, new WikiReference(WIKI));
+        when(this.documentAccess.resolveAndAuthorize(forged, Right.VIEW, new WikiReference(WIKI)))
+            .thenReturn(ref);
+        when(this.documentAccessBridge.getDocumentInstance(ref)).thenThrow(new RuntimeException("boom"));
+
+        McpSchema.CallToolResult result = call(Map.of("class", forged));
+
+        assertTrue(result.isError(), "expected an error result");
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("MCP get_schema tool failed to load"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+    }
+
+    @Test
     void documentLoadFailureReturnsFixedErrorAndLogsRootCauseWithoutStackTrace() throws Exception
     {
         DocumentReference ref = parseRef(BLOG_CLASS, new WikiReference(WIKI));

@@ -27,7 +27,6 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
@@ -431,8 +430,9 @@ public class MCPGetLinksTool implements MCPTool
         try {
             return backlinksResult(ref, reference, req);
         } catch (LinkException e) {
-            this.logger.warn("MCP get_links tool failed to read the backlinks of [{}]: [{}]", ref,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_links tool failed to read the backlinks of [{}]: [{}]",
+                MCPTextGuards.fragment(ref),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_links tool backlink read failure details", e);
             return MCPToolSupport.errorResult(LINK_INDEX_ERROR);
         }

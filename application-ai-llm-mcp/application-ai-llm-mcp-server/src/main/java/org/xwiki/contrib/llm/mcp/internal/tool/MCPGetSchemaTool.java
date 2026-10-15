@@ -28,7 +28,6 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
@@ -344,7 +343,7 @@ public class MCPGetSchemaTool implements MCPTool
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (QueryException e) {
-            this.logger.warn("MCP get_schema tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_schema tool failed: [{}]", MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_schema tool failure details", e);
             // Return a fixed message: the root cause (schema/driver detail) stays in the logs, off the wire.
             return MCPToolSupport.errorResult(QUERY_FAILED);
@@ -461,8 +460,8 @@ public class MCPGetSchemaTool implements MCPTool
                 return xdoc;
             }
         } catch (Exception e) {
-            this.logger.warn("MCP get_schema tool failed to load [{}]: [{}]", classReference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_schema tool failed to load [{}]: [{}]", MCPTextGuards.fragment(classReference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_schema tool load failure details", e);
         }
         throw new IllegalArgumentException("Could not read document " + QUOTE

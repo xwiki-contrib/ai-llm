@@ -27,7 +27,6 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
@@ -460,7 +459,7 @@ public class MCPGetAttachmentTool implements MCPTool
             return contentReadFailure(attachment, e);
         } catch (Exception e) {
             this.logger.warn("MCP get_attachment tool failed to extract text from [{}]: [{}]",
-                attachment.getFilename(), ExceptionUtils.getRootCauseMessage(e));
+                MCPTextGuards.fragment(attachment.getFilename()), MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_attachment tool text-extraction failure details", e);
             return MCPToolSupport.result(header + DOUBLE_NEW_LINE + EXTRACTION_FAILED_BODY);
         }
@@ -582,7 +581,7 @@ public class MCPGetAttachmentTool implements MCPTool
     private McpSchema.CallToolResult contentReadFailure(XWikiAttachment attachment, Exception e)
     {
         this.logger.warn("MCP get_attachment tool failed to read the content of [{}]: [{}]",
-            attachment.getFilename(), ExceptionUtils.getRootCauseMessage(e));
+            MCPTextGuards.fragment(attachment.getFilename()), MCPTextGuards.rootCause(e));
         this.logger.debug("MCP get_attachment tool content-read failure details", e);
         return MCPToolSupport.errorResult(CONTENT_READ_ERROR);
     }
@@ -668,8 +667,9 @@ public class MCPGetAttachmentTool implements MCPTool
         try {
             return this.documentAccessBridge.exists(ref);
         } catch (Exception e) {
-            this.logger.warn("MCP get_attachment tool failed to check existence of [{}]: [{}]", reference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_attachment tool failed to check existence of [{}]: [{}]",
+                MCPTextGuards.fragment(reference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_attachment tool existence-check failure details", e);
             throw new IllegalArgumentException(COULD_NOT_READ_PREFIX + QUOTE
                 + MCPTextGuards.fragment(reference) + QUOTE + PERIOD);
@@ -691,8 +691,8 @@ public class MCPGetAttachmentTool implements MCPTool
         try {
             doc = this.documentAccessBridge.getDocumentInstance(ref);
         } catch (Exception e) {
-            this.logger.warn("MCP get_attachment tool failed to load [{}]: [{}]", reference,
-                ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_attachment tool failed to load [{}]: [{}]", MCPTextGuards.fragment(reference),
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_attachment tool load failure details", e);
         }
         if (doc instanceof XWikiDocument xdoc) {

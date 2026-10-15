@@ -760,6 +760,29 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
             .startsWith("MCP get_history tool failed to read the history of"), this.logCapture.getMessage(0));
     }
 
+    @Test
+    void archiveFailureLogsTheReferenceWithoutItsLineBreak() throws Exception
+    {
+        DocumentReference forgedRef = new DocumentReference("xwiki", "Sandbox", "WebHome\nforged line");
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW), any(WikiReference.class)))
+            .thenReturn(forgedRef);
+        XWikiDocument doc = mock(XWikiDocument.class);
+        lenient().when(doc.getVersion()).thenReturn("1.1");
+        when(this.documentAccessBridge.exists(forgedRef)).thenReturn(true);
+        when(this.documentAccessBridge.getDocumentInstance(forgedRef)).thenReturn(doc);
+        when(doc.getRevisionsCount(any(RevisionCriteria.class), any()))
+            .thenThrow(new XWikiException(XWikiException.MODULE_XWIKI_STORE,
+                XWikiException.ERROR_XWIKI_UNKNOWN, "archive read failed"));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.startsWith("MCP get_history tool failed to read the history of"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+    }
+
     // ---------------------------------------------------------------- advertisement
 
     @Test

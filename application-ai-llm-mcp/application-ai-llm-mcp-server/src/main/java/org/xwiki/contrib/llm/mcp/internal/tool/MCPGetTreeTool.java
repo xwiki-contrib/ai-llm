@@ -35,7 +35,6 @@ import javax.inject.Singleton;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
@@ -576,7 +575,7 @@ public class MCPGetTreeTool implements MCPTool
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (QueryException e) {
-            this.logger.warn("MCP get_tree tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP get_tree tool failed: [{}]", MCPTextGuards.rootCause(e));
             this.logger.debug("MCP get_tree tool failure details", e);
             // Return a fixed message: the root cause (schema/driver detail) stays in the logs, off the wire.
             return MCPToolSupport.errorResult(QUERY_FAILED);

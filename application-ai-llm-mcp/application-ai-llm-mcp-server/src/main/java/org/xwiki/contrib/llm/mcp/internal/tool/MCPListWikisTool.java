@@ -28,7 +28,6 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.mcp.MCPTool;
@@ -207,7 +206,7 @@ public class MCPListWikisTool implements MCPTool
             ids = new ArrayList<>(this.wikiDescriptorManager.getAllIds());
         } catch (WikiManagerException e) {
             this.logger.warn("Could not list wikis for list_wikis; showing only this wiki: [{}]",
-                ExceptionUtils.getRootCauseMessage(e));
+                MCPTextGuards.rootCause(e));
             this.logger.debug("Wiki list failure in list_wikis", e);
             return List.of();
         }

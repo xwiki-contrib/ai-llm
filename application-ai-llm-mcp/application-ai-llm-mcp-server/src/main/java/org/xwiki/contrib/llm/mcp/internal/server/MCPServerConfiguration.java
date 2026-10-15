@@ -37,6 +37,7 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.internal.tool.MCPListWikisTool;
 import org.xwiki.contrib.llm.mcp.internal.tool.MCPManTool;
 import org.xwiki.model.reference.DocumentReference;
@@ -218,9 +219,10 @@ public class MCPServerConfiguration
             WikiDescriptor descriptor = this.wikiDescriptorManager.getById(wikiId);
             return descriptor != null && wikiId.equals(descriptor.getId());
         } catch (WikiManagerException e) {
-            this.logger.warn("Could not verify the wiki id [{}]; treating it as not canonical: [{}]", wikiId,
-                ExceptionUtils.getRootCauseMessage(e));
-            this.logger.debug("Wiki descriptor lookup failure for wiki id [{}]", wikiId, e);
+            String loggedWiki = MCPToolSupport.stripLineBreaks(wikiId);
+            this.logger.warn("Could not verify the wiki id [{}]; treating it as not canonical: [{}]", loggedWiki,
+                MCPToolSupport.stripLineBreaks(ExceptionUtils.getRootCauseMessage(e)));
+            this.logger.debug("Wiki descriptor lookup failure for wiki id [{}]", loggedWiki, e);
             return false;
         }
     }
@@ -251,9 +253,10 @@ public class MCPServerConfiguration
             }
             return configObject.getIntValue(FIELD_ENABLED) == 1;
         } catch (Exception e) {
+            String loggedWiki = MCPToolSupport.stripLineBreaks(wikiId);
             this.logger.warn("Could not read the MCP enabled flag for wiki [{}]; disabling the endpoint: [{}]",
-                wikiId, ExceptionUtils.getRootCauseMessage(e));
-            this.logger.debug("MCP enabled flag read failure for wiki [{}]", wikiId, e);
+                loggedWiki, MCPToolSupport.stripLineBreaks(ExceptionUtils.getRootCauseMessage(e)));
+            this.logger.debug("MCP enabled flag read failure for wiki [{}]", loggedWiki, e);
             return false;
         }
     }
@@ -901,7 +904,8 @@ public class MCPServerConfiguration
         this.logger.warn("The MCP configuration page of wiki [{}] was changed concurrently with its replacement and "
             + "carries content that was not saved (more objects of classes {} than saved, [{}] attachment(s), [{}] "
             + "translation(s)); the page is deleted and the wiki uses the default MCP configuration", wikiId,
-            excessClasses, attachments, translations);
+            excessClasses.stream().map(c -> MCPToolSupport.stripLineBreaks(String.valueOf(c))).toList(), attachments,
+            translations);
         context.getWiki().deleteAllDocuments(reloaded, context);
         throw new XWikiException(XWikiException.MODULE_XWIKI_DOC, XWikiException.ERROR_XWIKI_UNKNOWN,
             "The MCP configuration page of wiki [" + wikiId + "] was changed concurrently with its replacement");

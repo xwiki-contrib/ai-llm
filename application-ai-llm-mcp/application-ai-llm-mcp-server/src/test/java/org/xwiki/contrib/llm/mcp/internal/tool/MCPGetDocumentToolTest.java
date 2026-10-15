@@ -356,11 +356,14 @@ class MCPGetDocumentToolTest extends AbstractMCPToolTest
         when(xwiki.getDocument(this.documentReference, xcontext))
             .thenThrow(new XWikiException(0, 0, "boom"));
 
-        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true));
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF + "\nforged line", "rendered", true));
 
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("Could not read the document"), textOf(result));
-        assertTrue(this.logCapture.getMessage(0).contains("MCP get_document tool failed to render"));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("MCP get_document tool failed to render"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+        assertFalse(warn.contains("\n"), warn);
     }
 
     @Test
@@ -794,19 +797,71 @@ class MCPGetDocumentToolTest extends AbstractMCPToolTest
     }
 
     @Test
+    void existenceCheckFailureLogsTheReferenceWithoutItsLineBreak() throws Exception
+    {
+        when(this.documentAccessBridge.exists(any(DocumentReference.class)))
+            .thenThrow(new RuntimeException("boom"));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF + "\nforged line"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("MCP get_document tool failed to check existence"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+    }
+
+    @Test
+    void translationProbeFailureLogsTheReferenceWithoutItsLineBreak() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW))).thenReturn(REAL_REF);
+        stubDoc("body", XWIKI_SYNTAX);
+        when(this.documentAccessBridge.exists(new DocumentReference(REAL_REF, Locale.FRENCH)))
+            .thenThrow(new RuntimeException("boom"));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF + "\nforged line", "locale", "fr"));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("Could not read the document"), textOf(result));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("MCP translation existence probe failed"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+    }
+
+    @Test
     void documentLoadFailureReturnsErrorAndLogsWarning() throws Exception
     {
         when(this.documentAccessBridge.exists(any(DocumentReference.class))).thenReturn(true);
         when(this.documentAccessBridge.getDocumentInstance(any(DocumentReference.class)))
             .thenThrow(new RuntimeException("boom"));
 
-        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF + "\nforged line"));
 
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("Could not read the document"));
         assertFalse(textOf(result).contains("boom"), "Root cause must not leak into the agent-facing message");
-        assertTrue(this.logCapture.getMessage(0).contains("MCP get_document tool failed to load"));
-        assertTrue(this.logCapture.getMessage(0).contains("boom"));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("MCP get_document tool failed to load"), warn);
+        assertTrue(warn.contains("boom"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+        assertFalse(warn.contains("\n"), warn);
+    }
+
+    @Test
+    void documentLoadFailureLogsTheRootCauseWithoutItsLineBreak() throws Exception
+    {
+        when(this.documentAccessBridge.exists(any(DocumentReference.class))).thenReturn(true);
+        when(this.documentAccessBridge.getDocumentInstance(any(DocumentReference.class)))
+            .thenThrow(new XWikiException(0, 0, "Failed to load [Main.Page\nforged line]"));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("MCP get_document tool failed to load"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+        assertFalse(warn.contains("\n"), warn);
     }
 
     @Test

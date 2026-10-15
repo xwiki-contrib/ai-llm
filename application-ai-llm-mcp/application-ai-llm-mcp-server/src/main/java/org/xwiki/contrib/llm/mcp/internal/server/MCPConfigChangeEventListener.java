@@ -33,6 +33,7 @@ import org.xwiki.bridge.event.DocumentCreatedEvent;
 import org.xwiki.bridge.event.DocumentDeletedEvent;
 import org.xwiki.bridge.event.DocumentUpdatedEvent;
 import org.xwiki.component.annotation.Component;
+import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.internal.access.MCPSpaceFilter;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.observation.AbstractEventListener;
@@ -171,7 +172,7 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
         } else {
             this.logger.warn("The MCP configuration page of wiki [{}] was saved by [{}], who has no admin right on "
                 + "the wiki; the endpoint of the wiki is disabled until an administrator resets the configuration",
-                wikiId, author);
+                wikiId, MCPToolSupport.stripLineBreaks(String.valueOf(author)));
         }
     }
 
@@ -193,7 +194,8 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
         foreignClasses.remove(new DocumentReference(wikiId, List.of("XWiki"), "ConfigurableClass"));
         if (!foreignClasses.isEmpty()) {
             this.logger.warn("The MCP configuration page of wiki [{}] carries objects of classes {} that the "
-                + "extension does not put on it", wikiId, foreignClasses);
+                + "extension does not put on it", wikiId,
+                foreignClasses.stream().map(c -> MCPToolSupport.stripLineBreaks(String.valueOf(c))).toList());
         }
     }
 
@@ -238,7 +240,8 @@ public class MCPConfigChangeEventListener extends AbstractEventListener
                 + "now uses the default MCP configuration", wikiId);
         } else {
             this.logger.warn("The MCP configuration page of wiki [{}] was deleted by [{}], who has no admin right on "
-                + "the wiki; the wiki now uses the default MCP configuration", wikiId, deleter);
+                + "the wiki; the wiki now uses the default MCP configuration", wikiId,
+                MCPToolSupport.stripLineBreaks(String.valueOf(deleter)));
         }
     }
 }

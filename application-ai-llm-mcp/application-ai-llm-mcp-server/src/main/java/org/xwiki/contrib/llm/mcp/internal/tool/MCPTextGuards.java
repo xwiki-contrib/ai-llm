@@ -19,7 +19,9 @@
  */
 package org.xwiki.contrib.llm.mcp.internal.tool;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
+import org.xwiki.model.reference.EntityReference;
 
 /**
  * The shared fragment guard of the line-oriented tools: one place holding the per-fragment cap and the
@@ -60,5 +62,27 @@ final class MCPTextGuards
             stripped = stripped.substring(0, MAX_FRAGMENT_CHARS) + ELLIPSIS;
         }
         return stripped;
+    }
+
+    /**
+     * @param reference the reference to log or print, possibly {@code null}
+     * @return the serialized reference guarded like {@link #fragment(String)}; {@code null} stays {@code null}
+     */
+    static String fragment(EntityReference reference)
+    {
+        return fragment(reference == null ? null : String.valueOf(reference));
+    }
+
+    /**
+     * The root-cause message of a platform exception embeds the reference or query the agent supplied, so it
+     * is stripped of the newline/control family like the first placeholder of a warning line. It is not cut:
+     * the message is diagnostic, and the debug line next to the warning keeps the full exception.
+     *
+     * @param e the exception a warning line reports
+     * @return the root-cause message with the newline/control family removed
+     */
+    static String rootCause(Throwable e)
+    {
+        return MCPToolSupport.stripLineBreaks(ExceptionUtils.getRootCauseMessage(e));
     }
 }

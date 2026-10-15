@@ -29,7 +29,6 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.component.annotation.Component;
@@ -311,7 +310,7 @@ public class MCPDeleteDocumentTool implements MCPTool
         } catch (IllegalArgumentException e) {
             return MCPToolSupport.errorResult(e.getMessage());
         } catch (XWikiException e) {
-            this.logger.warn("MCP delete_document tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.warn("MCP delete_document tool failed: [{}]", MCPTextGuards.rootCause(e));
             this.logger.debug("MCP delete_document tool failure details", e);
             return MCPToolSupport.errorResult(DELETE_FAILED_MESSAGE);
         }
@@ -413,7 +412,7 @@ public class MCPDeleteDocumentTool implements MCPTool
             }
         } catch (QueryException e) {
             this.logger.warn("MCP delete_document could not check for child pages: [{}]",
-                ExceptionUtils.getRootCauseMessage(e));
+                MCPTextGuards.rootCause(e));
             this.logger.debug("MCP delete_document child check failure details", e);
             return MCPToolSupport.errorResult(CHILD_CHECK_FAILED_MESSAGE);
         }
@@ -431,7 +430,7 @@ public class MCPDeleteDocumentTool implements MCPTool
             xcontext.getWiki().deleteAllDocuments(xdoc, xcontext);
         } catch (XWikiException e) {
             this.logger.warn("MCP delete_document failed partway through deleting [{}]: [{}]",
-                ref, ExceptionUtils.getRootCauseMessage(e));
+                MCPTextGuards.fragment(ref), MCPTextGuards.rootCause(e));
             this.logger.debug("MCP delete_document deletion failure details", e);
             return MCPToolSupport.errorResult(DELETE_INCOMPLETE_MESSAGE);
         }

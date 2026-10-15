@@ -518,6 +518,28 @@ class MCPDeleteDocumentToolTest extends AbstractMCPWriteToolTest
     }
 
     @Test
+    void storageFailureLogsTheReferenceWithoutItsLineBreak(MockitoOldcore oldcore) throws Exception
+    {
+        DocumentReference forgedReference = new DocumentReference("xwiki", "Sandbox", "Page\nforged line");
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.DELETE))).thenReturn(forgedReference);
+        lenient().when(this.serializer.serialize(forgedReference)).thenReturn("xwiki:Sandbox.Page\nforged line");
+        storeDocument(oldcore, forgedReference, "content");
+        String currentVersion = loadDocument(oldcore, forgedReference).getVersion();
+        doThrow(new XWikiException(XWikiException.MODULE_XWIKI_STORE, XWikiException.ERROR_XWIKI_UNKNOWN, "db down"))
+            .when(oldcore.getSpyXWiki())
+            .deleteDocument(any(XWikiDocument.class), any(Boolean.class), any(XWikiContext.class));
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, TERMINAL_REF, BASE_VERSION_KEY, currentVersion));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("deletion failed partway"), textOf(result));
+        String warn = this.logCapture.getMessage(0);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+    }
+
+    @Test
     void webPreferencesPageRefusedForManualDeletion(MockitoOldcore oldcore) throws Exception
     {
         when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.DELETE)))

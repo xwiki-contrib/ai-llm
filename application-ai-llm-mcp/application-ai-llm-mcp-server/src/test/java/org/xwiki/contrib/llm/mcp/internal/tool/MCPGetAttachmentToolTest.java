@@ -553,18 +553,38 @@ class MCPGetAttachmentToolTest extends AbstractMCPToolTest
     }
 
     @Test
+    void existenceCheckFailureLogsTheReferenceWithoutItsLineBreak() throws Exception
+    {
+        when(this.documentAccessBridge.exists(DOC_REF)).thenThrow(new RuntimeException("boom"));
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF + "\nforged line", FILENAME_KEY, NOTES_TXT));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("failed to check existence"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+    }
+
+    @Test
     void documentLoadFailureReturnsErrorAndLogsWarning() throws Exception
     {
         when(this.documentAccessBridge.exists(DOC_REF)).thenReturn(true);
         when(this.documentAccessBridge.getDocumentInstance(DOC_REF)).thenThrow(new RuntimeException("boom"));
 
-        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, FILENAME_KEY, NOTES_TXT));
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF + "\nforged line", FILENAME_KEY, NOTES_TXT));
 
         assertEquals(Boolean.TRUE, result.isError());
-        assertTrue(textOf(result).contains("Could not read the document \"" + REF + "\"."), textOf(result));
+        assertTrue(textOf(result).contains("Could not read the document \"" + REF + "forged line\"."),
+            textOf(result));
         assertFalse(textOf(result).contains("boom"), "Root cause must not leak into the agent-facing message");
-        assertTrue(this.logCapture.getMessage(0).contains("failed to load"), this.logCapture.getMessage(0));
-        assertTrue(this.logCapture.getMessage(0).contains("boom"), this.logCapture.getMessage(0));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("failed to load"), warn);
+        assertTrue(warn.contains("boom"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+        assertFalse(warn.contains("\n"), warn);
     }
 
     @Test
@@ -614,6 +634,28 @@ class MCPGetAttachmentToolTest extends AbstractMCPToolTest
 
         assertEquals(Boolean.TRUE, result.isError());
         assertTrue(textOf(result).contains("Error: 'offset' must be >= 0."), textOf(result));
+    }
+
+    @Test
+    void contentReadFailureLogsTheFilenameWithoutItsLineBreak() throws Exception
+    {
+        String forgedName = "notes\nforged line.txt";
+        XWikiDocument doc = stubDocument();
+        XWikiAttachment attachment = spy(new XWikiAttachment(doc, forgedName));
+        attachment.setMimeType(TEXT_PLAIN);
+        doc.setAttachment(attachment);
+        doThrow(new XWikiException(XWikiException.MODULE_XWIKI_STORE,
+            XWikiException.ERROR_XWIKI_STORE_HIBERNATE_LOADING_ATTACHMENT, "boom"))
+            .when(attachment).getContentInputStream(any(XWikiContext.class));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, FILENAME_KEY, forgedName));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(textOf(result).contains("Could not read the attachment content."), textOf(result));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("failed to read the content"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("notesforged line.txt"), warn);
     }
 
     @Test
@@ -684,23 +726,26 @@ class MCPGetAttachmentToolTest extends AbstractMCPToolTest
     void extractionFailureDegradesGracefullyAndLogsWarning() throws Exception
     {
         XWikiDocument doc = stubDocument();
-        addAttachment(doc, "locked.pdf", new byte[] {1}, "application/pdf");
+        String forgedFilename = "locked\nforged line.pdf";
+        addAttachment(doc, forgedFilename, new byte[] {1}, "application/pdf");
         try (MockedStatic<TikaUtils> tika = mockStatic(TikaUtils.class)) {
             tika.when(() -> TikaUtils.parseToString(any(InputStream.class), any(Metadata.class)))
                 .thenThrow(new TikaException("boom"));
 
-            McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, FILENAME_KEY, "locked.pdf"));
+            McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, FILENAME_KEY, forgedFilename));
 
             // A broken document degrades to the header plus a pointer - it is NOT a tool error.
             assertNotEquals(Boolean.TRUE, result.isError());
             String text = textOf(result);
-            assertTrue(text.contains("Attachment: locked.pdf"), text);
+            assertTrue(text.contains("Attachment: lockedforged line.pdf"), text);
             assertTrue(text.contains("Text extraction failed; use the Download URL above."), text);
             assertFalse(text.contains("boom"), "Root cause must not leak into the agent-facing message");
         }
-        assertTrue(this.logCapture.getMessage(0).contains("failed to extract text"),
-            this.logCapture.getMessage(0));
-        assertTrue(this.logCapture.getMessage(0).contains("boom"), this.logCapture.getMessage(0));
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("failed to extract text"), warn);
+        assertTrue(warn.contains("boom"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+        assertFalse(warn.contains("\n"), warn);
     }
 
     @Test

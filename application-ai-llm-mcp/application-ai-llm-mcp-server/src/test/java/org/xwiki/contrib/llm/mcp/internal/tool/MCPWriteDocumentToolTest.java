@@ -1004,6 +1004,22 @@ class MCPWriteDocumentToolTest extends AbstractMCPWriteToolTest
     }
 
     @Test
+    void createRaceLogsTheReferenceWithoutItsLineBreak(MockitoOldcore oldcore) throws Exception
+    {
+        DocumentReference forgedReference = new DocumentReference("xwiki", "Sandbox", "WebHome\nforged line");
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.EDIT))).thenReturn(forgedReference);
+        loseRaceOnSave(oldcore, createRaceException());
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CONTENT_KEY, NEW_BODY));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("lost a create race"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
+    }
+
+    @Test
     void translationCreateRaceReroutesToTheLocaleReadFirstMessage(MockitoOldcore oldcore) throws Exception
     {
         storeDocument(oldcore, OLD_BODY, TITLE);
@@ -1020,6 +1036,25 @@ class MCPWriteDocumentToolTest extends AbstractMCPWriteToolTest
             + "read it with get_document and locale=\"fr\", and pass the base_version it shows. For small "
             + "changes prefer edit_document.", textOf(result));
         assertTrue(this.logCapture.getMessage(0).contains("lost a create race"), this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void concurrentCollisionLogsTheReferenceWithoutItsLineBreak(MockitoOldcore oldcore) throws Exception
+    {
+        DocumentReference forgedReference = new DocumentReference("xwiki", "Sandbox", "WebHome\nforged line");
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.EDIT))).thenReturn(forgedReference);
+        storeDocument(oldcore, forgedReference, OLD_BODY, TITLE);
+        String currentVersion = loadDocument(oldcore, forgedReference).getVersion();
+        failSave(oldcore, serializationCollisionException());
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, REF, CONTENT_KEY, NEW_BODY, BASE_VERSION_KEY, currentVersion));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String warn = this.logCapture.getMessage(0);
+        assertTrue(warn.contains("collided with a concurrent write"), warn);
+        assertFalse(warn.contains("\n"), warn);
+        assertTrue(warn.contains("forged line"), warn);
     }
 
     @Test

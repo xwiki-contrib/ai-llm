@@ -189,8 +189,10 @@ public class DefaultMCPWikiReach implements MCPWikiReach
         try {
             return this.wikiDescriptorManager.getById(wikiParam) != null;
         } catch (WikiManagerException e) {
-            this.logger.warn(warnFormat, wikiParam, ExceptionUtils.getRootCauseMessage(e));
-            this.logger.debug(debugFormat, wikiParam, e);
+            String loggedWiki = MCPToolSupport.stripLineBreaks(wikiParam);
+            this.logger.warn(warnFormat, loggedWiki,
+                MCPToolSupport.stripLineBreaks(ExceptionUtils.getRootCauseMessage(e)));
+            this.logger.debug(debugFormat, loggedWiki, e);
             throw new MCPAccessDeniedException(failureMessage);
         }
     }
