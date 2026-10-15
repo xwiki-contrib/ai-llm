@@ -60,9 +60,15 @@
 {{/html}}
 
 #if ($request.addOrigin)
+  ## CSRF protection.
+  #if (!$services.csrf.isTokenValid($request.form_token))
+    $response.sendRedirect($services.csrf.getResubmissionURL())
+    #stop
+  #end
   #set ($newConfigObject = $configDoc.newObject($configClassName))
   #set ($discard = $configDoc.save('Added chat origin configuration', true))
-  $response.sendRedirect($xwiki.relativeRequestURL.replaceAll("&amp;addOrigin=1", ""))
+  $response.sendRedirect($xwiki.relativeRequestURL.replaceAll('[&amp;?]addOrigin=1', '').replaceAll('[&amp;?]form_token=[^&amp;]*', ''))
+  #stop
 #end
 
 #foreach($serverObject in $configDoc.getObjects($configClassName))
@@ -83,7 +89,7 @@
     &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
     &lt;input type="submit" value="$services.localization.render('Save')" name="formactionsac" class="button" /&gt;
     &lt;span class="buttonwrapper"&gt;
-      &lt;a href="${xwiki.relativeRequestURL}&amp;addOrigin=1" class="xobject-add-control"&gt;$services.localization.render('Add')&lt;/a&gt;
+      &lt;a href="$escapetool.xml("${xwiki.relativeRequestURL}&amp;addOrigin=1&amp;form_token=$escapetool.url($services.csrf.getToken())")" class="xobject-add-control"&gt;$services.localization.render('Add')&lt;/a&gt;
     &lt;/span&gt;
   &lt;/form&gt;
 {{/html}}
