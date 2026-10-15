@@ -1,6 +1,14 @@
 // Initialize marked library
 marked.use({ breaks: true });
 
+// Model output must not trigger any fetch without a click: only the HTML profile is allowed and every
+// URL-bearing element or attribute other than a link's href is dropped.
+const CHAT_SANITIZE_OPTIONS = {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['style', 'img', 'picture', 'source', 'video', 'audio', 'track', 'embed', 'object', 'iframe'],
+    FORBID_ATTR: ['src', 'srcset', 'style', 'poster', 'background', 'ping']
+};
+
 // Initialize variables
 let currentRequest = null;
 let abortController = null;
@@ -92,18 +100,45 @@ function createToggleChatButton() {
     return toggleChatButtonElement;
 }
 
+// Build a list of links from a newline-separated sources string, keeping only http(s) URLs
+function buildSourceList(sources) {
+    const list = document.createElement('ul');
+    sources.split('\n')
+        .map(source => source.trim())
+        .filter(source => /^https?:\/\//i.test(source))
+        .forEach(source => {
+            const item = document.createElement('li');
+            const link = document.createElement('a');
+            link.href = source;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = source;
+            item.appendChild(link);
+            list.appendChild(item);
+        });
+    return list;
+}
+
 // Create an expandable bubble with sources
 function createSourcesBubble(sources) {
     const sourcesBubble = document.createElement('div');
     sourcesBubble.classList.add('sources-bubble');
-    const sourceLinks = sources.split('\n').map(source => {
-        const trimmedSource = source.trim();
-        return `<li><a href="${trimmedSource}" target="_blank">${trimmedSource}</a></li>`;
-    }).join('');
-    sourcesBubble.innerHTML = `
-        <div class="sources-header">Sources <span class="expand-icon">+</span></div>
-        <div class="sources-content hidden"><ul>${sourceLinks}</ul></div>
-    `;
+
+    const header = document.createElement('div');
+    header.classList.add('sources-header');
+    header.textContent = 'Sources ';
+    const expandIcon = document.createElement('span');
+    expandIcon.classList.add('expand-icon');
+    expandIcon.textContent = '+';
+    header.appendChild(expandIcon);
+
+    const content = document.createElement('div');
+    content.classList.add('sources-content', 'hidden');
+    content.appendChild(buildSourceList(sources));
+
+    sourcesBubble.appendChild(header);
+    sourcesBubble.appendChild(content);
+
     sourcesBubble.querySelector('.sources-header').addEventListener('click', () => {
         sourcesBubble.querySelector('.sources-content').classList.toggle('hidden');
         sourcesBubble.querySelector('.expand-icon').textContent = sourcesBubble.querySelector('.sources-content').classList.contains('hidden') ? '+' : '-';
@@ -354,11 +389,13 @@ function handleStreamingRequest(request, signal, assistantMessageElement) {
                     sourcesBubble = createSourcesBubble(sourcesText);
                     assistantMessageElement.parentElement.insertBefore(sourcesBubble, assistantMessageElement);
                 } else {
-                    sourcesBubble.querySelector('.sources-content').innerHTML = sourcesText;
+                    const sourcesContent = sourcesBubble.querySelector('.sources-content');
+                    sourcesContent.querySelectorAll('ul').forEach(list => list.remove());
+                    sourcesContent.appendChild(buildSourceList(sourcesText));
                 }
             } else {
                 messageText += content;
-                assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(messageText), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
+                assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(messageText), CHAT_SANITIZE_OPTIONS);
             }
 
             removeWaitingAnimation();
@@ -383,10 +420,29 @@ function handleStreamingRequest(request, signal, assistantMessageElement) {
     });
 }
 
+// Build "Assistant (model)" followed by a plain and/or an emphasized suffix as DOM nodes; the model name is
+// wiki-authored text and must never be interpreted as markup.
+function assistantLabelContent(modelName, textSuffix, emSuffix) {
+    const fragment = document.createDocumentFragment();
+    const strong = document.createElement('strong');
+    strong.textContent = `Assistant (${modelName})`;
+    fragment.appendChild(strong);
+    if (textSuffix) {
+        fragment.appendChild(document.createTextNode(textSuffix));
+    }
+    if (emSuffix) {
+        const em = document.createElement('em');
+        em.textContent = emSuffix;
+        fragment.appendChild(em);
+    }
+    return fragment;
+}
+
 // Display usage information
 function displayUsageInfo(assistantLabel, usageData, startTime) {
     const responseTime = endTimer(startTime);
-    assistantLabel.innerHTML = `<strong>Assistant (${modelSelect.options[modelSelect.selectedIndex].text})</strong><em> - &Delta;T ${responseTime.toFixed(1)}s </em>`;
+    assistantLabel.replaceChildren(
+        assistantLabelContent(modelSelect.options[modelSelect.selectedIndex].text, '', ` - ΔT ${responseTime.toFixed(1)}s `));
 
     const usageSpan = document.createElement('span');
     usageSpan.classList.add('usage');
@@ -395,11 +451,15 @@ function displayUsageInfo(assistantLabel, usageData, startTime) {
 
     const usageInfo = document.createElement('div');
     usageInfo.classList.add('usage-info-box');
-    usageInfo.innerHTML = `
-        <p>Prompt tokens: ${usageData.prompt_tokens}</p>
-        <p>Completion tokens: ${usageData.completion_tokens}</p>
-        <p>Total tokens: ${usageData.total_tokens}</p>
-    `;
+    [
+        ['Prompt tokens', usageData.prompt_tokens],
+        ['Completion tokens', usageData.completion_tokens],
+        ['Total tokens', usageData.total_tokens]
+    ].forEach(([label, count]) => {
+        const line = document.createElement('p');
+        line.textContent = `${label}: ${count}`;
+        usageInfo.appendChild(line);
+    });
     usageSpan.appendChild(usageInfo);
 }
 
@@ -435,9 +495,9 @@ function handleNonStreamingResponse(response, startTime, assistantMessageElement
         const content = assistantMessage.replace(sourcesMatch[0], '').trim();
         const sourcesBubble = createSourcesBubble(sources);
         assistantMessageElement.parentElement.insertBefore(sourcesBubble, assistantMessageElement);
-        assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(content), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
+        assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(content), CHAT_SANITIZE_OPTIONS);
     } else {
-        assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(assistantMessage), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
+        assistantMessageElement.innerHTML = DOMPurify.sanitize(marked.parse(assistantMessage), CHAT_SANITIZE_OPTIONS);
     }
 
     conversationHistory.push({ role: 'assistant', content: assistantMessage });
@@ -447,7 +507,8 @@ function handleNonStreamingResponse(response, startTime, assistantMessageElement
 
     const assistantInfoElement = assistantMessageElement.previousElementSibling.querySelector('.msg-info');
     if (assistantInfoElement) {
-        assistantInfoElement.innerHTML = `<strong>Assistant (${modelSelect.options[modelSelect.selectedIndex].text})</strong> - <em>&Delta;T ${responseTime.toFixed(1)}s </em>`;
+        assistantInfoElement.replaceChildren(
+            assistantLabelContent(modelSelect.options[modelSelect.selectedIndex].text, ' - ', `ΔT ${responseTime.toFixed(1)}s `));
 
         if (response.usage) {
             displayUsageInfo(assistantInfoElement, response.usage, startTime);
@@ -515,14 +576,14 @@ function displayAssistantMessage(message, modelName = '', responseTime = null) {
     assistantLabel.classList.add('msg-info');
 
     if (modelName && responseTime !== null) {
-        assistantLabel.innerHTML = `<strong>Assistant (${modelName})</strong><em> - &Delta;T ${responseTime.toFixed(1)}s:</em>`;
+        assistantLabel.replaceChildren(assistantLabelContent(modelName, '', ` - ΔT ${responseTime.toFixed(1)}s:`));
     } else {
         assistantLabel.innerHTML = '<strong>Assistant:</strong>';
     }
 
     const assistantMessageContent = document.createElement('div');
     assistantMessageContent.classList.add('message-text');
-    assistantMessageContent.innerHTML = DOMPurify.sanitize(marked.parse(message), { FORBID_TAGS: ['style'], FORBID_ATTR: ['src'] });
+    assistantMessageContent.innerHTML = DOMPurify.sanitize(marked.parse(message), CHAT_SANITIZE_OPTIONS);
 
     messageElement.appendChild(assistantLabel);
     messageElement.appendChild(assistantMessageContent);
@@ -539,7 +600,8 @@ function displayAssistantMessage(message, modelName = '', responseTime = null) {
 function updateResponseTime(startTime, assistantInfoElement) {
     const currentTime = new Date().getTime();
     const elapsedTime = (currentTime - startTime) / 1000;
-    assistantInfoElement.innerHTML = `<strong>Assistant (${modelSelect.options[modelSelect.selectedIndex].text})</strong> - &Delta;T ${elapsedTime.toFixed(1)}s:`;
+    assistantInfoElement.replaceChildren(
+        assistantLabelContent(modelSelect.options[modelSelect.selectedIndex].text, ` - ΔT ${elapsedTime.toFixed(1)}s:`, ''));
 }
 
 // Display error message in the chat history

@@ -130,6 +130,13 @@
     marked.use({
       breaks: true
     });
+    // Model output must not trigger any fetch without a click: only the HTML profile is allowed and every
+    // URL-bearing element or attribute other than a link's href is dropped.
+    const CHAT_SANITIZE_OPTIONS = {
+        USE_PROFILES: { html: true },
+        FORBID_TAGS: ['style', 'img', 'picture', 'source', 'video', 'audio', 'track', 'embed', 'object', 'iframe'],
+        FORBID_ATTR: ['src', 'srcset', 'style', 'poster', 'background', 'ping']
+    };
     var initDone = false;
     var nbAssistMsg = 0;
     var context = new Array();
@@ -344,7 +351,7 @@
         const messageContent = document.createElement('pre');
         messageContent.classList.add('message-content');
         messageContent.id = `msg-content-${nbAssistMsg}`;
-        messageContent.innerHTML = DOMPurify.sanitize(marked.parse(assistantChat), {FORBID_TAGS: ['style'], FORBID_ATTR: ['src']});
+        messageContent.innerHTML = DOMPurify.sanitize(marked.parse(assistantChat), CHAT_SANITIZE_OPTIONS);
         div.appendChild(messageContent);
 
         const astMsgButton = document.createElement('div');
@@ -461,19 +468,15 @@
                 messageContent.parentElement.insertBefore(sourcesBubble, messageContent);
             } else {
                 // Update existing sources bubble
-                const sourceLinks = sources.split('\n')
-                    .filter(source =&gt; source.trim().startsWith('http'))
-                    .map(source =&gt; {
-                        const trimmedSource = source.trim();
-                        return `&lt;li&gt;&lt;a href="${trimmedSource}" target="_blank"&gt;${trimmedSource}&lt;/a&gt;&lt;/li&gt;`;
-                    }).join('');
-                sourcesBubble.querySelector('.sources-content ul').innerHTML = sourceLinks;
+                const sourcesContent = sourcesBubble.querySelector('.sources-content');
+                sourcesContent.querySelectorAll('ul').forEach(list =&gt; list.remove());
+                sourcesContent.appendChild(buildSourceList(sources));
                 messageSourcesMap.set(msgIdNum, sources);
             }
 
-            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(content), {FORBID_TAGS: ['style'], FORBID_ATTR: ['src']});
+            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(content), CHAT_SANITIZE_OPTIONS);
         } else {
-            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(chunkReply), {FORBID_TAGS: ['style'], FORBID_ATTR: ['src']});
+            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(chunkReply), CHAT_SANITIZE_OPTIONS);
         }
         attachSourcesBubbleListeners();
     }
@@ -486,7 +489,10 @@
      *
      */
     function errorMessagePrint(errorMessage) {
-        return `&lt;div class="errorHandler"&gt;${errorMessage}&lt;/div&gt;`;
+        const errorElement = document.createElement('div');
+        errorElement.classList.add('errorHandler');
+        errorElement.textContent = errorMessage;
+        return errorElement;
     }
 
     /**
@@ -690,7 +696,7 @@
      * @param {JSON} error The JSON object containing error information. 
      */
     function errorCatcher(chatContent, error) {
-        chatContent.innerHTML += errorMessagePrint("An error occured: " + error.message);
+        chatContent.appendChild(errorMessagePrint("An error occured: " + error.message));
     }
 
     /**
@@ -905,10 +911,10 @@
                 const elapsedTime = (Date.now() - startTime) / 1000;
                 if (data.code) {
                     console.error(data.code);
-                    chatContent.innerHTML += errorMessagePrint("An error occured: " + data.code + " " + data.description);
+                    chatContent.appendChild(errorMessagePrint("An error occured: " + data.code + " " + data.description));
                 } else if (data.error) {
                     console.error(data.error);
-                    chatContent.innerHTML += errorMessagePrint("An error occured: " + data.error.message);
+                    chatContent.appendChild(errorMessagePrint("An error occured: " + data.error.message));
                 } else {
                     const content = data.choices[0].message.content;
                     const memory = data.choices[0].message;
@@ -964,7 +970,7 @@
         sysPromptDisplay.textContent = promptData.prompt;
         const sysPromptDisplayLabel = document.createElement('label');
         sysPromptDisplayLabel.htmlFor = 'sysPromptDisplay';
-        sysPromptDisplayLabel.innerHTML = sysPrptDisLabel;
+        sysPromptDisplayLabel.textContent = sysPrptDisLabel;
         const sysPromptDisplayContainer = document.createElement('div');
         sysPromptDisplayContainer.style.flex = '1';
         sysPromptDisplayContainer.style.display = 'flex';
@@ -1019,7 +1025,7 @@
 
         const tempLabel = document.createElement('label');
         tempLabel.htmlFor = 'sliderTemp';
-        tempLabel.innerHTML = sliderLabel;
+        tempLabel.textContent = sliderLabel;
 
         const slideContainer = document.createElement('div');
         slideContainer.style.display = 'flex';
@@ -1544,6 +1550,29 @@
     let messageSourcesMap = new Map();
 
     /**
+     * Build a list of links from a newline-separated sources string, keeping only http(s) URLs.
+     * @param {string} sources The sources string
+     * @return {HTMLUListElement} The list element
+     */
+    function buildSourceList(sources) {
+        const list = document.createElement('ul');
+        sources.split('\n')
+            .map(source =&gt; source.trim())
+            .filter(source =&gt; /^https?:\/\//i.test(source))
+            .forEach(source =&gt; {
+                const item = document.createElement('li');
+                const link = document.createElement('a');
+                link.href = source;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = source;
+                item.appendChild(link);
+                list.appendChild(item);
+            });
+        return list;
+    }
+
+    /**
      * Create an expandable bubble with sources
      * @param {string} sources The sources string
      * @param {number} msgId The message ID
@@ -1554,17 +1583,20 @@
         sourcesBubble.classList.add('sources-bubble');
         sourcesBubble.dataset.msgId = msgId;
 
-        const sourceLinks = sources.split('\n')
-            .filter(source =&gt; source.trim().startsWith('http'))
-            .map(source =&gt; {
-                const trimmedSource = source.trim();
-                return `&lt;li&gt;&lt;a href="${trimmedSource}" target="_blank"&gt;${trimmedSource}&lt;/a&gt;&lt;/li&gt;`;
-            }).join('');
+        const header = document.createElement('div');
+        header.classList.add('sources-header');
+        header.textContent = 'Sources ';
+        const expandIcon = document.createElement('span');
+        expandIcon.classList.add('expand-icon');
+        expandIcon.textContent = '+';
+        header.appendChild(expandIcon);
 
-        sourcesBubble.innerHTML = `
-            &lt;div class="sources-header"&gt;Sources &lt;span class="expand-icon"&gt;+&lt;/span&gt;&lt;/div&gt;
-            &lt;div class="sources-content hidden"&gt;&lt;ul&gt;${sourceLinks}&lt;/ul&gt;&lt;/div&gt;
-        `;
+        const content = document.createElement('div');
+        content.classList.add('sources-content', 'hidden');
+        content.appendChild(buildSourceList(sources));
+
+        sourcesBubble.appendChild(header);
+        sourcesBubble.appendChild(content);
 
         messageSourcesMap.set(msgId, sources);
 
