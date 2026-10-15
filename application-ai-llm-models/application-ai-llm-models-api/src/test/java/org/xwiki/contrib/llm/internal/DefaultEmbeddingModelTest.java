@@ -44,6 +44,7 @@ import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.test.mockito.MockitoComponentManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -171,5 +172,19 @@ class OpenAIGPTAPIServerTest
 
         RequestError exception = assertThrows(RequestError.class, () -> this.server.embed(MODEL, List.of(INPUT)));
         assertEquals("400: Invalid request", exception.getMessage());
+    }
+
+    @Test
+    void embedWithRejectedCredentials() throws Exception
+    {
+        String providerMessage = "Incorrect API key provided: sk-abc123";
+        when(this.httpResponse.statusCode()).thenReturn(401);
+        when(this.httpResponse.body()).thenReturn(IOUtils.toInputStream(
+            "{\"error\": {\"message\": \"" + providerMessage + "\", \"code\": 401}}", StandardCharsets.UTF_8));
+
+        RequestError exception = assertThrows(RequestError.class, () -> this.server.embed(MODEL, List.of(INPUT)));
+        assertEquals("401: The configured provider rejected the server's credentials; contact an administrator.",
+            exception.getMessage());
+        assertFalse(exception.getMessage().contains("sk-abc123"));
     }
 }

@@ -21,11 +21,13 @@ package org.xwiki.contrib.llm;
 
 import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
- * A class representing an LLM AI extension confifuration as a java object.
+ * A class representing an LLM AI extension configuration as a java object.
  * @version $Id$
  */
-public class GPTAPIConfig 
+public class GPTAPIConfig
 {
     private String name;
     private String url;
@@ -47,8 +49,8 @@ public class GPTAPIConfig
     }
 
     /**
-     * Default constructor. every values are null except {@link GPTAPIConfig#name},
-     * wich is set to "default".
+     * Default constructor. Every value is null except {@link GPTAPIConfig#name},
+     * which is set to "default".
      */
     public GPTAPIConfig()
     {
@@ -95,7 +97,7 @@ public class GPTAPIConfig
     {
         String res = "Name : " + name;
         res += " URL : " + url;
-        res += " Token : " + token;
+        res += " Token : " + (StringUtils.isNotBlank(token) ? "set" : "unset");
         res += " canStream : " + canStream;
         return res;
     }

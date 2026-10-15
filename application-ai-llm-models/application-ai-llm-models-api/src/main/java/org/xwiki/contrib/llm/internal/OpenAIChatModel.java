@@ -23,6 +23,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.net.HttpURLConnection;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -57,6 +58,9 @@ import com.theokanning.openai.OpenAiError;
 public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
 {
     private static final String PATH = "chat/completions";
+
+    private static final String CREDENTIALS_REJECTED_MESSAGE =
+        "The configured provider rejected the server's credentials; contact an administrator.";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenAIChatModel.class);
 
@@ -153,7 +157,19 @@ public class OpenAIChatModel extends AbstractModel implements ChatRequestFilter
         LOGGER.error("Got error response from model {} on server {}: {}", this.modelConfiguration.getModel(),
             this.modelConfiguration.getServerName(), response);
 
-        return new RequestError(code, errorMessage);
+        return providerError(code, errorMessage);
+    }
+
+    /**
+     * A 401 or 403 from the provider describes the server's credentials, so its message is replaced before it
+     * reaches the client; every other status keeps the provider's message.
+     */
+    private static RequestError providerError(int code, String providerMessage)
+    {
+        if (code == HttpURLConnection.HTTP_UNAUTHORIZED || code == HttpURLConnection.HTTP_FORBIDDEN) {
+            return new RequestError(code, CREDENTIALS_REJECTED_MESSAGE);
+        }
+        return new RequestError(code, providerMessage);
     }
 
     private ChatCompletionRequest setModel(ChatCompletionRequest request, boolean stream, boolean supportsUsage)

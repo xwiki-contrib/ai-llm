@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.http.HttpResponse;
 import java.util.List;
 
@@ -52,6 +53,9 @@ import com.theokanning.openai.embedding.EmbeddingRequest;
 @Named("openai")
 public class OpenAIGPTAPIServer extends AbstractGPTAPIServer
 {
+    private static final String CREDENTIALS_REJECTED_MESSAGE =
+        "The configured provider rejected the server's credentials; contact an administrator.";
+
     @Inject
     private RequestHelper requestHelper;
 
@@ -68,7 +72,7 @@ public class OpenAIGPTAPIServer extends AbstractGPTAPIServer
 
             if (httpResponse.statusCode() != 200) {
                 OpenAiError error = objectMapper.readValue(httpResponse.body(), OpenAiError.class);
-                throw new RequestError(httpResponse.statusCode(), error.error.getMessage());
+                throw providerError(httpResponse.statusCode(), error.error.getMessage());
             }
 
             OpenAiResponse<Embedding> openAiResponse = readEmbeddingResponse(objectMapper, httpResponse);
@@ -87,6 +91,18 @@ public class OpenAIGPTAPIServer extends AbstractGPTAPIServer
         } catch (IOException e) {
             throw new RequestError(500, e.getMessage());
         }
+    }
+
+    /**
+     * A 401 or 403 from the provider describes the server's credentials, so its message is replaced before it
+     * reaches the client; every other status keeps the provider's message.
+     */
+    private static RequestError providerError(int code, String providerMessage)
+    {
+        if (code == HttpURLConnection.HTTP_UNAUTHORIZED || code == HttpURLConnection.HTTP_FORBIDDEN) {
+            return new RequestError(code, CREDENTIALS_REJECTED_MESSAGE);
+        }
+        return new RequestError(code, providerMessage);
     }
 
     private static OpenAiResponse<Embedding> readEmbeddingResponse(ObjectMapper objectMapper,
