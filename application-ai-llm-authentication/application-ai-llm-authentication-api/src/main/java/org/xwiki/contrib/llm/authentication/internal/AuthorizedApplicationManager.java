@@ -41,6 +41,9 @@ import org.xwiki.query.QueryManager;
 import org.xwiki.rendering.syntax.Syntax;
 import org.xwiki.security.authorization.AuthorizationManager;
 import org.xwiki.security.authorization.Right;
+import org.xwiki.user.GuestUserReference;
+import org.xwiki.user.UserReference;
+import org.xwiki.user.UserReferenceSerializer;
 
 import com.nimbusds.jose.jwk.OctetKeyPair;
 import com.xpn.xwiki.XWikiContext;
@@ -86,6 +89,10 @@ public class AuthorizedApplicationManager
     private AuthorizationManager authorizationManager;
 
     @Inject
+    @Named("document")
+    private UserReferenceSerializer<DocumentReference> userReferenceSerializer;
+
+    @Inject
     private Ed25519PEMReader pemReader;
 
     /**
@@ -121,8 +128,7 @@ public class AuthorizedApplicationManager
                 }
             })
             // Check if the author of the document has wiki admin right.
-            .filter(document -> this.authorizationManager.hasAccess(Right.ADMIN, document.getAuthorReference(),
-                document.getDocumentReference().getWikiReference()))
+            .filter(this::hasAdminAuthor)
             // Get a stream of application XObjects
             .flatMap(document -> document.getXObjects(AUTHORIZED_APPLICATION_CLASS_REFERENCE).stream())
             // Make sure that if there are several applications on a document, we only consider those with the
@@ -150,4 +156,20 @@ public class AuthorizedApplicationManager
             .findAny();
     }
 
+    /**
+     * @param document an application document
+     * @return whether the user who last saved the document (its effective metadata author) has admin right on the
+     *     wiki; a document without a recorded author is never trusted
+     */
+    private boolean hasAdminAuthor(XWikiDocument document)
+    {
+        UserReference author = document.getAuthors().getEffectiveMetadataAuthor();
+        // A missing author is never serialized: the "document" serializer maps a missing user to the current
+        // user, which must never stand in for the page's author.
+        if (author == null || author == GuestUserReference.INSTANCE) {
+            return false;
+        }
+        return this.authorizationManager.hasAccess(Right.ADMIN, this.userReferenceSerializer.serialize(author),
+            document.getDocumentReference().getWikiReference());
+    }
 }

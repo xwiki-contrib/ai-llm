@@ -46,6 +46,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -101,13 +104,8 @@ class AuthorizedApplicationManagerTest extends PageTest
         loadPage(documentReference);
 
         // Create an application document with test data.
-        XWikiDocument applicationDocument = new XWikiDocument(APPLICATION_REFERENCE);
+        XWikiDocument applicationDocument = createApplicationDocument(APPLICATION_REFERENCE);
         applicationDocument.setAuthorReference(USER_REFERENCE);
-        BaseObject applicationObject = applicationDocument.newXObject(
-            AuthorizedApplicationManager.AUTHORIZED_APPLICATION_CLASS_REFERENCE, this.context);
-        applicationObject.set("groupFormat", GROUP_FORMAT, this.context);
-        applicationObject.set("publicKey", PUBLIC_KEY, this.context);
-        applicationObject.set("url", APPLICATION_URL, this.context);
         this.context.getWiki().saveDocument(applicationDocument, "Test data", this.context);
 
         when(this.queryManager.createQuery(any(), any())).thenReturn(this.query);
@@ -134,5 +132,34 @@ class AuthorizedApplicationManagerTest extends PageTest
         Ed25519PEMReader pemReader = this.componentManager.getInstance(Ed25519PEMReader.class);
         OctetKeyPair privateKey = pemReader.readPrivateEd25519KeyFromPEM(PRIVATE_KEY);
         assertArrayEquals(privateKey.getX().decode(), authorizedApplication.keyPair().getX().decode());
+    }
+
+    @Test
+    void getApplicationIgnoresADocumentWithoutAuthor() throws Exception
+    {
+        DocumentReference authorlessReference =
+            new DocumentReference("xwiki", "Applications", "AuthorlessApplication");
+        // The document is saved without any author: its effective metadata author is the guest user.
+        this.context.getWiki().saveDocument(createApplicationDocument(authorlessReference), "Test data",
+            this.context);
+        // Even an authorization manager that grants admin right to anyone, including a missing user, must not
+        // make the document an authorized application.
+        when(this.oldcore.getMockAuthorizationManager().hasAccess(eq(Right.ADMIN), any(), any())).thenReturn(true);
+        when(this.query.execute()).thenReturn(List.of(authorlessReference.toString()));
+
+        assertTrue(this.authorizedApplicationManager.getApplication(APPLICATION_URL).isEmpty());
+        // The missing author is never resolved to the current user: no right check happens at all.
+        verify(this.oldcore.getMockAuthorizationManager(), never()).hasAccess(any(), any(), any());
+    }
+
+    private XWikiDocument createApplicationDocument(DocumentReference reference) throws Exception
+    {
+        XWikiDocument applicationDocument = new XWikiDocument(reference);
+        BaseObject applicationObject = applicationDocument.newXObject(
+            AuthorizedApplicationManager.AUTHORIZED_APPLICATION_CLASS_REFERENCE, this.context);
+        applicationObject.set("groupFormat", GROUP_FORMAT, this.context);
+        applicationObject.set("publicKey", PUBLIC_KEY, this.context);
+        applicationObject.set("url", APPLICATION_URL, this.context);
+        return applicationDocument;
     }
 }

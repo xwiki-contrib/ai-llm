@@ -44,8 +44,6 @@ import org.xwiki.model.reference.EntityReference;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.model.reference.LocalDocumentReference;
 import org.xwiki.model.reference.ObjectReference;
-import org.xwiki.security.authorization.AuthorizationManager;
-import org.xwiki.security.authorization.Right;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.XWikiException;
@@ -143,7 +141,7 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
     private Provider<XWikiContext> contextProvider;
 
     @Inject
-    private AuthorizationManager authorizationManager;
+    private ConfigurationPageAuthorChecker configurationPageAuthorChecker;
 
     @Inject
     @Named("context")
@@ -174,14 +172,8 @@ public class ModelWikiObjectComponentBuilder implements WikiObjectComponentBuild
         XWikiContext context = this.contextProvider.get();
         try {
             XWikiDocument document = context.getWiki().getDocument(documentReference, context);
-            // Check wiki admin rights.
-            DocumentReference authorReference = document.getAuthorReference();
-            if (!this.authorizationManager.hasAccess(Right.ADMIN, authorReference,
-                documentReference.getWikiReference())) {
-                throw new WikiComponentException(String.format(
-                    "Failed to build component for object [%s], user [%s] does not have admin rights on the wiki.",
-                    reference, authorReference));
-            }
+            // Check wiki admin rights of the user who last saved the page.
+            this.configurationPageAuthorChecker.requireAdminAuthor(document, reference);
 
             BaseObject xObject = document.getXObject(reference);
 
