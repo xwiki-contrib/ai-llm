@@ -34,9 +34,20 @@ import org.xwiki.contrib.llm.ChatClientConfigProvider;
  */
 public final class CORSUtils
 {
-    private static final String CORS_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
-    private static final String CORS_ALLOW_METHODS = "Access-Control-Allow-Methods";
-    private static final String CORS_ALLOW_HEADERS = "Access-Control-Allow-Headers";
+    /**
+     * The name of the header that carries the allowed origin.
+     */
+    public static final String CORS_ALLOW_ORIGIN = "Access-Control-Allow-Origin";
+
+    /**
+     * The name of the header that carries the allowed methods.
+     */
+    public static final String CORS_ALLOW_METHODS = "Access-Control-Allow-Methods";
+
+    /**
+     * The name of the header that carries the allowed request headers.
+     */
+    public static final String CORS_ALLOW_HEADERS = "Access-Control-Allow-Headers";
 
     private CORSUtils()
     {
@@ -79,7 +90,24 @@ public final class CORSUtils
      */
     public static Response.ResponseBuilder addCORSHeaders(String origin, String methods, String headers)
     {
-        Response.ResponseBuilder builder = Response.ok();
+        return addCORSHeaders(Response.ok(), origin, methods, headers);
+    }
+
+    /**
+     * Add CORS headers to a response under construction. The allow-origin header carries the given origin and is
+     * omitted when the origin is {@code null}, i.e. when the request origin matched no configured chat client, so
+     * an unknown origin is never echoed back.
+     *
+     * @param builder the response under construction
+     * @param origin the matched origin of the request, or {@code null} when there is none
+     * @param methods the allowed methods
+     * @param headers the allowed headers
+     * @return the given builder with the CORS headers added
+     * @since 0.10.1
+     */
+    public static Response.ResponseBuilder addCORSHeaders(Response.ResponseBuilder builder, String origin,
+        String methods, String headers)
+    {
         if (origin != null) {
             builder.header(CORS_ALLOW_ORIGIN, origin);
         }
