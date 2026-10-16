@@ -107,7 +107,7 @@ public class DefaultCollection implements Collection
      * @param wikiId the id of the wiki of the collection
      * @param collectionId the id of the collection
      * @return the reference of the page of the collection
-     * @since 0.10.1
+     * @since 0.11
      */
     public static DocumentReference getDocumentReference(String wikiId, String collectionId)
     {

@@ -44,7 +44,7 @@ import com.xpn.xwiki.doc.XWikiDocument;
  * effective metadata author) must have admin right on the wiki the page configures.
  *
  * @version $Id$
- * @since 0.10.1
+ * @since 0.11
  */
 @Component(roles = MCPConfigPageAuthorship.class)
 @Singleton
@@ -68,7 +68,7 @@ public class MCPConfigPageAuthorship
      * @param configDoc the existing configuration page
      * @return the user who last saved the page (its effective metadata author), or {@code null} when the page
      *     records no author or the guest user
-     * @since 0.10.1
+     * @since 0.11
      */
     public DocumentReference authorOf(XWikiDocument configDoc)
     {
@@ -88,7 +88,7 @@ public class MCPConfigPageAuthorship
      * @param author the user who last saved the page, or {@code null} when the page records none
      * @param wikiId the wiki the page configures
      * @return whether the page's values may be applied
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean isTrusted(DocumentReference author, String wikiId)
     {
@@ -111,7 +111,7 @@ public class MCPConfigPageAuthorship
      *
      * @param doc the configuration page about to be saved
      * @param context the current context, carrying the acting user
-     * @since 0.10.1
+     * @since 0.11
      */
     public void stamp(XWikiDocument doc, XWikiContext context)
     {
@@ -128,7 +128,7 @@ public class MCPConfigPageAuthorship
      *
      * @param doc the replacement configuration page about to be saved
      * @param context the current context, carrying the acting user
-     * @since 0.10.1
+     * @since 0.11
      */
     public void takeOwnership(XWikiDocument doc, XWikiContext context)
     {

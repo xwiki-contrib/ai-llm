@@ -147,7 +147,7 @@ public class XWikiDocumentStoreHelper
      *
      * @param documentId the document id
      * @return the page reference, with its locale, or {@code null} when the id is not the exact id of a page
-     * @since 0.10.1
+     * @since 0.11
      */
     public DocumentReference resolveDocumentId(String documentId)
     {

@@ -38,7 +38,7 @@ import org.xwiki.environment.Environment;
  * a restart between the two steps.
  *
  * @version $Id$
- * @since 0.10.1
+ * @since 0.11
  */
 @Component(roles = XWikiDocumentStoreReindexMarker.class)
 @Singleton

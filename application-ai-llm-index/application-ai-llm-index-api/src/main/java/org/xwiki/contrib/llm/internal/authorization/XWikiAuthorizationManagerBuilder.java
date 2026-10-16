@@ -60,7 +60,7 @@ public class XWikiAuthorizationManagerBuilder implements AuthorizationManagerBui
     /**
      * The name of this rights checking method.
      *
-     * @since 0.10.1
+     * @since 0.11
      */
     public static final String NAME = "xwiki";
 

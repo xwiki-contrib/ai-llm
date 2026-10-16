@@ -103,7 +103,7 @@ public final class CORSUtils
      * @param methods the allowed methods
      * @param headers the allowed headers
      * @return the given builder with the CORS headers added
-     * @since 0.10.1
+     * @since 0.11
      */
     public static Response.ResponseBuilder addCORSHeaders(Response.ResponseBuilder builder, String origin,
         String methods, String headers)

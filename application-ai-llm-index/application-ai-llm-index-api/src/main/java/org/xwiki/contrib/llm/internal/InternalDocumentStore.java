@@ -327,7 +327,7 @@ public class InternalDocumentStore implements DocumentStore
      * @param collectionId the id of the collection
      * @param documentId the id of the document
      * @return the reference of the page that stores the document
-     * @since 0.10.1
+     * @since 0.11
      */
     public static DocumentReference getDocumentReference(String wikiId, String collectionId, String documentId)
     {
@@ -350,7 +350,7 @@ public class InternalDocumentStore implements DocumentStore
      * @param wikiId the id of the wiki of the collection
      * @param collectionId the id of the collection
      * @return the reference of the space that stores the documents of the collection
-     * @since 0.10.1
+     * @since 0.11
      */
     public static SpaceReference getDocumentsSpaceReference(String wikiId, String collectionId)
     {

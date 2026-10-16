@@ -110,7 +110,7 @@ public class MCPFarmScriptService implements ScriptService
      *
      * @param wikiId the wiki whose configuration page to check
      * @return whether the wiki's configuration page is trusted
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean isConfigurationTrusted(String wikiId)
     {
@@ -124,7 +124,7 @@ public class MCPFarmScriptService implements ScriptService
      * @param wikiId the wiki whose configuration page to inspect
      * @return the user who last saved the wiki's configuration page, or {@code null} when the current user
      *     cannot administer the wiki, the page does not exist or its author could not be read
-     * @since 0.10.1
+     * @since 0.11
      */
     public DocumentReference getConfigurationAuthor(String wikiId)
     {
@@ -144,7 +144,7 @@ public class MCPFarmScriptService implements ScriptService
      * @param wikiId the wiki whose configuration to reset
      * @return {@code true} if the configuration was reset, {@code false} when the user lacks admin rights on
      *     the wiki or the write failed
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean resetConfiguration(String wikiId)
     {
@@ -318,7 +318,7 @@ public class MCPFarmScriptService implements ScriptService
     /**
      * @param wikiId the wiki to check
      * @return whether unauthenticated (guest) callers may use the MCP endpoint of the given wiki
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean isGuestAccessAllowed(String wikiId)
     {
@@ -332,7 +332,7 @@ public class MCPFarmScriptService implements ScriptService
      * @param allowed whether guest callers may use the MCP endpoint of that wiki
      * @return {@code true} if the flag was written, {@code false} when the user lacks admin rights on the
      *     wiki or the write failed
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean setGuestAccessAllowed(String wikiId, boolean allowed)
     {
@@ -353,7 +353,7 @@ public class MCPFarmScriptService implements ScriptService
      * @param allowedWikiIds the subset of those wikis that should end up allowing guest access (may be
      *     {@code null} or empty)
      * @return the outcome counts of the apply
-     * @since 0.10.1
+     * @since 0.11
      */
     public BulkResult applyGuestAccess(String[] managedWikiIds, String[] allowedWikiIds)
     {

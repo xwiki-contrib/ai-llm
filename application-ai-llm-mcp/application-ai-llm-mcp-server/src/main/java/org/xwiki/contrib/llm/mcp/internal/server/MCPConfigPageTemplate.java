@@ -50,7 +50,7 @@ import com.xpn.xwiki.doc.XWikiDocument;
  * stored page, so nothing an untrusted author put on the page (objects, title, content) is kept.
  *
  * @version $Id$
- * @since 0.10.1
+ * @since 0.11
  */
 @Component(roles = MCPConfigPageTemplate.class)
 @Singleton
@@ -84,7 +84,7 @@ public class MCPConfigPageTemplate
      *     restored afterwards
      * @return the shipped page, or {@code null} when the UI module is not installed, its package does not carry
      *     the page, or the page cannot be read
-     * @since 0.10.1
+     * @since 0.11
      */
     public XWikiDocument shippedPage(String wikiId, XWikiContext context)
     {

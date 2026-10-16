@@ -48,7 +48,7 @@ import com.xpn.xwiki.XWikiContext;
  * {@link XWikiDocumentStoreReindexListener}.
  *
  * @version $Id$
- * @since 0.10.1
+ * @since 0.11
  */
 @Component(roles = XWikiDocumentStoreReindexer.class)
 @Singleton

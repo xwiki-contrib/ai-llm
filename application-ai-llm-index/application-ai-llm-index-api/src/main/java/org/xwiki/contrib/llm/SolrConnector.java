@@ -467,7 +467,7 @@ public class SolrConnector
      * version 0.4 that have no wiki field.
      *
      * @param wiki the wiki whose chunks are removed
-     * @since 0.10.1
+     * @since 0.11
      */
     public void clearIndexCore(String wiki) throws SolrServerException
     {
@@ -567,7 +567,7 @@ public class SolrConnector
      * @param locale the content language the returned chunks must be indexed under (exact match on the stored
      *     language field), or {@code null} to search all languages
      * @return a list of document details
-     * @since 0.10.1
+     * @since 0.11
      */
     public List<Context> similaritySearch(String textQuery,
                                                Map<String, String> collectionEmbeddingModelMap,
@@ -681,7 +681,7 @@ public class SolrConnector
      * @param locale the content language the returned chunks must be indexed under (exact match on the stored
      *     language field), or {@code null} to search all languages
      * @return a list of context chunks
-     * @since 0.10.1
+     * @since 0.11
      */
     public List<Context> keywordSearch(String textQuery, Map<String, String> collectionStoreHintMap, int limit,
         Locale locale)

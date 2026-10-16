@@ -46,7 +46,7 @@ import com.xpn.xwiki.XWikiContext;
  * cleanup of a new version and the re-queue both happen on that run, without waiting for a restart.</p>
  *
  * @version $Id$
- * @since 0.10.1
+ * @since 0.11
  */
 @Component
 @Named(XWikiDocumentStoreReindexListener.NAME)

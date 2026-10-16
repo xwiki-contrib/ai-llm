@@ -51,7 +51,7 @@ import com.xpn.xwiki.doc.XWikiDocument;
  * {@code security.script.save.checkAuthor} property to false switches the script-author rule off.
  *
  * @version $Id$
- * @since 0.10.1
+ * @since 0.11
  */
 @Component(roles = WriteAttribution.class)
 @Singleton

@@ -208,7 +208,7 @@ public class MCPServerConfiguration
      *
      * @param wikiId the wiki id to check
      * @return {@code true} only if a wiki descriptor exists for the id and carries exactly that id
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean isCanonicalWikiId(String wikiId)
     {
@@ -270,7 +270,7 @@ public class MCPServerConfiguration
      * @param wikiId the wiki whose configuration page to check
      * @return {@code true} when the page does not exist or was last saved by a user with admin right on the
      *     wiki; {@code false} otherwise, and when the page cannot be read
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean isConfigurationTrusted(String wikiId)
     {
@@ -288,7 +288,7 @@ public class MCPServerConfiguration
      * @param wikiId the wiki whose configuration page to inspect
      * @return the user who last saved the wiki's configuration page, or {@code null} when the page does not
      *     exist, records no author, or cannot be read
-     * @since 0.10.1
+     * @since 0.11
      */
     public DocumentReference getConfigurationAuthor(String wikiId)
     {
@@ -308,7 +308,7 @@ public class MCPServerConfiguration
      *
      * @param wikiId the wiki whose configuration to reset
      * @return {@code true} if the page was reset, {@code false} if the write failed
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean resetConfiguration(String wikiId)
     {
@@ -373,7 +373,7 @@ public class MCPServerConfiguration
      *
      * @param wikiId the wiki to check
      * @return whether guest callers may use the MCP endpoint of the given wiki
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean isGuestAccessAllowed(String wikiId)
     {
@@ -424,7 +424,7 @@ public class MCPServerConfiguration
      * @param wikiId the wiki whose flag to set
      * @param allowed whether guest callers may use the MCP endpoint of that wiki
      * @return {@code true} if the flag was written, {@code false} if the write failed
-     * @since 0.10.1
+     * @since 0.11
      */
     public boolean setGuestAccessAllowed(String wikiId, boolean allowed)
     {

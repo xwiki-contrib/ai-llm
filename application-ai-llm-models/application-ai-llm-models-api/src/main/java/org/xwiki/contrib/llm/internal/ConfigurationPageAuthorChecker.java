@@ -41,7 +41,7 @@ import com.xpn.xwiki.doc.XWikiDocument;
  * author is never trusted.
  *
  * @version $Id$
- * @since 0.10.1
+ * @since 0.11
  */
 @Component(roles = ConfigurationPageAuthorChecker.class)
 @Singleton
