@@ -230,10 +230,11 @@ class MCPSearchCollectionsToolTest
         assertEquals("Failed to search collections. Try again; if it persists, report it to a wiki "
             + "administrator (details are in the server logs).", text);
         assertFalse(text.contains("Solr unavailable"), text);
-        assertTrue(this.logCapture.getMessage(0)
-            .contains("MCP search_collections tool failed for query [failing query]"),
-            this.logCapture.getMessage(0));
-        assertTrue(this.logCapture.getMessage(0).contains("Solr unavailable"), this.logCapture.getMessage(0));
+        String logged = this.logCapture.getMessage(0);
+        assertTrue(logged.contains("MCP search_collections tool failed"), logged);
+        assertTrue(logged.contains("Solr unavailable"), logged);
+        // The agent-supplied query stays out of the logs.
+        assertFalse(logged.contains("failing query"), logged);
     }
 
     @Test

@@ -180,10 +180,8 @@ public class MCPSearchCollectionsTool implements MCPTool
             return MCPToolSupport.result(formatResults(results));
         } catch (IndexException e) {
             // Keep the root cause in the logs, off the wire.
-            this.logger.warn("MCP search_collections tool failed for query [{}]: [{}]", args.get(QUERY_PARAM),
-                ExceptionUtils.getRootCauseMessage(e));
-            this.logger.debug("MCP search_collections tool failure details for query [{}]",
-                args.get(QUERY_PARAM), e);
+            this.logger.warn("MCP search_collections tool failed: [{}]", ExceptionUtils.getRootCauseMessage(e));
+            this.logger.debug("MCP search_collections tool failure details", e);
             return MCPToolSupport.errorResult("Failed to search collections. Try again; if it persists, report it "
                 + "to a wiki administrator (details are in the server logs).");
         } catch (IllegalArgumentException e) {

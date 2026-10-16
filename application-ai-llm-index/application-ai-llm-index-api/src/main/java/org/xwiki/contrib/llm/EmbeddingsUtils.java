@@ -107,7 +107,8 @@ public class EmbeddingsUtils implements Initializable
                 .map(embeddings -> Arrays.copyOf(embeddings, AiLLMSolrCoreInitializer.NUMBER_OF_DIMENSIONS))
                 .toList();
         } catch (Exception e) {
-            throw new IndexException("Failed to compute embeddings for texts [" + texts + "]", e);
+            throw new IndexException("Failed to compute embeddings for [" + texts.size() + "] texts with model ["
+                + modelId + "]", e);
         }
     }
 

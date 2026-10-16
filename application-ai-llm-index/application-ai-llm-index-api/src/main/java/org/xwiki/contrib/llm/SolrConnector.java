@@ -511,7 +511,7 @@ public class SolrConnector
             SolrDocumentList documents = response.getResults();
             resultsList = collectResults(documents, includeVector);
         } catch (Exception e) {
-            logger.error("Search failed: {}", e.getMessage());
+            this.logger.error("Search failed", e);
         }
         return resultsList;
     }
@@ -629,7 +629,7 @@ public class SolrConnector
             }
 
         } catch (Exception e) {
-            logger.error("Similarity search failed: {}", e.getMessage(), e);
+            this.logger.error("Similarity search failed", e);
         }
         return resultsList;
     }
@@ -724,7 +724,7 @@ public class SolrConnector
                 SolrDocumentList documents = response.getResults();
                 resultsList = collectResults(documents, false);
             } catch (Exception e) {
-                this.logger.error("Keyword search failed: {}", e.getMessage(), e);
+                this.logger.error("Keyword search failed", e);
             }
         }
         return resultsList;

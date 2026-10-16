@@ -26,7 +26,6 @@ import javax.inject.Named;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.annotation.InstantiationStrategy;
 import org.xwiki.component.descriptor.ComponentInstantiationStrategy;
@@ -49,12 +48,13 @@ import ai.djl.repository.zoo.ZooModel;
 @Named("internal")
 public class InternalGPTAPIServer extends AbstractGPTAPIServer
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(InternalGPTAPIServer.class);
-
     private static final String CACHE_DIR_PROPERTY = "DJL_CACHE_DIR";
 
     @Inject
     private Environment environment;
+
+    @Inject
+    private Logger logger;
 
     @Override
     public List<double[]> embed(String modelName, List<String> texts) throws RequestError
@@ -98,7 +98,8 @@ public class InternalGPTAPIServer extends AbstractGPTAPIServer
             float[] embeddings = predictor.predict(text);
             return convertFloatToDouble(embeddings);
         } catch (Exception e) {
-            LOGGER.error("Failed to compute embeddings for text: {}", text, e);
+            this.logger.error("Failed to compute embeddings for a text of [{}] characters", StringUtils.length(text),
+                e);
             return new double[0];
         }
     }

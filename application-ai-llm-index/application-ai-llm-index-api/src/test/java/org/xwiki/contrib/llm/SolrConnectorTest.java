@@ -30,11 +30,13 @@ import javax.inject.Provider;
 
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
@@ -42,6 +44,8 @@ import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.search.solr.Solr;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.search.solr.XWikiSolrCore;
+import org.xwiki.test.LogLevel;
+import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
@@ -50,6 +54,7 @@ import com.xpn.xwiki.XWikiContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -90,6 +95,9 @@ class SolrConnectorTest
     private static final String MIXED_STORE_FILTER_QUERY =
         "(collection:escaped(internalCol) AND (storeHint:escaped(internal) OR (*:* AND -storeHint:[* TO *])))"
             + " OR (collection:escaped(xwikiCol) AND storeHint:escaped(xwiki))";
+
+    @RegisterExtension
+    private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.ERROR);
 
     @InjectMockComponents
     private SolrConnector solrConnector;
@@ -192,6 +200,35 @@ class SolrConnectorTest
             Arrays.toString(query.getFilterQueries()));
         assertTrue(query.getQuery().startsWith("{!knn"), query.getQuery());
         assertFalse(query.getQuery().contains("language"), query.getQuery());
+    }
+
+    @Test
+    void similaritySearchLogsAnEmbeddingFailureWithoutTheQuery() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenThrow(new IndexException("Failed to compute embeddings for [1] texts with model [m]"));
+
+        List<Context> results = this.solrConnector.similaritySearch("secret question", Map.of("col1", MODEL), 5);
+
+        assertTrue(results.isEmpty());
+        assertEquals(1, this.logCapture.size());
+        assertEquals("Similarity search failed", this.logCapture.getMessage(0));
+        // The failure is logged with its exception, whose message names the text count, not the query.
+        assertNotNull(this.logCapture.getLogEvent(0).getThrowableProxy());
+        assertFalse(this.logCapture.getLogEvent(0).getThrowableProxy().getMessage().contains("secret question"));
+    }
+
+    @Test
+    void searchLogsAFailureWithItsException() throws Exception
+    {
+        when(this.client.query(any())).thenThrow(new SolrServerException("Solr down"));
+
+        List<Context> results = this.solrConnector.search("*:*", 5, false);
+
+        assertTrue(results.isEmpty());
+        assertEquals(1, this.logCapture.size());
+        assertEquals("Search failed", this.logCapture.getMessage(0));
+        assertNotNull(this.logCapture.getLogEvent(0).getThrowableProxy());
     }
 
     @Test

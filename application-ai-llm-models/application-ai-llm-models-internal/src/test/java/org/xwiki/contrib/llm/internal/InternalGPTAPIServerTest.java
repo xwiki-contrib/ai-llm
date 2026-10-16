@@ -23,8 +23,11 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.xwiki.test.LogLevel;
 import org.xwiki.test.TestEnvironment;
 import org.xwiki.test.annotation.ComponentList;
+import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 
@@ -40,16 +43,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ComponentList(TestEnvironment.class)
 class InternalGPTAPIServerTest
 {
+    private static final String MODEL = "sentence-transformers/all-MiniLM-L6-v2";
+
+    @RegisterExtension
+    private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.ERROR);
+
     @InjectMockComponents
     private InternalGPTAPIServer server;
 
     @Test
     void embed() throws Exception
     {
-        List<double[]> embed = this.server.embed("sentence-transformers/all-MiniLM-L6-v2", List.of("XWiki is great!"));
+        List<double[]> embed = this.server.embed(MODEL, List.of("XWiki is great!"));
 
         assertEquals(1, embed.size());
         assertEquals(384, embed.get(0).length);
         assertTrue(Arrays.stream(embed.get(0)).anyMatch(x -> x != 0));
+    }
+
+    @Test
+    void embedLogsAFailedTextWithoutItsContent() throws Exception
+    {
+        // A null text cannot be tokenized: the failure of that text is logged and yields an empty embedding.
+        List<double[]> embed = this.server.embed(MODEL, Arrays.asList("XWiki is great!", null));
+
+        assertEquals(2, embed.size());
+        assertEquals(384, embed.get(0).length);
+        assertEquals(0, embed.get(1).length);
+        assertEquals(1, this.logCapture.size());
+        assertEquals("Failed to compute embeddings for a text of [0] characters", this.logCapture.getMessage(0));
     }
 }
