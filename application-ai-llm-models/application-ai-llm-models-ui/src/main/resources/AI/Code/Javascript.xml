@@ -1811,7 +1811,7 @@
     </property>
     <property>
       <parameters>id=xwiki-llm
-path=$xwiki.getURL("AI.Code.Javascript", "jsx", "language=$xcontext.language")</parameters>
+path=$xwiki.getURL('AI.Code.Javascript', 'jsx', $escapetool.url({'language': $xcontext.locale, 'docVersion': $xwiki.getDocument('AI.Code.Javascript').version}))</parameters>
     </property>
     <property>
       <scope>wiki</scope>
