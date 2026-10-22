@@ -32,6 +32,7 @@ import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -131,7 +133,8 @@ class SolrConnectorTest
     {
         when(this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE)).thenReturn(this.core);
         when(this.core.getClient()).thenReturn(this.client);
-        when(this.client.query(any())).thenReturn(this.queryResponse);
+        when(this.client.query(any(SolrQuery.class), eq(SolrRequest.METHOD.POST)))
+            .thenReturn(this.queryResponse);
         when(this.contextProvider.get()).thenReturn(this.xcontext);
         when(this.xcontext.getWikiId()).thenReturn("mywiki");
     }
@@ -381,7 +384,8 @@ class SolrConnectorTest
         this.solrConnector.similaritySearch(QUERY, Map.of("col1", MODEL), 5, null);
 
         ArgumentCaptor<SolrQuery> captor = ArgumentCaptor.forClass(SolrQuery.class);
-        verify(this.client, times(2)).query(captor.capture());
+        verify(this.client, times(2)).query(
+            captor.capture(), eq(SolrRequest.METHOD.POST));
         for (SolrQuery query : captor.getAllValues()) {
             assertTrue(Arrays.asList(query.getFilterQueries()).contains("collection:escaped(col1)"),
                 Arrays.toString(query.getFilterQueries()));
@@ -421,7 +425,7 @@ class SolrConnectorTest
     private SolrQuery capturedQuery() throws Exception
     {
         ArgumentCaptor<SolrQuery> captor = ArgumentCaptor.forClass(SolrQuery.class);
-        verify(this.client).query(captor.capture());
+        verify(this.client).query(captor.capture(), eq(SolrRequest.METHOD.POST));
         return captor.getValue();
     }
 }
