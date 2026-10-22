@@ -384,7 +384,7 @@ class SolrConnectorTest
         this.solrConnector.similaritySearch(QUERY, Map.of("col1", MODEL), 5, null);
 
         ArgumentCaptor<SolrQuery> captor = ArgumentCaptor.forClass(SolrQuery.class);
-        verify(client, times(2)).query(
+        verify(this.client, times(2)).query(
             captor.capture(), eq(SolrRequest.METHOD.POST));
         for (SolrQuery query : captor.getAllValues()) {
             assertTrue(Arrays.asList(query.getFilterQueries()).contains("collection:escaped(col1)"),
@@ -425,7 +425,7 @@ class SolrConnectorTest
     private SolrQuery capturedQuery() throws Exception
     {
         ArgumentCaptor<SolrQuery> captor = ArgumentCaptor.forClass(SolrQuery.class);
-        verify(client).query(captor.capture(), eq(SolrRequest.METHOD.POST));
+        verify(this.client).query(captor.capture(), eq(SolrRequest.METHOD.POST));
         return captor.getValue();
     }
 }
