@@ -162,6 +162,7 @@
             "ui.editLabel",
             "ui.settingsTitle",
             "editor.modal.title",
+            "editor.modal.failedToLoadForm",
             "ui.tempSlide",
             "ui.sysPromptLabel",
             "ui.userPromptLabel",

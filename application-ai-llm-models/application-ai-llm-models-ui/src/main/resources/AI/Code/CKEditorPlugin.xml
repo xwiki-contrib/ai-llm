@@ -169,7 +169,7 @@
             });
           }).fail(function() {
             var errorMessage = $('&lt;div class="box errormessage"&gt;&lt;/div&gt;')
-              .text(l10n.get('llm.editor.modal.failedToLoadForm'));
+              .text(l10n.get('editor.modal.failedToLoadForm'));
             modalBody.empty().append(errorMessage);
           }).always(function() {
             modalBody.removeClass('loading');

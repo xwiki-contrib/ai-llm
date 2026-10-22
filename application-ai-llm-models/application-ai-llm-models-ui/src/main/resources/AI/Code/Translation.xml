@@ -37,6 +37,7 @@
   <syntaxId>plain/1.0</syntaxId>
   <hidden>true</hidden>
   <content>llm.editor.modal.title=LLM Assistant
+llm.editor.modal.failedToLoadForm=The LLM assistant could not be loaded.
 llm.ui.copy=Copy
 llm.ui.copyLabel=Copy the message to clipboard.
 llm.ui.include=Include
