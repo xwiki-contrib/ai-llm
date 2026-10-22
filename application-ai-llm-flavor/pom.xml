@@ -71,5 +71,11 @@
         <type>xar</type>
         <version>${project.parent.version}</version>
     </dependency>
+    <dependency>
+        <groupId>org.xwiki.contrib.llm</groupId>
+        <artifactId>application-ai-llm-mcp-ui</artifactId>
+        <type>xar</type>
+        <version>${project.parent.version}</version>
+    </dependency>
   </dependencies>
 </project>
