@@ -153,7 +153,7 @@ public class MCPWriteDocumentTool implements MCPTool
     private static MCPToolSupport params(boolean crossWiki)
     {
         String referenceDescription = "The document reference to create or overwrite, e.g. \"Sandbox.WebHome\" "
-            + "or \"" + (crossWiki ? "xwiki:" : "") + "Help.Foo\".";
+            + "or \"" + (crossWiki ? "xwiki:" : "") + "Help.Foo\"." + MCPWriteSupport.REFERENCE_FORMS_SENTENCE;
         if (crossWiki) {
             referenceDescription += MCPReachAwareParams.CROSS_WIKI_REFERENCE_SENTENCE;
         }
@@ -223,10 +223,15 @@ public class MCPWriteDocumentTool implements MCPTool
                 hidden are per-row; objects, attachments and rights stay with the page.
                 hidden marks the page as a technical page (excluded from normal browsing and
                 search); with locale it applies to that translation row, like content and title.
+                Terminal vs nested: "Sales.Q1" creates a terminal page in the Sales space that cannot
+                hold child pages; "Sales.Q1.WebHome" creates the home page of a nested page Q1 that
+                can, which is what the wiki UI creates by default.
 
             EXAMPLES
                 Create:      reference="Sandbox.New", title="Hello",
                              content="= Hello =\\n\\nBody."
+                Create nested: reference="Sales.Q1.WebHome", title="Q1", content="..." (a page
+                             that can hold child pages such as Sales.Q1.Report)
                 Rewrite:     get_document reference="Sandbox.WebHome" (note its Version line),
                              then write_document reference="Sandbox.WebHome", base_version="4.3",
                              content="= Rewritten =\\n\\nNew body."

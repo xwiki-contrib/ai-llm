@@ -149,8 +149,9 @@ public class MCPManTool implements MCPTool
             [[Space.Page||queryString="a=1&b=2"]] link with a query string
             [[john@x.net>>mailto:john@x.net]]     email link
             [[attach:Space.Page@file.pdf]]        link to an attachment
-            Reference forms: Space.Page, Space.Page.WebHome (terminal), wiki:Space.Page (cross-wiki),
-            .Child or ../Sibling (relative to the current page).
+            Reference forms: Space.Page (terminal page), Space.Page.WebHome (page that can hold
+            children), wiki:Space.Page (cross-wiki), .Child or ../Sibling (relative to the current
+            page).
 
         IMAGES
             image:file.png                        attachment on the current page

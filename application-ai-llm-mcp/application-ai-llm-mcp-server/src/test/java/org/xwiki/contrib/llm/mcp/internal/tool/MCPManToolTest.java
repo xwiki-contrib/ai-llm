@@ -459,6 +459,7 @@ class MCPManToolTest extends AbstractMCPToolTest
         assertTrue(output.contains("XWiki Syntax 2.1"), output);
         assertTrue(output.contains("HEADINGS"), output);
         assertTrue(output.contains("**bold**"), output);
+        assertTrue(output.contains("Space.Page (terminal page), Space.Page.WebHome (page that can hold"), output);
     }
 
     @Test

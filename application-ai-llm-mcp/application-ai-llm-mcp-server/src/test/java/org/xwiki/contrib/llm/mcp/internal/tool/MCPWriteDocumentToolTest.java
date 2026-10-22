@@ -647,6 +647,15 @@ class MCPWriteDocumentToolTest extends AbstractMCPWriteToolTest
     }
 
     @Test
+    void referenceDescriptionTeachesNestedPagesAndEscapedDots()
+    {
+        assertTrue(referenceDescription().contains("end the reference with .WebHome"), referenceDescription());
+        assertTrue(this.tool.getManPage().contains("Terminal vs nested:"), this.tool.getManPage());
+        assertTrue(this.tool.getManPage().contains("Create nested: reference=\"Sales.Q1.WebHome\""),
+            this.tool.getManPage());
+    }
+
+    @Test
     void reachOffDropsCrossWikiFromReferenceDescription()
     {
         when(this.wikiReach.isReachEnabled()).thenReturn(false);

@@ -222,7 +222,7 @@ public class MCPEditDocumentTool implements MCPTool
     private static MCPToolSupport params(boolean crossWiki)
     {
         String referenceDescription = "The document reference to edit or create, e.g. \"Sandbox.WebHome\" "
-            + "or \"" + (crossWiki ? "xwiki:" : "") + "Help.Foo\".";
+            + "or \"" + (crossWiki ? "xwiki:" : "") + "Help.Foo\"." + MCPWriteSupport.REFERENCE_FORMS_SENTENCE;
         if (crossWiki) {
             referenceDescription += MCPReachAwareParams.CROSS_WIKI_REFERENCE_SENTENCE;
         }

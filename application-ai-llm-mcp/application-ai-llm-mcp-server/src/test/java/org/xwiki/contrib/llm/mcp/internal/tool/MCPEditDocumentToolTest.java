@@ -831,6 +831,12 @@ class MCPEditDocumentToolTest extends AbstractMCPWriteToolTest
     }
 
     @Test
+    void referenceDescriptionTeachesNestedPagesAndEscapedDots()
+    {
+        assertTrue(referenceDescription().contains("end the reference with .WebHome"), referenceDescription());
+    }
+
+    @Test
     void reachOffDropsCrossWikiFromReferenceDescription()
     {
         when(this.wikiReach.isReachEnabled()).thenReturn(false);
