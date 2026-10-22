@@ -326,8 +326,9 @@ public class SolrConnector
         List<?> vectorField = (List<?>) solrDocument.getFieldValue(AiLLMSolrCoreInitializer.FIELD_VECTOR);
         if (vectorField != null) {
             result.setEmbeddings(vectorField.stream()
-                .map(String.class::cast)
-                .mapToDouble(Double::parseDouble)
+                .mapToDouble(value -> value instanceof Number
+                    ? ((Number) value).doubleValue()
+                    : Double.parseDouble((String) value))
                 .toArray());
         }
         return result;
