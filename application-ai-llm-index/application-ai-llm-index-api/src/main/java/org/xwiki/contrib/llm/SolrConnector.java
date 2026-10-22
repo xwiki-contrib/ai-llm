@@ -37,6 +37,7 @@ import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
@@ -294,7 +295,7 @@ public class SolrConnector
         try {
             SolrClient client =
                 this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient();
-            QueryResponse response = client.query(query);
+            QueryResponse response = client.query(query, SolrRequest.METHOD.POST);
             SolrDocumentList documents = response.getResults();
             return documents.stream()
                 .map(this::toChunk)
@@ -415,7 +416,7 @@ public class SolrConnector
         try {
             SolrClient client =
                 this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient();
-            QueryResponse response = client.query(query);
+            QueryResponse response = client.query(query, SolrRequest.METHOD.POST);
             SolrDocumentList documents = response.getResults();
             return documents.stream()
                 .map(document -> String.valueOf(document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_DOC_ID)))
@@ -508,7 +509,7 @@ public class SolrConnector
                             AiLLMSolrCoreInitializer.FIELD_VECTOR
                             );
             query.setRows(limit);
-            QueryResponse response = client.query(query);
+            QueryResponse response = client.query(query, SolrRequest.METHOD.POST);
             SolrDocumentList documents = response.getResults();
             resultsList = collectResults(documents, includeVector);
         } catch (Exception e) {
@@ -616,7 +617,7 @@ public class SolrConnector
                 String embeddingsAsString = arrayToString(queryEmbeddings);
                 SolrQuery query = prepareQuery(embeddingsAsString, collectionsWithSameEmbeddingModel,
                     collectionStoreHintMap, limit, locale);
-                QueryResponse response = client.query(query);
+                QueryResponse response = client.query(query, SolrRequest.METHOD.POST);
                 SolrDocumentList documents = response.getResults();
                 resultsList.addAll(collectResults(documents, false));
 
@@ -721,7 +722,7 @@ public class SolrConnector
                 // Constructing the filter query from the collections list
                 addCollectionsQuery(collections, collectionStoreHintMap, query);
                 addLanguageQuery(locale, query);
-                QueryResponse response = client.query(query);
+                QueryResponse response = client.query(query, SolrRequest.METHOD.POST);
                 SolrDocumentList documents = response.getResults();
                 resultsList = collectResults(documents, false);
             } catch (Exception e) {
