@@ -187,7 +187,7 @@
       <serverName/>
     </property>
     <property>
-      <type/>
+      <type>llm</type>
     </property>
   </object>
 </xwikidoc>

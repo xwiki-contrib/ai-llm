@@ -54,13 +54,30 @@
   'forceSkinAction': true,
   'language': $xcontext.locale
 }))
+#set ($discard = $xwiki.jsx.use('AI.Models.Code.ModelsSheet'))
+#set ($discard = $xwiki.ssx.use('AI.Models.Code.ModelsSheet'))
 #set ($discard = $doc.use($object))
 #set ($editing = $xcontext.action == 'edit')
+#set ($modelType = "$!object.getValue('type')")
+## Properties that are only used for one type of model: contextSize is only read for large language models while the
+## embedding prefixes, the dimensions and the maximum parallelism are only read for embedding models.
+#set ($llmOnlyProperties = ['contextSize'])
+#set ($embOnlyProperties = ['embeddingIndexPrefix', 'embeddingQueryPrefix', 'dimensions', 'maximumParallelism'])
 {{html wiki="true" clean="false"}}
-&lt;div class="xform"&gt;
-  &lt;dl&gt;
+&lt;div class="xform llm-model-sheet"&gt;
+  &lt;dl class="llm-model-properties" data-saved-model-type="$escapetool.xml($modelType)"&gt;
   #set ($xclass = $object.xWikiClass)
   #foreach ($property in $xclass.properties)
+    #set ($propertyModelType = '')
+    #if ($llmOnlyProperties.contains($property.name))
+      #set ($propertyModelType = 'llm')
+    #elseif ($embOnlyProperties.contains($property.name))
+      #set ($propertyModelType = 'emb')
+    #end
+    #set ($hideProperty = $propertyModelType != '' &amp;&amp; $modelType != '' &amp;&amp; $propertyModelType != $modelType)
+    #if ($propertyModelType != '')
+    &lt;div data-model-type="$propertyModelType"#if ($hideProperty) hidden#end&gt;
+    #end
     &lt;dt #if (!$editing &amp;&amp; $hasEdit)
         class="editableProperty"
         #set ($xobjectPropertyReference = $object.getPropertyReference($property.name))
@@ -75,8 +92,13 @@
       &lt;span class="xHint"&gt;$!escapetool.xml($services.localization.render($property.hint))&lt;/span&gt;
     &lt;/dt&gt;
     &lt;dd&gt;$doc.display($property.name)&lt;/dd&gt;
+    #if ($propertyModelType != '')
+    &lt;/div&gt;
+    #end
   #end
-  &lt;div class="llm-chat-filters"&gt;
+  &lt;/dl&gt;
+  ## The chat request filters are only used for large language models, see ModelWikiObjectComponentBuilder.
+  &lt;div class="llm-chat-filters" data-model-type="llm"#if ($modelType != '' &amp;&amp; $modelType != 'llm') hidden#end&gt;
     == {{translation key="llm.models.filter.title" /}} ==
 
     ## Save any added objects
@@ -85,11 +107,289 @@
     &lt;/div&gt;
 
     #foreach($filter in $services.llm.models.chatRequestFilters)
-      #set ($object = $doc.getObject($filter.classReference, true))
+      #set ($discard = $doc.getObject($filter.classReference, true))
       {{include reference="$services.rendering.escape($filter.sheetReference, 'xwiki/2.1')" author="target" /}}
 
     #end
+  &lt;/div&gt;
 &lt;/div&gt;
 {{/html}}
 {{/velocity}}</content>
+  <object>
+    <name>AI.Models.Code.ModelsSheet</name>
+    <number>0</number>
+    <className>XWiki.JavaScriptExtension</className>
+    <guid>00529947-e9a4-4bee-9fba-8f3e66f45b69</guid>
+    <class>
+      <name>XWiki.JavaScriptExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>require(['jquery'], function($) {
+    'use strict';
+
+    // Matches the type select both in the full edit action and in the inline (editable property) editor.
+    const typeSelectSelector = 'select[id^="AI.Models.Code.ModelsClass_"][id$="_type"]';
+
+    // Shows only the elements that are relevant for the given model type. An empty type shows everything.
+    function toggleModelTypeFields(modelType) {
+        document.querySelectorAll('.llm-model-sheet [data-model-type]').forEach(function(element) {
+            element.hidden = modelType !== '' &amp;&amp; element.dataset.modelType !== modelType;
+        });
+    }
+
+    function getSavedModelType() {
+        const container = document.querySelector('.llm-model-sheet [data-saved-model-type]');
+        return container ? container.dataset.savedModelType : '';
+    }
+
+    function setSavedModelType(modelType) {
+        const container = document.querySelector('.llm-model-sheet [data-saved-model-type]');
+        if (container) {
+            container.dataset.savedModelType = modelType;
+        }
+    }
+
+    function init() {
+        const typeSelect = document.querySelector(typeSelectSelector);
+        if (typeSelect &amp;&amp; !typeSelect.dataset.modelTypeToggleInitialized) {
+            typeSelect.dataset.modelTypeToggleInitialized = 'true';
+            toggleModelTypeFields(typeSelect.value);
+            typeSelect.addEventListener('change', function() {
+                toggleModelTypeFields(typeSelect.value);
+            });
+            // When the type is edited in place in view mode, revert the visibility when the edit is canceled and
+            // remember the new type when it is saved. Both events are triggered on the editable property editor,
+            // which is the closest dd ancestor of the select. The editor element is reused between edits, so remove
+            // previously attached listeners first. Note that after a save, editableProperty.js also triggers a
+            // cancel on the still-visible editor; that is harmless because the saved type was already updated, so
+            // the cancel handler re-applies the value that was just saved.
+            $(typeSelect).closest('dd')
+                .off('.modelTypeToggle')
+                .on('xwiki:actions:cancel.modelTypeToggle', function() {
+                    toggleModelTypeFields(getSavedModelType());
+                })
+                .on('xwiki:document:saved.modelTypeToggle', function() {
+                    setSavedModelType(typeSelect.value);
+                    toggleModelTypeFields(typeSelect.value);
+                });
+        }
+    }
+
+    $(document).on('xwiki:dom:updated', init);
+    $(init);
+});</code>
+    </property>
+    <property>
+      <name>Toggle model properties by type</name>
+    </property>
+    <property>
+      <parse>0</parse>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
+  <object>
+    <name>AI.Models.Code.ModelsSheet</name>
+    <number>0</number>
+    <className>XWiki.StyleSheetExtension</className>
+    <guid>789fc48d-5450-444b-b1b8-5f12107e7b09</guid>
+    <class>
+      <name>XWiki.StyleSheetExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <contentType>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>contentType</name>
+        <number>6</number>
+        <prettyName>Content Type</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>CSS|LESS</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </contentType>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>/* Keep the spacing between properties when a dt/dd pair is wrapped in a div for the type-based toggling. */
+.xform dl div dt:first-of-type {
+  margin-top: floor(@font-size-base * 1.4);
+}</code>
+    </property>
+    <property>
+      <contentType>LESS</contentType>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse>0</parse>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
 </xwikidoc>
