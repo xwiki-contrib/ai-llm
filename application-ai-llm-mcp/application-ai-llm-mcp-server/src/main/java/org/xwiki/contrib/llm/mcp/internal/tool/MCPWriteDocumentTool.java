@@ -225,7 +225,9 @@ public class MCPWriteDocumentTool implements MCPTool
                 search); with locale it applies to that translation row, like content and title.
                 Terminal vs nested: "Sales.Q1" creates a terminal page in the Sales space that cannot
                 hold child pages; "Sales.Q1.WebHome" creates the home page of a nested page Q1 that
-                can, which is what the wiki UI creates by default.
+                can, which is what the wiki UI creates by default. Every dot in a reference separates
+                nesting levels; a dot that is part of a name is escaped with a backslash, e.g.
+                "Sales.Q1\\.2026.WebHome" for a page named "Q1.2026".
 
             EXAMPLES
                 Create:      reference="Sandbox.New", title="Hello",

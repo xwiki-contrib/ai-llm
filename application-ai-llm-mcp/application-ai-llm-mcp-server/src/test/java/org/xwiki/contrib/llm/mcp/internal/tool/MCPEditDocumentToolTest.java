@@ -834,6 +834,7 @@ class MCPEditDocumentToolTest extends AbstractMCPWriteToolTest
     void referenceDescriptionTeachesNestedPagesAndEscapedDots()
     {
         assertTrue(referenceDescription().contains("end the reference with .WebHome"), referenceDescription());
+        assertTrue(referenceDescription().contains("\"Sales.Q1\\.2026.WebHome\""), referenceDescription());
     }
 
     @Test

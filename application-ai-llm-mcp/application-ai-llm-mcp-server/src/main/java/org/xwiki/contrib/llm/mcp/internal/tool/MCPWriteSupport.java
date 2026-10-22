@@ -111,12 +111,13 @@ final class MCPWriteSupport
     /**
      * The reference rules a creating tool teaches in its {@code reference} description: a plain
      * {@code Space.Page} reference creates a terminal page, a page that can hold children is its
-     * {@code WebHome}. Shared by write_document and edit_document so the
+     * {@code WebHome}, and a dot inside a name is escaped. Shared by write_document and edit_document so the
      * two descriptions cannot drift apart.
      */
     static final String REFERENCE_FORMS_SENTENCE = " \"Space.Page\" creates a terminal page that cannot hold "
         + "child pages; for a page that can, as the wiki UI creates by default, end the reference with .WebHome, "
-        + "e.g. \"Sales.Q1.WebHome\".";
+        + "e.g. \"Sales.Q1.WebHome\". A dot inside a name is escaped with a backslash: "
+        + "\"Sales.Q1\\.2026.WebHome\".";
 
     /**
      * The target noun of the write tools' default-language success messages (e.g. {@code Created

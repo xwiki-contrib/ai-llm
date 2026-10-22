@@ -151,7 +151,7 @@ public class MCPManTool implements MCPTool
             [[attach:Space.Page@file.pdf]]        link to an attachment
             Reference forms: Space.Page (terminal page), Space.Page.WebHome (page that can hold
             children), wiki:Space.Page (cross-wiki), .Child or ../Sibling (relative to the current
-            page).
+            page). A dot inside a name is escaped with a backslash: Space.My\\.Page.
 
         IMAGES
             image:file.png                        attachment on the current page

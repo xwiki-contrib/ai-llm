@@ -650,6 +650,7 @@ class MCPWriteDocumentToolTest extends AbstractMCPWriteToolTest
     void referenceDescriptionTeachesNestedPagesAndEscapedDots()
     {
         assertTrue(referenceDescription().contains("end the reference with .WebHome"), referenceDescription());
+        assertTrue(referenceDescription().contains("\"Sales.Q1\\.2026.WebHome\""), referenceDescription());
         assertTrue(this.tool.getManPage().contains("Terminal vs nested:"), this.tool.getManPage());
         assertTrue(this.tool.getManPage().contains("Create nested: reference=\"Sales.Q1.WebHome\""),
             this.tool.getManPage());

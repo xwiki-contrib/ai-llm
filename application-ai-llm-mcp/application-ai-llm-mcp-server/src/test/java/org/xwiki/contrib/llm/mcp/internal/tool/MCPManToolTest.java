@@ -460,6 +460,7 @@ class MCPManToolTest extends AbstractMCPToolTest
         assertTrue(output.contains("HEADINGS"), output);
         assertTrue(output.contains("**bold**"), output);
         assertTrue(output.contains("Space.Page (terminal page), Space.Page.WebHome (page that can hold"), output);
+        assertTrue(output.contains("escaped with a backslash: Space.My\\.Page."), output);
     }
 
     @Test
