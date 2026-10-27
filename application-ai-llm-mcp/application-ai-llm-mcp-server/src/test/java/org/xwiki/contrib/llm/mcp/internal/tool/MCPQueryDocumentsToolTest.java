@@ -40,7 +40,6 @@ import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
-import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.search.solr.SolrUtils;
@@ -50,6 +49,10 @@ import org.xwiki.test.junit5.LogCaptureExtension;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.user.SuperAdminUserReference;
+import org.xwiki.user.UserReference;
+import org.xwiki.user.UserReferenceResolver;
+import org.xwiki.user.UserReferenceSerializer;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -108,11 +111,10 @@ class MCPQueryDocumentsToolTest extends AbstractMCPToolTest
     private DocumentReferenceResolver<String> referenceResolver;
 
     @MockComponent
-    @Named("user")
-    private DocumentReferenceResolver<String> userReferenceResolver;
+    private UserReferenceResolver<String> userReferenceResolver;
 
     @MockComponent
-    private EntityReferenceSerializer<String> entityReferenceSerializer;
+    private UserReferenceSerializer<String> userReferenceSerializer;
 
     @BeforeEach
     void setUp() throws Exception
@@ -414,9 +416,9 @@ class MCPQueryDocumentsToolTest extends AbstractMCPToolTest
     @Test
     void authorNameIsNormalizedToUserReference() throws QueryException
     {
-        DocumentReference adminReference = mock(DocumentReference.class);
+        UserReference adminReference = mock(UserReference.class);
         when(this.userReferenceResolver.resolve("Admin")).thenReturn(adminReference);
-        when(this.entityReferenceSerializer.serialize(adminReference)).thenReturn("xwiki:XWiki.Admin");
+        when(this.userReferenceSerializer.serialize(adminReference)).thenReturn("xwiki:XWiki.Admin");
         stubQuery(List.of());
 
         this.tool.execute(request("query_documents", Map.of("query", "x", "author", "Admin")));
@@ -425,11 +427,25 @@ class MCPQueryDocumentsToolTest extends AbstractMCPToolTest
     }
 
     @Test
+    void superadminAuthorIsSerializedLikeTheIndexer() throws QueryException
+    {
+        // The platform's string user reference serializer writes the superadmin as XWiki.superadmin, with no wiki
+        // prefix, which is what the Solr author field stores; the filter must use the same component.
+        when(this.userReferenceResolver.resolve("superadmin")).thenReturn(SuperAdminUserReference.INSTANCE);
+        when(this.userReferenceSerializer.serialize(SuperAdminUserReference.INSTANCE)).thenReturn("XWiki.superadmin");
+        stubQuery(List.of());
+
+        this.tool.execute(request("query_documents", Map.of("query", "x", "author", "superadmin")));
+
+        assertTrue(captureFilterQueries().contains("author:XWiki.superadmin"), captureFilterQueries().toString());
+    }
+
+    @Test
     void emptyResultEchoesActiveFilters() throws QueryException
     {
-        DocumentReference adminReference = mock(DocumentReference.class);
+        UserReference adminReference = mock(UserReference.class);
         when(this.userReferenceResolver.resolve("Admin")).thenReturn(adminReference);
-        when(this.entityReferenceSerializer.serialize(adminReference)).thenReturn("xwiki:XWiki.Admin");
+        when(this.userReferenceSerializer.serialize(adminReference)).thenReturn("xwiki:XWiki.Admin");
         stubQuery(List.of(), null, 0);
 
         McpSchema.CallToolResult result = this.tool.execute(request("query_documents",

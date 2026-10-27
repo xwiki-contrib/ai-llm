@@ -42,13 +42,14 @@ import org.xwiki.contrib.llm.mcp.MCPReachAwareParams;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.MCPWikiReach;
-import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
-import org.xwiki.model.reference.EntityReferenceSerializer;
 import org.xwiki.query.Query;
 import org.xwiki.query.QueryException;
 import org.xwiki.search.solr.SolrUtils;
 import org.xwiki.search.solr.internal.api.FieldUtils;
+import org.xwiki.user.UserReference;
+import org.xwiki.user.UserReferenceResolver;
+import org.xwiki.user.UserReferenceSerializer;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -83,9 +84,10 @@ import io.modelcontextprotocol.spec.McpSchema;
 @Component
 @Named(MCPQueryDocumentsTool.TOOL_ID)
 @Singleton
-// Author normalization pulls in a user reference resolver and serializer, and the locale filter
-// (LLMAI-160) adds java.util.Locale and the localized content-field plumbing, measuring 23 referenced
-// types out of the 20 allowed on an otherwise cohesive tool.
+// Author normalization pulls in the platform's user reference type, resolver and serializer (the
+// indexer's own, so the filter matches the stored field), and the locale filter (LLMAI-160) adds
+// java.util.Locale and the localized content-field plumbing, measuring 24 referenced types out of the
+// 20 allowed on an otherwise cohesive tool.
 @SuppressWarnings("checkstyle:ClassFanOutComplexity")
 public class MCPQueryDocumentsTool implements MCPTool
 {
@@ -268,11 +270,10 @@ public class MCPQueryDocumentsTool implements MCPTool
     private DocumentReferenceResolver<String> referenceResolver;
 
     @Inject
-    @Named("user")
-    private DocumentReferenceResolver<String> userReferenceResolver;
+    private UserReferenceResolver<String> userReferenceResolver;
 
     @Inject
-    private EntityReferenceSerializer<String> entityReferenceSerializer;
+    private UserReferenceSerializer<String> userReferenceSerializer;
 
     /**
      * Builds the declared parameter set, only including the cross-wiki {@code wiki} parameter and the
@@ -853,11 +854,17 @@ public class MCPQueryDocumentsTool implements MCPTool
 
     /**
      * Normalizes an author filter into the serialized user reference the Solr {@code author} field stores,
-     * so that a bare user name matches. Resolving through the {@code user} resolver defaults the space to
-     * {@code XWiki} and the wiki to the current one, so {@code "Admin"}, {@code "XWiki.Admin"} and
-     * {@code "xwiki:XWiki.Admin"} all normalize to the same reference. A blank value is returned unchanged;
-     * a value that cannot be resolved is left as-is so it is still applied (and surfaced by the
-     * empty-result filter echo).
+     * so that a bare user name matches. The value is resolved and serialized with the platform's user
+     * reference components, the same ones the Solr document indexer uses to fill the field: the resolver
+     * defaults the space to {@code XWiki} and the wiki to the main wiki, where users normally live (a
+     * local user of another wiki is named with its wiki prefix), so {@code "Admin"}, {@code "XWiki.Admin"}
+     * and {@code "xwiki:XWiki.Admin"} all normalize to the same reference whichever wiki's endpoint is
+     * called, and the
+     * serializer writes the special users the way the indexer does ({@code "superadmin"} and
+     * {@code "XWiki.superadmin"} both become {@code XWiki.superadmin}, the guest user
+     * {@code XWiki.XWikiGuest}, whereas a document reference serializer would prefix them with the wiki
+     * and never match). A blank value is returned unchanged; a value that cannot be resolved is left as-is
+     * so it is still applied (and surfaced by the empty-result filter echo).
      *
      * @param author the raw author argument, possibly blank
      * @return the serialized user reference, or the original value when blank or unresolvable
@@ -868,8 +875,8 @@ public class MCPQueryDocumentsTool implements MCPTool
             return author;
         }
         try {
-            DocumentReference userReference = this.userReferenceResolver.resolve(author);
-            return userReference != null ? this.entityReferenceSerializer.serialize(userReference) : author;
+            UserReference userReference = this.userReferenceResolver.resolve(author);
+            return userReference != null ? this.userReferenceSerializer.serialize(userReference) : author;
         } catch (RuntimeException e) {
             this.logger.debug("MCP query_documents could not normalize author [{}]", author, e);
             return author;
