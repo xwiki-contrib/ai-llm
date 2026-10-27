@@ -299,6 +299,15 @@ public class MCPGetTreeTool implements MCPTool
 
     private static final String TERMINAL_NOTE = "This page is terminal and has no child pages.";
 
+    /**
+     * Opens the note that a bare root name also names a page in the resolver's default space, shadowed by
+     * the top-level space that won the resolution; the rendered page reference follows, then
+     * {@link #SHADOWED_PAGE_TAIL}.
+     */
+    private static final String SHADOWED_PAGE_HEAD = "Note: a page " + QUOTE;
+
+    private static final String SHADOWED_PAGE_TAIL = QUOTE + " also exists; pass that reference to explore it instead.";
+
     private static final String NO_CHILDREN = "No child pages.";
 
     private static final String NO_SPACES = "No visible spaces.";
@@ -439,7 +448,8 @@ public class MCPGetTreeTool implements MCPTool
         EXAMPLES
             Survey this wiki:     (call with no arguments)
             A subtree:            root="Sales.WebHome", depth=3
-            A space by name:      root="Sales"   (resolves to Sales.WebHome when Sales is not a page)
+            A space by name:      root="Sales"   (resolves to Sales.WebHome when that space exists;
+                                                  a same-named page in Main is then only noted)
             Page a root:          root="Sales.WebHome", limit=20, offset=20
         """;
 
@@ -515,7 +525,9 @@ public class MCPGetTreeTool implements MCPTool
     {
         return MCPToolSupport.builder()
             .string(ROOT_PARAM, "Optional page reference to explore from (dotted, e.g. \"Sales.WebHome\" or "
-                + "\"Sales\"). Omit for a survey of the whole wiki: one summary line per top-level space.")
+                + "\"Sales\"). A bare name resolves to that top-level space's home when it exists, otherwise to "
+                + "the page of that name in the current space. Omit for a survey of the whole wiki: one summary "
+                + "line per top-level space.")
             .stringIf(crossWiki, WIKI_PARAM, "Optional wiki id to render instead of the current wiki (see "
                 + "list_wikis). One wiki per call.")
             .integer(DEPTH_PARAM, "How many levels deep to render (default 2, clamped to 1-4)." + EXPLORE_ONLY)
@@ -601,10 +613,12 @@ public class MCPGetTreeTool implements MCPTool
     /**
      * Resolves the tree root within the already-resolved target wiki. A blank root is a whole-wiki survey; a
      * page root goes through the sanctioned resolve-and-authorize door, which resolves it into the target wiki
-     * (rejecting a contradicting wiki prefix), enforces {@link Right#VIEW} and applies the space filter. A bare
-     * space name whose literal resolution names no existing document follows that space's home instead (see
-     * {@link #followSpaceHome}), so {@code root="Sales"} explores the Sales space as promised by the parameter
-     * description; the header then displays the followed reference.
+     * (rejecting a contradicting wiki prefix), enforces {@link Right#VIEW} and applies the space filter. A
+     * literal resolution that is itself a {@code WebHome} is the root as-is. Otherwise a bare name (no dot)
+     * prefers the top-level space of that name (see {@link #preferTopLevelSpace}), so {@code root="Sales"}
+     * explores the Sales space even when a {@code Main.Sales} page exists, and a dotted root follows its space
+     * home only when the literal names no existing document (see {@link #followSpaceHome}); the header then
+     * displays the resolved reference.
      *
      * @param root the raw root argument, or {@code null}/blank for a survey
      * @param targetWiki the resolved target wiki id
@@ -616,52 +630,126 @@ public class MCPGetTreeTool implements MCPTool
     {
         boolean sameWiki = targetWiki.equals(this.contextProvider.get().getWikiId());
         if (StringUtils.isBlank(root)) {
-            return new RootScope(targetWiki, null, true, sanitizeReference(targetWiki), false, sameWiki);
+            return new RootScope(targetWiki, null, true, sanitizeReference(targetWiki), false, sameWiki, null);
         }
         WikiReference wikiContext = new WikiReference(targetWiki);
         DocumentReference literal = this.documentAccess.resolveAndAuthorize(root, Right.VIEW, wikiContext);
-        DocumentReference rootDoc = followSpaceHome(root, literal, wikiContext);
-        boolean terminal = !WEBHOME.equals(rootDoc.getName());
-        return new RootScope(targetWiki, rootDoc, false, renderRef(rootDoc, sameWiki), terminal, sameWiki);
+        if (WEBHOME.equals(literal.getName())) {
+            return pageScope(targetWiki, literal, sameWiki, null);
+        }
+        if (root.contains(PERIOD)) {
+            return pageScope(targetWiki, followSpaceHome(root, literal, wikiContext), sameWiki, null);
+        }
+        return preferTopLevelSpace(root, literal, wikiContext, targetWiki, sameWiki);
     }
 
     /**
-     * Follows a bare space name to that space's home. When the literal, already-authorized resolution is not
-     * itself a {@code WebHome} and names no existing document, the raw input with {@code .WebHome} appended is
-     * resolved and authorized through the same door (appending to the raw string, so a bare {@code "Sandbox"}
-     * yields the top-level {@code Sandbox.WebHome} rather than a home under the resolver's default space).
-     * The fallback is used only when it resolves to a {@code WebHome} different from the literal reference;
-     * a denied or unhelpful fallback keeps the literal behavior. The literal reference is authorized before
-     * any existence probe, and the fallback is authorized before its result is used, so this leaks no
-     * existence information about unauthorized documents.
+     * Builds the scope of a resolved page root.
+     *
+     * @param targetWiki the resolved target wiki id
+     * @param rootDoc the resolved page root
+     * @param sameWiki whether the target wiki is the endpoint's own (context) wiki
+     * @param note the note rendered under the root line, or {@code null} for none
+     * @return the page root scope
+     */
+    private RootScope pageScope(String targetWiki, DocumentReference rootDoc, boolean sameWiki, String note)
+    {
+        boolean terminal = !WEBHOME.equals(rootDoc.getName());
+        return new RootScope(targetWiki, rootDoc, false, renderRef(rootDoc, sameWiki), terminal, sameWiki,
+            note);
+    }
+
+    /**
+     * Resolves a bare root name, where the top-level space of that name takes precedence over the literal
+     * resolution (which the resolver places in its default space, typically {@code Main.Sales} for
+     * {@code "Sales"}). Both candidates are authorized before any existence is observed: a denied or unhelpful
+     * space-home candidate keeps the literal behavior outright. When the space home exists it is the root, and
+     * a literal page that also exists is named in a note so the agent can still reach it; when the space home
+     * is missing, an existing literal page is the root, and a missing one falls back to the space home.
+     *
+     * @param root the raw, dot-free root argument
+     * @param literal the literal, already-authorized, non-{@code WebHome} resolution of {@code root}
+     * @param wikiContext the wiki the call operates on
+     * @param targetWiki the resolved target wiki id
+     * @param sameWiki whether the target wiki is the endpoint's own (context) wiki
+     * @return the page root scope
+     */
+    private RootScope preferTopLevelSpace(String root, DocumentReference literal, WikiReference wikiContext,
+        String targetWiki, boolean sameWiki)
+    {
+        DocumentReference spaceHome = authorizedSpaceHome(root, literal, wikiContext);
+        if (spaceHome == null) {
+            return pageScope(targetWiki, literal, sameWiki, null);
+        }
+        boolean literalExists = documentExists(literal);
+        if (documentExists(spaceHome)) {
+            String note = literalExists ? shadowedPageNote(literal, sameWiki) : null;
+            return pageScope(targetWiki, spaceHome, sameWiki, note);
+        }
+        return pageScope(targetWiki, literalExists ? literal : spaceHome, sameWiki, null);
+    }
+
+    /**
+     * Follows a dotted root to its space home when the literal, already-authorized, non-{@code WebHome}
+     * resolution names no existing document, so {@code root="Sales.Leads"} explores the Leads space. The
+     * literal reference is authorized before its existence probe, and the space-home candidate is authorized
+     * before its result is used, so this leaks no existence information about unauthorized documents.
      *
      * @param root the raw root argument
-     * @param literal the literal, already-authorized resolution of {@code root}
+     * @param literal the literal, already-authorized, non-{@code WebHome} resolution of {@code root}
      * @param wikiContext the wiki the call operates on
      * @return the space home to follow, or {@code literal} when there is nothing to follow
      */
     private DocumentReference followSpaceHome(String root, DocumentReference literal, WikiReference wikiContext)
     {
-        if (WEBHOME.equals(literal.getName()) || documentExists(literal)) {
+        if (documentExists(literal)) {
             return literal;
         }
+        DocumentReference spaceHome = authorizedSpaceHome(root, literal, wikiContext);
+        return spaceHome != null ? spaceHome : literal;
+    }
+
+    /**
+     * Resolves and authorizes the space-home candidate of a root: the raw input with {@code .WebHome} appended,
+     * through the same door as the literal (appending to the raw string, so a bare {@code "Sandbox"} yields the
+     * top-level {@code Sandbox.WebHome} rather than a home under the resolver's default space). The candidate
+     * counts only when it is a {@code WebHome} different from the literal reference.
+     *
+     * @param root the raw root argument
+     * @param literal the literal, already-authorized resolution of {@code root}
+     * @param wikiContext the wiki the call operates on
+     * @return the authorized space-home candidate, or {@code null} when it is denied or unhelpful
+     */
+    private DocumentReference authorizedSpaceHome(String root, DocumentReference literal,
+        WikiReference wikiContext)
+    {
         try {
-            DocumentReference fallback =
+            DocumentReference candidate =
                 this.documentAccess.resolveAndAuthorize(root + PERIOD + WEBHOME, Right.VIEW, wikiContext);
-            if (WEBHOME.equals(fallback.getName()) && !fallback.equals(literal)) {
-                return fallback;
+            if (WEBHOME.equals(candidate.getName()) && !candidate.equals(literal)) {
+                return candidate;
             }
         } catch (MCPAccessDeniedException e) {
-            this.logger.debug("Space-home fallback for get_tree root [{}] was denied; keeping the literal "
+            this.logger.debug("Space-home candidate for get_tree root [{}] was denied; keeping the literal "
                 + "resolution", root, e);
         }
-        return literal;
+        return null;
+    }
+
+    /**
+     * @param shadowed the existing, already-authorized literal page a top-level space took precedence over
+     * @param sameWiki whether the target wiki is the endpoint's own (context) wiki, for a local reference
+     * @return the note naming the shadowed page, rendered like the root line's reference
+     */
+    private String shadowedPageNote(DocumentReference shadowed, boolean sameWiki)
+    {
+        return SHADOWED_PAGE_HEAD + renderRef(shadowed, sameWiki) + SHADOWED_PAGE_TAIL;
     }
 
     /**
      * @param reference the already-authorized reference to probe
-     * @return whether the document exists; an unverifiable store reads as existing, so the space-home fallback
-     *     is skipped rather than acted on with unverified information
+     * @return whether the document exists; an unverifiable store reads as existing, so a root resolution never
+     *     drops a candidate on unverified information
      */
     private boolean documentExists(DocumentReference reference)
     {
@@ -1027,8 +1115,9 @@ public class MCPGetTreeTool implements MCPTool
     }
 
     /**
-     * Builds the two-line explore header block, plus an optional third line when the root has more direct
-     * children than this page showed.
+     * Builds the two-line explore header block: the root line, then the legend. The root's note (a shadowed
+     * same-named page) is a line of its own between them, and a further line follows the legend when the root
+     * has more direct children than this page showed.
      *
      * @param scope the resolved root scope
      * @param req the parsed request
@@ -1049,6 +1138,9 @@ public class MCPGetTreeTool implements MCPTool
         }
         if (req.showHidden()) {
             header.append(HIDDEN_INCLUDED);
+        }
+        if (scope.note() != null) {
+            header.append(NEW_LINE).append(scope.note());
         }
         header.append(NEW_LINE).append(LEGEND);
         if (rootHasMore) {
@@ -1577,10 +1669,12 @@ public class MCPGetTreeTool implements MCPTool
      * @param display the root label shown in the header (the wiki id, or the rendered page reference)
      * @param terminal whether a page root is a terminal page that cannot have children
      * @param sameWiki whether the target wiki is the endpoint's own (context) wiki, for local references
+     * @param note a note rendered on its own line under the root line (a bare root name whose top-level space
+     *     shadowed a same-named page), or {@code null} when there is nothing to note
      * @version $Id$
      */
     private record RootScope(String targetWiki, DocumentReference rootDoc, boolean wikiRoot, String display,
-        boolean terminal, boolean sameWiki)
+        boolean terminal, boolean sameWiki, String note)
     {
     }
 

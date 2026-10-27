@@ -445,17 +445,21 @@ class MCPGetTreeToolTest extends AbstractMCPToolTest
     {
         // The literal resolution of a bare name lands in the resolver's default space and names no document.
         DocumentReference literal = pageRef("Main", "Sandbox");
+        DocumentReference sandboxHome = webHomeRef("Sandbox");
         stubRoot("Sandbox", literal);
+        stubRoot("Sandbox.WebHome", sandboxHome);
         when(this.documentAccessBridge.exists(literal)).thenReturn(false);
-        stubRoot("Sandbox.WebHome", webHomeRef("Sandbox"));
+        when(this.documentAccessBridge.exists(sandboxHome)).thenReturn(false);
         this.terminals.put("Sandbox", rows(new Object[] {"Sandbox.TestPage1", "Sandbox", "Test Page One"}));
 
         String output = callTree(Map.of("root", "Sandbox"));
 
-        // The followed space home is rendered (and displayed), not the nonexistent literal page.
+        // The followed space home is rendered (and displayed), not the nonexistent literal page, and with
+        // neither candidate existing there is no shadowed page to note.
         assertTrue(output.contains("root=Sandbox.WebHome (page)"), output);
         assertTrue(output.contains("TestPage1  [Sandbox.TestPage1]  \"Test Page One\""), output);
         assertFalse(output.contains("terminal"), output);
+        assertFalse(output.contains("Note: a page"), output);
     }
 
     @Test
@@ -503,6 +507,64 @@ class MCPGetTreeToolTest extends AbstractMCPToolTest
     }
 
     @Test
+    void bareNameShadowedByAMainPageResolvesToTheSpaceAndNotesThePage() throws Exception
+    {
+        DocumentReference mainPage = pageRef("Main", SALES);
+        DocumentReference salesHome = webHomeRef(SALES);
+        stubRoot(SALES, mainPage);
+        stubRoot(SALES_HOME_FULLNAME, salesHome);
+        when(this.documentAccessBridge.exists(mainPage)).thenReturn(true);
+        when(this.documentAccessBridge.exists(salesHome)).thenReturn(true);
+        this.terminals.put(SALES, rows(new Object[] {CONTACT_FULLNAME, SALES, CONTACT_TITLE}));
+
+        String output = callTree(Map.of("root", SALES));
+
+        // The top-level space wins over the same-named page in Main; that page is only noted.
+        assertTrue(output.contains("root=Sales.WebHome (page)"), output);
+        assertTrue(output.contains(
+            "\nNote: a page \"Main.Sales\" also exists; pass that reference to explore it instead.\n"), output);
+        assertTrue(output.contains("Contact  [Sales.Contact]  \"Contact Card\""), output);
+        assertFalse(output.contains("This page is terminal"), output);
+    }
+
+    @Test
+    void bareNameWithOnlyAMainPageKeepsThePage() throws Exception
+    {
+        DocumentReference mainPage = pageRef("Main", SALES);
+        DocumentReference salesHome = webHomeRef(SALES);
+        stubRoot(SALES, mainPage);
+        stubRoot(SALES_HOME_FULLNAME, salesHome);
+        when(this.documentAccessBridge.exists(mainPage)).thenReturn(true);
+        when(this.documentAccessBridge.exists(salesHome)).thenReturn(false);
+
+        String output = callTree(Map.of("root", SALES));
+
+        // No such space: the existing page of that name is the root, with nothing to note.
+        assertTrue(output.contains("root=Main.Sales (page)"), output);
+        assertFalse(output.contains("Note: a page"), output);
+        assertTrue(output.contains("This page is terminal and has no child pages."), output);
+    }
+
+    @Test
+    void deniedSpaceHomeCandidateKeepsTheMainPageWithoutProbingIt() throws Exception
+    {
+        DocumentReference mainPage = pageRef("Main", SALES);
+        DocumentReference salesHome = webHomeRef(SALES);
+        stubRoot(SALES, mainPage);
+        when(this.documentAccess.resolveAndAuthorize(SALES_HOME_FULLNAME, Right.VIEW, new WikiReference(WIKI)))
+            .thenThrow(new MCPAccessDeniedException("You do not have permission to view \"Sales.WebHome\"."));
+        when(this.documentAccessBridge.exists(mainPage)).thenReturn(true);
+
+        String output = callTree(Map.of("root", SALES));
+
+        // A denied space home is dropped before any existence probe: the page renders, nothing leaks.
+        assertTrue(output.contains("root=Main.Sales (page)"), output);
+        assertFalse(output.contains("Note: a page"), output);
+        assertFalse(output.contains("permission"), output);
+        verify(this.documentAccessBridge, never()).exists(salesHome);
+    }
+
+    @Test
     void deniedRootReturnsAnErrorResult() throws Exception
     {
         when(this.documentAccess.resolveAndAuthorize(eq("Secret.WebHome"), eq(Right.VIEW),
@@ -513,6 +575,20 @@ class MCPGetTreeToolTest extends AbstractMCPToolTest
 
         assertTrue(result.isError(), "expected an error result");
         assertEquals("Access denied to Secret.WebHome.", textOf(result));
+    }
+
+    @Test
+    void deniedBareRootProbesNoExistenceBeforeAuthorization() throws Exception
+    {
+        when(this.documentAccess.resolveAndAuthorize(eq("Sales"), eq(Right.VIEW), any(WikiReference.class)))
+            .thenThrow(new MCPAccessDeniedException("Access denied to Sales."));
+
+        McpSchema.CallToolResult result = call(Map.of("root", "Sales"));
+
+        assertTrue(result.isError(), "expected an error result");
+        assertEquals("Access denied to Sales.", textOf(result));
+        // The literal is authorized before anything else: neither candidate's existence is ever probed.
+        verify(this.documentAccessBridge, never()).exists(any(DocumentReference.class));
     }
 
     @Test
