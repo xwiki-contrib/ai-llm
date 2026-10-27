@@ -359,6 +359,20 @@ public class MCPGetDocumentTool implements MCPTool
     private static final String PLAIN_EMPTY_HINT = " If this view looks empty, the sheet's HTML output cannot be "
         + "shown as plain text - use format=\"html\".";
 
+    /**
+     * Note on a read of an empty-body document that defines a class: the fields are the document's
+     * substance, so the agent is pointed to {@code get_schema}. The placeholders are the number of
+     * fields the class defines, enabled and disabled alike (both are listed by {@code get_schema}),
+     * and the document's serialized reference.
+     */
+    private static final String CLASS_NOTE = "Note: this document defines a class with %d field(s); "
+        + "get_schema class=\"%s\" shows them.";
+
+    /**
+     * Separator between the empty-body provenance note and the class note when both apply.
+     */
+    private static final String NOTE_SEPARATOR = " ";
+
     @Inject
     private Logger logger;
 
@@ -980,12 +994,14 @@ public class MCPGetDocumentTool implements MCPTool
     }
 
     /**
-     * Builds the provenance note for a document whose body source is empty while it carries a sheet or
-     * structured data (xobjects) - the situation that otherwise traps an agent between a full (or
-     * unexpectedly empty) view and an empty source. A viewable sheet produces the displayed content, so
-     * the note steers to the rendered view; xobjects without a sheet display nothing, so the note
-     * steers to {@code query_objects}. Returns {@code null} when the body has content or when neither
-     * a sheet nor xobjects are present; the sheet lookup is only consulted for empty-body documents.
+     * Builds the provenance note for a document whose body source is empty while it carries a sheet,
+     * structured data (xobjects) or a class definition - the situations that otherwise trap an agent
+     * between a full (or unexpectedly empty) view and an empty source. A viewable sheet produces the
+     * displayed content, so the note steers to the rendered view; xobjects without a sheet display
+     * nothing, so the note steers to {@code query_objects}; a class definition steers to
+     * {@code get_schema}, in a note that follows the sheet/xobject note when both apply and stands
+     * alone otherwise. Returns {@code null} when the body has content or when none of the three is
+     * present; the sheet lookup is only consulted for empty-body documents.
      *
      * @param doc the loaded document
      * @param renderedSyntax the rendered output syntax, or {@code null} in source mode
@@ -996,12 +1012,47 @@ public class MCPGetDocumentTool implements MCPTool
         if (StringUtils.isNotBlank(doc.getContent())) {
             return null;
         }
+        String emptyBodyNote = emptyBodyNote(doc, renderedSyntax);
+        String classNote = classNote(doc);
+        if (emptyBodyNote == null) {
+            return classNote;
+        }
+        return classNote == null ? emptyBodyNote : emptyBodyNote + NOTE_SEPARATOR + classNote;
+    }
+
+    /**
+     * The sheet or xobject part of the provenance note of an empty-body document, in the mode's wording.
+     *
+     * @param doc the loaded document, whose body source is empty
+     * @param renderedSyntax the rendered output syntax, or {@code null} in source mode
+     * @return the note, or {@code null} when neither a viewable sheet nor xobjects are present
+     */
+    private String emptyBodyNote(DocumentModelBridge doc, Syntax renderedSyntax)
+    {
         String sheetName = firstViewableSheetName(doc);
         if (sheetName == null && !hasXObjects(doc)) {
             return null;
         }
         return renderedSyntax == null ? sourceProvenanceNote(doc, sheetName)
             : renderedProvenanceNote(doc, sheetName, renderedSyntax);
+    }
+
+    /**
+     * The class part of the provenance note: names the number of enabled fields and the document for
+     * {@code get_schema}. A class definition is detected as {@code get_schema} does - the document's
+     * class defines at least one field, enabled or disabled.
+     *
+     * @param doc the loaded document, whose body source is empty
+     * @return the note, or {@code null} when the document defines no class
+     */
+    private String classNote(DocumentModelBridge doc)
+    {
+        if (doc instanceof XWikiDocument xdoc && !MCPSchemaText.definesNoFields(xdoc.getXClass())) {
+            int fieldCount = xdoc.getXClass().getEnabledProperties().size()
+                + xdoc.getXClass().getDisabledProperties().size();
+            return String.format(CLASS_NOTE, fieldCount, canonicalReference(doc));
+        }
+        return null;
     }
 
     /**

@@ -60,6 +60,8 @@ import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiAttachment;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.classes.BaseClass;
+import com.xpn.xwiki.objects.classes.PropertyClass;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -1153,20 +1155,54 @@ class MCPGetDocumentToolTest extends AbstractMCPToolTest
 
     private XWikiDocument stubEmptyBodyDocWithXObjects() throws Exception
     {
+        XWikiDocument doc = stubEmptyBodyClassDoc(0);
+        // One deleted-object null slot next to a live object: the presence check must tolerate it.
+        when(doc.getXObjects()).thenReturn(
+            Map.of(mock(DocumentReference.class), Arrays.asList(null, mock(BaseObject.class))));
+        return doc;
+    }
+
+    /**
+     * Stubs an empty-body document without xobjects whose class defines the given number of enabled fields
+     * (and no disabled ones); zero fields is an ordinary page, as {@code get_schema} sees it.
+     */
+    private XWikiDocument stubEmptyBodyClassDoc(int fieldCount) throws Exception
+    {
+        return stubClassDoc("", classWithFields(fieldCount, 0));
+    }
+
+    private XWikiDocument stubClassDoc(String content, BaseClass xclass) throws Exception
+    {
         XWikiDocument doc = mock(XWikiDocument.class);
-        when(doc.getContent()).thenReturn("");
+        when(doc.getContent()).thenReturn(content);
         lenient().when(doc.getTitle()).thenReturn("T");
         when(doc.getVersion()).thenReturn("1.1");
         when(doc.getDocumentReference()).thenReturn(this.documentReference);
         Syntax syntax = mock(Syntax.class);
         lenient().when(syntax.toIdString()).thenReturn(XWIKI_SYNTAX);
         when(doc.getSyntax()).thenReturn(syntax);
-        // One deleted-object null slot next to a live object: the presence check must tolerate it.
-        when(doc.getXObjects()).thenReturn(
-            Map.of(mock(DocumentReference.class), Arrays.asList(null, mock(BaseObject.class))));
+        lenient().when(doc.getXObjects()).thenReturn(Map.of());
+        lenient().when(doc.getXClass()).thenReturn(xclass);
         when(this.documentAccessBridge.exists(any(DocumentReference.class))).thenReturn(true);
         when(this.documentAccessBridge.getDocumentInstance(any(DocumentReference.class))).thenReturn(doc);
         return doc;
+    }
+
+    private static BaseClass classWithFields(int enabledCount, int disabledCount)
+    {
+        BaseClass xclass = mock(BaseClass.class);
+        lenient().when(xclass.getEnabledProperties()).thenReturn(propertyClasses(enabledCount));
+        lenient().when(xclass.getDisabledProperties()).thenReturn(propertyClasses(disabledCount));
+        return xclass;
+    }
+
+    private static List<PropertyClass> propertyClasses(int count)
+    {
+        List<PropertyClass> fields = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            fields.add(mock(PropertyClass.class));
+        }
+        return fields;
     }
 
     @Test
@@ -1769,6 +1805,99 @@ class MCPGetDocumentToolTest extends AbstractMCPToolTest
 
         assertNotEquals(Boolean.TRUE, result.isError());
         assertFalse(textOf(result).contains("Note: the body source is empty"), textOf(result));
+    }
+
+    @Test
+    void emptyBodyClassDocumentCarriesClassNote() throws Exception
+    {
+        stubEmptyBodyClassDoc(2);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Document has no content."), text);
+        assertTrue(text.contains("defines a class with 2 field(s)"), text);
+        assertTrue(text.contains("get_schema class=\"" + CANONICAL + "\""), text);
+        assertFalse(text.contains("structured data (xobjects)"), text);
+    }
+
+    @Test
+    void emptyBodyClassDocumentWithXObjectsCarriesBothNotes() throws Exception
+    {
+        XWikiDocument doc = stubEmptyBodyDocWithXObjects();
+        BaseClass oneField = classWithFields(1, 0);
+        when(doc.getXClass()).thenReturn(oneField);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("structured data (xobjects) but no sheet renders them"), text);
+        assertTrue(text.contains("query_objects document=\"" + CANONICAL + "\""), text);
+        assertTrue(text.contains("defines a class with 1 field(s)"), text);
+        assertTrue(text.contains("get_schema class=\"" + CANONICAL + "\""), text);
+        // Both notes sit on the same header line, the class note after the xobject note.
+        assertTrue(text.contains("what users see. Note: this document defines a class"), text);
+    }
+
+    @Test
+    void renderedReadOfEmptyBodyClassDocumentCarriesClassNote() throws Exception
+    {
+        XWikiDocument doc = stubEmptyBodyClassDoc(3);
+        XWikiContext xcontext = mock(XWikiContext.class);
+        XWiki xwiki = mock(XWiki.class);
+        when(this.contextProvider.get()).thenReturn(xcontext);
+        when(xcontext.getWiki()).thenReturn(xwiki);
+        when(xwiki.getDocument(this.documentReference, xcontext)).thenReturn(doc);
+        when(doc.getRenderedTitle(Syntax.PLAIN_1_0, xcontext)).thenReturn("T");
+        when(doc.displayDocument(Syntax.HTML_5_0, xcontext)).thenReturn("");
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, "rendered", true, "format", "html"));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("defines a class with 3 field(s)"), text);
+        assertTrue(text.contains("get_schema class=\"" + CANONICAL + "\""), text);
+        assertFalse(text.contains("structured data (xobjects)"), text);
+    }
+
+    @Test
+    void emptyBodyNonClassDocumentCarriesNoClassNote() throws Exception
+    {
+        stubEmptyBodyClassDoc(0);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("Document has no content."), text);
+        assertFalse(text.contains("defines a class"), text);
+    }
+
+    @Test
+    void emptyBodyClassWithOnlyDisabledFieldsCountsThem() throws Exception
+    {
+        stubClassDoc("", classWithFields(0, 2));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("defines a class with 2 field(s)"), text);
+    }
+
+    @Test
+    void classDocumentWithBodyContentCarriesNoClassNote() throws Exception
+    {
+        stubClassDoc("some content", classWithFields(2, 0));
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("some content"), text);
+        assertFalse(text.contains("defines a class"), text);
     }
 
     @Test
