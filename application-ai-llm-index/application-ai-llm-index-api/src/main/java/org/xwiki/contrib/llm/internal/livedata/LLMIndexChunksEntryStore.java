@@ -91,6 +91,8 @@ public class LLMIndexChunksEntryStore implements LiveDataEntryStore
         Map<String, LLMIndexProperty> properties = this.propertiesProvider.get();
 
         try {
+            // The platform caches one client per core and owns its lifecycle - the store must never close it
+            // (closing a remote HttpSolrClient shuts down the shared connection pool for every later call).
             SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient();
             SolrQuery solrQuery = new SolrQuery();
 
