@@ -146,6 +146,13 @@
             <artifactId>xwiki-platform-oldcore</artifactId>
             <version>${platform.version}</version>
         </dependency>
+        <!-- UserReference resolver and serializer: the query_documents author filter normalizes to the form the
+             Solr author field stores, and the MCP configuration page authorship reads the effective author. -->
+        <dependency>
+            <groupId>org.xwiki.platform</groupId>
+            <artifactId>xwiki-platform-user-api</artifactId>
+            <version>${platform.version}</version>
+        </dependency>
         <!-- WikiDescriptorManager.getMainWikiId() used by MCPServerConfiguration
              to build the DocumentReference for the config document. -->
         <dependency>

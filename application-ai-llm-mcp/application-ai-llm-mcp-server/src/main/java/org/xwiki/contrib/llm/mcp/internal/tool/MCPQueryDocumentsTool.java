@@ -854,17 +854,17 @@ public class MCPQueryDocumentsTool implements MCPTool
 
     /**
      * Normalizes an author filter into the serialized user reference the Solr {@code author} field stores,
-     * so that a bare user name matches. The value is resolved and serialized with the platform's user
-     * reference components, the same ones the Solr document indexer uses to fill the field: the resolver
-     * defaults the space to {@code XWiki} and the wiki to the main wiki, where users normally live (a
-     * local user of another wiki is named with its wiki prefix), so {@code "Admin"}, {@code "XWiki.Admin"}
-     * and {@code "xwiki:XWiki.Admin"} all normalize to the same reference whichever wiki's endpoint is
-     * called, and the
-     * serializer writes the special users the way the indexer does ({@code "superadmin"} and
-     * {@code "XWiki.superadmin"} both become {@code XWiki.superadmin}, the guest user
-     * {@code XWiki.XWikiGuest}, whereas a document reference serializer would prefix them with the wiki
-     * and never match). A blank value is returned unchanged; a value that cannot be resolved is left as-is
-     * so it is still applied (and surfaced by the empty-result filter echo).
+     * so that a bare user name matches. The value is resolved with the platform's string user reference
+     * resolver and serialized with the string user reference serializer the Solr document indexer fills the
+     * field with. The resolver defaults the space to {@code XWiki} and the wiki to the main wiki, where
+     * users normally live (a local user of another wiki is named with its wiki prefix), so
+     * {@code "Admin"}, {@code "XWiki.Admin"} and {@code "xwiki:XWiki.Admin"} all normalize to the same
+     * reference whichever wiki's endpoint is called. The serializer writes the special users the way the
+     * indexer does: {@code "superadmin"} and {@code "XWiki.superadmin"} both become
+     * {@code XWiki.superadmin} and the guest user {@code XWiki.XWikiGuest}, whereas a document reference
+     * serializer would prefix them with the wiki and never match. A blank value is returned unchanged; a
+     * value that cannot be resolved or serialized is left as-is so it is still applied (and surfaced by
+     * the empty-result filter echo).
      *
      * @param author the raw author argument, possibly blank
      * @return the serialized user reference, or the original value when blank or unresolvable

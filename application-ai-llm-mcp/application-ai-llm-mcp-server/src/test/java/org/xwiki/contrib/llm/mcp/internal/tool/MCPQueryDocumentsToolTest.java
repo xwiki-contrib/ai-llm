@@ -406,11 +406,30 @@ class MCPQueryDocumentsToolTest extends AbstractMCPToolTest
     @Test
     void authorProducesEscapedAuthorFilter() throws QueryException
     {
+        UserReference adminReference = mock(UserReference.class);
+        when(this.userReferenceResolver.resolve("xwiki:XWiki.Admin")).thenReturn(adminReference);
+        when(this.userReferenceSerializer.serialize(adminReference)).thenReturn("xwiki:XWiki.Admin");
         stubQuery(List.of());
         this.tool.execute(request("query_documents",
             Map.of("query", "x", "author", "xwiki:XWiki.Admin")));
         verify(this.solrUtils).toCompleteFilterQueryString("xwiki:XWiki.Admin");
         assertTrue(captureFilterQueries().contains("author:xwiki:XWiki.Admin"));
+    }
+
+    @Test
+    void unserializableAuthorIsAppliedAsGiven() throws QueryException
+    {
+        // The platform serializer refuses a user reference that is not document-backed; the raw value is
+        // then applied as-is, so the filter still constrains the search and the empty-result echo shows it.
+        UserReference oddReference = mock(UserReference.class);
+        when(this.userReferenceResolver.resolve("Admin")).thenReturn(oddReference);
+        when(this.userReferenceSerializer.serialize(oddReference))
+            .thenThrow(new IllegalArgumentException("Only DocumentUserReference are handled"));
+        stubQuery(List.of());
+
+        this.tool.execute(request("query_documents", Map.of("query", "x", "author", "Admin")));
+
+        assertTrue(captureFilterQueries().contains("author:Admin"), captureFilterQueries().toString());
     }
 
     @Test
