@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import org.apache.commons.lang3.StringUtils;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
 import org.xwiki.contrib.llm.mcp.MCPToolSupport;
@@ -41,6 +42,7 @@ import com.xpn.xwiki.objects.BaseProperty;
 import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.objects.classes.DateClass;
 import com.xpn.xwiki.objects.classes.PropertyClass;
+import com.xpn.xwiki.objects.classes.StaticListClass;
 
 import io.modelcontextprotocol.spec.McpSchema;
 
@@ -56,10 +58,13 @@ import io.modelcontextprotocol.spec.McpSchema;
  * <p>Field values arrive as strings and are coerced with the platform's own semantics
  * ({@link PropertyClass#fromString(String)}, which returns {@code null} on an unparseable Number or
  * Date), with the read side's Boolean pre-validation on top (the platform parse cannot signal failure
- * for Booleans: garbage would silently store a {@code null} value). Refusals are validation errors,
+ * for Booleans: garbage would silently store a {@code null} value) and a static-list membership check
+ * (the platform parse of a list value never fails and never checks the list: a closed static list is
+ * held to its own values here, see {@link #requireListMembership}). Refusals are validation errors,
  * raised before anything is mutated: unknown fields (the error lists the class's fields), Password
  * fields (a prompt-injected password change is an account-takeover vector, so passwords are only
- * settable in the wiki UI) and computed fields (no stored value).</p>
+ * settable in the wiki UI), computed fields (no stored value) and list values outside a closed static
+ * list (the error lists the allowed values).</p>
  *
  * <p>A validated value is applied by wiring the {@link BaseProperty} that {@code fromString} returned
  * onto the object exactly the way the platform's own {@code BaseClass#fromMap} does
@@ -227,7 +232,7 @@ final class MCPObjectWriteSupport
         Map<String, BaseProperty> validated = new LinkedHashMap<>();
         List<String> fieldNames = new ArrayList<>();
         for (Map.Entry<String, String> entry : fields.entrySet()) {
-            validated.put(entry.getKey(), validateAndCoerce(xclass, entry.getKey(), entry.getValue()));
+            validated.put(entry.getKey(), validateAndCoerce(xclass, entry.getKey(), entry.getValue(), xcontext));
             fieldNames.add(MCPTextGuards.fragment(entry.getKey()));
         }
         boolean created = objectNumber == null;
@@ -325,18 +330,21 @@ final class MCPObjectWriteSupport
 
     /**
      * Validates one field entry against the class definition and coerces its value with the field's own
-     * type semantics: an unknown field, a Password field, a computed field, an out-of-vocabulary Boolean
-     * or a value the platform parse rejects ({@code fromString} returning {@code null} - the 17.4 failure
-     * signal for Number and Date garbage) are all refused with a teaching message. Multi-select list
-     * values are allowed: the platform parse handles the {@code |} and {@code ,} separators itself.
+     * type semantics: an unknown field, a Password field, a computed field, an out-of-vocabulary Boolean,
+     * a value the platform parse rejects ({@code fromString} returning {@code null} - the 17.4 failure
+     * signal for Number and Date garbage) or a value outside a closed static list are all refused with a
+     * teaching message. Multi-select list values are allowed: the platform parse handles the {@code |}
+     * and {@code ,} separators itself, and the membership check runs on the values it split.
      *
      * @param xclass the class definition
      * @param name the field name
      * @param value the raw string value
+     * @param xcontext the XWiki context, passed to the platform's list expansion
      * @return the coerced property, ready to be wired onto the object
      * @throws IllegalArgumentException with an agent-facing message on any validation failure
      */
-    private static BaseProperty validateAndCoerce(BaseClass xclass, String name, String value)
+    private static BaseProperty validateAndCoerce(BaseClass xclass, String name, String value,
+        XWikiContext xcontext)
     {
         if (!(xclass.get(name) instanceof PropertyClass property)) {
             throw MCPObjectQuerySupport.unknownField(xclass, name);
@@ -361,7 +369,45 @@ final class MCPObjectWriteSupport
         if (parsed == null) {
             throw MCPObjectQuerySupport.invalidValue(property, value, expectedWriteDetail(property));
         }
+        requireListMembership(property, value, parsed, xcontext);
         return parsed;
+    }
+
+    /**
+     * Holds a closed static list to its own values, the check the platform's parse leaves out: the list
+     * parse ({@code ListClass.fromString}) never fails and never consults the values, so without this
+     * any string would be stored under a closed list. Only static lists are checked (a database list's
+     * values come from an admin-authored query that is never run here) and only when the list does not
+     * {@link MCPSchemaText#allowsFreeText accept free text}. The submitted values are the ones the
+     * platform parse split for a multi-select list ({@code ListClass.toList}, so the check sees exactly
+     * what would be stored), or the raw value for a single-select list; each must be one of the value
+     * ids the platform lists ({@code ListClass.getList}, display labels stripped), compared
+     * case-sensitively like the platform's own default-value check. A blank raw value clears the field
+     * and is accepted without a check, and a blank element of a split value (the platform keeps an empty
+     * element for a trailing or doubled separator) names no value and is skipped rather than refused.
+     *
+     * @param property the field's definition
+     * @param value the raw string value
+     * @param parsed the property the platform parse produced from the value
+     * @param xcontext the XWiki context, passed to the platform's list expansion
+     * @throws IllegalArgumentException naming the first value outside the list and the allowed values,
+     *     rendered with the budget of a schema line
+     */
+    private static void requireListMembership(PropertyClass property, String value, BaseProperty parsed,
+        XWikiContext xcontext)
+    {
+        if (!(property instanceof StaticListClass list) || StringUtils.isBlank(value)
+            || MCPSchemaText.allowsFreeText(list)) {
+            return;
+        }
+        List<String> allowed = list.getList(xcontext);
+        List<String> submitted = list.isMultiSelect() ? list.toList(parsed) : List.of(value);
+        for (String candidate : submitted) {
+            if (StringUtils.isNotBlank(candidate) && !allowed.contains(candidate)) {
+                throw MCPObjectQuerySupport.invalidValue(property, candidate,
+                    "one of " + MCPSchemaText.staticListDetail(list, xcontext));
+            }
+        }
     }
 
     /**

@@ -45,6 +45,8 @@ import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
 import com.xpn.xwiki.objects.classes.BaseClass;
 import com.xpn.xwiki.objects.classes.ComputedFieldClass;
+import com.xpn.xwiki.objects.classes.ListClass;
+import com.xpn.xwiki.objects.classes.StaticListClass;
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.OldcoreTest;
 
@@ -109,6 +111,22 @@ class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
 
     private static final String CATEGORY_FIELD = "category";
 
+    private static final String PRIORITY_FIELD = "priority";
+
+    private static final String TAG_FIELD = "tag";
+
+    private static final String CODE_FIELD = "code";
+
+    private static final String LOOSE_FIELD = "loose";
+
+    private static final String CITY_FIELD = "city";
+
+    private static final String PLAIN_FIELD = "plain";
+
+    private static final String PICKED_FIELD = "picked";
+
+    private static final String OUTSIDE_VALUE = "custom";
+
     private static final String DATE_FIELD = "publishDate";
 
     private static final String DATE_FORMAT = "dd/MM/yyyy";
@@ -168,7 +186,8 @@ class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
 
     /**
      * Stores a real class definition covering the type dispatch under test: text, boolean, integer,
-     * multi-select list, password and computed fields.
+     * multi-select list, closed single-select lists (plain and labelled values), a free-text single-select
+     * list, password and computed fields.
      */
     private void storeClassDocument(MockitoOldcore oldcore) throws Exception
     {
@@ -177,7 +196,19 @@ class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
         xclass.addTextField(TITLE_FIELD, "Title", 30);
         xclass.addBooleanField(PUBLISHED_FIELD, "Published", "yesno");
         xclass.addNumberField(COUNT_FIELD, "Count", 10, "integer");
+        // Every addStaticListField overload sets forbidden: these lists are closed unless reopened below.
         xclass.addStaticListField(CATEGORY_FIELD, "Category", 5, true, "News|Personal|Other");
+        xclass.addStaticListField(PRIORITY_FIELD, "Priority", 1, false, "low|high");
+        xclass.addStaticListField(TAG_FIELD, "Tag", 1, false, "a|b");
+        ((ListClass) xclass.get(TAG_FIELD)).setFreeText(ListClass.FREE_TEXT_ALLOWED);
+        xclass.addStaticListField(LOOSE_FIELD, "Loose", 1, false, "a|b");
+        ((ListClass) xclass.get(LOOSE_FIELD)).setFreeText(ListClass.FREE_TEXT_DISCOURAGED);
+        xclass.addStaticListField(CODE_FIELD, "Code", 1, false, "n=News|p=Personal");
+        xclass.addStaticListField(CITY_FIELD, "City", 5, true, "New York|Boston");
+        // Built directly, as a class outside the class editor is: the free-text setting stays blank, so
+        // only the picker flag decides whether the list is open.
+        addBlankFreeTextList(xclass, PLAIN_FIELD, "Plain", false);
+        addBlankFreeTextList(xclass, PICKED_FIELD, "Picked", true);
         xclass.addDateField(DATE_FIELD, "Publish date", DATE_FORMAT);
         xclass.addPasswordField("secret", "Secret", 10);
         ComputedFieldClass computed = new ComputedFieldClass();
@@ -186,6 +217,17 @@ class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
         computed.setObject(xclass);
         xclass.addField("total", computed);
         oldcore.getSpyXWiki().saveDocument(classDoc, oldcore.getXWikiContext());
+    }
+
+    private static void addBlankFreeTextList(BaseClass xclass, String name, String prettyName, boolean picker)
+    {
+        StaticListClass list = new StaticListClass();
+        list.setName(name);
+        list.setPrettyName(prettyName);
+        list.setValues("a|b");
+        list.setPicker(picker);
+        list.setObject(xclass);
+        xclass.addField(name, list);
     }
 
     private void storeDocument(MockitoOldcore oldcore) throws Exception
@@ -778,6 +820,197 @@ class MCPWriteObjectToolTest extends AbstractMCPWriteToolTest
         assertNotEquals(Boolean.TRUE, result.isError());
         BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
         assertEquals(List.of("News", "Personal"), object.getListValue(CATEGORY_FIELD));
+    }
+
+    @Test
+    void multiSelectListValueOutsideTheValuesIsRefusedListingThem(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(CATEGORY_FIELD, "News|Bogus")));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        // The offending value is the first one outside the list, after the platform's own split.
+        assertTrue(text.contains("invalid value \"Bogus\" for field \"category\""), text);
+        assertTrue(text.contains("one of News|Personal|Other"), text);
+        assertNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
+    }
+
+    @Test
+    void singleSelectListValueOutsideTheValuesIsRefused(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(PRIORITY_FIELD, "urgent")));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("invalid value \"urgent\" for field \"priority\""), text);
+        assertTrue(text.contains("one of low|high"), text);
+        assertNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
+    }
+
+    @Test
+    void singleSelectListValueInTheValuesIsStored(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(PRIORITY_FIELD, "high")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
+        assertEquals("high", object.getStringValue(PRIORITY_FIELD));
+    }
+
+    @Test
+    void freeTextAllowedListAcceptsAnyValue(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(TAG_FIELD, OUTSIDE_VALUE)));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
+        assertEquals(OUTSIDE_VALUE, object.getStringValue(TAG_FIELD));
+    }
+
+    @Test
+    void freeTextDiscouragedListAcceptsAnyValue(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(LOOSE_FIELD, OUTSIDE_VALUE)));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
+        assertEquals(OUTSIDE_VALUE, object.getStringValue(LOOSE_FIELD));
+    }
+
+    @Test
+    void blankFreeTextListWithoutPickerIsClosed(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(PLAIN_FIELD, OUTSIDE_VALUE)));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("invalid value \"custom\" for field \"plain\""), text);
+        assertTrue(text.contains("one of a|b"), text);
+        assertNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
+    }
+
+    @Test
+    void blankFreeTextListWithPickerIsOpen(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(PICKED_FIELD, OUTSIDE_VALUE)));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
+        assertEquals(OUTSIDE_VALUE, object.getStringValue(PICKED_FIELD));
+    }
+
+    @Test
+    void escapedSeparatorInsideAMultiSelectValueIsKept(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        // The platform split drops the backslash and keeps the escaped space as part of the value.
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(CITY_FIELD, "New\\ York|Boston")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
+        assertEquals(List.of("New York", "Boston"), object.getListValue(CITY_FIELD));
+    }
+
+    @Test
+    void unescapedSpaceInAMultiSelectValueSplitsAndIsRefused(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        // Space is one of the default separators, so the unescaped value splits into "New" and "York".
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(CITY_FIELD, "New York|Boston")));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        String text = textOf(result);
+        assertTrue(text.contains("invalid value \"New\" for field \"city\""), text);
+        assertTrue(text.contains("one of New York|Boston"), text);
+        assertNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
+    }
+
+    @Test
+    void trailingSeparatorIsAcceptedAndStoresAnEmptyElement(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(CATEGORY_FIELD, "News|")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
+        // The platform split keeps an empty element for the trailing separator and the property stores
+        // it as given; the membership check skips it instead of refusing it as an unknown value.
+        assertEquals(List.of("News", ""), object.getListValue(CATEGORY_FIELD));
+    }
+
+    @Test
+    void labelledListValuesAreMatchedByIdNotLabel(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult byLabel = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(CODE_FIELD, "News")));
+
+        assertEquals(Boolean.TRUE, byLabel.isError());
+        String text = textOf(byLabel);
+        assertTrue(text.contains("invalid value \"News\" for field \"code\""), text);
+        assertTrue(text.contains("one of n|p"), text);
+        assertNull(loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0));
+
+        McpSchema.CallToolResult byId = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(CODE_FIELD, "n")));
+
+        assertNotEquals(Boolean.TRUE, byId.isError());
+        BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
+        assertEquals("n", object.getStringValue(CODE_FIELD));
+    }
+
+    @Test
+    void blankListValueClearsWithoutMembershipCheck(MockitoOldcore oldcore) throws Exception
+    {
+        storeClassDocument(oldcore);
+        storeDocument(oldcore);
+
+        McpSchema.CallToolResult result = call(Map.of(REFERENCE_KEY, REF, CLASS_KEY, CLASS_REF,
+            BASE_VERSION_KEY, currentVersion(oldcore), FIELDS_KEY, Map.of(PRIORITY_FIELD, "")));
+
+        assertNotEquals(Boolean.TRUE, result.isError());
+        BaseObject object = loadDocument(oldcore).getXObject(CLASS_REFERENCE, 0);
+        assertNotNull(object);
+        assertEquals("", object.getStringValue(PRIORITY_FIELD));
     }
 
     @Test

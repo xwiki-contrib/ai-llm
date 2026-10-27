@@ -202,6 +202,7 @@ public class MCPGetSchemaTool implements MCPTool
             One example line per interesting type:
                 title: String "Title"
                 category: StaticList(News|Personal|Other) "Category" multiselect default=News
+                tag: StaticList(a|b) "Tag" freetext
                 published: Boolean(yesno) "Published" default=1
                 publishDate: Date(dd/MM/yyyy HH:mm:ss) "Publish date"
                 content: TextArea(wiki) "Content"
@@ -211,6 +212,8 @@ public class MCPGetSchemaTool implements MCPTool
                 source: DBList "Source" (values come from a database query)
                 total: ComputedField "Total" (computed by a script; read-only)
                 code: String "Code" [validation: ^[A-Z]{3}$ "Three uppercase letters"]
+            freetext marks a static list that accepts values outside its own; write_object
+            holds the other static lists to the listed values.
             A DISABLED FIELDS line lists fields that are defined but switched off, by name.
             There is no required-field flag: the XWiki class model does not define one.
 

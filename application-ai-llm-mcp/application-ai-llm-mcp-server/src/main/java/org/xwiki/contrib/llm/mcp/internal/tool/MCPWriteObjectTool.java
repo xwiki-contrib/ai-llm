@@ -46,9 +46,11 @@ import io.modelcontextprotocol.spec.McpSchema;
 
 /**
  * MCP tool that creates a structured object (an XObject) on a document or sets fields on an existing
- * one, type-checked: every field entry is checked against the class definition for existence and type
- * conversion (list membership and validation regexps are not enforced) and coerced with the field's own
- * type before anything is mutated (see {@link MCPObjectWriteSupport}).
+ * one, type-checked: every field entry is checked against the class definition for existence, type
+ * conversion and closed static-list membership (a value of a StaticList field must be one of the field's
+ * values unless the field allows free text; database-list values, user or page existence and validation
+ * regexps are not enforced) and coerced with the field's own type before anything is mutated (see
+ * {@link MCPObjectWriteSupport}).
  *
  * <p>This is a default tool bundled with the MCP server module. Classes are wiki-local, so the
  * {@code class} argument is resolved in the target document's wiki and a contradicting wiki prefix is
@@ -156,9 +158,11 @@ public class MCPWriteObjectTool implements MCPTool
             .integer(OBJECT_PARAM, "Number of the existing object to update (shown by query_objects as "
                 + "\"object N\"). Omit to create a new object of the class.")
             .requiredStringMap(FIELDS_PARAM, "Field name to value. All values are strings; each is "
-                + "converted with the field's own type (get_schema shows the types and formats; "
-                + "multi-select list values accept \"|\" or \",\" separators; booleans accept 0, 1, true "
-                + "or false).")
+                + "converted with the field's own type (get_schema shows the types and formats; a "
+                + "StaticList value must be one of the field's values unless get_schema shows the field "
+                + "as freetext; multi-select list values are split on the field's separators, by default "
+                + "\"|\", \",\" and space, and a separator inside a value is escaped with a backslash, "
+                + "e.g. \"New\\ York|Boston\"; booleans accept 0, 1, true or false).")
             .string(TITLE_PARAM, "Optional new title for the document holding the object, applied in the "
                 + "same save (create and update alike). Kept unchanged when omitted. Pass an empty string "
                 + "to clear the title.")
@@ -181,9 +185,13 @@ public class MCPWriteObjectTool implements MCPTool
         return McpSchema.Tool.builder(TOOL_ID, schema.inputSchema())
             .description("Create a structured object (an instance of an XWiki class) on a document, or "
                 + "set fields on an existing one. Field values are strings, converted with each field's "
-                + "type: the field must exist and Number, Date and Boolean values must parse; list "
-                + "membership, user or page existence and the class's validation regexp are not checked "
-                + "- get_schema shows the classes and fields. Omit object to create; "
+                + "type: the field must exist, Number, Date and Boolean values must parse, and a "
+                + "StaticList value must be one of the field's values (get_schema lists them) unless the "
+                + "field allows free text (shown as freetext); values from a database query (DBList), "
+                + "user or page existence and the class's validation regexp are not checked "
+                + "- get_schema shows the classes and fields. Multi-select list values are split on the "
+                + "field's separators (by default \"|\", \",\" and space; a backslash escapes a separator "
+                + "inside a value). Omit object to create; "
                 + "pass the number shown by query_objects to update. Updating an existing document "
                 + "requires base_version.")
             .build();
@@ -217,11 +225,15 @@ public class MCPWriteObjectTool implements MCPTool
                 query_objects as "object N") to update an existing one.
                 All field values are strings; each is converted with the field's own type -
                 get_schema class="..." shows the fields with their types and formats. The field
-                must exist and Number, Date and Boolean values must parse; list membership,
-                user or page existence and the class's validation regexp are NOT checked, so a
-                wrong list value is stored as given.
-                Multi-select list values accept "|" or "," separators (e.g. "News|Personal");
-                booleans accept 0, 1, true or false. Date values must use the class's date
+                must exist, Number, Date and Boolean values must parse, and a StaticList value
+                must be one of the field's values (get_schema lists them) unless the field
+                allows free text (get_schema shows it as "freetext"). Values from a database
+                query (DBList), user or page existence and the class's validation regexp are
+                NOT checked, so such a wrong value is stored as given.
+                Multi-select list values are split on the field's separators, by default "|",
+                "," and space (e.g. "News|Personal"); a separator inside a value is escaped
+                with a backslash (e.g. "New\\ York|Boston").
+                Booleans accept 0, 1, true or false. Date values must use the class's date
                 format shown by get_schema (the ISO-8601 forms query_objects accepts in filters
                 are not accepted here). Unknown fields are refused (the error lists the class's
                 fields); Password and computed fields cannot be set with this tool.

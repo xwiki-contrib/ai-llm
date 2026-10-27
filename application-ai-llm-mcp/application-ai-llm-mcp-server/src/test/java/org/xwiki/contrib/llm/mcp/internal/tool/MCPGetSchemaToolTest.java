@@ -658,6 +658,9 @@ class MCPGetSchemaToolTest extends AbstractMCPToolTest
             "name: Type(detail) \"Pretty Name\" modifiers [validation: regexp \"message\"]"), manPage);
         assertTrue(manPage.contains("DISABLED FIELDS"), manPage);
         assertTrue(manPage.contains("no required-field flag"), manPage);
+        assertTrue(manPage.contains("tag: StaticList(a|b) \"Tag\" freetext"), manPage);
+        assertTrue(manPage.contains("freetext marks a static list that accepts values outside its own; "
+            + "write_object\n    holds the other static lists to the listed values."), manPage);
     }
 
     @Test

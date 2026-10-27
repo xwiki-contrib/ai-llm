@@ -269,14 +269,17 @@ final class MCPSchemaText
     }
 
     /**
+     * Shared with {@link MCPObjectWriteSupport}, whose list-membership refusal names the allowed values
+     * with exactly the text a schema line carries.
+     *
      * @param property the field definition, guarded to really be a {@link StaticListClass}
      * @param context the XWiki context passed to {@link StaticListClass#getList(XWikiContext)}
      * @return the list's value ids joined with {@code |}, budgeted at {@link #MAX_VALUES_CHARS} (joined at
      *     value boundaries; a list that does not fit ends with the truncation suffix); the platform call
      *     already returns the ids in display order (honoring the sort setting) and stripped of their
-     *     display labels
+     *     display labels; {@code null} when the field is not a static list
      */
-    private static String staticListDetail(PropertyClass property, XWikiContext context)
+    static String staticListDetail(PropertyClass property, XWikiContext context)
     {
         if (!(property instanceof StaticListClass staticList)) {
             return null;
@@ -454,13 +457,9 @@ final class MCPSchemaText
     }
 
     /**
-     * Appends the space-separated modifiers: {@code multiselect} for a multi-select list, and
-     * {@code default=<value>} for a list with a non-blank default or a boolean with an explicit default
-     * ({@link BooleanClass#getDefaultValue()} returns {@code -1} for "no default"). A static list's
-     * default additionally carries the {@link #DEFAULT_NOT_AMONG_VALUES} marker when it does not match
-     * any allowed value exactly (case-sensitive - the stored default must be byte-identical to a value
-     * to be usable), so the agent is never taught an unusable default. Only static lists get the check:
-     * a database list's values come from an admin-authored query that is never executed here.
+     * Appends the space-separated modifiers: the list modifiers of {@link #appendListModifiers} for a
+     * list, or {@code default=<value>} for a boolean with an explicit default
+     * ({@link BooleanClass#getDefaultValue()} returns {@code -1} for "no default").
      *
      * @param line the line being composed
      * @param property the field definition
@@ -469,19 +468,66 @@ final class MCPSchemaText
     private static void appendModifiers(StringBuilder line, PropertyClass property, XWikiContext context)
     {
         if (property instanceof ListClass list) {
-            if (list.isMultiSelect()) {
-                line.append(" multiselect");
-            }
-            if (StringUtils.isNotBlank(list.getDefaultValue())) {
-                line.append(DEFAULT_PREFIX).append(strip(list.getDefaultValue()));
-                if (property instanceof StaticListClass staticList
-                    && !staticList.getList(context).contains(list.getDefaultValue())) {
-                    line.append(DEFAULT_NOT_AMONG_VALUES);
-                }
-            }
+            appendListModifiers(line, list, context);
         } else if (property instanceof BooleanClass bool && bool.getDefaultValue() != -1) {
             line.append(DEFAULT_PREFIX).append(bool.getDefaultValue());
         }
+    }
+
+    /**
+     * Appends a list's modifiers: {@code multiselect} for a multi-select list, {@code freetext} for a
+     * static list that {@link #allowsFreeText accepts values outside its own} (the marker tells the agent
+     * which static lists {@code write_object} does not hold to the listed values), and
+     * {@code default=<value>} for a non-blank default. A static list's default additionally carries the
+     * {@link #DEFAULT_NOT_AMONG_VALUES} marker when it does not match any allowed value exactly
+     * (case-sensitive - the stored default must be byte-identical to a value to be usable), so the agent
+     * is never taught an unusable default. Only static lists get the free-text marker and the default
+     * check: a database list's values come from an admin-authored query that is never executed here.
+     *
+     * @param line the line being composed
+     * @param list the list field definition
+     * @param context the XWiki context, needed to expand a static list's values for the default check
+     */
+    private static void appendListModifiers(StringBuilder line, ListClass list, XWikiContext context)
+    {
+        if (list.isMultiSelect()) {
+            line.append(" multiselect");
+        }
+        if (list instanceof StaticListClass && allowsFreeText(list)) {
+            line.append(" freetext");
+        }
+        if (StringUtils.isNotBlank(list.getDefaultValue())) {
+            line.append(DEFAULT_PREFIX).append(strip(list.getDefaultValue()));
+            if (list instanceof StaticListClass staticList
+                && !staticList.getList(context).contains(list.getDefaultValue())) {
+                line.append(DEFAULT_NOT_AMONG_VALUES);
+            }
+        }
+    }
+
+    /**
+     * Decides whether a list accepts values outside its own, mirroring what the wiki's own edit UI lets
+     * a user enter. The list is open when its free-text setting is {@code allowed} or {@code discouraged}
+     * (the suggest picker's script disables the creation of a new value only for {@code forbidden};
+     * {@code allowed} additionally creates the typed value on blur), or when the setting is blank and the
+     * field uses the picker ({@link ListClass#isPicker()}; a blank setting puts no restriction on the
+     * picker). It is closed when the setting is {@code forbidden}, or blank without the picker: a plain
+     * select never offers free text. A blank setting arises on classes whose XML carries no setting
+     * (platform XARs such as {@code XWiki.AdminEditingSheet} store {@code <freeText/>}) or whose
+     * class-editor select was left empty; every {@code BaseClass.addStaticListField} overload sets
+     * {@code forbidden}. Shared with {@link MCPObjectWriteSupport}, which holds a closed static list to
+     * its values on a write, so the {@code freetext} modifier and the write check follow one predicate.
+     *
+     * @param list the list field definition
+     * @return whether a value outside the list's own values is permitted
+     */
+    static boolean allowsFreeText(ListClass list)
+    {
+        String freeText = list.getFreeText();
+        if (StringUtils.isBlank(freeText)) {
+            return list.isPicker();
+        }
+        return ListClass.FREE_TEXT_ALLOWED.equals(freeText) || ListClass.FREE_TEXT_DISCOURAGED.equals(freeText);
     }
 
     /**

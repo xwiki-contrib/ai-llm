@@ -27,6 +27,7 @@ import com.xpn.xwiki.objects.classes.BooleanClass;
 import com.xpn.xwiki.objects.classes.ComputedFieldClass;
 import com.xpn.xwiki.objects.classes.DBListClass;
 import com.xpn.xwiki.objects.classes.DateClass;
+import com.xpn.xwiki.objects.classes.ListClass;
 import com.xpn.xwiki.objects.classes.NumberClass;
 import com.xpn.xwiki.objects.classes.PasswordClass;
 import com.xpn.xwiki.objects.classes.PropertyClass;
@@ -238,6 +239,48 @@ class MCPSchemaTextTest
         // An exact match carries no marker: the line ends at the default value.
         assertTrue(rendered.endsWith("docKind: StaticList(tutorial|howto|reference|explanation) default=howto"),
             rendered);
+    }
+
+    @Test
+    void staticListAllowingFreeTextCarriesTheFreetextModifier()
+    {
+        BaseClass xclass = new BaseClass();
+        StaticListClass tag = field(new StaticListClass(), "tag", null, 1);
+        tag.setValues("a|b");
+        tag.setFreeText(ListClass.FREE_TEXT_ALLOWED);
+        add(xclass, tag);
+
+        StaticListClass topic = field(new StaticListClass(), "topic", null, 2);
+        topic.setValues("a|b");
+        topic.setFreeText(ListClass.FREE_TEXT_DISCOURAGED);
+        topic.setMultiSelect(true);
+        topic.setDefaultValue("a");
+        add(xclass, topic);
+
+        StaticListClass kind = field(new StaticListClass(), "kind", null, 3);
+        kind.setValues("a|b");
+        kind.setFreeText(ListClass.FREE_TEXT_FORBIDDEN);
+        add(xclass, kind);
+
+        // Blank setting (a class built outside the class editor): the picker flag alone decides.
+        StaticListClass picked = field(new StaticListClass(), "picked", null, 4);
+        picked.setValues("a|b");
+        picked.setPicker(true);
+        add(xclass, picked);
+
+        StaticListClass plain = field(new StaticListClass(), "plain", null, 5);
+        plain.setValues("a|b");
+        add(xclass, plain);
+
+        String rendered = MCPSchemaText.render(xclass, this.context);
+
+        assertTrue(rendered.contains("tag: StaticList(a|b) freetext\n"), rendered);
+        // Discouraged free text still lets a user create a value, so it carries the modifier too; it sits
+        // between the multiselect and default modifiers.
+        assertTrue(rendered.contains("topic: StaticList(a|b) multiselect freetext default=a\n"), rendered);
+        assertTrue(rendered.contains("kind: StaticList(a|b)\n"), rendered);
+        assertTrue(rendered.contains("picked: StaticList(a|b) freetext\n"), rendered);
+        assertTrue(rendered.endsWith("plain: StaticList(a|b)"), rendered);
     }
 
     @Test
