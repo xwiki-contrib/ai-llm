@@ -32,7 +32,7 @@
     <description>Admin configuration UI for the XWiki MCP server (XClass, config page, admin panel entry).</description>
     <packaging>xar</packaging>
     <properties>
-        <xwiki.extension.name>MCP Server (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>MCP Server</xwiki.extension.name>
         <xwiki.extension.category>application</xwiki.extension.category>
         <!-- Install on every wiki (root namespace) so each wiki has its own MCP config + admin section;
              the XAR wiki-creation listener also provisions it into wikis created later. -->

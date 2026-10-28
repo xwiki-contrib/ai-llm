@@ -31,7 +31,7 @@
     <name>LLM - MCP - Server</name>
     <description>MCP server exposing XWiki RAG search as a Model Context Protocol tool.</description>
     <properties>
-        <xwiki.extension.name>MCP Server - Core Module (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>MCP Server - Core Module</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
         <xwiki.jacoco.instructionRatio>0.81</xwiki.jacoco.instructionRatio>
         <!-- This extension needs to be on the root namespace as it exposes a REST API. -->

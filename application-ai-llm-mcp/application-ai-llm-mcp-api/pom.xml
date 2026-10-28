@@ -31,7 +31,7 @@
     <name>LLM - MCP - API</name>
     <description>Extension point API for contributing tools and resources to the XWiki MCP server.</description>
     <properties>
-        <xwiki.extension.name>LLM MCP API (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>LLM MCP API</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
         <!-- The module contains the extension-point interfaces (no bytecode to speak of) plus the
              shared tool-support helpers (MCPToolSupport, MCPSourceText), covered by their tests. -->

@@ -31,7 +31,7 @@
     <name>LLM - Models - API</name>
     <description>APIs needed for the LLM Application</description>
     <properties>
-        <xwiki.extension.name>LLM Models API (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>LLM Models API</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
         <xwiki.jacoco.instructionRatio>0.04</xwiki.jacoco.instructionRatio>
         <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml</checkstyle.suppressions.location>

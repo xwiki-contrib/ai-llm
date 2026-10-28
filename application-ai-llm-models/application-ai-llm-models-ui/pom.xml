@@ -34,7 +34,7 @@
     <name>LLM - Models - UI</name>
     <packaging>xar</packaging>
     <properties>
-        <xwiki.extension.name>LLM Application (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>LLM Application</xwiki.extension.name>
         <xwiki.extension.category>application</xwiki.extension.category>
         <xwiki.extension.features>
           org.xwiki.contrib.llm:application-llm-ui

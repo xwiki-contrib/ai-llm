@@ -31,7 +31,7 @@
   <name>LLM - Models - Internal</name>
   <description>An inference server for the LLM application running in XWiki itself.</description>
   <properties>
-    <xwiki.extension.name>LLM Internal Inference Server (BETA)</xwiki.extension.name>
+    <xwiki.extension.name>LLM Internal Inference Server</xwiki.extension.name>
     <xwiki.extension.category>api</xwiki.extension.category>
     <xwiki.jacoco.instructionRatio>0.04</xwiki.jacoco.instructionRatio>
   </properties>

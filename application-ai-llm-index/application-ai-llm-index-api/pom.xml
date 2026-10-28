@@ -31,7 +31,7 @@
     <name>LLM - Index - API</name>
     <description>APIs needed for the knowledge index in the LLM Application.</description>
     <properties>
-        <xwiki.extension.name>LLM Index API (BETA)</xwiki.extension.name>
+        <xwiki.extension.name>LLM Index API</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
         <!-- Measured 0.62 on 2026-10-27 (LLMAI-217 test added); pinned with a small margin. -->
         <xwiki.jacoco.instructionRatio>0.61</xwiki.jacoco.instructionRatio>
