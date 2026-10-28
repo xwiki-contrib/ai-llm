@@ -293,9 +293,10 @@ public class MCPGetTreeTool implements MCPTool
         + "children; ⋯ marks children not shown (re-call with root set to that ref). {…} lists notable "
         + "objects / attachment count.";
 
-    private static final String SURVEY_LEGEND = "Refs are get_document-ready. One line per top-level space; "
-        + "re-call with root set to a ref to explore it. Small spaces are expanded inline. A space shown "
-        + "without a ref has a home you may not view; the pages listed under it are the way in.";
+    private static final String SURVEY_LEGEND = "Re-call with root set to a ref to explore it; a space's home "
+        + "ref reads with get_document only when that home page exists. One line per top-level space. Small "
+        + "spaces are expanded inline. A space shown without a ref has a home you may not view; the pages "
+        + "listed under it are the way in.";
 
     private static final String TERMINAL_NOTE = "This page is terminal and has no child pages.";
 
@@ -399,8 +400,8 @@ public class MCPGetTreeTool implements MCPTool
 
     private static final String DESCRIPTION =
         "Survey a wiki (omit root: per-space summary with page counts and recency) or explore a subtree "
-            + "(root: indented tree of pages). Every ref is get_document-ready; re-call with a ref as root "
-            + "to zoom in.";
+            + "(root: indented tree of pages). Re-call with a listed ref as root to zoom in; page refs are "
+            + "get_document-ready.";
 
     /**
      * The man-page NOTES shown on every endpoint, without any cross-wiki mention.
