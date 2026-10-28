@@ -90,7 +90,8 @@ public class LLMIndexChunksEntryStore implements LiveDataEntryStore
 
         Map<String, LLMIndexProperty> properties = this.propertiesProvider.get();
 
-        try (SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient()) {
+        try {
+            SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient();
             SolrQuery solrQuery = new SolrQuery();
 
             solrQuery.setStart(Math.toIntExact(query.getOffset()));
