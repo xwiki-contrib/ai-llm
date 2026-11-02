@@ -197,7 +197,7 @@
       <longText1>A prompt to translate a text.</longText1>
     </property>
     <property>
-      <shortText1>0.3</shortText1>
+      <shortText1/>
     </property>
     <property>
       <sysPrompt>Your task is to translate the user content in the language asked. Do not answer with anything else than the translated content.</sysPrompt>

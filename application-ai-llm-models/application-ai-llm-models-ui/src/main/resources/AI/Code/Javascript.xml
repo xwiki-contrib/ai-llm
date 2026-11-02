@@ -146,7 +146,10 @@
     let maxToken = 2000;
     let domain = window.location.origin;
     let paramView, paramExist = false;
-    let settingsTemp = 0;
+    // True once the user moved the temperature slider (or typed in its display box) for the current prompt
+    let sliderTouched = false;
+    // Temperature shown in the message info lines: the value actually sent, or 'default' when none was sent
+    let settingsTemp = 'default';
     let promptData;
     let userRef;
 
@@ -564,20 +567,35 @@
     }
 
     /**
+     * Tell whether a temperature value is set. An unset temperature (undefined, null, empty string or NaN)
+     * is left out of the request so that the model provider applies its own default.
+     * @param {*} temperature The temperature value to check.
+     * @return {boolean} True when the value is a usable number.
+     */
+    function isTemperatureSet(temperature) {
+        return temperature !== undefined &amp;&amp; temperature !== null &amp;&amp; temperature !== ''
+            &amp;&amp; Number.isFinite(Number(temperature));
+    }
+
+    /**
      * Build the parameters to send for the request.
      * @param {array} messages The array of messages to complete
      * @param {string} model The LLM model to send the request.
-     * @param {number} temperature The temperature of the chat.
+     * @param {number} [temperature] The optional temperature of the chat; when unset the request carries no
+     *   temperature and the model provider decides.
      * @return {Object} An object representing the parameters.
      */
     function getRequestParams(messages, model, temperature) {
         const modelMenu = document.querySelector('#model-menu');
-        return {
+        const params = {
             messages: messages,
             model: model,
-            temperature: Number(temperature),
             stream: modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming") === "true"
         };
+        if (isTemperatureSet(temperature)) {
+            params.temperature = Number(temperature);
+        }
+        return params;
     }
 
     /**
@@ -998,7 +1016,10 @@
     function tempSettings() {
         const tempSlider = document.createElement('input');
         tempSlider.type = 'range';
-        tempSlider.value = promptData.temperature;
+        // Without a prompt temperature the slider keeps its own default position
+        if (isTemperatureSet(promptData.temperature)) {
+            tempSlider.value = promptData.temperature;
+        }
         tempSlider.min = '0';
         tempSlider.max = '2';
         tempSlider.step = '0.1';
@@ -1011,17 +1032,19 @@
         sliderValueDisplay.max = '2';
         sliderValueDisplay.min = '0';
         sliderValueDisplay.step = '0.1';
-        sliderValueDisplay.value = promptData.temperature;
+        sliderValueDisplay.value = isTemperatureSet(promptData.temperature) ? promptData.temperature : '';
         sliderValueDisplay.style.width = '13%';
 
         sliderValueDisplay.oninput = function () {
             tempSlider.value = this.value;
             settingsTemp = this.value;
+            sliderTouched = true;
         }
 
         tempSlider.oninput = function () {
             sliderValueDisplay.value = this.value;
             settingsTemp = this.value;
+            sliderTouched = true;
         }
 
         const tempLabel = document.createElement('label');
@@ -1109,7 +1132,7 @@
                             const dbLink = getRoot() + "/" + XWiki.servletpath + 'view/AI/PromptDB/';
                             chatContent.appendChild(addSystemChat(msg, dbLink, 'Application PromptDB'));
                         }
-                        json = { prompt: '', temperature: 0 };
+                        json = { prompt: '' };
                         resolve(json);
                     }
                     else {
@@ -1277,21 +1300,18 @@
         const modelMenu = document.querySelector('#model-menu');
         const model = modelMenu.value;
         const contextLength = Number(modelMenu.options[modelMenu.selectedIndex].getAttribute("data-context-length"));
-        let temp;
-        if (paramView) {
-            const sliderTempVal = parseFloat(document.querySelector('#sliderTemp').value);
-            const promptTempVal = parseFloat(promptData.temperature);
-            if (sliderTempVal !== promptTempVal)
-                temp = sliderTempVal;
-        }
-        else
-            temp = promptData.temperature;
+        // The slider value is only sent when the user actually moved it; otherwise the prompt's temperature
+        // (possibly unset, in which case none is sent) applies.
+        const temp = (paramView &amp;&amp; sliderTouched)
+            ? parseFloat(document.querySelector('#sliderTemp').value)
+            : promptData.temperature;
+        settingsTemp = isTemperatureSet(temp) ? Number(temp) : 'default';
         const isStreaming = modelMenu.options[modelMenu.selectedIndex].getAttribute("data-streaming");
         maxToken = contextLength &gt; 0 ? maxToken : 2000;
         // Adding the user chat in the page
         const chatContent = document.querySelector('#chatContent');
         if (promptData.prompt !== '') {
-            if (paramView)
+            if (paramView &amp;&amp; sliderTouched)
                 chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData.prompt + ' With a custom temperature of ' + settingsTemp + '.'));
             else
                 chatContent.appendChild(addSystemChat('The prompt used is: ' + promptData.prompt));
@@ -1370,16 +1390,21 @@
                     Promise.all([getPrompt(optionsPromptRqChange)])
                         .then((res) =&gt; {
                             promptData = res[0];
+                            sliderTouched = false;
                             document.querySelector('#txt-input').value = promptData.userPrompt !== undefined ? promptData.userPrompt : '';
                             if (paramExist) {
                                 document.querySelector('#sysPromptDisplay').value = promptData.prompt;
-                                document.querySelector('#sliderTemp').value = promptData.temperature;
-                                document.querySelector('#sliderValueDisplay').value = promptData.temperature;
+                                if (isTemperatureSet(promptData.temperature)) {
+                                    document.querySelector('#sliderTemp').value = promptData.temperature;
+                                }
+                                document.querySelector('#sliderValueDisplay').value =
+                                    isTemperatureSet(promptData.temperature) ? promptData.temperature : '';
                             }
                         });
                 }
                 else {
-                    promptData = { prompt: '', temperature: 0 };
+                    promptData = { prompt: '' };
+                    sliderTouched = false;
                     document.querySelector('#txt-input').value = '';
                     if (paramExist) {
                         document.querySelector('#sysPromptDisplay').value = '';
@@ -1422,7 +1447,8 @@
             abortRequest();
         });
 
-        promptData = { prompt: '', temperature: 0 };
+        promptData = { prompt: '' };
+        sliderTouched = false;
     }
 
     /**

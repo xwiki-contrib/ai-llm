@@ -265,8 +265,10 @@ class ChatCompletionRequest {
      * Constructs a new ChatCompletionRequest instance.
      * 
      * @param {string} model - The model to use for generating chat completions.
-     * @param {number} temperature - The randomness of the generated completions, usually between 0 and 2.
+     * @param {?number} temperature - Optional randomness of the generated completions, between 0 and 2. When
+     *   null or undefined the field is left out of the request and the model provider applies its own default.
      * @param {Array} messages - An array of message objects, each containing a role and content.
+     * @param {boolean} stream - Whether the completion is streamed.
      */
     constructor(model, temperature, messages, stream) {
         this.setModel(model);
@@ -290,10 +292,15 @@ class ChatCompletionRequest {
     /**
      * Sets the temperature after validation.
      * 
-     * @param {number} temperature - The temperature for chat completions.
+     * @param {?number} temperature - The optional temperature for chat completions. null or undefined means
+     *   unset: the request then carries no temperature and the model provider decides.
      */
     setTemperature(temperature) {
-        if (typeof temperature !== 'number' || temperature < 0 || temperature > 2) {
+        if (temperature === null || temperature === undefined) {
+            this.temperature = null;
+            return;
+        }
+        if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
             throw new Error('Temperature must be a number between 0 and 2.');
         }
         this.temperature = temperature;
@@ -351,12 +358,16 @@ class ChatCompletionRequest {
      */
     toJSON() {
         this.validate(); // Ensure the object is valid before serialization
-        return {
+        const json = {
             model: this.model,
-            temperature: this.temperature,
             messages: this.messages,
             stream: this.stream
         };
+        // An unset temperature is omitted entirely so that the provider's own default applies.
+        if (Number.isFinite(this.temperature)) {
+            json.temperature = this.temperature;
+        }
+        return json;
     }
 }
 window.XWikiAiAPI = XWikiAiAPI;

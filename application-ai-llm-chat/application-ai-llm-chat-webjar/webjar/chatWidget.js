@@ -15,9 +15,12 @@ let abortController = null;
 let conversationHistory = [];
 let userSettings = {
     model: '',
-    temperature: 0,
+    // null means "not set": the request carries no temperature and the model provider applies its own default.
+    temperature: null,
     stream: true,
-    settingsCollapsed: false
+    settingsCollapsed: false,
+    // Stored settings without a version predate the optional temperature, see loadUserSettings().
+    version: 2
 };
 let chatHistory;
 let chatInput;
@@ -69,7 +72,7 @@ function createChatWidget() {
                         </div>
                         <div>
                             <label for="temperature-input">Temp:</label>
-                            <input type="number" id="temperature-input" min="0" max="2" step="0.1" value="0">
+                            <input type="number" id="temperature-input" min="0" max="2" step="0.1" placeholder="default">
                         </div>
                         <div>
                             <label for="stream-checkbox">Stream:</label>
@@ -341,7 +344,7 @@ function sendMessage() {
     // Create a new request with the full conversation history
     const request = new ChatCompletionRequest(
         modelSelect.value,
-        parseFloat(temperatureInput.value),
+        readTemperatureInput(),
         conversationHistory,
         streamCheckbox.checked
     );
@@ -614,10 +617,15 @@ function displayErrorMessage(message) {
     chatHistory.scrollTop = chatHistory.scrollHeight;
 }
 
+// Read the temperature box: an empty box means "not set" (null), otherwise the entered number
+function readTemperatureInput() {
+    return temperatureInput.value === '' ? null : parseFloat(temperatureInput.value);
+}
+
 // Update user settings
 function updateUserSettings() {
     userSettings.model = modelSelect.value;
-    userSettings.temperature = parseFloat(temperatureInput.value);
+    userSettings.temperature = readTemperatureInput();
     userSettings.stream = streamCheckbox.checked;
     saveUserSettings();
 }
@@ -632,8 +640,16 @@ function loadUserSettings() {
     const storedSettings = localStorage.getItem('userSettings');
     if (storedSettings) {
         userSettings = JSON.parse(storedSettings);
+        // Unversioned settings were written by a widget that stored 0 as its temperature default rather than
+        // as a user choice, so that value cannot be trusted: reset it to "not set" once and remember it.
+        if (userSettings.version === undefined) {
+            userSettings.temperature = null;
+            userSettings.version = 2;
+            saveUserSettings();
+        }
         modelSelect.value = userSettings.model;
-        temperatureInput.value = userSettings.temperature;
+        // An empty string clears the box, which displays the "default" placeholder
+        temperatureInput.value = userSettings.temperature ?? '';
         streamCheckbox.checked = userSettings.stream;
 
         // Apply the collapsed state to the settings section

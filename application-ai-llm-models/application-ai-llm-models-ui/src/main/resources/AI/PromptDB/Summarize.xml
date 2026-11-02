@@ -197,7 +197,7 @@
       <longText1>A prompt to summarize your input in 2 paragraphs.</longText1>
     </property>
     <property>
-      <shortText1>0.3</shortText1>
+      <shortText1/>
     </property>
     <property>
       <sysPrompt>Your task is to summarize the user content in the way asked. You have to use only the informations in the provided content to make the summary.</sysPrompt>
