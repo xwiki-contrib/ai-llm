@@ -97,7 +97,7 @@ services:
         ollama serve &
         sleep 10
         ollama pull all-minilm
-        ollama pull qwen2
+        ollama pull gemma4:e4b
         wait
 volumes:
   mariadb-data: {}

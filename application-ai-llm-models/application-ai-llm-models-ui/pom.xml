@@ -63,9 +63,7 @@
           </visibleTechnicalPages>
           <contentPages>
             <contentPage>.*/AI/Models/all-minilm.xml</contentPage>
-            <contentPage>.*/AI/Models/gpt-4o-mini.xml</contentPage>
-            <contentPage>.*/AI/Models/gpt-4o.xml</contentPage>
-            <contentPage>.*/AI/Models/qwen2.xml</contentPage>
+            <contentPage>.*/AI/Models/gemma4.xml</contentPage>
             <contentPage>.*/AI/Models/Default.xml</contentPage>
             <contentPage>.*/AI/PromptDB/Free Pompt.xml</contentPage>
             <contentPage>.*/AI/PromptDB/Summarize.xml</contentPage>

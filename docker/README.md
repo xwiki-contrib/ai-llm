@@ -25,7 +25,7 @@ The `docker-compose.yml` file contains the main configuration for the project. K
 - `ollama`: Ollama inference engine container 
 
 Note:
-Ollama is configured to automatically download a default model which may take some time to become available depending on your internet connection. Currently, the default model is `qwen2` (4.4GB).
+Ollama is configured to automatically download a default model which may take some time to become available depending on your internet connection. Currently, the default model is `gemma4:e4b` (6.6GB).
 For more details on how to pull additional models or interact with the ollama image refer to the [official dockerhub ollama page](https://hub.docker.com/r/ollama/ollama).
 
 Environment variables can be customized in the `.env` file.

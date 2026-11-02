@@ -20,9 +20,9 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 -->
 
-<xwikidoc version="1.5" reference="AI.Models.gpt-4o" locale="">
+<xwikidoc version="1.5" reference="AI.Models.gemma4" locale="">
   <web>AI.Models</web>
-  <name>gpt-4o</name>
+  <name>gemma4</name>
   <language/>
   <defaultLanguage>en</defaultLanguage>
   <translation>0</translation>
@@ -31,17 +31,17 @@
   <author>xwiki:XWiki.Admin</author>
   <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
   <version>1.1</version>
-  <title>gpt-4o</title>
+  <title>gemma4:e4b</title>
   <comment/>
   <minorEdit>false</minorEdit>
   <syntaxId>xwiki/2.1</syntaxId>
   <hidden>false</hidden>
   <content/>
   <object>
-    <name>AI.Models.gpt-4o</name>
+    <name>AI.Models.gemma4</name>
     <number>0</number>
     <className>AI.Code.RAGChatRequestFilterClass</className>
-    <guid>61e07c81-555f-4a7d-af9d-628871fe70f2</guid>
+    <guid>cfed22f8-9b31-479c-9925-0cf532edf9e1</guid>
     <class>
       <name>AI.Code.RAGChatRequestFilterClass</name>
       <customClass/>
@@ -125,14 +125,14 @@ and stringprop.id.name='id'</sql>
       <contextPrompt/>
     </property>
     <property>
-      <maxResults>10</maxResults>
+      <maxResults>3</maxResults>
     </property>
   </object>
   <object>
-    <name>AI.Models.gpt-4o</name>
+    <name>AI.Models.gemma4</name>
     <number>0</number>
     <className>AI.Models.Code.ModelsClass</className>
-    <guid>c2abcc3e-306b-4ef6-829c-7c2b8849226c</guid>
+    <guid>bd0eab1a-7c5f-49e2-b007-6a99dbbdbae5</guid>
     <class>
       <name>AI.Models.Code.ModelsClass</name>
       <customClass/>
@@ -336,16 +336,16 @@ and stringprop.id.name='id'</sql>
       <embeddingQueryPrefix/>
     </property>
     <property>
-      <groups>XWiki.XWikiAllGroup,XWiki.XWikiAdminGroup</groups>
+      <groups>XWiki.XWikiAllGroup</groups>
     </property>
     <property>
       <maximumParallelism/>
     </property>
     <property>
-      <model>gpt-4o</model>
+      <model>gemma4:e4b</model>
     </property>
     <property>
-      <serverName>OpenAI</serverName>
+      <serverName>Ollama</serverName>
     </property>
     <property>
       <type>llm</type>
