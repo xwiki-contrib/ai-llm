@@ -17,14 +17,18 @@
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 # 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 # ---------------------------------------------------------------------------
-version: '2'
 networks:
   bridge:
     driver: bridge
 services:
   # The container that runs XWiki in Tomcat, with the appropriate JDBC driver (for mariadb).
   web:
-    image: "xwikicontrib/ai-llm:0.6.2-16.6.0-mariadb-tomcat"
+    image: "xwikicontrib/ai-llm:${LLM_VERSION}-${XWIKI_VERSION}-mariadb-tomcat"
+    container_name: xwiki-mariadb-tomcat-web
+    # Run an init process (tini) as PID 1 instead of the JVM, so that processes reparented to PID 1 get reaped. The JVM
+    # (our PID 1 without this) never reaps children, so any process orphaned in the container (e.g. LibreOffice children
+    # left behind when soffice.bin restarts) would otherwise linger as <defunct> zombies forever (see XDOCKER-53).
+    init: true
     depends_on:
       - db
     ports:
@@ -44,15 +48,19 @@ services:
     networks:
       - bridge
   # The container that runs the database (mariadb)
+  # The image is pinned to the major that the "latest" tag of the official image resolves to, which is the version
+  # XWiki validates as its supported database configuration. The pin keeps the stack reproducible and lets Renovate
+  # propose the next major as a pull request, instead of a major database upgrade reaching the data volume silently on
+  # the next pull.
   db:
-    image: "mariadb:11.3"
+    image: "mariadb:13"
     container_name: xwiki-mariadb-db
     # - Provide a name instead of an auto-generated id for the mariadb data, to make it simpler to identify in
     # 'docker volume ls'
     # - Provide a SQL script to be executed when the db image starts (to set permissions to create subwikis)
     volumes:
       - mariadb-data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql
 
     # Configure the MariaDB database and create a user with provided name/password.
     # See https://hub.docker.com/_/mariadb/ for more details.
@@ -62,6 +70,9 @@ services:
       - MYSQL_USER=${DB_USER}
       - MYSQL_PASSWORD=${DB_PASSWORD}
       - MYSQL_DATABASE=${DB_DATABASE}
+      # Upgrade the system tables of an existing data volume when the image moves to a newer major, which otherwise
+      # requires running mariadb-upgrade by hand. See https://hub.docker.com/_/mariadb/ for more details.
+      - MARIADB_AUTO_UPGRADE=1
 
     # Pass arguments to configure the database
     command:

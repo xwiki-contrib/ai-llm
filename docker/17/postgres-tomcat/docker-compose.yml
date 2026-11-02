@@ -17,14 +17,18 @@
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 # 02110-1301 USA, or see the FSF site: http://www.fsf.org.
 # ---------------------------------------------------------------------------
-version: '2'
 networks:
   bridge:
     driver: bridge
 services:
-  # The container that runs XWiki in Tomcat, with the appropriate JDBC driver (for mysql).
+  # The container that runs XWiki in Tomcat, with the appropriate JDBC driver (for postgres).
   web:
-    image: "xwikicontrib/ai-llm:0.6.2-16.6.0-mysql-tomcat"
+    image: "xwikicontrib/ai-llm:${LLM_VERSION}-${XWIKI_VERSION}-postgres-tomcat"
+    container_name: xwiki-postgres-tomcat-web
+    # Run an init process (tini) as PID 1 instead of the JVM, so that processes reparented to PID 1 get reaped. The JVM
+    # (our PID 1 without this) never reaps children, so any process orphaned in the container (e.g. LibreOffice children
+    # left behind when soffice.bin restarts) would otherwise linger as <defunct> zombies forever (see XDOCKER-53).
+    init: true
     depends_on:
       - db
     ports:
@@ -36,36 +40,28 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_DATABASE=${DB_DATABASE}
-      - DB_HOST=xwiki-mysql-db
+      - DB_HOST=xwiki-postgres-db
     # Provide a name instead of an auto-generated id for xwiki data (the permanent directory in included in it)
     # configured in the Dockerfile, to make it simpler to identify in 'docker volume ls'.
     volumes:
       - xwiki-data:/usr/local/xwiki
     networks:
       - bridge
-  # The container that runs the database (mysql)
+  # The container that runs the database (postgres)
+  # The image is pinned to the major that the "latest" tag of the official image resolves to, which is the version
+  # XWiki validates as its supported database configuration. The pin keeps the stack reproducible and lets Renovate
+  # propose the next major as a pull request, instead of a major database upgrade reaching the data volume silently on
+  # the next pull.
   db:
-    image: "mysql:8.3"
-    container_name: xwiki-mysql-db
-    # - Provide a name instead of an auto-generated id for the mysql data, to make it simpler to identify in
-    # 'docker volume ls'
-    # - Provide a SQL script to be executed when the db image starts (to set permissions to create subwikis)
+    image: "postgres:18"
+    container_name: xwiki-postgres-db
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    # Configure the MySQL database and create a user with provided name/password.
-    # See https://hub.docker.com/_/mysql/ for more details.
-    # Default values defined in .env file.
+      - postgres-data:/var/lib/postgresql
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
-      - MYSQL_DATABASE=${DB_DATABASE}
-    # Pass arguments to configure the database
-    command:
-      - "--character-set-server=utf8mb4"
-      - "--collation-server=utf8mb4_bin"
-      - "--explicit-defaults-for-timestamp=1"
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_DB=${DB_DATABASE}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8
     networks:
       - bridge
   # The container for the default inference engine
@@ -87,6 +83,6 @@ services:
         ollama pull qwen2
         wait
 volumes:
-  mysql-data: {}
+  postgres-data: {}
   xwiki-data: {}
   ollama: {}

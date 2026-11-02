@@ -11,7 +11,7 @@ This project provides a Docker setup for running XWiki with AI Large Language Mo
 ## Quick Start
 
 1. Clone this repository
-2. Navigate to the directory of the docker version you want to use (ex: `ai-llm/docker/16/mariadb-tomcat/` )
+2. Navigate to the directory of the docker version you want to use (ex: `ai-llm/docker/17/mariadb-tomcat/` )
 3. Run `docker compose up`
 
 This will start XWiki, the database, and Ollama.
@@ -99,7 +99,7 @@ This will provide enough permissions for the `xwiki` user to create new schemas 
 Note: Make sure the directories you are mounting into the container are fully-qualified, and aren't relative paths.
 
 ```console
-docker run --net=xwiki-nw --name mysql-xwiki -v /my/path/mysql:/var/lib/mysql -v /my/path/mysql-init:/docker-entrypoint-initdb.d -e MYSQL_ROOT_PASSWORD=xwiki -e MYSQL_USER=xwiki -e MYSQL_PASSWORD=xwiki -e MYSQL_DATABASE=xwiki -d mysql:9.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --explicit-defaults-for-timestamp=1
+docker run --net=xwiki-nw --name mysql-xwiki -v /my/path/mysql:/var/lib/mysql -v /my/path/mysql-init:/docker-entrypoint-initdb.d -e MYSQL_ROOT_PASSWORD=xwiki -e MYSQL_USER=xwiki -e MYSQL_PASSWORD=xwiki -e MYSQL_DATABASE=xwiki -d mysql:26 --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --explicit-defaults-for-timestamp=1
 ```
 
 You should adapt the command line to use the passwords that you wish for the MySQL root password and for the `xwiki` user password (make sure to also change the GRANT command).
@@ -109,17 +109,17 @@ Notes:
 -   The `explicit-defaults-for-timestamp` parameter was introduced in MySQL 5.6.6 and will thus work only for that version and beyond. If you are using an older MySQL version, please use the following instead:
 
     ```console
-    docker run --net=xwiki-nw --name mysql-xwiki -v /my/path/mysql:/var/lib/mysql -v /my/path/mysql-init:/docker-entrypoint-initdb.d -e MYSQL_ROOT_PASSWORD=xwiki -e MYSQL_USER=xwiki -e MYSQL_PASSWORD=xwiki -e MYSQL_DATABASE=xwiki -d mysql:9.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_bin
+    docker run --net=xwiki-nw --name mysql-xwiki -v /my/path/mysql:/var/lib/mysql -v /my/path/mysql-init:/docker-entrypoint-initdb.d -e MYSQL_ROOT_PASSWORD=xwiki -e MYSQL_USER=xwiki -e MYSQL_PASSWORD=xwiki -e MYSQL_DATABASE=xwiki -d mysql:26 --character-set-server=utf8mb4 --collation-server=utf8mb4_bin
     ```
 
 #### Starting MariaDB
 
-This is exactly similar to starting MySQL and you should thus follow exactly the same steps as for MySQL. The only thing to change is the docker image for MariaDB: instead of `mysql:<tag>`, use `mariadb:<tag>`. For example: `mariadb:11.4`.
+This is exactly similar to starting MySQL and you should thus follow exactly the same steps as for MySQL. The only thing to change is the docker image for MariaDB: instead of `mysql:<tag>`, use `mariadb:<tag>`. For example: `mariadb:13`.
 
 Full command example:
 
 ```console
-docker run --net=xwiki-nw --name mysql-xwiki -v /my/path/mariadb:/var/lib/mysql -v /my/path/mariadb-init:/docker-entrypoint-initdb.d -e MYSQL_ROOT_PASSWORD=xwiki -e MYSQL_USER=xwiki -e MYSQL_PASSWORD=xwiki -e MYSQL_DATABASE=xwiki -d mariadb:11.4 --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --explicit-defaults-for-timestamp=1
+docker run --net=xwiki-nw --name mysql-xwiki -v /my/path/mariadb:/var/lib/mysql -v /my/path/mariadb-init:/docker-entrypoint-initdb.d -e MYSQL_ROOT_PASSWORD=xwiki -e MYSQL_USER=xwiki -e MYSQL_PASSWORD=xwiki -e MYSQL_DATABASE=xwiki -d mariadb:13 --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --explicit-defaults-for-timestamp=1
 ```
 
 #### Starting PostgreSQL
@@ -133,7 +133,7 @@ You need to make sure this directory exists, before proceeding.
 Note Make sure the directory you specify is specified with the fully-qualified path, not a relative path.
 
 ```
-docker run --net=xwiki-nw --name postgres-xwiki -v /my/path/postgres:/var/lib/postgresql/data -e POSTGRES_ROOT_PASSWORD=xwiki -e POSTGRES_USER=xwiki -e POSTGRES_PASSWORD=xwiki -e POSTGRES_DB=xwiki -e POSTGRES_INITDB_ARGS="--encoding=UTF8" -d postgres:16
+docker run --net=xwiki-nw --name postgres-xwiki -v /my/path/postgres:/var/lib/postgresql -e POSTGRES_USER=xwiki -e POSTGRES_PASSWORD=xwiki -e POSTGRES_DB=xwiki -e POSTGRES_INITDB_ARGS="--encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8" -d postgres:18
 ```
 
 You should adapt the command line to use the passwords that you wish for the PostgreSQL root password and for the xwiki user password.
@@ -151,18 +151,18 @@ Ensure this directory exists, and then run XWiki in a container by issuing one o
 For MySQL:
 
 ```console
-docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mysql-xwiki ai-llm:0.6.2-16.6.0-mysql-tomcat
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mysql-xwiki xwikicontrib/ai-llm:1.0.0-17.10.14-mysql-tomcat
 ```
 
 For MariaDB:
 
 ```console
-docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=postgres-xwiki ai-llm:0.6.2-16.6.0-mariadb-tomcat
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mariadb-xwiki xwikicontrib/ai-llm:1.0.0-17.10.14-mariadb-tomcat
 ```
 
 For PostgreSQL:
 ```console
-docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=postgres-xwiki ai-llm:0.6.2-16.6.0-postgres-tomcat
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=postgres-xwiki xwikicontrib/ai-llm:1.0.0-17.10.14-postgres-tomcat
 ```
 
 Be careful to use the same DB username, password and database names that you've used on the first command to start the DB container. Also, please don't forget to add a `-e DB_HOST=` environment variable with the name of the previously created DB container so that XWiki knows where its database is.
@@ -179,43 +179,42 @@ Another solution is to use the Docker Compose files we provide.
 
 #### For MySQL on Tomcat
 
--	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/mysql/init.sql`: This will download some SQL to execute at startup for MySQL
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/mysql/init.sql -o init.sql`
--	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/docker-compose.yml`
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/docker-compose.yml`
--	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
-	 -	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mysql-tomcat/.env -o .env`
+-	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/mysql/init.sql`: This will download some SQL to execute at startup for MySQL
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/mysql/init.sql -o init.sql`
+-	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/docker-compose.yml`
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/docker-compose.yml`
+-	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
+	 -	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/.env -o .env`
 -	`docker compose up`
 
 #### For MariaDB on Tomcat
 
--	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mariadb-tomcat/mariadb/init.sql`: This will download some SQL to execute at startup for MariaDB
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mariadb-tomcat/mariadb/init.sql -o init.sql`
--	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mariadb-tomcat/docker-compose.yml`
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/mariadb-tomcat/docker-compose.yml -o docker-compose.yml`
--	`wget https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/mariadb-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/mariadb-tomcat/.env -o .env`
+-	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/mariadb/init.sql`: This will download some SQL to execute at startup for MariaDB
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/mariadb/init.sql -o init.sql`
+-	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/docker-compose.yml`
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/docker-compose.yml -o docker-compose.yml`
+-	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/.env -o .env`
 -	`docker compose up`
 
 #### For PostgreSQL on Tomcat
 
--	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/postgres-tomcat/docker-compose.yml`
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/16/postgres-tomcat/docker-compose.yml -o docker-compose.yml`
--	`wget https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/postgres-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/docker-xwiki/master/16/postgres-tomcat/.env -o .env`
+-	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/postgres-tomcat/docker-compose.yml`
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/postgres-tomcat/docker-compose.yml -o docker-compose.yml`
+-	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/postgres-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
+	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/postgres-tomcat/.env -o .env`
 -	`docker compose up`
 
 ## Building
 
 To build the Docker image locally:
--	Install Git and run `git clone https://github.com/xwiki-contrib/ai-llm.git` or download the sources from the GitHub UI. Then go to the directory corresponding to the docker tag you wish to use. For example: `cd docker/16/mysql-tomcat`
-- Navigate to the directory containing the Dockerfile (e.g., `16/mysql-tomcat` or `16/mariadb-tomcat`)
+-	Install Git and run `git clone https://github.com/xwiki-contrib/ai-llm.git` or download the sources from the GitHub UI. Then go to the directory corresponding to the docker tag you wish to use. For example: `cd docker/17/mysql-tomcat`
+- Navigate to the directory containing the Dockerfile (e.g., `17/mysql-tomcat` or `17/mariadb-tomcat`)
+-	Run `docker build . -t xwikicontrib/ai-llm:1.0.0-17.10.14-mysql-tomcat` (use the tag referenced by the `docker-compose.yml` of that directory, so that `docker compose up` picks up the local image instead of pulling the published one)
 -	Run `docker compose up`
 -	Start a browser and point it to `http://localhost:8080`
 
-Note that if you want to set a custom version of XWiki you can edit the `.env` file and set the values you need in there. It's also possible to override them on the command line with `docker-compose run -e "XWIKI_VERSION=12.10.10"`.
-
-Note that `docker compose up` will automatically build the XWiki image on the first run. If you need to rebuild it you can issue `docker compose up --build`. You can also build the image with `docker build . -t xwiki-mysql-tomcat:latest` for example.
+Note that if you want to set a custom version of XWiki you can edit the `.env` file and set the values you need in there. It's also possible to override them on the command line with `docker compose run -e "XWIKI_VERSION=17.10.14"`.
 
 You can also just build the image by issuing `docker build -t xwiki-ai-llm .` and then use the instructions from above to start XWiki and the database using `docker run ...`.
 
