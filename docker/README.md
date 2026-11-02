@@ -179,8 +179,8 @@ Another solution is to use the Docker Compose files we provide.
 
 #### For MySQL on Tomcat
 
--	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/mysql/init.sql`: This will download some SQL to execute at startup for MySQL
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/mysql/init.sql -o init.sql`
+-	`mkdir -p mysql && wget -O mysql/init.sql https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/mysql/init.sql`: This will download some SQL to execute at startup for MySQL. The `docker-compose.yml` mounts it from the `mysql/` subdirectory; without it MySQL only grants the `xwiki` user rights on its own database, which is not enough for XWiki to create subwikis or to run its schema migrations.
+	-	If you don't have `wget` or prefer to use `curl`: `mkdir -p mysql && curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/mysql/init.sql -o mysql/init.sql`
 -	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/docker-compose.yml`
 	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/docker-compose.yml`
 -	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mysql-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
@@ -189,8 +189,8 @@ Another solution is to use the Docker Compose files we provide.
 
 #### For MariaDB on Tomcat
 
--	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/mariadb/init.sql`: This will download some SQL to execute at startup for MariaDB
-	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/mariadb/init.sql -o init.sql`
+-	`mkdir -p mariadb && wget -O mariadb/init.sql https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/mariadb/init.sql`: This will download some SQL to execute at startup for MariaDB. The `docker-compose.yml` mounts it from the `mariadb/` subdirectory; without it MariaDB only grants the `xwiki` user rights on its own database, which is not enough for XWiki to create subwikis or to run its schema migrations.
+	-	If you don't have `wget` or prefer to use `curl`: `mkdir -p mariadb && curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/mariadb/init.sql -o mariadb/init.sql`
 -	`wget -O docker-compose.yml https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/docker-compose.yml`
 	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/docker-compose.yml -o docker-compose.yml`
 -	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/mariadb-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
@@ -204,6 +204,44 @@ Another solution is to use the Docker Compose files we provide.
 -	`wget https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/postgres-tomcat/.env`: This contains default configuration values you should edit (version of XWiki to use, etc)
 	-	If you don't have `wget` or prefer to use `curl`: `curl -fSL https://raw.githubusercontent.com/xwiki-contrib/ai-llm/main/docker/17/postgres-tomcat/.env -o .env`
 -	`docker compose up`
+
+## Upgrading from the `docker/16` setup
+
+The `docker/16` Compose files (XWiki 16.6.0, AI LLM 0.6.2) and the `docker/17` ones use the same directory names, so when you start the new stack from a checkout of this repository Docker Compose reuses the existing `xwiki-data`, database and `ollama` volumes. Your pages, the AI collections and the pulled models are kept; XWiki migrates its database schema on the first start and the Distribution Wizard then offers the new AI LLM flavor version as an upgrade.
+
+Before you start the new stack, note the following per database.
+
+### MariaDB and MySQL: apply the global grant first
+
+The `docker/16` Compose files mounted `./init.sql`, a path at which the file never existed, so the grant from `init.sql` was never applied on those deployments: the `xwiki` user only has rights on the `xwiki` database. XWiki 16 ran fine like this, but the schema migration to 17.10 fails with `Access denied; you need (at least one of) the PROCESS privilege(s)`.
+
+Apply the grant as root on the running `docker/16` stack before switching (adapt the root password and the user name if you changed them in `.env`):
+
+```console
+# MariaDB
+docker compose exec db mariadb -uroot -pxwiki -e "GRANT ALL PRIVILEGES ON *.* TO 'xwiki'@'%'; FLUSH PRIVILEGES;"
+# MySQL
+docker compose exec db mysql -uroot -pxwiki -e "GRANT ALL PRIVILEGES ON *.* TO 'xwiki'@'%'; FLUSH PRIVILEGES;"
+```
+
+If you already started the new stack and XWiki failed with the error above, run the same command against the new `db` container and then `docker compose restart web`.
+
+- MariaDB 11.3 to 13: the new Compose file sets `MARIADB_AUTO_UPGRADE=1`, so the data directory is upgraded automatically on the first start. This path has been tested end to end (schema migration, flavor upgrade, collections and chat intact).
+- MySQL 8.3 to 26: not tested yet. MySQL only supports in-place upgrades along its documented upgrade paths, so if the new container refuses to start on the old data directory, either step through the intermediate images (`mysql:8.4`, then the following LTS releases) with the same volume, or dump the database from the old stack and restore it into a fresh volume as described for PostgreSQL below.
+
+### PostgreSQL: dump and restore
+
+PostgreSQL cannot upgrade a data directory across major versions, and the official `postgres:18` image also changed where it keeps its data (the volume is now mounted on `/var/lib/postgresql` instead of `/var/lib/postgresql/data`). Starting the new stack on the old volume therefore does not fail: PostgreSQL 18 initialises an empty cluster next to the old data and XWiki shows an empty wiki. This path has not been tested yet; the procedure is the standard one:
+
+1. On the running `docker/16` stack, dump the database: `docker compose exec -T db pg_dump -U xwiki -Fc xwiki > xwiki.dump`
+2. Stop it with `docker compose down`, then remove the old database volume (keep the dump!): `docker volume rm postgres-tomcat_postgres-data`
+3. From `docker/17/postgres-tomcat`, start only the database: `docker compose up -d db`
+4. Restore the dump: `docker compose exec -T db pg_restore -U xwiki -d xwiki --no-owner --role=xwiki < xwiki.dump`
+5. Start the whole stack with `docker compose up`
+
+### Ollama
+
+The pulled models stay in the `ollama` volume. The new Compose files pull `gemma4:e4b` instead of `qwen2`. AI LLM 1.0.1 and later no longer preconfigure the `qwen2`, `gpt-4o` and `gpt-4o-mini` model pages, so the flavor upgrade offers to delete them (the Distribution Wizard asks first); accept, or keep `qwen2` pulled if you still use that page.
 
 ## Building
 

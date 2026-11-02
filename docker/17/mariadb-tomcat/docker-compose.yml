@@ -83,7 +83,10 @@ services:
       - bridge
   # The container for the default inference engine
   ollama:
-    image: ollama/ollama
+    # Pinned to a release instead of 'latest': a stale cached 'latest' may be too old to pull the models below
+    # (Ollama answers HTTP 412 when a model needs a newer server), and the pull failure does not stop the container.
+    # Bump the pin when upgrading the models.
+    image: "ollama/ollama:0.40.13"
     container_name: ollama
     volumes:
       - ollama:/root/.ollama
