@@ -46,10 +46,7 @@ import org.xwiki.contrib.llm.mcp.MCPToolSupport;
 import org.xwiki.contrib.llm.mcp.internal.tool.MCPManTool;
 import org.xwiki.model.reference.EntityReferenceSerializer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.modelcontextprotocol.json.McpJsonDefaults;
-import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.json.schema.JsonSchemaValidator;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpStatelessSyncServer;
@@ -168,10 +165,8 @@ public class XWikiMCPServerManager implements Disposable
     private ServerHolder buildServer(ServerKey key)
     {
         String wikiId = key.wikiId();
-        JacksonMcpJsonMapper jsonMapper = new JacksonMcpJsonMapper(new ObjectMapper());
-
         HttpServletStatelessServerTransport newTransport = HttpServletStatelessServerTransport.builder()
-            .jsonMapper(jsonMapper)
+            .jsonMapper(MCPJsonMapperFactory.create())
             .build();
 
         // Guard against null/blank: MCPServerConfiguration never returns null in production, but Mockito
