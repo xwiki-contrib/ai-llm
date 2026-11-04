@@ -114,6 +114,15 @@ $services.localization.render('AI.MCP.Code.security.notice.filters')
 ## The configuration form, tool tree and filters are shown only for a trusted page: the stored values of an
 ## untrusted page are never displayed, and the form's save would re-trust them.
 #if ($trusted)
+#if ($services.mcp.isOIDCProviderInstalled() &amp;&amp; !$services.mcp.isBearerAuthenticationActive($services.wiki.currentWikiId))
+  ## The provider alone does not make bearer tokens usable: that needs its token bridge selected as this wiki's
+  ## authentication service. Until then the endpoint sends a bare 401 and no RFC 9728 metadata.
+  #set ($authAdminUrl = $xwiki.getURL('XWiki.XWikiPreferences', 'admin', 'section=Authentication'))
+  {{warning}}
+  $services.localization.render('AI.MCP.Code.oidc.bridgeInactive', [$authAdminUrl])
+  {{/warning}}
+
+#end
 {{html clean="false"}}
   &lt;form id="mcp-server-config" method="post"
         action="$configDoc.getURL('save', "xredirect=$escapetool.url(${redirect})")"

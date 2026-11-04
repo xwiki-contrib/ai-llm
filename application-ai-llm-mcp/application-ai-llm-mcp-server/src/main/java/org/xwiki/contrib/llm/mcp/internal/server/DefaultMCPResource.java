@@ -19,8 +19,6 @@
  */
 package org.xwiki.contrib.llm.mcp.internal.server;
 
-import java.lang.reflect.Type;
-
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.ws.rs.WebApplicationException;
@@ -31,14 +29,11 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.component.util.DefaultParameterizedType;
 import org.xwiki.container.Container;
 import org.xwiki.container.Request;
 import org.xwiki.container.servlet.ServletRequest;
 import org.xwiki.container.servlet.ServletResponse;
 import org.xwiki.contrib.llm.mcp.MCPResource;
-import org.xwiki.resource.ResourceReferenceHandler;
-import org.xwiki.resource.ResourceType;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.rest.XWikiRestException;
 
@@ -53,12 +48,14 @@ import com.xpn.xwiki.XWikiContext;
  * <ol>
  *   <li>Advertising the XWiki OIDC Provider as the required authorization server via the RFC&nbsp;9728
  *       {@code /.well-known/oauth-protected-resource} endpoint and via a {@code WWW-Authenticate}
- *       header on {@code 401} responses if the OIDC Provider is available.</li>
+ *       header on {@code 401} responses when the OIDC Provider is installed and the wiki's active
+ *       authentication service is its token bridge ({@code oidc-provider-bridge}), i.e. when a bearer token the
+ *       client obtains will actually be honored (see {@link OIDCProviderStatus}).</li>
  *   <li>Refusing an unauthenticated (guest) caller with {@code 401} unless the wiki has enabled guest access,
  *       and refusing in every case a guest request that carries an {@code Authorization} header, since the
- *       credentials it presented did not authenticate. The rule is the same with or without the OIDC Provider;
- *       only the shape of the {@code 401} differs. Credential validation itself is performed upstream by
- *       XWiki's authentication filter; this resource only needs to inspect the result.</li>
+ *       credentials it presented did not authenticate. The rule is the same whether or not the OIDC Provider is
+ *       advertised; only the shape of the {@code 401} differs. Credential validation itself is performed
+ *       upstream by XWiki's authentication filter; this resource only needs to inspect the result.</li>
  *   <li>Setting the current wiki in the {@link XWikiContext} so that the
  *       {@link org.xwiki.contrib.llm.CollectionManager} resolves collections from the right wiki.</li>
  *   <li>Delegating to {@link io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport}
@@ -72,11 +69,13 @@ import com.xpn.xwiki.XWikiContext;
  * forwarded to the transport as the guest user, and the space filter and XWiki's view rights decide what the
  * caller may read. A request whose bearer token is expired or invalid still gets the {@code 401} of step 3
  * even then, so the client refreshes its token or restarts the flow instead of being silently served as
- * guest. Without an OIDC Provider the same rule applies, but the {@code 401} carries no
- * {@code WWW-Authenticate} header because there is no protected-resource metadata to point at.</p>
+ * guest. When the OIDC Provider is not advertised (it is not installed, or the wiki's active authentication
+ * service is not its token bridge, so bearer tokens are not honored there) the same rule applies, but the
+ * {@code 401} carries no {@code WWW-Authenticate} header because there is no protected-resource metadata to
+ * point at.</p>
  * <ol>
  *   <li>An unauthenticated client POSTs to {@code /rest/wikis/{wiki}/aiLLM/mcp}.</li>
- *   <li>XWiki's authentication filter runs {@code OIDCBridgeAuth.checkAuth()}, which reads the
+ *   <li>XWiki's authentication filter runs {@code TokenAuthService.checkAuth()}, which reads the
  *       {@code Authorization: Bearer} header. With no valid token the user remains guest
  *       ({@code getUserReference() == null}).</li>
  *   <li>This resource detects the guest user and returns {@code 401 Unauthorized} with:<br>
@@ -85,8 +84,8 @@ import com.xpn.xwiki.XWikiContext;
  *   <li>The client GETs the metadata URL to discover the XWiki OIDC Provider endpoints.</li>
  *   <li>The client performs the OAuth 2.0 Authorization Code flow and obtains a bearer token.</li>
  *   <li>The client re-sends the MCP request with {@code Authorization: Bearer {token}}.
- *       The OIDC provider validates the token and sets the authenticated user; this resource
- *       then forwards to the MCP transport.</li>
+ *       The token bridge validates the token against the OIDC Provider and sets the authenticated user;
+ *       this resource then forwards to the MCP transport.</li>
  * </ol>
  *
  * @version $Id$
@@ -106,9 +105,6 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private static final Type OIDC_PROVIDER_TYPE =
-        new DefaultParameterizedType(null, ResourceReferenceHandler.class, ResourceType.class);
-
     @Inject
     private XWikiMCPServerManager mcpServerManager;
 
@@ -118,16 +114,22 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
     @Inject
     private Container container;
 
+    @Inject
+    private OIDCProviderStatus oidcProviderStatus;
+
     @Override
     public Response handleGetOAuthMetadata(String wikiName) throws XWikiRestException
     {
-        if (!hasOIDCProvider()) {
-            // If there's no OIDC Provider, there's no point in advertising the protected resource metadata.
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
         // The metadata describes the MCP endpoint of the wiki, so it is absent exactly when that endpoint is:
         // for an id that is not the canonical id of an existing wiki and for a wiki whose endpoint is disabled.
+        // The canonical check comes first so no configuration or authentication service is resolved through a
+        // variant wiki id.
         if (!this.mcpConfig.isCanonicalWikiId(wikiName) || !this.mcpConfig.isEnabled(wikiName)) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        // No advertising when the provider is missing or bearer tokens are not honored on this wiki: the metadata
+        // would send the client to obtain a token the endpoint then refuses.
+        if (!this.oidcProviderStatus.isAdvertisable(wikiName)) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
@@ -185,8 +187,8 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
      *
      * <p>Otherwise the guest request is forwarded to the transport, and the space filter together
      * with XWiki's view rights limit the result to what a guest may see anyway. The rule does not
-     * depend on the OIDC Provider; its presence only decides whether the {@code 401} carries the
-     * {@code WWW-Authenticate} challenge (see {@link #unauthorizedException()}).</p>
+     * depend on the OIDC Provider; whether it is advertised for the wiki only decides whether the
+     * {@code 401} carries the {@code WWW-Authenticate} challenge (see {@link #unauthorizedException(String)}).</p>
      *
      * <p>Before any of that, a {@code {wiki}} path value that is not the canonical id of an existing wiki
      * ({@link MCPServerConfiguration#isCanonicalWikiId(String)}) is answered with {@code 404}, like a
@@ -224,7 +226,7 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
                 && (StringUtils.isNotBlank(jakartaRequest.getHeader(AUTHORIZATION))
                     || !this.mcpConfig.isGuestAccessAllowed(wikiName)))
             {
-                throw unauthorizedException();
+                throw unauthorizedException(wikiName);
             }
 
             // --- Delegate to MCP transport ---
@@ -242,20 +244,23 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
     }
 
     /**
-     * Builds a {@code 401 Unauthorized} {@link WebApplicationException}. With an OIDC Provider the
-     * response carries a {@code WWW-Authenticate} header pointing to the RFC&nbsp;9728
-     * protected-resource metadata document. Without one there is no metadata document to point at,
+     * Builds a {@code 401 Unauthorized} {@link WebApplicationException}. When the OIDC Provider is
+     * installed and the wiki's active authentication service is its token bridge
+     * ({@code oidc-provider-bridge}), i.e. when a bearer token the client obtains will actually be
+     * honored, the response carries a {@code WWW-Authenticate} header pointing to the RFC&nbsp;9728
+     * protected-resource metadata document. Otherwise there is no metadata document to point at,
      * so the response is a bare {@code 401} with no challenge, like the one the XWiki REST
      * resources answer with. Throwing this exception (rather than writing to the raw servlet
      * response) lets JAX-RS set the HTTP status correctly; writing directly to
      * {@link HttpServletResponse} would be overridden by JAX-RS with {@code 204 No Content} for
      * {@code void}-returning methods.
      *
+     * @param wikiName the wiki whose endpoint refuses the request
      * @return the exception to throw
      */
-    private WebApplicationException unauthorizedException()
+    private WebApplicationException unauthorizedException(String wikiName)
     {
-        if (!hasOIDCProvider()) {
+        if (!this.oidcProviderStatus.isAdvertisable(wikiName)) {
             return new WebApplicationException(Response.status(Response.Status.UNAUTHORIZED).build());
         }
         String metadataUrl = this.uriInfo.getAbsolutePath() + WELL_KNOWN_PATH;
@@ -292,10 +297,5 @@ public class DefaultMCPResource extends XWikiResource implements MCPResource
     private String buildOidcIssuerUrl()
     {
         return this.uriInfo.getBaseUri().resolve("../oidc").toString();
-    }
-
-    private boolean hasOIDCProvider()
-    {
-        return this.componentManager.hasComponent(OIDC_PROVIDER_TYPE, "oidc");
     }
 }

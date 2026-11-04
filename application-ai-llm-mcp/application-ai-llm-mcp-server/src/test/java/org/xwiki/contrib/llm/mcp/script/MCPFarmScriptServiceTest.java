@@ -33,6 +33,7 @@ import org.mockito.Mock;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
+import org.xwiki.contrib.llm.mcp.internal.server.OIDCProviderStatus;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.security.authorization.ContextualAuthorizationManager;
@@ -85,6 +86,9 @@ class MCPFarmScriptServiceTest
 
     @MockComponent
     private MCPServerConfiguration mcpConfig;
+
+    @MockComponent
+    private OIDCProviderStatus oidcProviderStatus;
 
     @MockComponent
     private ContextualAuthorizationManager authorization;
@@ -474,6 +478,39 @@ class MCPFarmScriptServiceTest
 
         when(this.mcpConfig.isGuestAccessAllowed(WIKI)).thenReturn(false);
         assertFalse(this.service.isGuestAccessAllowed(WIKI));
+    }
+
+    @Test
+    void isOIDCProviderInstalledDelegatesToStatus()
+    {
+        when(this.oidcProviderStatus.isProviderInstalled()).thenReturn(true);
+        assertTrue(this.service.isOIDCProviderInstalled());
+
+        when(this.oidcProviderStatus.isProviderInstalled()).thenReturn(false);
+        assertFalse(this.service.isOIDCProviderInstalled());
+    }
+
+    @Test
+    void isBearerAuthenticationActiveDelegatesToStatusWhenAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(true);
+
+        when(this.oidcProviderStatus.isBearerAuthenticationActive(WIKI)).thenReturn(true);
+        assertTrue(this.service.isBearerAuthenticationActive(WIKI));
+
+        when(this.oidcProviderStatus.isBearerAuthenticationActive(WIKI)).thenReturn(false);
+        assertFalse(this.service.isBearerAuthenticationActive(WIKI));
+    }
+
+    @Test
+    void isBearerAuthenticationActiveRefusesWhenNotAdmin()
+    {
+        when(this.authorization.hasAccess(Right.ADMIN, new WikiReference(WIKI))).thenReturn(false);
+        when(this.oidcProviderStatus.isBearerAuthenticationActive(WIKI)).thenReturn(true);
+
+        assertFalse(this.service.isBearerAuthenticationActive(WIKI));
+        // The authentication service is never resolved (and the context wiki never switched) for a non-admin.
+        verify(this.oidcProviderStatus, never()).isBearerAuthenticationActive(anyString());
     }
 
     @Test

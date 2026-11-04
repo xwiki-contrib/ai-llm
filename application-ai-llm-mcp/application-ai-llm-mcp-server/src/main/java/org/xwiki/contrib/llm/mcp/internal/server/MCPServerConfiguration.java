@@ -358,11 +358,12 @@ public class MCPServerConfiguration
 
     /**
      * Returns whether unauthenticated (guest) callers may use the MCP endpoint of the given wiki. This is the
-     * single gate for unauthenticated callers, with or without an OIDC Provider: with it off the endpoint
-     * answers every guest with {@code 401} (carrying the {@code WWW-Authenticate} challenge required by the
-     * MCP authorization specification when an OIDC Provider is installed), and with it on the request is
-     * forwarded to the transport and served with the guest user's rights. A request that presents credentials
-     * which fail to authenticate is refused with {@code 401} regardless of this flag.
+     * single gate for unauthenticated callers, whether or not the OIDC Provider is advertised: with it off the
+     * endpoint answers every guest with {@code 401} (carrying the {@code WWW-Authenticate} challenge required by
+     * the MCP authorization specification when the OIDC Provider is installed and the wiki's active
+     * authentication service is its token bridge, i.e. when a bearer token would be honored), and with it on the
+     * request is forwarded to the transport and served with the guest user's rights. A request that presents
+     * credentials which fail to authenticate is refused with {@code 401} regardless of this flag.
      * <p>
      * Allowing guests does not widen what the endpoint returns. Every tool resolves its content through
      * XWiki's own rights (and, for the document tools, the space filter), so a guest sees exactly the pages a

@@ -21,7 +21,6 @@ package org.xwiki.contrib.llm.mcp.internal.server;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.lang.reflect.Type;
 import java.net.URI;
 
 import javax.ws.rs.WebApplicationException;
@@ -29,7 +28,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 
-import jakarta.inject.Named;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -37,18 +35,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
-import org.xwiki.component.util.DefaultParameterizedType;
 import org.xwiki.container.Container;
 import org.xwiki.container.servlet.ServletRequest;
 import org.xwiki.container.servlet.ServletResponse;
 import org.xwiki.model.reference.DocumentReference;
-import org.xwiki.resource.ResourceReferenceHandler;
-import org.xwiki.resource.ResourceType;
 import org.xwiki.rest.XWikiResource;
 import org.xwiki.rest.XWikiRestException;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
-import org.xwiki.test.mockito.MockitoComponentManager;
 
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.InjectMockitoOldcore;
@@ -105,11 +99,10 @@ class DefaultMCPResourceTest
     @MockComponent
     private Container container;
 
-    // Mock the presence of the OIDC resource reference handler to ensure the authentication logic is executed in the
-    // tests.
+    // Decides whether the endpoint advertises the OIDC Provider (challenge header and metadata document). It answers
+    // false unless a test says otherwise.
     @MockComponent
-    @Named("oidc")
-    private ResourceReferenceHandler<ResourceType> oidcResourceReferenceHandler;
+    private OIDCProviderStatus oidcProviderStatus;
 
     @Mock
     private HttpServletRequest mockRequest;
@@ -198,6 +191,7 @@ class DefaultMCPResourceTest
     @Test
     void delegateToMcpReturns401WhenGuestUser() throws Exception
     {
+        when(this.oidcProviderStatus.isAdvertisable(WIKI_NAME)).thenReturn(true);
         // User reference is null (guest) - simulates no valid Bearer token
         this.oldcore.getXWikiContext().setUserReference(null);
         URI mcpUri = new URI("https://server/rest/wikis/" + WIKI_NAME + "/aiLLM/mcp");
@@ -218,12 +212,10 @@ class DefaultMCPResourceTest
     }
 
     @Test
-    void delegateToMcpReturnsBare401WhenGuestUserWithoutOIDC(MockitoComponentManager mockitoComponentManager)
-        throws Exception
+    void delegateToMcpReturnsBare401WhenGuestUserAndOIDCNotAdvertisable() throws Exception
     {
-        unregisterOidcResourceHandler(mockitoComponentManager);
-
-        // Guest access is off by default, and it is the single gate: no OIDC Provider does not open the endpoint.
+        // Guest access is off by default, and it is the single gate: an OIDC Provider that is not advertised (not
+        // installed, or bearer tokens not honored on this wiki) does not open the endpoint.
         this.oldcore.getXWikiContext().setUserReference(null);
 
         WebApplicationException ex = assertThrows(WebApplicationException.class,
@@ -231,19 +223,16 @@ class DefaultMCPResourceTest
 
         Response response = ex.getResponse();
         assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
-        // Without a provider there is no protected-resource metadata to point at: no challenge header, and the
-        // request URI is never read to build one.
+        // Without an advertised provider there is no protected-resource metadata to point at: no challenge header,
+        // and the request URI is never read to build one.
         assertNull(response.getHeaderString(WWW_AUTHENTICATE));
         verify(this.mockUriInfo, never()).getAbsolutePath();
         verify(this.mcpServerManager, never()).handleRequest(any(), any(), any());
     }
 
     @Test
-    void delegateToMcpServesGuestWithoutOIDCWhenGuestAccessAllowed(MockitoComponentManager mockitoComponentManager)
-        throws Exception
+    void delegateToMcpServesGuestWhenOIDCNotAdvertisableAndGuestAccessAllowed() throws Exception
     {
-        unregisterOidcResourceHandler(mockitoComponentManager);
-
         when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
         this.oldcore.getXWikiContext().setUserReference(null);
 
@@ -263,6 +252,7 @@ class DefaultMCPResourceTest
     {
         // Guest access is allowed, but the request carried a bearer token that did not authenticate: serving
         // it as guest would silently downgrade the caller, so it gets the challenge instead.
+        when(this.oidcProviderStatus.isAdvertisable(WIKI_NAME)).thenReturn(true);
         when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
         when(this.mockRequest.getHeader(AUTHORIZATION)).thenReturn(BEARER_TOKEN);
         this.oldcore.getXWikiContext().setUserReference(null);
@@ -283,11 +273,8 @@ class DefaultMCPResourceTest
     }
 
     @Test
-    void delegateToMcpReturnsBare401WhenGuestPresentsFailedCredentialsWithoutOIDC(
-        MockitoComponentManager mockitoComponentManager) throws Exception
+    void delegateToMcpReturnsBare401WhenGuestPresentsFailedCredentialsAndOIDCNotAdvertisable() throws Exception
     {
-        unregisterOidcResourceHandler(mockitoComponentManager);
-
         when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
         when(this.mockRequest.getHeader(AUTHORIZATION)).thenReturn("Basic d3Jvbmc6Y3JlZHM=");
         this.oldcore.getXWikiContext().setUserReference(null);
@@ -317,14 +304,17 @@ class DefaultMCPResourceTest
     @Test
     void delegateToMcpServesGuestWhenGuestAccessAllowed() throws Exception
     {
-        // The OIDC Provider stays registered: with guest access enabled the endpoint must forward the
+        // The OIDC Provider is advertisable: with guest access enabled the endpoint must forward the
         // request anyway instead of answering with the WWW-Authenticate challenge.
+        when(this.oidcProviderStatus.isAdvertisable(WIKI_NAME)).thenReturn(true);
         when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(true);
         this.oldcore.getXWikiContext().setUserReference(null);
 
         this.mcpResource.delegateToMcp(WIKI_NAME);
 
         verify(this.mcpServerManager).handleRequest(WIKI_NAME, this.mockRequest, this.mockResponse);
+        // No 401 is built, so whether the provider is advertisable is never consulted.
+        verify(this.oidcProviderStatus, never()).isAdvertisable(any());
     }
 
     @Test
@@ -407,11 +397,8 @@ class DefaultMCPResourceTest
     }
 
     @Test
-    void delegateToMcpServesAuthenticatedUserWithoutOIDCWhenGuestAccessOff(
-        MockitoComponentManager mockitoComponentManager) throws Exception
+    void delegateToMcpServesAuthenticatedUserWhenOIDCNotAdvertisableAndGuestAccessOff() throws Exception
     {
-        unregisterOidcResourceHandler(mockitoComponentManager);
-
         when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(false);
         this.oldcore.getXWikiContext().setUserReference(TEST_USER);
 
@@ -423,6 +410,7 @@ class DefaultMCPResourceTest
     @Test
     void delegateToMcpReturns401WhenGuestPresentsCredentialsAndGuestAccessOff() throws Exception
     {
+        when(this.oidcProviderStatus.isAdvertisable(WIKI_NAME)).thenReturn(true);
         when(this.mcpConfig.isGuestAccessAllowed(WIKI_NAME)).thenReturn(false);
         when(this.mockRequest.getHeader(AUTHORIZATION)).thenReturn(BEARER_TOKEN);
         this.oldcore.getXWikiContext().setUserReference(null);
@@ -446,6 +434,8 @@ class DefaultMCPResourceTest
             assertEquals(HttpServletResponse.SC_NOT_FOUND, response.getStatus());
         }
         verify(this.mcpConfig, never()).isEnabled(variant);
+        // Neither the configuration nor the authentication service is resolved through the variant id.
+        verify(this.oidcProviderStatus, never()).isAdvertisable(any());
         verify(this.mockUriInfo, never()).getAbsolutePath();
     }
 
@@ -457,12 +447,15 @@ class DefaultMCPResourceTest
         try (Response response = this.mcpResource.handleGetOAuthMetadata(WIKI_NAME)) {
             assertEquals(HttpServletResponse.SC_NOT_FOUND, response.getStatus());
         }
+        // A disabled endpoint has no metadata whatever the provider status, which is not consulted.
+        verify(this.oidcProviderStatus, never()).isAdvertisable(any());
         verify(this.mockUriInfo, never()).getAbsolutePath();
     }
 
     @Test
     void handleOAuthMetadata() throws Exception
     {
+        when(this.oidcProviderStatus.isAdvertisable(WIKI_NAME)).thenReturn(true);
         URI wellKnownURI = new URI(
             "https://server/rest/wikis/%s/aiLLM/mcp/.well-known/oauth-protected-resource".formatted(WIKI_NAME));
         when(this.mockUriInfo.getAbsolutePath()).thenReturn(wellKnownURI);
@@ -484,19 +477,15 @@ class DefaultMCPResourceTest
     }
 
     @Test
-    void handleOAuthMetadataReturns404WhenOIDCIsMissing(MockitoComponentManager mockitoComponentManager)
-        throws Exception
+    void handleOAuthMetadataReturns404WhenOIDCNotAdvertisable() throws Exception
     {
-        unregisterOidcResourceHandler(mockitoComponentManager);
+        // The provider is missing, or bearer tokens are not honored on this wiki: either way, no metadata.
+        when(this.oidcProviderStatus.isAdvertisable(WIKI_NAME)).thenReturn(false);
 
         try (Response response = this.mcpResource.handleGetOAuthMetadata(WIKI_NAME)) {
             assertEquals(HttpServletResponse.SC_NOT_FOUND, response.getStatus());
         }
-    }
-
-    private static void unregisterOidcResourceHandler(MockitoComponentManager mockitoComponentManager)
-    {
-        Type handlerType = new DefaultParameterizedType(null, ResourceReferenceHandler.class, ResourceType.class);
-        mockitoComponentManager.unregisterComponent(handlerType, "oidc");
+        verify(this.oidcProviderStatus).isAdvertisable(WIKI_NAME);
+        verify(this.mockUriInfo, never()).getAbsolutePath();
     }
 }

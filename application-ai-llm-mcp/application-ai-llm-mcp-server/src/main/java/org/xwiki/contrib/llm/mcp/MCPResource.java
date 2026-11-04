@@ -40,11 +40,12 @@ import org.xwiki.stability.Unstable;
  * user's rights. A request that presents credentials which fail to authenticate is refused with
  * {@code 401} in both cases.</p>
  *
- * <p>When the XWiki OIDC Provider is installed, authentication is advertised via the OAuth 2.0 Protected
- * Resource Metadata endpoint ({@code /.well-known/oauth-protected-resource}, RFC 9728), and the
- * {@code 401} response carries a {@code WWW-Authenticate} header that points to that metadata document
- * so that MCP clients can discover the OIDC Provider as the required authorization server. Without the
- * OIDC Provider the {@code 401} carries no such header.</p>
+ * <p>When the XWiki OIDC Provider is installed and the wiki's active authentication service is its token
+ * bridge ({@code oidc-provider-bridge}), i.e. when a bearer token the client obtains will actually be honored,
+ * authentication is advertised via the OAuth 2.0 Protected Resource Metadata endpoint
+ * ({@code /.well-known/oauth-protected-resource}, RFC 9728), and the {@code 401} response carries a
+ * {@code WWW-Authenticate} header that points to that metadata document so that MCP clients can discover the
+ * OIDC Provider as the required authorization server. Otherwise the {@code 401} carries no such header.</p>
  *
  * @version $Id$
  * @since 0.8
@@ -61,8 +62,9 @@ public interface MCPResource
      *
      * @param wikiName the wiki for which metadata is returned
      * @return a {@code 200 OK} response with {@code application/json} body, or {@code 404 Not Found} when
-     *     no OIDC Provider is installed, when {@code wikiName} is not the canonical id of an existing wiki, or
-     *     when the MCP endpoint of that wiki is disabled
+     *     {@code wikiName} is not the canonical id of an existing wiki, when the MCP endpoint of that wiki is
+     *     disabled, or when the OIDC Provider is not advertised for that wiki (it is not installed, or the
+     *     wiki's active authentication service is not its token bridge, so bearer tokens are not honored there)
      * @throws XWikiRestException if the response cannot be written
      */
     @GET

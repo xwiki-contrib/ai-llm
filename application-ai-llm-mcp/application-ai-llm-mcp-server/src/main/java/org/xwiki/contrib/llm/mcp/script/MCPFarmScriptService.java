@@ -46,6 +46,7 @@ import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.contrib.llm.mcp.MCPTool;
 import org.xwiki.contrib.llm.mcp.internal.server.MCPServerConfiguration;
+import org.xwiki.contrib.llm.mcp.internal.server.OIDCProviderStatus;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.WikiReference;
 import org.xwiki.script.service.ScriptService;
@@ -75,6 +76,9 @@ public class MCPFarmScriptService implements ScriptService
 
     @Inject
     private MCPServerConfiguration mcpConfig;
+
+    @Inject
+    private OIDCProviderStatus oidcProviderStatus;
 
     @Inject
     private ContextualAuthorizationManager authorization;
@@ -323,6 +327,36 @@ public class MCPFarmScriptService implements ScriptService
     public boolean isGuestAccessAllowed(String wikiId)
     {
         return this.mcpConfig.isGuestAccessAllowed(wikiId);
+    }
+
+    /**
+     * Tells whether the XWiki OIDC Provider is installed, i.e. its resource handler is registered. Read-only
+     * status information; no rights gate, since any client can observe it through the shape of the endpoint's
+     * {@code 401}.
+     *
+     * @return whether the XWiki OIDC Provider is installed
+     * @since 1.0.1
+     */
+    public boolean isOIDCProviderInstalled()
+    {
+        return this.oidcProviderStatus.isProviderInstalled();
+    }
+
+    /**
+     * Tells whether bearer tokens are honored on the given wiki, i.e. whether its active authentication service is
+     * the OIDC Provider's token bridge. The MCP endpoint of a wiki advertises the provider only when this holds and
+     * the provider is installed (see {@link #isOIDCProviderInstalled()}). Requires admin right on the wiki (see
+     * {@link #canAdmin(String)}), as the platform gates the equivalent query on its authentication service
+     * configuration, and because resolving the service switches the context wiki.
+     *
+     * @param wikiId the wiki whose authentication service to inspect
+     * @return whether the current user may administer the wiki and the active authentication service of the wiki
+     *     is the OIDC Provider's token bridge
+     * @since 1.0.1
+     */
+    public boolean isBearerAuthenticationActive(String wikiId)
+    {
+        return canAdmin(wikiId) && this.oidcProviderStatus.isBearerAuthenticationActive(wikiId);
     }
 
     /**
