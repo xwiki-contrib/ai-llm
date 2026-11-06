@@ -630,6 +630,53 @@ class MCPWriteSchemaToolTest extends AbstractMCPWriteToolTest
     }
 
     @Test
+    void modifyFieldOnMissingDocumentRefused(MockitoOldcore oldcore) throws Exception
+    {
+        assertMissingDocumentRefused(oldcore, MODIFY_FIELD, null);
+    }
+
+    @Test
+    void modifyFieldOnMissingDocumentWithBaseVersionRefused(MockitoOldcore oldcore) throws Exception
+    {
+        assertMissingDocumentRefused(oldcore, MODIFY_FIELD, "2.1");
+    }
+
+    @Test
+    void removeFieldOnMissingDocumentRefused(MockitoOldcore oldcore) throws Exception
+    {
+        // A document that does not exist reports version 1.1, so this base_version passes a version check.
+        assertMissingDocumentRefused(oldcore, REMOVE_FIELD, "1.1");
+    }
+
+    @Test
+    void removeFieldOnMissingDocumentWithOtherBaseVersionRefused(MockitoOldcore oldcore) throws Exception
+    {
+        assertMissingDocumentRefused(oldcore, REMOVE_FIELD, "9.9");
+    }
+
+    private void assertMissingDocumentRefused(MockitoOldcore oldcore, String operation, String baseVersion)
+        throws Exception
+    {
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put(REFERENCE_KEY, REF);
+        arguments.put(OPERATION_KEY, operation);
+        arguments.put(FIELD_KEY, TITLE_FIELD);
+        if (MODIFY_FIELD.equals(operation)) {
+            arguments.put(PRETTY_NAME_KEY, "Task title");
+        }
+        if (baseVersion != null) {
+            arguments.put(BASE_VERSION_KEY, baseVersion);
+        }
+
+        McpSchema.CallToolResult result = call(arguments);
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertEquals("Document \"MyApp.MyClass\" does not exist; the first add_field creates the class.",
+            textOf(result));
+        verifyNothingSaved(oldcore);
+    }
+
+    @Test
     void removeFieldRequiresBaseVersionAlways(MockitoOldcore oldcore) throws Exception
     {
         storeClass(oldcore);

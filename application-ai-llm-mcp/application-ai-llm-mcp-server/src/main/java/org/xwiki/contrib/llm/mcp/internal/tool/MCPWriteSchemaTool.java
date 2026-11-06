@@ -380,9 +380,9 @@ public class MCPWriteSchemaTool implements MCPTool
         if (refusal != null) {
             return refusal;
         }
-        McpSchema.CallToolResult versionProblem = checkVersion(request, creating, oldVersion);
-        if (versionProblem != null) {
-            return versionProblem;
+        McpSchema.CallToolResult stateProblem = checkDocumentState(request, creating, oldVersion);
+        if (stateProblem != null) {
+            return stateProblem;
         }
         XWikiDocument editable = xdoc.clone();
         boolean hiddenChanged = MCPWriteSupport.hiddenChanged(request.hidden(), editable);
@@ -522,21 +522,28 @@ public class MCPWriteSchemaTool implements MCPTool
     }
 
     /**
-     * Checks the document's state against the {@code base_version} workflow: remove_field always requires a
-     * matching version (destructive), while add_field and modify_field mirror {@code write_object} (required
-     * when the document exists, refused when add_field creates one). The check runs inside the per-document
-     * lock of {@link MCPWriteSupport#inTargetWiki}, serialized with every other MCP write to this document on
-     * this server; only a save made outside the MCP server (wiki UI, REST) or on another cluster node can
-     * still land between the check and the save. It protects the agent's read-modify-write loop, not
-     * cross-node transactional integrity.
+     * Checks the document's state against the operation and the {@code base_version} workflow. Only
+     * add_field creates a class, so a modify or remove on a document that does not exist is refused first: a
+     * document that does not exist reports version 1.1 and no fields, and the version and class-fields checks
+     * would otherwise answer as if it existed. Then remove_field always requires a matching version
+     * (destructive), while add_field and modify_field mirror {@code write_object} (required when the document
+     * exists, refused when add_field creates one). The check runs inside the per-document lock of
+     * {@link MCPWriteSupport#inTargetWiki}, serialized with every other MCP write to this document on this
+     * server; only a save made outside the MCP server (wiki UI, REST) or on another cluster node can still
+     * land between the check and the save. It protects the agent's read-modify-write loop, not cross-node
+     * transactional integrity.
      *
      * @param request the parsed arguments
      * @param creating whether the document does not exist yet
      * @param currentVersion the document's current version
      * @return an error result describing the problem, or {@code null} when the save may proceed
      */
-    private McpSchema.CallToolResult checkVersion(Request request, boolean creating, String currentVersion)
+    private McpSchema.CallToolResult checkDocumentState(Request request, boolean creating,
+        String currentVersion)
     {
+        if (creating && !ADD_FIELD.equals(request.operation())) {
+            return MCPToolSupport.errorResult(missingDocumentMessage(request.reference()));
+        }
         if (REMOVE_FIELD.equals(request.operation())) {
             return checkRemoveVersion(request, currentVersion);
         }
@@ -588,8 +595,25 @@ public class MCPWriteSchemaTool implements MCPTool
      */
     private static String alreadyExistsMessage(String reference)
     {
-        return "Document " + QUOTE + strip(reference) + QUOTE
+        return quotedDocument(reference)
             + " already exists. First read it with get_document and pass the base_version it shows.";
+    }
+
+    /**
+     * Formats the refusal for a modify or remove sent for a document that does not exist: there is no
+     * field to change, and the way to get a class there is add_field.
+     *
+     * @param reference the original reference string, echoed neutralized in the message
+     * @return the agent-facing error message
+     */
+    private static String missingDocumentMessage(String reference)
+    {
+        return quotedDocument(reference) + " does not exist; the first add_field creates the class.";
+    }
+
+    private static String quotedDocument(String reference)
+    {
+        return "Document " + QUOTE + strip(reference) + QUOTE;
     }
 
     private static String strip(String value)
