@@ -99,6 +99,7 @@ function createToggleChatButton() {
     const toggleChatButtonElement = document.createElement('button');
     toggleChatButtonElement.id = 'toggle-chat-button';
     toggleChatButtonElement.textContent = '✨ Chat';
+    toggleChatButtonElement.setAttribute('aria-expanded', 'false');
     document.body.appendChild(toggleChatButtonElement);
     return toggleChatButtonElement;
 }
@@ -254,15 +255,6 @@ function stopResize() {
     isResizing = false;
 }
 
-// Modify the toggleChatWidget function
-function toggleChatWidget() {
-    if (isPanelMode) {
-        chatWidget.style.display = chatWidget.style.display === 'none' ? 'flex' : 'none';
-    } else {
-        chatWidget.style.display = chatWidget.style.display === 'none' ? 'block' : 'none';
-    }
-}
-
 // Handle new conversation
 function startNewConversation() {
     // Clear the conversation history
@@ -281,9 +273,10 @@ function handleChatInputKeydown(event) {
     }
 }
 
-// Toggle the visibility of the chat widget
+// Toggle the visibility of the chat widget. The style sheet hides the widget until it has the "open" class.
 function toggleChatWidget() {
-    chatWidget.style.display = chatWidget.style.display === 'none' ? 'block' : 'none';
+    const isOpen = chatWidget.classList.toggle('open');
+    toggleChatButton.setAttribute('aria-expanded', String(isOpen));
 }
 
 // Handle chat input focus event

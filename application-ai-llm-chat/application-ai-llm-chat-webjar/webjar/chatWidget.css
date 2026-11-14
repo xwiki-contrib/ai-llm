@@ -19,6 +19,10 @@
     max-height: 90vh;
 }
 
+#chat-widget.open {
+    display: block;
+}
+
 #resize-handle {
     position: absolute;
     top: 0;
