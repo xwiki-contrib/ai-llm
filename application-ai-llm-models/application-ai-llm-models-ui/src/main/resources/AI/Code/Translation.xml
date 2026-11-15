@@ -59,8 +59,9 @@ llm.ui.featureMenuPlaceholder=Select a Prompt
 llm.ui.applicationsPanelEntryLabel=LLM Application
 llm.config.label=LLM Assistant Configuration
 llm.config.label.hint=Configuration for the LLM application, need at least one configuration with one model and the \
-    associated URL prefix/token to work. The URL prefix should allow access to /chat/completions, and /models when the \
-    configured list of models is empty. For example, if the prefix looks like http://example.url.com/ then http://example.url.com/models and http://example.url.com/chat/completions should be accessible.
+    associated URL prefix/token to work. The URL prefix is the base URL of the API of the server, with or without a \
+    final slash: with the prefix https://example.com/v1, the application uses \
+    https://example.com/v1/chat/completions and https://example.com/v1/embeddings.
 llm.config.name=Server Name
 llm.config.url=URL prefix
 llm.config.token=Token

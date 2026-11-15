@@ -56,6 +56,8 @@ public class RequestHelper
 
     private static final String APPLICATION_JSON = "application/json";
 
+    private static final String SLASH = "/";
+
     @Inject
     private HttpClientFactory httpClientFactory;
 
@@ -63,7 +65,8 @@ public class RequestHelper
      * Perform a POST request.
      *
      * @param config the configuration that provides the URL and the authentication token
-     * @param path the path of the API endpoint
+     * @param path the path of the API endpoint relative to the URL prefix of the configuration, without a leading
+     *     slash, e.g. {@code chat/completions}
      * @param body the object to send in the body of the request
      * @param bodyHandler the handler that processes the response body
      * @return the value returned by the body handler
@@ -90,7 +93,8 @@ public class RequestHelper
      * Perform a GET request.
      *
      * @param config the configuration that provides the URL and the authentication token
-     * @param path the path of the API endpoint
+     * @param path the path of the API endpoint relative to the URL prefix of the configuration, without a leading
+     *     slash, e.g. {@code chat/completions}
      * @param bodyHandler the handler that processes the response body
      * @return the value returned by the response handler
      * @param <R> the type of the body
@@ -135,10 +139,25 @@ public class RequestHelper
         }
     }
 
+    /**
+     * @return the URI of the endpoint {@code path} below the URL prefix of the configuration, which may or may not end
+     *     with a slash
+     * @throws IOException if the configuration has no URL prefix
+     */
+    private static URI getEndpointURI(GPTAPIConfig config, String path) throws IOException
+    {
+        String urlPrefix = config.getURL();
+        if (StringUtils.isBlank(urlPrefix)) {
+            throw new IOException("The AI server [%s] has no URL prefix; set it in the AI server configuration."
+                .formatted(config.getName()));
+        }
+        return URI.create(urlPrefix.endsWith(SLASH) ? urlPrefix + path : urlPrefix + SLASH + path);
+    }
+
     private <T> HttpRequest prepareRequest(String path, GPTAPIConfig config, T body) throws IOException
     {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-            .uri(URI.create(config.getURL() + path))
+            .uri(getEndpointURI(config, path))
             .header("Authorization", BEARER + config.getToken())
             .header("Accept", APPLICATION_JSON)
             .header("Content-Type", APPLICATION_JSON)
