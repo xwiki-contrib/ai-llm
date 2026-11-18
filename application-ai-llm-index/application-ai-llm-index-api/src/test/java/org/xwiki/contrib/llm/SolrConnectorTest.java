@@ -20,6 +20,7 @@
 package org.xwiki.contrib.llm;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,10 +36,13 @@ import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
+import org.apache.solr.common.SolrInputDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.xwiki.contrib.llm.internal.AiLLMSolrCoreInitializer;
 import org.xwiki.contrib.llm.openai.Context;
@@ -59,8 +63,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -411,8 +419,42 @@ class SolrConnectorTest
 
         // Chunks stored before version 0.4 have no wiki field and are removed as well.
         verify(this.client).deleteByQuery("((" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":escaped(otherwiki)) OR (*:*"
-            + " AND -" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":[* TO *]))", 10000);
-        verify(this.client).commit(null, false, true, true);
+            + " AND -" + AiLLMSolrCoreInitializer.FIELD_WIKI + ":[* TO *]))");
+        assertOnlyHardCommit();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void storeChunksHardCommitsTheStoredChunks() throws Exception
+    {
+        Chunk chunk = mock(Chunk.class);
+        when(chunk.getId()).thenReturn("chunk-id");
+        when(chunk.getContent()).thenReturn("Some content");
+
+        this.solrConnector.storeChunks(List.of(chunk));
+
+        ArgumentCaptor<Collection<SolrInputDocument>> documents = ArgumentCaptor.forClass(Collection.class);
+        InOrder inOrder = inOrder(this.client);
+        inOrder.verify(this.client).add(documents.capture());
+        // The commit comes after the chunks are sent, or it would not cover them.
+        inOrder.verify(this.client).commit();
+        assertEquals(1, documents.getValue().size());
+        SolrInputDocument document = documents.getValue().iterator().next();
+        assertEquals("chunk-id", document.getFieldValue("id"));
+        assertEquals("Some content", document.getFieldValue(AiLLMSolrCoreInitializer.FIELD_CONTENT));
+        assertOnlyHardCommit();
+    }
+
+    /**
+     * Asserts that the changes were written to disk by a hard commit. A soft commit, or an update sent with a
+     * "commit within" delay, would leave them in the transaction log of Solr only, to be replayed at the next start.
+     */
+    private void assertOnlyHardCommit() throws Exception
+    {
+        verify(this.client).commit();
+        verify(this.client, never()).commit(any(), anyBoolean(), anyBoolean(), anyBoolean());
+        verify(this.client, never()).add(ArgumentMatchers.<Collection<SolrInputDocument>>any(), anyInt());
+        verify(this.client, never()).deleteByQuery(anyString(), anyInt());
     }
 
     private void mockEscaping(String... values)

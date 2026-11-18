@@ -126,11 +126,8 @@ public class SolrConnector
     {
         SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient();
         List<SolrInputDocument> solrDocuments = chunks.stream().map(this::getSolrDocument).toList();
-        // Don't commit changes explicitly to avoid the performance impact of committing, just ask Solr to commit
-        // within 10 seconds.
-        client.add(solrDocuments, 10000);
-        // Trigger a soft commit to ensure that the chunks are available for search.
-        client.commit(null, false, true, true);
+        client.add(solrDocuments);
+        commit(client);
     }
 
     private SolrInputDocument getSolrDocument(Chunk chunk)
@@ -383,11 +380,24 @@ public class SolrConnector
     private void deleteChunksByQuery(String query) throws IOException, SolrServerException, SolrException
     {
         SolrClient client = this.solr.getCore(AiLLMSolrCoreInitializer.DEFAULT_AILLM_SOLR_CORE).getClient();
-        // Ask for an actual commit within 10 seconds to avoid the cost of a hard commit.
-        client.deleteByQuery(query, 10000);
-        // Trigger an explicit soft commit to ensure that the chunks are really gone when we search for them
-        // while checking if we should re-embed a chunk.
-        client.commit(null, false, true, true);
+        client.deleteByQuery(query);
+        commit(client);
+    }
+
+    /**
+     * Writes the pending changes of the chunk index to disk and makes them visible to queries.
+     * <p>
+     * Visibility is needed right away: the indexer queries the chunks it just stored or deleted to decide whether a
+     * chunk must be embedded again and which documents are left to index. Writing to disk is needed because
+     * nothing else does it: a soft commit, or the commit that Solr schedules for an update sent with a "commit
+     * within" delay, only makes the changes visible. They would then exist only in the transaction log of Solr,
+     * which is replayed in full at the next start, and the chunks are missing from the index while it is replayed.
+     *
+     * @param client the client of the chunk index
+     */
+    private void commit(SolrClient client) throws IOException, SolrServerException
+    {
+        client.commit();
     }
 
     /**
