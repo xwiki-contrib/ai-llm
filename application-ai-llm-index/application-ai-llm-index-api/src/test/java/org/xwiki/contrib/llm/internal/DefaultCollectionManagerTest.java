@@ -34,6 +34,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.Document;
@@ -426,6 +428,21 @@ class DefaultCollectionManagerTest
             Map.of(COLLECTION_ID, InternalDocumentStore.NAME, collectionId2, InternalDocumentStore.NAME);
         verify(this.solrConnector).similaritySearch("query", embeddingModelMap, storeHintMap, 4, locale);
         verify(this.solrConnector).keywordSearch("query", storeHintMap, 3, locale);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = { "", " " })
+    void hybridSearchWithBlankQueryReturnsNothingWithoutSearching(String blankQuery) throws Exception
+    {
+        // The collection is searchable: only the blank query keeps the connector from being called.
+        createAndSavePublicCollection(COLLECTION_ID);
+
+        assertEquals(List.of(), this.collectionManager.hybridSearch(blankQuery, List.of(COLLECTION_ID), 4, 3));
+        assertEquals(List.of(), this.collectionManager.similaritySearch(blankQuery, List.of(COLLECTION_ID), 4));
+
+        verify(this.solrConnector, never()).similaritySearch(any(), any(), anyMap(), anyInt(), any());
+        verify(this.solrConnector, never()).keywordSearch(any(), anyMap(), anyInt(), any());
     }
 
     @Test

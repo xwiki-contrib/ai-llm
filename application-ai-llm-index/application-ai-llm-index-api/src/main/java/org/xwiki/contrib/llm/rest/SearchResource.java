@@ -50,7 +50,7 @@ public interface SearchResource
      * Searches for context chunks similar to the given query.
      *
      * @param wikiName the name of the wiki
-     * @param query the query to search for
+     * @param query the query to search for, required: a blank query is refused with a 400 status
      * @param collections the collections to search in, when empty all accessible collections are searched
      * @param limitKeywordResults the maximum number of results to return for the keyword search
      * @param limitSemanticResults the maximum number of results to return for the semantic search

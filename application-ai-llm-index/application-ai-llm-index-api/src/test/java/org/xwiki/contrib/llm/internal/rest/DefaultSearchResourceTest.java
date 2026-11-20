@@ -29,6 +29,9 @@ import javax.ws.rs.core.MediaType;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.openai.Context;
@@ -144,6 +147,22 @@ class DefaultSearchResourceTest
         assertEquals("The locale parameter is not a valid locale, use forms like \"fr\" or \"pt_BR\".",
             exception.getResponse().getEntity());
         verifyNoInteractions(this.collectionManager);
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = { "", "   " })
+    void searchWithoutQueryIsRejectedWithStatic400(String query)
+    {
+        WebApplicationException exception = assertThrows(WebApplicationException.class,
+            () -> this.searchResource.search(WIKI, query, COLLECTIONS, 5, 3, null));
+
+        assertEquals(400, exception.getResponse().getStatus());
+        assertEquals(MediaType.TEXT_PLAIN_TYPE, exception.getResponse().getMediaType());
+        assertEquals("The query parameter is required.", exception.getResponse().getEntity());
+        verifyNoInteractions(this.collectionManager);
+        // The previous wiki is restored after the refusal.
+        verify(this.context).setWikiId(MAIN_WIKI);
     }
 
     @Test

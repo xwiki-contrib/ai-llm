@@ -96,6 +96,9 @@ public class DefaultSearchResource extends XWikiResource implements SearchResour
 
             this.validateLimit(limitKeywordResults);
             this.validateLimit(limitSemanticResults);
+            if (StringUtils.isBlank(query)) {
+                throw badRequest("The query parameter is required.");
+            }
 
             List<String> collectionsToSearch =
                 collections.isEmpty() ? this.collectionManager.getCollections() : collections;

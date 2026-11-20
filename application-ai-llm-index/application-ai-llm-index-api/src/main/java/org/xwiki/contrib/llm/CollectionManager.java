@@ -109,7 +109,8 @@ public interface CollectionManager
      * @param collections the collections to search in
      * @param limitSemanticSimilarity the maximum number of results to return from a semantic similarity search
      * @param limitKeywordSearch the maximum number of results to return for the keyword search
-     * @return the context chunks matching the query
+     * @return the context chunks matching the query, ordered as described in
+     *     {@link #hybridSearch(String, List, int, int, Locale)}: best first, and not by {@code similarityScore}
      */
     default List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
         int limitKeywordSearch) throws IndexException
@@ -124,13 +125,20 @@ public interface CollectionManager
      * <p>The default implementation ignores the locale and delegates to
      * {@link #similaritySearch(String, List, int)}; implementations that support the locale filter override it.</p>
      *
+     * <p>The implementation shipped with this module orders the results by Reciprocal Rank Fusion of the two
+     * searches, best first: a result ranks by its positions in the semantic and in the keyword results. The list is
+     * NOT ordered by {@code similarityScore}: each result keeps the score given by the search that found it (the
+     * semantic score when both found it), and the two searches score on unrelated scales. A blank query returns no
+     * result.</p>
+     *
      * @param textQuery the text query
      * @param collections the collections to search in
      * @param limitSemanticSimilarity the maximum number of results to return from a semantic similarity search
      * @param limitKeywordSearch the maximum number of results to return for the keyword search
      * @param locale the content language the returned chunks must be indexed under (exact match on the stored
      *     language field), or {@code null} to search all languages
-     * @return the context chunks matching the query
+     * @return the context chunks matching the query, best first, in the order of the fusion of the two searches and
+     *     not in the order of their {@code similarityScore}
      * @since 0.10
      */
     @Unstable

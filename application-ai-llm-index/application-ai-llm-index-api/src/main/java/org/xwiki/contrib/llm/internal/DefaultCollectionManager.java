@@ -257,6 +257,12 @@ public class DefaultCollectionManager implements CollectionManager
     public List<Context> hybridSearch(String textQuery, List<String> collections, int limitSemanticSimilarity,
         int limitKeywordSearch, Locale locale) throws IndexException
     {
+        // A blank query has nothing to match: the semantic search would embed an empty text and the keyword search
+        // would look for a literal empty or "null" term.
+        if (StringUtils.isBlank(textQuery)) {
+            return List.of();
+        }
+
         Map<String, DefaultCollection> collectionMap = getAccessibleCollections(collections);
 
         Map<String, AuthorizationManager> authorizationManagerMap = getAuthorizationManagerMap(collectionMap);
