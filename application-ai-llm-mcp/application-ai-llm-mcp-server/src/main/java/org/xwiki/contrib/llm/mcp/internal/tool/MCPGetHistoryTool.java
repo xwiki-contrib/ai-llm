@@ -228,18 +228,18 @@ public class MCPGetHistoryTool implements MCPTool
     private MCPTranslationSupport translationSupport;
 
     /**
-     * Builds the declared parameter set, using a wiki-prefixed reference example, the cross-wiki
-     * sentence and the {@code wiki} parameter only when cross-wiki reach is advertised.
+     * Builds the declared parameter set, with the sentence that points at the {@code wiki} parameter and the
+     * {@code wiki} parameter itself only when cross-wiki reach is advertised.
      *
      * @param crossWiki whether to advertise cross-wiki reach
      * @return the declared parameter set
      */
     private static MCPToolSupport params(boolean crossWiki)
     {
-        String referenceDescription = "The document whose history to read, e.g. \"Help.GettingStarted\" or \""
-            + (crossWiki ? "xwiki:" : "") + "Sandbox.WebHome\".";
+        String referenceDescription =
+            "The document whose history to read, e.g. \"Help.GettingStarted\" or \"Sandbox.WebHome\".";
         if (crossWiki) {
-            referenceDescription += MCPReachAwareParams.CROSS_WIKI_REFERENCE_SENTENCE;
+            referenceDescription += MCPReachAwareParams.CROSS_WIKI_PARAMETER_SENTENCE;
         }
         return MCPToolSupport.builder()
             .requiredString(REFERENCE_PARAM, referenceDescription)

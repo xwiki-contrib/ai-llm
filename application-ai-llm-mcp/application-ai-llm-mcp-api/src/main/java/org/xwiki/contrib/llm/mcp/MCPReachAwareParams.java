@@ -38,13 +38,27 @@ import org.xwiki.stability.Unstable;
 public final class MCPReachAwareParams
 {
     /**
-     * The shared schema-text sentence appended to reference-parameter descriptions by cross-wiki-capable
-     * tools, in their cross-wiki variant only.
+     * The shared schema-text sentence appended to reference-parameter descriptions, in their cross-wiki variant
+     * only, by the tools that have no {@code wiki} parameter and reach another wiki through the wiki-id prefix
+     * of the reference.
      *
      * @since 0.10
      */
     public static final String CROSS_WIKI_REFERENCE_SENTENCE =
         " A wiki-id prefix reaches another wiki (see list_wikis).";
+
+    /**
+     * The shared schema-text sentence appended to reference-parameter descriptions, in their cross-wiki variant
+     * only, by the tools that target another wiki through a {@code wiki} parameter: such a tool resolves the
+     * reference in the wiki its {@code wiki} parameter names (the current wiki when omitted) and refuses a
+     * reference whose wiki-id prefix names a different wiki.
+     *
+     * @since 1.0.1
+     */
+    public static final String CROSS_WIKI_PARAMETER_SENTENCE =
+        " To target a document of another wiki, set the wiki parameter (see list_wikis); a wiki-id prefix on this"
+            + " reference must name the wiki the call targets, which is the current wiki when the wiki parameter is"
+            + " omitted.";
 
     /**
      * The cross-wiki variant: the superset used both for parsing and as the schema advertised by a

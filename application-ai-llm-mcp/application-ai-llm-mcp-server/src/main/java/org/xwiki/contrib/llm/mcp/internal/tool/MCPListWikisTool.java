@@ -50,8 +50,9 @@ import io.modelcontextprotocol.spec.McpSchema;
  * rather than conditionally.
  *
  * <p>This is a default (read-only) tool bundled with the MCP server module. It gives an agent the vocabulary for the
- * {@code query_documents} {@code wiki} parameter and for cross-wiki document references: a listed wiki id can be used
- * as the {@code wiki} argument (or as the wiki prefix of a reference) to reach that wiki from this endpoint.</p>
+ * {@code wiki} parameter of the tools that have one and for cross-wiki document references: a listed wiki id is
+ * used as the {@code wiki} argument of those tools, or as the wiki prefix of the reference passed to the tools
+ * that have no {@code wiki} parameter, to reach that wiki from this endpoint.</p>
  *
  * @version $Id$
  * @since 0.9
@@ -81,8 +82,9 @@ public class MCPListWikisTool implements MCPTool
      */
     private static final String REACHABLE_HEADER =
         "Reachable wikis - use any id below with the 'wiki' parameter of query_documents, get_tree, get_schema, "
-            + "query_objects, get_history or get_links (or as the wiki prefix of any document reference); "
-            + "query_documents also accepts wiki=\"all\" to search them together:";
+            + "query_objects, get_history or get_links, or, on the tools that have no 'wiki' parameter, as the "
+            + "wiki prefix of the document reference; query_documents also accepts wiki=\"all\" to search them "
+            + "together:";
 
     /**
      * First line of the reach-disabled listing.
@@ -99,8 +101,8 @@ public class MCPListWikisTool implements MCPTool
     private static final String DESCRIPTION =
         "List the wikis this endpoint can search and act on: the current wiki plus every other wiki in the farm "
             + "you can access. Use a listed wiki id with the 'wiki' parameter of query_documents, get_tree, "
-            + "get_schema, query_objects, get_history or get_links, or as the wiki prefix of any document "
-            + "reference.";
+            + "get_schema, query_objects, get_history or get_links, or, on the tools that have no 'wiki' "
+            + "parameter, as the wiki prefix of the document reference.";
 
     /**
      * The declared parameters: none. The empty parameter set still yields a valid empty-object input schema.
@@ -149,8 +151,10 @@ public class MCPListWikisTool implements MCPTool
             NOTES
                 A listed wiki id is used two ways: as the 'wiki' argument of query_documents,
                 get_tree, get_schema, query_objects, get_history or get_links (query_documents
-                also accepts wiki="all" to search several at once), and as the prefix of any
-                document reference passed to the other tools to read or write in that wiki. The
+                also accepts wiki="all" to search several at once), and as the prefix of the
+                document reference passed to the other tools, which have no 'wiki' argument, to
+                read or write in that wiki. A tool that has the 'wiki' argument refuses a
+                reference whose prefix names another wiki than the one the call targets. The
                 current wiki is always listed; other wikis appear only where you have access.
 
             EXAMPLES

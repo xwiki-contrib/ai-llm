@@ -871,5 +871,14 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
             (Map<?, ?>) this.tool.getToolDefinition().inputSchema().get("properties");
         assertFalse(localProperties.containsKey(WIKI_KEY));
         assertNotEquals(reachedProperties, localProperties);
+
+        // This tool targets another wiki through its wiki parameter and refuses a contradicting prefix, so
+        // its reference description must point at that parameter and must not promise that a prefix alone
+        // reaches another wiki.
+        String reachedReference = String.valueOf(reachedProperties.get("reference"));
+        assertTrue(reachedReference.contains("set the wiki parameter"), reachedReference);
+        assertFalse(reachedReference.contains("prefix reaches another wiki"), reachedReference);
+        String localReference = String.valueOf(localProperties.get("reference"));
+        assertFalse(localReference.contains("wiki"), localReference);
     }
 }
