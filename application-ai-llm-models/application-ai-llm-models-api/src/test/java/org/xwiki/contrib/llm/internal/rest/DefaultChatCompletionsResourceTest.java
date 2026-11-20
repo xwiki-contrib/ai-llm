@@ -21,6 +21,7 @@ package org.xwiki.contrib.llm.internal.rest;
 
 import java.util.Map;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +38,10 @@ import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 import org.xwiki.user.CurrentUserReference;
 
+import com.theokanning.openai.OpenAiError;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.when;
 
@@ -116,6 +120,18 @@ class DefaultChatCompletionsResourceTest
         assertEquals(500, response.getStatus());
         assertNull(response.getHeaderString(ALLOW_ORIGIN));
         assertEquals("POST, OPTIONS", response.getHeaderString(ALLOW_METHODS));
+    }
+
+    @Test
+    void requestErrorIsSentAsOpenAIErrorEntity()
+    {
+        Response response = this.resource.getCompletions(null, WIKI, REQUEST);
+
+        assertEquals(500, response.getStatus());
+        assertEquals(MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
+        OpenAiError error = assertInstanceOf(OpenAiError.class, response.getEntity());
+        assertEquals("The model is unavailable.", error.error.getMessage());
+        assertEquals("500", error.error.getCode());
     }
 
     private void configureOrigin(String url) throws Exception

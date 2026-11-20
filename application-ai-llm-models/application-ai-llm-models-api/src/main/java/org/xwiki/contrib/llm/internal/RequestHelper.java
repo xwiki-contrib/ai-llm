@@ -36,6 +36,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.FailableConsumer;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.GPTAPIConfig;
+import org.xwiki.contrib.llm.RequestError;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -142,14 +143,16 @@ public class RequestHelper
     /**
      * @return the URI of the endpoint {@code path} below the URL prefix of the configuration, which may or may not end
      *     with a slash
-     * @throws IOException if the configuration has no URL prefix
+     * @throws RequestError if the configuration has no URL prefix, so that the message reaches the caller of the REST
+     *     API as an error object
      */
-    private static URI getEndpointURI(GPTAPIConfig config, String path) throws IOException
+    private static URI getEndpointURI(GPTAPIConfig config, String path) throws RequestError
     {
         String urlPrefix = config.getURL();
         if (StringUtils.isBlank(urlPrefix)) {
-            throw new IOException("The AI server [%s] has no URL prefix; set it in the AI server configuration."
-                .formatted(config.getName()));
+            throw new RequestError(500,
+                "The AI server [%s] has no URL prefix; set it in the AI server configuration."
+                    .formatted(config.getName()));
         }
         return URI.create(urlPrefix.endsWith(SLASH) ? urlPrefix + path : urlPrefix + SLASH + path);
     }

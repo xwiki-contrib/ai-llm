@@ -19,7 +19,6 @@
  */
 package org.xwiki.contrib.llm.internal;
 
-import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -32,6 +31,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.xwiki.contrib.llm.GPTAPIConfig;
+import org.xwiki.contrib.llm.RequestError;
 import org.xwiki.test.junit5.mockito.ComponentTest;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
@@ -101,10 +101,14 @@ class RequestHelperTest
     @ValueSource(strings = { "", " " })
     void missingURLPrefixIsReported(String urlPrefix)
     {
-        IOException exception = assertThrows(IOException.class, () -> postChatCompletion(urlPrefix));
+        RequestError exception = assertThrows(RequestError.class, () -> postChatCompletion(urlPrefix));
 
-        assertEquals("The AI server [Test server] has no URL prefix; set it in the AI server configuration.",
-            exception.getMessage());
+        // The error is a request error so that the REST resources send its message to their caller.
+        String message = "The AI server [Test server] has no URL prefix; set it in the AI server configuration.";
+        assertEquals(500, exception.getCode());
+        assertEquals(message, exception.getPlainMessage());
+        assertEquals(message, exception.getOpenAiError().error.getMessage());
+        assertEquals("500", exception.getOpenAiError().error.getCode());
         verifyNoInteractions(this.httpClient);
     }
 }
