@@ -22,8 +22,7 @@ package org.xwiki.contrib.llm.internal;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -283,12 +282,13 @@ public class DefaultCollectionManager implements CollectionManager
             List<Context> keywordResults = this.solrConnector.keywordSearch(textQuery,
                 collectionStoreHintMap, limitKeywordSearch, locale);
 
-            Set<String> uniqueContent = new HashSet<>();
-            List<Context> results = Stream.concat(semanticResults.stream(), keywordResults.stream())
-                .filter(context -> uniqueContent.add(context.content()))
-                .toList();
+            // The access decisions are computed once for both searches, then each list is filtered in its own order:
+            // the position of a result in its list is what the fusion ranks on.
+            Map<String, Map<String, Boolean>> viewableDocuments = getViewableDocuments(
+                Stream.concat(semanticResults.stream(), keywordResults.stream()), authorizationManagerMap);
 
-            return filterSearchResults(results, authorizationManagerMap);
+            return ReciprocalRankFusion.fuse(filterSearchResults(semanticResults, viewableDocuments),
+                filterSearchResults(keywordResults, viewableDocuments));
         } catch (SolrServerException e) {
             throw new IndexException("Failed to perform similarity search", e);
         }
@@ -329,33 +329,44 @@ public class DefaultCollectionManager implements CollectionManager
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    private List<Context> filterSearchResults(List<Context> results,
+    /**
+     * @param results the search results to check
+     * @param authorizationManagerForCollection the authorization manager of each searched collection
+     * @return for each collection that has an authorization manager, whether the current user can view each of the
+     *     documents of the collection found in the results
+     */
+    private Map<String, Map<String, Boolean>> getViewableDocuments(Stream<Context> results,
         Map<String, AuthorizationManager> authorizationManagerForCollection)
     {
+        // Group the documents by collection name to avoid multiple authorization checks for a single collection. An
+        // authorization check could, e.g., call an external service where the overhead per call is high.
+        Map<String, Set<String>> documentIdsByCollection = results.collect(
+            Collectors.groupingBy(Context::collectionId, Collectors.mapping(Context::documentId, Collectors.toSet())));
+
+        Map<String, Map<String, Boolean>> viewableDocuments = new HashMap<>();
+        documentIdsByCollection.forEach((collectionName, documentIds) -> {
+            var authorizationManager = authorizationManagerForCollection.get(collectionName);
+            if (authorizationManager == null) {
+                this.logger.warn("Authorization manager for collection [{}] not found, skipping", collectionName);
+            } else {
+                viewableDocuments.put(collectionName, authorizationManager.canView(documentIds));
+            }
+        });
+        return viewableDocuments;
+    }
+
+    /**
+     * @param results the search results to filter
+     * @param viewableDocuments the access decisions computed by {@link #getViewableDocuments(Stream, Map)}
+     * @return the results whose document the current user can view, in the order of the given list. The results of
+     *     a collection without access decisions are left out.
+     */
+    private List<Context> filterSearchResults(List<Context> results,
+        Map<String, Map<String, Boolean>> viewableDocuments)
+    {
         return results.stream()
-            // Group the stream by collection name to avoid multiple authorization checks for a single collection. An
-            // authorization check could, e.g., call an external service where the overhead per call is high.
-            .collect(Collectors.groupingBy(Context::collectionId))
-            .entrySet().stream()
-            // For each collection, filter out the results that the user does not have access to and combine
-            // everything into a single stream again.
-            .flatMap(entry -> {
-                String collectionName = entry.getKey();
-                var authorizationManager = authorizationManagerForCollection.get(collectionName);
-                if (authorizationManager == null) {
-                    this.logger.warn("Authorization manager for collection [{}] not found, skipping",
-                        collectionName);
-                    return Stream.empty();
-                }
-                Set<String> documentIds = entry.getValue().stream()
-                    .map(Context::documentId)
-                    .collect(Collectors.toSet());
-                Map<String, Boolean> accessibleDocumentMap = authorizationManager.canView(documentIds);
-                return entry.getValue().stream()
-                    .filter(context -> accessibleDocumentMap.getOrDefault(context.documentId(), false));
-            })
-            // Sort the results by similarity score in descending order again as the sorting was lost during grouping.
-            .sorted(Comparator.comparingDouble(Context::similarityScore).reversed())
+            .filter(context -> viewableDocuments.getOrDefault(context.collectionId(), Map.of())
+                .getOrDefault(context.documentId(), false))
             .toList();
     }
 

@@ -416,7 +416,9 @@ class DefaultCollectionManagerTest
             ? this.collectionManager.hybridSearch("query", List.of(COLLECTION_ID, collectionId2), 4, 3)
             : this.collectionManager.hybridSearch("query", List.of(COLLECTION_ID, collectionId2), 4, 3, locale);
 
-        List<Context> expected = List.of(contextList.get(0), contextList.get(1), contextList.get(3));
+        // The forbidden chunk is removed from both lists before they are merged. The chunk found by both searches
+        // comes first, then the first remaining chunk of the semantic search and the one of the keyword search.
+        List<Context> expected = List.of(contextList.get(1), contextList.get(0), contextList.get(3));
         assertEquals(expected, result);
 
         // The collections have no stored document store: each one is searched in the internal store only.
@@ -424,6 +426,83 @@ class DefaultCollectionManagerTest
             Map.of(COLLECTION_ID, InternalDocumentStore.NAME, collectionId2, InternalDocumentStore.NAME);
         verify(this.solrConnector).similaritySearch("query", embeddingModelMap, storeHintMap, 4, locale);
         verify(this.solrConnector).keywordSearch("query", storeHintMap, 3, locale);
+    }
+
+    @Test
+    void hybridSearchRanksByPositionAndNotByScore() throws Exception
+    {
+        createAndSavePublicCollection(COLLECTION_ID);
+        // The scores of the keyword search are on another scale than the ones of the semantic search.
+        Context semanticA = new Context(COLLECTION_ID, "documentA", null, "urlA", "contentA", 0.82, List.of(0.1f));
+        Context semanticB = new Context(COLLECTION_ID, "documentB", null, "urlB", "contentB", 0.80, List.of(0.1f));
+        Context keywordC = new Context(COLLECTION_ID, "documentC", null, "urlC", "contentC", 14.0, List.of(0.1f));
+        Context keywordB = new Context(COLLECTION_ID, "documentB", null, "urlB", "contentB", 9.0, List.of(0.1f));
+        when(this.solrConnector.similaritySearch(any(), any(), anyMap(), anyInt(), any()))
+            .thenReturn(List.of(semanticA, semanticB));
+        when(this.solrConnector.keywordSearch(any(), anyMap(), anyInt(), any()))
+            .thenReturn(List.of(keywordC, keywordB));
+
+        List<Context> result = this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID), 4, 3);
+
+        // The chunk found by both searches comes first, with the score of the semantic search. The best semantic hit
+        // comes before the best keyword hit although its score is lower.
+        assertEquals(List.of(semanticB, semanticA, keywordC), result);
+    }
+
+    @Test
+    void hybridSearchRemovesDuplicatedContentAfterTheRightsCheck() throws Exception
+    {
+        XWikiContext context = this.oldcore.getXWikiContext();
+        context.setWikiId(WIKI_NAME);
+        mockCollectionsQuery(List.of());
+        createAndSaveCollection(COLLECTION_ID, EMBEDDING_MODEL);
+        when(this.customRightsAuthorizationManagerBuilder.getConfigurationClassReference())
+            .thenReturn(Collection.XCLASS_REFERENCE);
+        AuthorizationManager customManager = mock();
+        when(this.customRightsAuthorizationManagerBuilder.build(any())).thenReturn(customManager);
+        when(customManager.canView(Set.of("forbidden", "allowed")))
+            .thenReturn(Map.of("forbidden", false, "allowed", true));
+
+        // The same content is indexed from a document that the user cannot view and from one that the user can view.
+        String sharedContent = "shared content";
+        Context forbidden = new Context(COLLECTION_ID, "forbidden", null, "url0", sharedContent, 0.9, List.of(0.1f));
+        Context allowed = new Context(COLLECTION_ID, "allowed", null, "url1", sharedContent, 7.0, List.of(0.1f));
+        when(this.solrConnector.similaritySearch(any(), any(), anyMap(), anyInt(), any()))
+            .thenReturn(List.of(forbidden));
+        when(this.solrConnector.keywordSearch(any(), anyMap(), anyInt(), any())).thenReturn(List.of(allowed));
+
+        List<Context> result = this.collectionManager.hybridSearch(QUERY, List.of(COLLECTION_ID), 4, 3);
+
+        assertEquals(List.of(allowed), result);
+        // Both searches are checked in a single call.
+        verify(customManager).canView(Set.of("forbidden", "allowed"));
+        verifyNoMoreInteractions(customManager);
+    }
+
+    @Test
+    void similaritySearchOnSeveralCollectionsKeepsTheOrderOfTheConnector() throws Exception
+    {
+        String collectionId2 = "testcollection2";
+        createAndSavePublicCollection(COLLECTION_ID);
+        createAndSavePublicCollection(collectionId2);
+        // The scores are deliberately not in descending order: the order of the connector is the one returned.
+        List<Context> semanticResults = List.of(
+            new Context(collectionId2, "document0", null, "url0", "content0", 0.5, List.of(0.1f)),
+            new Context(COLLECTION_ID, "document1", null, "url1", "content1", 0.9, List.of(0.1f)),
+            new Context(collectionId2, "document2", null, "url2", "content2", 0.7, List.of(0.1f)),
+            new Context(COLLECTION_ID, "document3", null, "url3", "content3", 0.6, List.of(0.1f)));
+        when(this.solrConnector.similaritySearch(any(), any(), anyMap(), anyInt(), any()))
+            .thenReturn(semanticResults);
+        when(this.solrConnector.keywordSearch(any(), anyMap(), anyInt(), any())).thenReturn(List.of());
+
+        List<Context> result =
+            this.collectionManager.similaritySearch(QUERY, List.of(COLLECTION_ID, collectionId2), 4);
+
+        assertEquals(semanticResults, result);
+        // A semantic search asks the connector for no keyword result.
+        Map<String, String> storeHintMap =
+            Map.of(COLLECTION_ID, InternalDocumentStore.NAME, collectionId2, InternalDocumentStore.NAME);
+        verify(this.solrConnector).keywordSearch(QUERY, storeHintMap, 0, null);
     }
 
     @Test
@@ -654,6 +733,17 @@ class DefaultCollectionManagerTest
         verify(this.solrConnector)
             .similaritySearch(QUERY, Map.of(COLLECTION_ID, EMBEDDING_MODEL), storeHintMap, 4, null);
         verify(this.solrConnector).keywordSearch(QUERY, storeHintMap, 3, null);
+    }
+
+    private void createAndSavePublicCollection(String collectionId) throws Exception
+    {
+        this.oldcore.getXWikiContext().setWikiId(WIKI_NAME);
+        mockCollectionsQuery(List.of());
+        DefaultCollection collection = this.collectionManager.createCollection(collectionId);
+        collection.setRightsCheckMethod("public");
+        collection.setEmbeddingModel(EMBEDDING_MODEL);
+        collection.setAllowGuests(true);
+        collection.save();
     }
 
     private void createAndSaveXWikiStoreCollection(String rightsCheckMethod) throws Exception
