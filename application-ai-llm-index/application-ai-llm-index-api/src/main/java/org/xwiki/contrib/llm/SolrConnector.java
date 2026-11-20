@@ -758,6 +758,9 @@ public class SolrConnector
         // KNN main query, so the top-K nearest neighbors are computed among the matching-language chunks only.
         addLanguageQuery(locale, query);
         query.setQuery(String.format("{!knn f=vector topK=%s}%s", limit, embeddingsAsString));
+        // Without an explicit number of rows, Solr returns its default of 10 results whatever the number of nearest
+        // neighbors that was asked for.
+        query.setRows(limit);
 
         // Like the language restriction, the collection and document store restrictions are filter queries and thus
         // pre-filters of the KNN main query.

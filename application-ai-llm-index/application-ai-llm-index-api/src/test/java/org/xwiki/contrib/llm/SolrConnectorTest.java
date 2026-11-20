@@ -196,6 +196,20 @@ class SolrConnectorTest
     }
 
     @Test
+    void similaritySearchAsksForAsManyRowsAsNearestNeighbors() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenReturn(new double[] { 0.1, 0.2 });
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.similaritySearch("query", Map.of("col1", "model1"), 25);
+
+        SolrQuery query = capturedQuery();
+        assertTrue(query.getQuery().startsWith("{!knn f=vector topK=25}"), query.getQuery());
+        assertEquals(25, query.getRows());
+    }
+
+    @Test
     void similaritySearchAppliesLocaleAsFilterQueryNotInKnnQuery() throws Exception
     {
         when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
