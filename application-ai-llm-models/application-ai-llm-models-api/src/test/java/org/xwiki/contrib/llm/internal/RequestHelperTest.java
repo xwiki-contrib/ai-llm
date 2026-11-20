@@ -103,7 +103,8 @@ class RequestHelperTest
     {
         IOException exception = assertThrows(IOException.class, () -> postChatCompletion(urlPrefix));
 
-        assertEquals("The AI server [Test server] has no URL prefix; set it in the AI server configuration.", exception.getMessage());
+        assertEquals("The AI server [Test server] has no URL prefix; set it in the AI server configuration.",
+            exception.getMessage());
         verifyNoInteractions(this.httpClient);
     }
 }
