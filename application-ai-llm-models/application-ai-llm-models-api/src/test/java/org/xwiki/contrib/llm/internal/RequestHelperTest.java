@@ -104,7 +104,8 @@ class RequestHelperTest
         RequestError exception = assertThrows(RequestError.class, () -> postChatCompletion(urlPrefix));
 
         // The error is a request error so that the REST resources send its message to their caller.
-        String message = "The AI server [Test server] has no URL prefix; set it in the AI server configuration.";
+        String message =
+            "The AI server of this model has no URL prefix; ask an administrator to check the server of the model.";
         assertEquals(500, exception.getCode());
         assertEquals(message, exception.getPlainMessage());
         assertEquals(message, exception.getOpenAiError().error.getMessage());

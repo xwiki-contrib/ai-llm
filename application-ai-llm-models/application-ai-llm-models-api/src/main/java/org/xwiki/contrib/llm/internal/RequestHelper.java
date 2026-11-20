@@ -150,9 +150,9 @@ public class RequestHelper
     {
         String urlPrefix = config.getURL();
         if (StringUtils.isBlank(urlPrefix)) {
-            throw new RequestError(500,
-                "The AI server [%s] has no URL prefix; set it in the AI server configuration."
-                    .formatted(config.getName()));
+            // The message reaches every user of the chat, so it does not name the server.
+            throw new RequestError(500, "The AI server of this model has no URL prefix; "
+                + "ask an administrator to check the server of the model.");
         }
         return URI.create(urlPrefix.endsWith(SLASH) ? urlPrefix + path : urlPrefix + SLASH + path);
     }
