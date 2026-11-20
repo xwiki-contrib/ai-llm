@@ -37,6 +37,11 @@ import com.xpn.xwiki.XWikiException;
 import com.xpn.xwiki.doc.XWikiAttachment;
 import com.xpn.xwiki.doc.XWikiDocument;
 import com.xpn.xwiki.objects.BaseObject;
+import com.xpn.xwiki.objects.BaseProperty;
+import com.xpn.xwiki.objects.DBStringListProperty;
+import com.xpn.xwiki.objects.PropertyInterface;
+import com.xpn.xwiki.objects.classes.BaseClass;
+import com.xpn.xwiki.objects.classes.ListClass;
 
 import org.slf4j.Logger;
 
@@ -191,12 +196,32 @@ public class XWikiDocumentWrapper
     }
 
     /**
+     * Sets the value of a list field. The value is stored in the form declared by the class of the object, replacing
+     * a value stored in another form. A relational list is used when the class does not declare the field.
+     *
      * @param fieldName the name of the field
      * @param value the value of the field
      */
-    public void setStringListValue(String fieldName, List<String> value) throws IndexException
+    public void setListValue(String fieldName, List<String> value) throws IndexException
     {
-        getEditableObject().setStringListValue(fieldName, value);
+        BaseObject editableObject = getEditableObject();
+        BaseClass objectClass = editableObject.getXClass(this.contextProvider.get());
+        PropertyInterface definition = objectClass != null ? objectClass.get(fieldName) : null;
+
+        BaseProperty<?> property;
+        if (definition instanceof ListClass) {
+            ListClass listClass = (ListClass) definition;
+            property = listClass.newProperty();
+            listClass.fromList(property, value);
+        } else {
+            // Queries on the items of a list only find relational lists.
+            DBStringListProperty relationalList = new DBStringListProperty();
+            relationalList.setList(value);
+            property = relationalList;
+        }
+
+        // Always put a new property: a property that is already on the object keeps the form it was created with.
+        editableObject.safeput(fieldName, property);
     }
 
     /**

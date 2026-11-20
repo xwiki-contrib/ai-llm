@@ -279,7 +279,7 @@ public class DefaultCollection implements Collection
     public void setDocumentSpaces(List<String> documentSpaces) throws IndexException
     {
         if (documentSpaces != null) {
-            this.xWikiDocumentWrapper.setStringListValue(DOCUMENT_SPACE_FIELDNAME, documentSpaces);
+            this.xWikiDocumentWrapper.setListValue(DOCUMENT_SPACE_FIELDNAME, documentSpaces);
         }
     }
 

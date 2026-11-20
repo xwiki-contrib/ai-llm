@@ -24,18 +24,23 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.xwiki.contrib.llm.Collection;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.test.junit5.mockito.MockComponent;
 
 import com.xpn.xwiki.XWikiContext;
 import com.xpn.xwiki.doc.XWikiDocument;
+import com.xpn.xwiki.objects.DBStringListProperty;
+import com.xpn.xwiki.objects.PropertyInterface;
+import com.xpn.xwiki.objects.StringListProperty;
 import com.xpn.xwiki.test.MockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.InjectMockitoOldcore;
 import com.xpn.xwiki.test.junit5.mockito.OldcoreTest;
 import com.xpn.xwiki.test.reference.ReferenceComponentList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -55,6 +60,8 @@ class DefaultCollectionTest
         new DocumentReference("wiki", List.of("AI", "Collections", "testCollection"), "WebHome");
 
     private static final DocumentReference USER_REFERENCE = new DocumentReference("wiki", "XWiki", "User");
+
+    private static final List<String> SPACES = List.of("Space1", "Space2");
 
     @InjectMockitoOldcore
     private MockitoOldcore oldcore;
@@ -105,5 +112,84 @@ class DefaultCollectionTest
 
         verifyNoInteractions(this.writeAttribution);
         verify(this.oldcore.getSpyXWiki()).saveDocument(any(XWikiDocument.class), eq(this.context));
+    }
+
+    @Test
+    void setDocumentSpacesOnANewCollectionStoresARelationalList() throws Exception
+    {
+        this.collection.setDocumentSpaces(SPACES);
+
+        DBStringListProperty property = assertInstanceOf(DBStringListProperty.class, getDocumentSpacesProperty());
+        assertEquals(SPACES, property.getList());
+        assertEquals(DefaultCollection.DOCUMENT_SPACE_FIELDNAME, property.getName());
+        assertEquals(SPACES, this.collection.getDocumentSpaces());
+    }
+
+    @Test
+    void setDocumentSpacesReplacesANonRelationalList() throws Exception
+    {
+        // Make the collection document editable so that the object the collection writes to can be prepared.
+        this.collection.setChunkingMaxSize(1);
+        StringListProperty existingProperty = new StringListProperty();
+        existingProperty.setList(List.of("OldSpace"));
+        this.collection.getCollectionDocument().getXObject(Collection.XCLASS_REFERENCE)
+            .safeput(DefaultCollection.DOCUMENT_SPACE_FIELDNAME, existingProperty);
+        assertEquals(List.of("OldSpace"), this.collection.getDocumentSpaces());
+
+        this.collection.setDocumentSpaces(SPACES);
+
+        DBStringListProperty property = assertInstanceOf(DBStringListProperty.class, getDocumentSpacesProperty());
+        assertEquals(SPACES, property.getList());
+        assertEquals(SPACES, this.collection.getDocumentSpaces());
+    }
+
+    @Test
+    void setDocumentSpacesFollowsARelationalClassField() throws Exception
+    {
+        defineDocumentSpacesField(true);
+
+        this.collection.setDocumentSpaces(SPACES);
+
+        DBStringListProperty property = assertInstanceOf(DBStringListProperty.class, getDocumentSpacesProperty());
+        assertEquals(SPACES, property.getList());
+        assertEquals(SPACES, this.collection.getDocumentSpaces());
+    }
+
+    @Test
+    void setDocumentSpacesFollowsANonRelationalClassField() throws Exception
+    {
+        defineDocumentSpacesField(false);
+
+        this.collection.setDocumentSpaces(SPACES);
+
+        StringListProperty property = assertInstanceOf(StringListProperty.class, getDocumentSpacesProperty());
+        assertEquals(SPACES, property.getList());
+        assertEquals(SPACES, this.collection.getDocumentSpaces());
+    }
+
+    @Test
+    void setDocumentSpacesIgnoresNull() throws Exception
+    {
+        this.collection.setDocumentSpaces(SPACES);
+
+        this.collection.setDocumentSpaces(null);
+
+        assertEquals(SPACES, this.collection.getDocumentSpaces());
+    }
+
+    private PropertyInterface getDocumentSpacesProperty()
+    {
+        return this.collection.getCollectionDocument().getXObject(Collection.XCLASS_REFERENCE)
+            .safeget(DefaultCollection.DOCUMENT_SPACE_FIELDNAME);
+    }
+
+    private void defineDocumentSpacesField(boolean relationalStorage) throws Exception
+    {
+        DocumentReference classReference =
+            new DocumentReference(Collection.XCLASS_REFERENCE, COLLECTION_REFERENCE.getWikiReference());
+        XWikiDocument classDocument = this.oldcore.getSpyXWiki().getDocument(classReference, this.context);
+        classDocument.getXClass().addDBListField(DefaultCollection.DOCUMENT_SPACE_FIELDNAME, "Document spaces", 1,
+            true, relationalStorage, "");
+        this.oldcore.getSpyXWiki().saveDocument(classDocument, this.context);
     }
 }
