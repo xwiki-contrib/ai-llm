@@ -20,6 +20,10 @@
 package org.xwiki.contrib.llm;
 
 import java.util.Map;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
@@ -75,10 +79,12 @@ public class GPTAPIPrompt
         this.prompt = (String) dbMap.get("sysPrompt");
         this.userPrompt = (String) dbMap.get("userPrompt");
         this.description = (String) dbMap.get("longText1");
-        this.isActive = ((Integer) dbMap.get("boolean1")) == 1;
-        this.isDefault = ((Integer) dbMap.get(DEFAULT)) == 1;
-        String tempValue = (String) dbMap.get("shortText1");
-        if (!tempValue.equals("")) {
+        // The map only holds the properties present on the prompt object, so any of them can be missing: a missing
+        // flag reads as false, and a missing, blank or non-numeric temperature leaves the temperature unset.
+        this.isActive = Integer.valueOf(1).equals(dbMap.get("boolean1"));
+        this.isDefault = Integer.valueOf(1).equals(dbMap.get(DEFAULT));
+        String tempValue = StringUtils.trim((String) dbMap.get("shortText1"));
+        if (NumberUtils.isParsable(tempValue)) {
             this.temperature = Float.parseFloat(tempValue);
         }
         this.xWikiPageName = (String) dbMap.get("pageName");
