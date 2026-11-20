@@ -79,6 +79,13 @@ public class SolrConnector
 
     private static final String PARENTHESIS_CLOSE = ")";
 
+    /**
+     * The smallest number of nearest neighbors asked from the vector index. The search of the index is approximate
+     * and explores the index less when it is asked for fewer neighbors: asked for only a few, it often misses some
+     * of the nearest ones. Asking for more and returning the first ones makes the first results reliable.
+     */
+    private static final int MINIMUM_NEAREST_NEIGHBORS = 100;
+
     @Inject
     private Logger logger;
 
@@ -757,7 +764,8 @@ public class SolrConnector
         // The language restriction must stay a filter query: Solr applies filter queries as pre-filters of the
         // KNN main query, so the top-K nearest neighbors are computed among the matching-language chunks only.
         addLanguageQuery(locale, query);
-        query.setQuery(String.format("{!knn f=vector topK=%s}%s", limit, embeddingsAsString));
+        query.setQuery(String.format("{!knn f=vector topK=%s}%s", Math.max(limit, MINIMUM_NEAREST_NEIGHBORS),
+            embeddingsAsString));
         // Without an explicit number of rows, Solr returns its default of 10 results whatever the number of nearest
         // neighbors that was asked for.
         query.setRows(limit);

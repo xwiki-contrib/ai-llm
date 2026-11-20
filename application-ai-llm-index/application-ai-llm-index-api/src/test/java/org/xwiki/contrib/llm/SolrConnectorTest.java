@@ -196,7 +196,7 @@ class SolrConnectorTest
     }
 
     @Test
-    void similaritySearchAsksForAsManyRowsAsNearestNeighbors() throws Exception
+    void similaritySearchReturnsAsManyRowsAsAsked() throws Exception
     {
         when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
             .thenReturn(new double[] { 0.1, 0.2 });
@@ -204,9 +204,35 @@ class SolrConnectorTest
 
         this.solrConnector.similaritySearch("query", Map.of("col1", "model1"), 25);
 
+        assertEquals(25, capturedQuery().getRows());
+    }
+
+    @Test
+    void similaritySearchAsksForAtLeastAHundredNearestNeighbors() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenReturn(new double[] { 0.1, 0.2 });
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.similaritySearch("query", Map.of("col1", "model1"), 5);
+
         SolrQuery query = capturedQuery();
-        assertTrue(query.getQuery().startsWith("{!knn f=vector topK=25}"), query.getQuery());
-        assertEquals(25, query.getRows());
+        assertTrue(query.getQuery().startsWith("{!knn f=vector topK=100}"), query.getQuery());
+        assertEquals(5, query.getRows());
+    }
+
+    @Test
+    void similaritySearchAsksForAsManyNearestNeighborsAsResultsAboveAHundred() throws Exception
+    {
+        when(this.embeddingsUtils.computeEmbeddings(anyString(), any(), any(), any()))
+            .thenReturn(new double[] { 0.1, 0.2 });
+        when(this.queryResponse.getResults()).thenReturn(new SolrDocumentList());
+
+        this.solrConnector.similaritySearch("query", Map.of("col1", "model1"), 150);
+
+        SolrQuery query = capturedQuery();
+        assertTrue(query.getQuery().startsWith("{!knn f=vector topK=150}"), query.getQuery());
+        assertEquals(150, query.getRows());
     }
 
     @Test
