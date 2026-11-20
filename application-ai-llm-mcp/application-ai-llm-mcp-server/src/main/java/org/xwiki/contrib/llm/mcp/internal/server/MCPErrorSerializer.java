@@ -21,14 +21,11 @@ package org.xwiki.contrib.llm.mcp.internal.server;
 
 import java.io.IOException;
 
-import org.apache.commons.lang3.StringUtils;
-
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import io.modelcontextprotocol.spec.McpError;
-import io.modelcontextprotocol.spec.McpSchema;
 
 /**
  * Serializes an {@link McpError} as a JSON-RPC 2.0 error response:
@@ -40,14 +37,16 @@ import io.modelcontextprotocol.spec.McpSchema;
  * the JSON mapper. {@link McpError} is a {@link RuntimeException}, so Jackson's default bean serialization emits
  * its {@code stackTrace}, {@code cause}, {@code suppressed} and {@code localizedMessage} properties: a full
  * server stack trace in the HTTP response body. Registering this serializer on the mapper the transport uses
- * restricts the body to the JSON-RPC error fields; it reads nothing but {@link McpError#getJsonRpcError()}.</p>
+ * restricts the body to the JSON-RPC envelope, without the stack trace or any other bean property; it reads
+ * nothing but {@link McpError#getJsonRpcError()}.</p>
  *
  * <p>The {@code id} is {@code null}: the {@link McpError} carries no request id on any of those paths, including
  * the handler-failure path where the request was already parsed, so the serializer cannot echo one, and JSON-RPC
  * 2.0 prescribes {@code null} when the id cannot be determined.</p>
  *
- * <p>A blank message is replaced by a generic one: the SDK's {@code JSONRPCError} record only asserts that its
- * message is non-null.</p>
+ * <p>The {@code error} object is written by the serializer registered for the SDK's JSON-RPC error type,
+ * {@link MCPJsonRpcErrorSerializer}, which owns the rule deciding what message and data reach the caller. The
+ * mapper must therefore have both serializers registered, as {@link MCPJsonMapperFactory} does.</p>
  *
  * @version $Id$
  * @since 1.0.1
@@ -55,8 +54,6 @@ import io.modelcontextprotocol.spec.McpSchema;
 public final class MCPErrorSerializer extends StdSerializer<McpError>
 {
     private static final long serialVersionUID = 1L;
-
-    private static final String FALLBACK_MESSAGE = "Internal error";
 
     /**
      * Creates the serializer for {@link McpError}.
@@ -69,18 +66,10 @@ public final class MCPErrorSerializer extends StdSerializer<McpError>
     @Override
     public void serialize(McpError value, JsonGenerator gen, SerializerProvider provider) throws IOException
     {
-        McpSchema.JSONRPCResponse.JSONRPCError jsonRpcError = value.getJsonRpcError();
-
         gen.writeStartObject();
         gen.writeStringField("jsonrpc", "2.0");
         gen.writeNullField("id");
-        gen.writeObjectFieldStart("error");
-        gen.writeNumberField("code", jsonRpcError.code());
-        gen.writeStringField("message", StringUtils.defaultIfBlank(jsonRpcError.message(), FALLBACK_MESSAGE));
-        if (jsonRpcError.data() != null) {
-            provider.defaultSerializeField("data", jsonRpcError.data(), gen);
-        }
-        gen.writeEndObject();
+        provider.defaultSerializeField("error", value.getJsonRpcError(), gen);
         gen.writeEndObject();
     }
 }

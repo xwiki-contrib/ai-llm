@@ -58,6 +58,8 @@ class MCPErrorSerializerTest
 
     private static final String UNSUPPORTED = "Unsupported Media Type";
 
+    private static final String INTERNAL_ERROR = "Internal error";
+
     @Test
     void errorSerializesAsJsonRpcErrorWithoutStackTrace() throws IOException
     {
@@ -93,12 +95,32 @@ class MCPErrorSerializerTest
     void blankMessageFallsBackToGenericMessage() throws IOException
     {
         McpError error = new McpError(
-            new McpSchema.JSONRPCResponse.JSONRPCError(McpSchema.ErrorCodes.INTERNAL_ERROR, " ", null));
+            new McpSchema.JSONRPCResponse.JSONRPCError(McpSchema.ErrorCodes.INVALID_PARAMS, " ", null));
 
         JsonNode root = new ObjectMapper().readTree(MCPJsonMapperFactory.create().writeValueAsString(error));
 
+        assertEquals(McpSchema.ErrorCodes.INVALID_PARAMS, root.get(ERROR).get(CODE).asInt());
+        assertEquals(INTERNAL_ERROR, root.get(ERROR).get(MESSAGE).asText());
+    }
+
+    @Test
+    void internalErrorMessageIsReplacedByFixedText() throws IOException
+    {
+        McpError error = McpError.builder(McpSchema.ErrorCodes.INTERNAL_ERROR)
+            .message("Failed to handle request: Cannot construct instance of `java.util.LinkedHashMap`")
+            .data(Map.of("type", "java.util.LinkedHashMap"))
+            .build();
+
+        String json = MCPJsonMapperFactory.create().writeValueAsString(error);
+        JsonNode root = new ObjectMapper().readTree(json);
+
+        assertEquals(Set.of(JSONRPC, ID, ERROR), keys(root));
+        assertEquals("2.0", root.get(JSONRPC).asText());
+        assertTrue(root.get(ID).isNull());
+        assertEquals(Set.of(CODE, MESSAGE), keys(root.get(ERROR)));
         assertEquals(McpSchema.ErrorCodes.INTERNAL_ERROR, root.get(ERROR).get(CODE).asInt());
-        assertEquals("Internal error", root.get(ERROR).get(MESSAGE).asText());
+        assertEquals(INTERNAL_ERROR, root.get(ERROR).get(MESSAGE).asText());
+        assertFalse(json.contains("java."), json);
     }
 
     private static Set<String> keys(JsonNode node)

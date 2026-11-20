@@ -24,16 +24,22 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 
 import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpError;
+import io.modelcontextprotocol.spec.McpSchema;
 
 /**
  * Builds the JSON mapper handed to the MCP servlet transport.
  *
- * <p>The mapper is a plain Jackson {@link ObjectMapper} with {@link MCPErrorSerializer} registered for
- * {@link McpError}, so the transport's error responses carry only the JSON-RPC error fields instead of the
- * exception's default bean serialization (stack trace included). The construction lives in its own class rather
- * than inline in {@code XWikiMCPServerManager#buildServer} because that method is private and the transport does
- * not expose the mapper it was given: a standalone factory is what lets a test exercise the mapper's behaviour
- * without standing up a server, and it keeps the Jackson configuration out of the composition root.</p>
+ * <p>The mapper is a plain Jackson {@link ObjectMapper} with two serializers registered.
+ * {@link MCPErrorSerializer} handles {@link McpError}, so the transport's error responses carry only the JSON-RPC
+ * envelope instead of the exception's default bean serialization (stack trace included).
+ * {@link MCPJsonRpcErrorSerializer} handles the SDK's JSON-RPC error object, both inside that envelope and as the
+ * {@code error} of a regular JSON-RPC response, so an internal error never carries the exception text the SDK
+ * puts in its message.</p>
+ *
+ * <p>The construction lives in its own class rather than inline in {@code XWikiMCPServerManager#buildServer}
+ * because that method is private and the transport does not expose the mapper it was given: a standalone factory
+ * is what lets a test exercise the mapper's behaviour without standing up a server, and it keeps the Jackson
+ * configuration out of the composition root.</p>
  *
  * @version $Id$
  * @since 1.0.1
@@ -45,14 +51,16 @@ public final class MCPJsonMapperFactory
     }
 
     /**
-     * Creates the JSON mapper for the MCP transport, with the {@link McpError} serializer registered.
+     * Creates the JSON mapper for the MCP transport, with the error serializers registered.
      *
      * @return a new mapper instance
      */
     public static JacksonMcpJsonMapper create()
     {
         ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new SimpleModule().addSerializer(McpError.class, new MCPErrorSerializer()));
+        objectMapper.registerModule(new SimpleModule()
+            .addSerializer(McpError.class, new MCPErrorSerializer())
+            .addSerializer(McpSchema.JSONRPCResponse.JSONRPCError.class, new MCPJsonRpcErrorSerializer()));
         return new JacksonMcpJsonMapper(objectMapper);
     }
 }
