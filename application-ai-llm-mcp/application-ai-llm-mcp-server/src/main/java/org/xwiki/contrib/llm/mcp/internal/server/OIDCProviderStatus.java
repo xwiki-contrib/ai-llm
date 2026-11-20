@@ -103,11 +103,12 @@ public class OIDCProviderStatus
      * <p>
      * An id that is not the canonical id of an existing wiki (see
      * {@link MCPServerConfiguration#isCanonicalWikiId(String)}) is refused before the context is touched: the
-     * script service exposes this method to any script author with a caller-chosen id, and resolving the
-     * authentication service through a non-existent or variant id makes the platform's authentication service
-     * configuration log an error with a stack trace on every call (inside the farm-wide authentication service
-     * lock) or pollute its per-wiki cache with a case variant that invalidation never clears. The MCP resource
-     * checks canonicality first; this guard makes the component honor that invariant for every caller.
+     * script service exposes this method to any script author with a caller-chosen id. When the lookup fails
+     * for an id that names no wiki, {@link XWiki#getAuthService()} logs an error and falls back on the standard
+     * authenticator for every wiki of the farm until restart, which stops the token bridge from being used;
+     * and a case variant of an existing id adds an entry to the per-wiki cache of the platform's authentication
+     * service configuration that invalidation never clears. The MCP resource checks canonicality first; this
+     * guard makes the component honor that invariant for every caller.
      *
      * @param wikiId the wiki whose authentication service to inspect
      * @return {@code true} when the id is canonical and the active authentication service of the wiki is the

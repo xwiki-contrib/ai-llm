@@ -33,7 +33,8 @@
     <properties>
         <xwiki.extension.name>MCP Server - Core Module</xwiki.extension.name>
         <xwiki.extension.category>api</xwiki.extension.category>
-        <xwiki.jacoco.instructionRatio>0.81</xwiki.jacoco.instructionRatio>
+        <!-- Measured 0.96 on 2026-11-20 (transport error and history tests added); pinned with a small margin. -->
+        <xwiki.jacoco.instructionRatio>0.95</xwiki.jacoco.instructionRatio>
         <!-- This extension needs to be on the root namespace as it exposes a REST API. -->
         <xwiki.extension.namespaces>{root}</xwiki.extension.namespaces>
     </properties>
