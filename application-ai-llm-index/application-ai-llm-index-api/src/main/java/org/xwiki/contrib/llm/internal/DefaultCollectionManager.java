@@ -46,6 +46,7 @@ import org.xwiki.contrib.llm.CollectionManager;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
 import org.xwiki.contrib.llm.openai.Context;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.DocumentReferenceResolver;
@@ -183,15 +184,22 @@ public class DefaultCollectionManager implements CollectionManager
     {
         try {
             Collection collection = getCollection(id);
-            if (deleteDocuments) {
+            // A store whose documents are wiki pages owns no documents: the pages that the collection indexes stay.
+            if (deleteDocuments && !XWikiDocumentStore.NAME.equals(collection.getDocumentStoreHint())) {
                 var documentStore = collection.getDocumentStore();
                 for (String docID : documentStore.getDocumentNames(0, -1)) {
                     var document = documentStore.getDocument(docID);
-                    if (document != null) {
-                        documentStore.deleteDocument(document);
-                    } else {
+                    if (document == null) {
                         this.logger.warn("Skipping the deletion of document [{}] of collection [{}] as its page "
                             + "does not exist", docID, id);
+                        continue;
+                    }
+                    try {
+                        documentStore.deleteDocument(document);
+                    } catch (UnsupportedOperationException e) {
+                        // The document store of the collection is read-only: it owns no documents, so there is
+                        // nothing to delete and what it indexes must stay.
+                        break;
                     }
                 }
             }

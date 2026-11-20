@@ -62,7 +62,8 @@ public interface CollectionManager
     /**
      * Deletes a collection.
      * @param id the id of the collection
-     * @param deleteDocuments if true, deletes all documents in the collection
+     * @param deleteDocuments if true, also deletes the documents of the collection. This only applies to a document
+     *     store that owns its documents: the wiki pages that a collection indexes are never deleted
      */
     void deleteCollection(String id, boolean deleteDocuments) throws IndexException;
 

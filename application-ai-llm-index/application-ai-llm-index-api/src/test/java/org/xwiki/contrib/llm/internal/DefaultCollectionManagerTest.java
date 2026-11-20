@@ -158,6 +158,10 @@ class DefaultCollectionManagerTest
     private DocumentStore internalDocumentStore;
 
     @MockComponent
+    @Named(XWikiDocumentStore.NAME)
+    private DocumentStore xwikiDocumentStore;
+
+    @MockComponent
     @Named("language")
     private QueryFilter languageFilter;
 
@@ -283,6 +287,50 @@ class DefaultCollectionManagerTest
         assertTrue(this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).isNew());
         assertEquals("Skipping the deletion of document [missing] of collection [testcollection] as its page does "
             + "not exist", this.logCapture.getMessage(0));
+    }
+
+    @Test
+    void deleteCollectionWithDocumentsKeepsThePagesOfAnXWikiStoreCollection() throws Exception
+    {
+        createAndSaveXWikiStoreCollection("public");
+        XWikiContext context = this.oldcore.getXWikiContext();
+        // The XWiki store is read-only: deleting one of the pages it lists fails.
+        when(this.xwikiDocumentStore.getDocumentNames(0, -1)).thenReturn(List.of(VIEWABLE_ID));
+        when(this.xwikiDocumentStore.getDocument(VIEWABLE_ID)).thenReturn(mock(Document.class));
+        doThrow(new UnsupportedOperationException("read-only")).when(this.xwikiDocumentStore).deleteDocument(any());
+        assertFalse(this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).isNew());
+
+        this.collectionManager.deleteCollection(COLLECTION_ID, true);
+
+        assertTrue(this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).isNew());
+        // The pages that the collection indexes are neither listed nor deleted.
+        verify(this.xwikiDocumentStore, never()).getDocumentNames(anyInt(), anyInt());
+        verify(this.xwikiDocumentStore, never()).deleteDocument(any());
+    }
+
+    @Test
+    void deleteCollectionWithDocumentsOnAReadOnlyStoreDeletesTheCollection() throws Exception
+    {
+        XWikiContext context = this.oldcore.getXWikiContext();
+        context.setWikiId(WIKI_NAME);
+        mockCollectionsQuery(List.of());
+        this.collectionManager.createCollection(COLLECTION_ID).save();
+
+        String firstDocumentId = "first";
+        String secondDocumentId = "second";
+        when(this.internalDocumentStore.getDocumentNames(0, -1))
+            .thenReturn(List.of(firstDocumentId, secondDocumentId));
+        Document firstDocument = mock(Document.class);
+        when(this.internalDocumentStore.getDocument(firstDocumentId)).thenReturn(firstDocument);
+        doThrow(new UnsupportedOperationException("read-only")).when(this.internalDocumentStore)
+            .deleteDocument(firstDocument);
+
+        this.collectionManager.deleteCollection(COLLECTION_ID, true);
+
+        assertTrue(this.oldcore.getSpyXWiki().getDocument(COLLECTION_REFERENCE, context).isNew());
+        // The first refusal ends the deletion of documents: the next document is not even loaded.
+        verify(this.internalDocumentStore).deleteDocument(firstDocument);
+        verify(this.internalDocumentStore, never()).getDocument(secondDocumentId);
     }
 
     @Test

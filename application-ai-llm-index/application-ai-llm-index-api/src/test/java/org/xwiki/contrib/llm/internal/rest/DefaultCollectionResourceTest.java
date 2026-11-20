@@ -34,6 +34,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.xwiki.contrib.llm.Collection;
 import org.xwiki.contrib.llm.CollectionManager;
+import org.xwiki.contrib.llm.Document;
+import org.xwiki.contrib.llm.DocumentStore;
 import org.xwiki.contrib.llm.IndexException;
 import org.xwiki.contrib.llm.SolrConnector;
 import org.xwiki.contrib.llm.authorization.AuthorizationManager;
@@ -47,6 +49,7 @@ import org.xwiki.contrib.llm.internal.DefaultDocument;
 import org.xwiki.contrib.llm.internal.InternalDocumentStore;
 import org.xwiki.contrib.llm.internal.WriteAttribution;
 import org.xwiki.contrib.llm.internal.authorization.XWikiAuthorizationManagerBuilder;
+import org.xwiki.contrib.llm.internal.xwikistore.XWikiDocumentStore;
 import org.xwiki.contrib.llm.rest.JSONCollection;
 import org.xwiki.model.reference.DocumentReference;
 import org.xwiki.model.reference.SpaceReference;
@@ -95,6 +98,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -168,6 +172,10 @@ class DefaultCollectionResourceTest
 
     @MockComponent
     private DocumentRequiredRightsManager documentRequiredRightsManager;
+
+    @MockComponent
+    @Named(XWikiDocumentStore.NAME)
+    private DocumentStore xwikiDocumentStore;
 
     @Mock
     private Query collectionsQuery;
@@ -448,6 +456,28 @@ class DefaultCollectionResourceTest
         this.collectionResource.deleteCollection(WIKI_NAME, COLLECTION_1);
 
         assertNull(getCollectionFromWiki(COLLECTION_1));
+    }
+
+    @Test
+    void deleteCollectionOfWikiPagesKeepsThePages() throws Exception
+    {
+        // Make the collection index wiki pages: its document store is read-only.
+        XWikiContext context = this.oldcore.getXWikiContext();
+        XWikiDocument collectionDocument =
+            this.oldcore.getSpyXWiki().getDocument(COLLECTION_1_REFERENCE, context).clone();
+        collectionDocument.getXObject(Collection.XCLASS_REFERENCE)
+            .setStringValue(DefaultCollection.DOCUMENT_STORE_FIELDNAME, XWikiDocumentStore.NAME);
+        this.oldcore.getSpyXWiki().saveDocument(collectionDocument, context);
+        String pageId = "testwiki:Space.Page;";
+        when(this.xwikiDocumentStore.getDocumentNames(0, -1)).thenReturn(List.of(pageId));
+        when(this.xwikiDocumentStore.getDocument(pageId)).thenReturn(mock(Document.class));
+        doThrow(new UnsupportedOperationException("read-only")).when(this.xwikiDocumentStore).deleteDocument(any());
+        assertEquals(XWikiDocumentStore.NAME, getCollectionFromWiki(COLLECTION_1).getDocumentStoreHint());
+
+        this.collectionResource.deleteCollection(WIKI_NAME, COLLECTION_1);
+
+        assertNull(getCollectionFromWiki(COLLECTION_1));
+        verify(this.xwikiDocumentStore, never()).deleteDocument(any());
     }
 
     @Test
