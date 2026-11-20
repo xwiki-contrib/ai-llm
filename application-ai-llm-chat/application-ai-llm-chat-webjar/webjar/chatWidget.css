@@ -428,3 +428,12 @@ button#new-conv {
 .expand-icon {
     float: right;
 }
+
+/* The chat is not part of the page: leave it out of printed pages and PDF exports. "!important" overrides however the
+   script shows the open chat (a more specific rule or an inline style). */
+@media print {
+    #chat-widget,
+    #toggle-chat-button {
+        display: none !important;
+    }
+}
