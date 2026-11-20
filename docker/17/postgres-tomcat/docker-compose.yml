@@ -53,7 +53,7 @@ services:
   # propose the next major as a pull request, instead of a major database upgrade reaching the data volume silently on
   # the next pull.
   db:
-    image: "postgres:18"
+    image: "postgres:19"
     container_name: xwiki-postgres-db
     volumes:
       - postgres-data:/var/lib/postgresql
