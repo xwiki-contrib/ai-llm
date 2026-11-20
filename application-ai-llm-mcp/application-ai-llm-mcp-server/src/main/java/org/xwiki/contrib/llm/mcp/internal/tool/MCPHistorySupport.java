@@ -85,7 +85,9 @@ public class MCPHistorySupport
     private UnifiedDiffDisplayer unifiedDiffDisplayer;
 
     /**
-     * Counts the document's revisions, minor versions included.
+     * Counts the document's revisions, minor versions included. The versioning store counts in the context
+     * wiki's database and identifies the document by an id that does not include the wiki, so the context wiki
+     * is the document's wiki for the duration of the count.
      *
      * @param doc the loaded document (or translation row) whose history is read
      * @return the total revision count
@@ -93,7 +95,14 @@ public class MCPHistorySupport
      */
     public long countRevisions(XWikiDocument doc) throws XWikiException
     {
-        return doc.getRevisionsCount(allRevisionsCriteria(), this.contextProvider.get());
+        XWikiContext xcontext = this.contextProvider.get();
+        String originalWiki = xcontext.getWikiId();
+        try {
+            xcontext.setWikiId(doc.getDocumentReference().getWikiReference().getName());
+            return doc.getRevisionsCount(allRevisionsCriteria(), xcontext);
+        } finally {
+            xcontext.setWikiId(originalWiki);
+        }
     }
 
     /**

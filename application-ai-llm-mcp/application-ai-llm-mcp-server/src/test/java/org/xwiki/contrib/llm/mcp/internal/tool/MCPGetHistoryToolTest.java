@@ -33,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.xwiki.bridge.DocumentAccessBridge;
 import org.xwiki.contrib.llm.mcp.MCPAccessDeniedException;
 import org.xwiki.contrib.llm.mcp.MCPDocumentAccess;
@@ -69,6 +70,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -114,7 +117,14 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
 
     private static final String AUTHOR = "XWiki.PaulPantiru";
 
-    private static final DocumentReference DOC_REF = new DocumentReference("xwiki", "Sandbox", "WebHome");
+    private static final String MAIN_WIKI = "xwiki";
+
+    private static final String SECOND_WIKI = "second";
+
+    private static final DocumentReference DOC_REF = new DocumentReference(MAIN_WIKI, "Sandbox", "WebHome");
+
+    private static final DocumentReference SECOND_WIKI_REF =
+        new DocumentReference(SECOND_WIKI, "Sandbox", "CrossWikiReachTest");
 
     @RegisterExtension
     private LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
@@ -152,6 +162,7 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
         lenient().when(this.wikiReach.isReachEnabled()).thenReturn(true);
         this.xcontext = mock(XWikiContext.class);
         lenient().when(this.contextProvider.get()).thenReturn(this.xcontext);
+        lenient().when(this.xcontext.getWikiId()).thenReturn(MAIN_WIKI);
     }
 
     @Override
@@ -165,6 +176,7 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
         XWikiDocument doc = mock(XWikiDocument.class);
         lenient().when(doc.getVersion()).thenReturn(currentVersion);
         lenient().when(doc.getContent()).thenReturn(content);
+        lenient().when(doc.getDocumentReference()).thenReturn(DOC_REF);
         when(this.documentAccessBridge.exists(DOC_REF)).thenReturn(true);
         when(this.documentAccessBridge.getDocumentInstance(DOC_REF)).thenReturn(doc);
         return doc;
@@ -677,6 +689,7 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
         when(this.documentAccessBridge.exists(frRef)).thenReturn(true);
         XWikiDocument frDoc = mock(XWikiDocument.class);
         when(frDoc.getVersion()).thenReturn("1.2");
+        when(frDoc.getDocumentReference()).thenReturn(frRef);
         when(this.documentAccessBridge.getDocumentInstance(frRef)).thenReturn(frDoc);
         when(frDoc.getRevisionsCount(any(RevisionCriteria.class), any())).thenReturn(2L);
         when(frDoc.getRevisions(any(RevisionCriteria.class), any()))
@@ -719,6 +732,66 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
 
         // The resolved target wiki becomes the resolution context of an unqualified reference.
         verify(this.documentAccess).resolveAndAuthorize(REF, Right.VIEW, new WikiReference("second"));
+    }
+
+    private XWikiDocument stubSecondWikiDocument() throws Exception
+    {
+        when(this.wikiReach.resolveSingleWiki(SECOND_WIKI)).thenReturn(SECOND_WIKI);
+        when(this.documentAccess.resolveAndAuthorize(anyString(), eq(Right.VIEW), any(WikiReference.class)))
+            .thenReturn(SECOND_WIKI_REF);
+        XWikiDocument doc = mock(XWikiDocument.class);
+        lenient().when(doc.getVersion()).thenReturn("3.1");
+        when(doc.getDocumentReference()).thenReturn(SECOND_WIKI_REF);
+        when(this.documentAccessBridge.exists(SECOND_WIKI_REF)).thenReturn(true);
+        when(this.documentAccessBridge.getDocumentInstance(SECOND_WIKI_REF)).thenReturn(doc);
+        return doc;
+    }
+
+    @Test
+    void crossWikiListCountsRevisionsInTheDocumentsWiki() throws Exception
+    {
+        XWikiDocument doc = stubSecondWikiDocument();
+        // The versioning store counts in the context wiki's database: the stub answers the document's real
+        // count only while the context wiki is the document's wiki, and 0 (the endpoint wiki's answer) otherwise.
+        List<String> contextWikis = new ArrayList<>(List.of(MAIN_WIKI));
+        doAnswer(invocation -> contextWikis.add(invocation.getArgument(0)))
+            .when(this.xcontext).setWikiId(anyString());
+        when(doc.getRevisionsCount(any(RevisionCriteria.class), any()))
+            .thenAnswer(invocation -> SECOND_WIKI.equals(contextWikis.get(contextWikis.size() - 1)) ? 3L : 0L);
+        when(doc.getRevisions(any(RevisionCriteria.class), any()))
+            .thenReturn(new ArrayList<>(List.of("1.1", "2.1", "3.1")));
+        stubRevisionInfo(doc, "1.1", node(AUTHOR, "", false, date(9, 0)));
+        stubRevisionInfo(doc, "2.1", node(AUTHOR, "", false, date(9, 30)));
+        stubRevisionInfo(doc, "3.1", node(AUTHOR, "", false, date(10, 0)));
+
+        String text = callText(Map.of(REFERENCE_KEY, "Sandbox.CrossWikiReachTest", WIKI_KEY, SECOND_WIKI));
+
+        assertTrue(text.contains("Total revisions: 3"), text);
+        // The context wiki is the document's wiki during the count and the endpoint's wiki again afterwards.
+        InOrder order = inOrder(this.xcontext, doc);
+        order.verify(this.xcontext).setWikiId(SECOND_WIKI);
+        order.verify(doc).getRevisionsCount(any(RevisionCriteria.class), any());
+        order.verify(this.xcontext).setWikiId(MAIN_WIKI);
+        assertEquals(List.of(MAIN_WIKI, SECOND_WIKI, MAIN_WIKI), contextWikis);
+    }
+
+    @Test
+    void crossWikiCountFailureStillRestoresTheContextWiki() throws Exception
+    {
+        XWikiDocument doc = stubSecondWikiDocument();
+        when(doc.getRevisionsCount(any(RevisionCriteria.class), any()))
+            .thenThrow(new XWikiException(XWikiException.MODULE_XWIKI_STORE,
+                XWikiException.ERROR_XWIKI_UNKNOWN, "archive read failed"));
+
+        McpSchema.CallToolResult result =
+            call(Map.of(REFERENCE_KEY, "Sandbox.CrossWikiReachTest", WIKI_KEY, SECOND_WIKI));
+
+        assertEquals(Boolean.TRUE, result.isError());
+        assertTrue(this.logCapture.getMessage(0)
+            .startsWith("MCP get_history tool failed to read the history of"), this.logCapture.getMessage(0));
+        InOrder order = inOrder(this.xcontext);
+        order.verify(this.xcontext).setWikiId(SECOND_WIKI);
+        order.verify(this.xcontext).setWikiId(MAIN_WIKI);
     }
 
     @Test
@@ -768,6 +841,7 @@ class MCPGetHistoryToolTest extends AbstractMCPToolTest
             .thenReturn(forgedRef);
         XWikiDocument doc = mock(XWikiDocument.class);
         lenient().when(doc.getVersion()).thenReturn("1.1");
+        when(doc.getDocumentReference()).thenReturn(forgedRef);
         when(this.documentAccessBridge.exists(forgedRef)).thenReturn(true);
         when(this.documentAccessBridge.getDocumentInstance(forgedRef)).thenReturn(doc);
         when(doc.getRevisionsCount(any(RevisionCriteria.class), any()))
