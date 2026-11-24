@@ -92,9 +92,9 @@ ENV CURL_OPTIONS="-fSL --retry 5 --retry-all-errors --retry-delay 5 --connect-ti
 # the new link inside that directory instead. We then check that the symlink resolves to an actual soffice binary:
 # since it is the only thing making JODConverter find LibreOffice, an installation landing elsewhere must fail the
 # build rather than produce an image where office import/export silently doesn't work.
-ENV LIBREOFFICE_VERSION="26.2.6"
-ENV LIBREOFFICE_SHA256_AMD64="fd0e8f8f2408dd2e5b90286e60f3f97cf566ba441cd48cfc5bcc68067303e0bc"
-ENV LIBREOFFICE_SHA256_ARM64="f8e8b1d30abde0d530d727ce1b26909ccbedc3d76bcf75d93b3dd5fcd5b8d278"
+ENV LIBREOFFICE_VERSION="26.2.7"
+ENV LIBREOFFICE_SHA256_AMD64="8cd04a88396a9230264ff784ec89cc090cbfd0960c192483ba2b80fa53939416"
+ENV LIBREOFFICE_SHA256_ARM64="d871da75fe387f9dab5acb7569d46d1098835c25b53695c89152f5194ad34411"
 ENV LIBREOFFICE_URL_PREFIX="https://download.documentfoundation.org/libreoffice/stable/${LIBREOFFICE_VERSION}/deb"
 RUN set -eux; \
   LO_ARCH="$(dpkg --print-architecture)"; \
@@ -116,9 +116,9 @@ RUN set -eux; \
 # Install XWiki as the ROOT webapp context in Tomcat
 # Create the Tomcat temporary directory
 # Configure the XWiki permanent directory
-ENV XWIKI_VERSION="17.10.14"
+ENV XWIKI_VERSION="17.10.15"
 ENV XWIKI_URL_PREFIX="https://maven.xwiki.org/releases/org/xwiki/platform/xwiki-platform-distribution-war/${XWIKI_VERSION}"
-ENV XWIKI_DOWNLOAD_SHA256="dced6dae8c9f0e02866bdf6550e3d29cef52e626c63f68ea3de297eb3c284abc"
+ENV XWIKI_DOWNLOAD_SHA256="d9d761d6ac4a86c8bb2733ea9a872ef54162ab1c528fb58ed5da0ccd304525b4"
 RUN set -eux; \
   rm -rf /usr/local/tomcat/webapps/*; \
   mkdir -p /usr/local/tomcat/temp; \
@@ -144,8 +144,8 @@ RUN set -eux; \
 # into the permanent directory's extension repository, so that the Distribution Wizard can install the flavor from the
 # local copy. The flavor is also registered as a known flavor of this distribution (see the extension.xed edit below)
 # so that the Distribution Wizard lists it.
-ENV LLM_XIP_VERSION="1.0.0"
-ENV LLM_XIP_SHA256="b4e0bf28ab0b6b5db4fbf27dbc015cb64e7979c989fe20b2672e7c34ceeecab9"
+ENV LLM_XIP_VERSION="1.0.1"
+ENV LLM_XIP_SHA256="e47e8073e44611f5df76eb49b28b118bf22b108c3420743728f65fc7aa54d20d"
 ENV LLM_XIP_URL_PREFIX="https://maven.xwiki.org/releases/org/xwiki/contrib/llm/application-ai-llm-xip/${LLM_XIP_VERSION}"
 RUN set -eux; \
   mkdir -p /usr/local/xwiki/data/extension/repository; \

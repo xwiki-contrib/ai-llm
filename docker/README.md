@@ -58,6 +58,8 @@ Then, there are several options:
 
 ## Pulling an existing image
 
+The images published on DockerHub (`xwikicontrib/ai-llm`) are built for `linux/amd64` only. On another architecture, build the image from the sources (see [Building](#building)).
+
 You need to run at least 2 containers:
 
 -	One for the XWiki image
@@ -133,7 +135,7 @@ You need to make sure this directory exists, before proceeding.
 Note Make sure the directory you specify is specified with the fully-qualified path, not a relative path.
 
 ```
-docker run --net=xwiki-nw --name postgres-xwiki -v /my/path/postgres:/var/lib/postgresql -e POSTGRES_USER=xwiki -e POSTGRES_PASSWORD=xwiki -e POSTGRES_DB=xwiki -e POSTGRES_INITDB_ARGS="--encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8" -d postgres:18
+docker run --net=xwiki-nw --name postgres-xwiki -v /my/path/postgres:/var/lib/postgresql -e POSTGRES_USER=xwiki -e POSTGRES_PASSWORD=xwiki -e POSTGRES_DB=xwiki -e POSTGRES_INITDB_ARGS="--encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8" -d postgres:19
 ```
 
 You should adapt the command line to use the passwords that you wish for the PostgreSQL root password and for the xwiki user password.
@@ -151,18 +153,18 @@ Ensure this directory exists, and then run XWiki in a container by issuing one o
 For MySQL:
 
 ```console
-docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mysql-xwiki xwikicontrib/ai-llm:1.0.0-17.10.14-mysql-tomcat
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mysql-xwiki xwikicontrib/ai-llm:1.0.1-17.10.15-mysql-tomcat
 ```
 
 For MariaDB:
 
 ```console
-docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mariadb-xwiki xwikicontrib/ai-llm:1.0.0-17.10.14-mariadb-tomcat
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=mariadb-xwiki xwikicontrib/ai-llm:1.0.1-17.10.15-mariadb-tomcat
 ```
 
 For PostgreSQL:
 ```console
-docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=postgres-xwiki xwikicontrib/ai-llm:1.0.0-17.10.14-postgres-tomcat
+docker run --net=xwiki-nw --name xwiki -p 8080:8080 -v /my/path/xwiki:/usr/local/xwiki -e DB_USER=xwiki -e DB_PASSWORD=xwiki -e DB_DATABASE=xwiki -e DB_HOST=postgres-xwiki xwikicontrib/ai-llm:1.0.1-17.10.15-postgres-tomcat
 ```
 
 Be careful to use the same DB username, password and database names that you've used on the first command to start the DB container. Also, please don't forget to add a `-e DB_HOST=` environment variable with the name of the previously created DB container so that XWiki knows where its database is.
@@ -231,13 +233,15 @@ If you already started the new stack and XWiki failed with the error above, run 
 
 ### PostgreSQL: dump and restore
 
-PostgreSQL cannot upgrade a data directory across major versions, and the official `postgres:18` image also changed where it keeps its data (the volume is now mounted on `/var/lib/postgresql` instead of `/var/lib/postgresql/data`). Starting the new stack on the old volume therefore does not fail: PostgreSQL 18 initialises an empty cluster next to the old data and XWiki shows an empty wiki. This path has not been tested yet; the procedure is the standard one:
+PostgreSQL cannot upgrade a data directory across major versions, and since version 18 the official `postgres` image keeps its data in another place (the volume is mounted on `/var/lib/postgresql` instead of `/var/lib/postgresql/data`, with one sub-directory per major version). Starting the new stack on the old volume therefore does not fail: PostgreSQL 19 initialises an empty cluster next to the old data and XWiki shows an empty wiki. This path has not been tested yet; the procedure is the standard one:
 
 1. On the running `docker/16` stack, dump the database: `docker compose exec -T db pg_dump -U xwiki -Fc xwiki > xwiki.dump`
 2. Stop it with `docker compose down`, then remove the old database volume (keep the dump!): `docker volume rm postgres-tomcat_postgres-data`
 3. From `docker/17/postgres-tomcat`, start only the database: `docker compose up -d db`
 4. Restore the dump: `docker compose exec -T db pg_restore -U xwiki -d xwiki --no-owner --role=xwiki < xwiki.dump`
 5. Start the whole stack with `docker compose up`
+
+The same holds for a database volume created with another major version of the `postgres` image than the one of the Compose file, for example with `postgres:18`: dump the database with the image that created the volume (set the image of the `db` service to that version for the dump), then follow steps 2 to 5.
 
 ### Ollama
 
@@ -248,11 +252,11 @@ The pulled models stay in the `ollama` volume. The new Compose files pull `gemma
 To build the Docker image locally:
 -	Install Git and run `git clone https://github.com/xwiki-contrib/ai-llm.git` or download the sources from the GitHub UI. Then go to the directory corresponding to the docker tag you wish to use. For example: `cd docker/17/mysql-tomcat`
 - Navigate to the directory containing the Dockerfile (e.g., `17/mysql-tomcat` or `17/mariadb-tomcat`)
--	Run `docker build . -t xwikicontrib/ai-llm:1.0.0-17.10.14-mysql-tomcat` (use the tag referenced by the `docker-compose.yml` of that directory, so that `docker compose up` picks up the local image instead of pulling the published one)
+-	Run `docker build . -t xwikicontrib/ai-llm:1.0.1-17.10.15-mysql-tomcat` (use the tag referenced by the `docker-compose.yml` of that directory, so that `docker compose up` picks up the local image instead of pulling the published one)
 -	Run `docker compose up`
 -	Start a browser and point it to `http://localhost:8080`
 
-Note that if you want to set a custom version of XWiki you can edit the `.env` file and set the values you need in there. It's also possible to override them on the command line with `docker compose run -e "XWIKI_VERSION=17.10.14"`.
+Note that if you want to set a custom version of XWiki you can edit the `.env` file and set the values you need in there. It's also possible to override them on the command line with `docker compose run -e "XWIKI_VERSION=17.10.15"`.
 
 You can also just build the image by issuing `docker build -t xwiki-ai-llm .` and then use the instructions from above to start XWiki and the database using `docker run ...`.
 
