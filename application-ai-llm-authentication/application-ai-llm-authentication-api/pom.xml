@@ -44,7 +44,7 @@
     <dependency>
       <groupId>com.nimbusds</groupId>
       <artifactId>nimbus-jose-jwt</artifactId>
-      <version>10.10</version>
+      <version>10.11</version>
     </dependency>
     <!-- Tink: needed at runtime by nimbus-jose-jwt for Ed25519. Pinned to 1.15.0, the last version built
          on protobuf-java 3.x: Tink 1.16+ requires protobuf-java 4.x while the XWiki platform manages
